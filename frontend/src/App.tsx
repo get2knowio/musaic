@@ -1,0 +1,74 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
+
+import LibraryPage from "@/pages/Library";
+import JobsPage from "@/pages/Jobs";
+import HealthPage from "@/pages/Health";
+import HealthDetailPage from "@/pages/HealthDetail";
+import SettingsPage from "@/pages/Settings";
+import Titlebar from "@/components/Titlebar";
+import Sidebar from "@/components/Sidebar";
+import { useJobsStream } from "@/hooks/useJobsStream";
+import { useChecksStream } from "@/hooks/useChecksStream";
+import { useTrackLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
+
+/**
+ * Top-level layout: titlebar across the top, sidebar on the left, route
+ * outlet fills the main canvas. Mirrors the handoff's grid:
+ *   [titlebar 36px]
+ *   [sidebar 188px | main 1fr]
+ */
+export default function App() {
+  // Single subscriber to the AI jobs SSE stream — keeps the cached jobs
+  // query fresh and fires Sonner toasts on completion / failure transitions.
+  useJobsStream();
+
+  // Single subscriber to the health-checks SSE stream — keeps the cached
+  // checks summary + open findings fresh as runs / ignores happen.
+  useChecksStream();
+
+  // Save the user's last /library URL to sessionStorage so the Sidebar's
+  // "Library" link can restore the same filter / search / open album when
+  // they come back from /jobs, /settings, etc.
+  useTrackLibraryUrl();
+
+  return (
+    <div className="grid h-screen grid-rows-[var(--titlebar-h)_1fr] bg-bg text-fg overflow-hidden">
+      <Titlebar />
+      <div className="grid grid-cols-[var(--sidebar-w)_1fr] min-h-0">
+        <Sidebar />
+        <main className="relative min-h-0 flex flex-col overflow-hidden">
+          <Routes>
+            <Route path="/" element={<Navigate to="/library" replace />} />
+            {/* /library and /library/:albumId share the same LibraryPage
+                instance — nesting keeps the page mounted across album
+                open/close so scroll position, scan stream, and other
+                local state are preserved. The DetailSheet reads albumId
+                via useParams() regardless of nesting depth. */}
+            <Route path="/library" element={<LibraryPage />}>
+              <Route path=":albumId" element={null} />
+            </Route>
+            <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/health" element={<HealthPage />} />
+            <Route path="/health/:checkId" element={<HealthDetailPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/library" replace />} />
+          </Routes>
+        </main>
+      </div>
+      {/* Top-right so toasts don't overlap with the right-anchored DetailSheet's
+          footer buttons (which sit bottom-right of the visible area). */}
+      <Toaster
+        position="top-right"
+        theme="dark"
+        toastOptions={{
+          classNames: {
+            toast: "!bg-panel !border-line !text-fg",
+            description: "!text-fg-3",
+            actionButton: "!bg-accent !text-accent-fg",
+          },
+        }}
+      />
+    </div>
+  );
+}

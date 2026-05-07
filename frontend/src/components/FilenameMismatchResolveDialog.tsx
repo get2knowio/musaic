@@ -1,0 +1,325 @@
+/**
+ * Per-finding resolve dialog for the filename-mismatch check.
+ *
+ * Shows the album, the template that's being applied, and a table
+ * of current → expected filenames for every mismatched track. The
+ * user confirms (Apply) and the backend two-pass renames everything
+ * on disk. Track tags follow via cache.rename_track_filename.
+ *
+ * Chain mode: when `findings` is supplied, the dialog walks through
+ * the list after each Apply instead of closing — same pattern as
+ * ArtistSortResolveDialog. Ideal for the inevitable first-run
+ * sweep where hundreds of albums need renaming.
+ */
+import { useEffect, useMemo, useState } from "react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, FileEdit, FolderInput, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+
+import { applyFilenameRename } from "@/lib/api";
+import {
+  CHECKS_QUERY_KEY,
+  CHECK_DETAIL_KEY,
+  FINDINGS_QUERY_KEY,
+} from "@/hooks/useChecks";
+import type { Finding, FilenameMismatchDetail, FilenameRenameEntry } from "@/lib/types";
+
+interface Props {
+  finding: Finding;
+  open: boolean;
+  onClose: () => void;
+  /** Optional chain — see ArtistSortResolveDialog for the full
+   *  rationale. When set, applies advance through the list rather
+   *  than closing the dialog. */
+  findings?: Finding[];
+}
+
+export default function FilenameMismatchResolveDialog({
+  finding,
+  open,
+  onClose,
+  findings,
+}: Props) {
+  const qc = useQueryClient();
+
+  // Chain snapshot — frozen at open so post-apply cache
+  // invalidation doesn't shift positions under us.
+  const [chainSnapshot, setChainSnapshot] = useState<Finding[]>([]);
+  const [currentFindingId, setCurrentFindingId] = useState<number>(finding.id);
+
+  useEffect(() => {
+    if (!open) return;
+    const filtered = (findings ?? [finding]).filter(
+      (f) =>
+        f.check_id === finding.check_id
+        && !f.resolved_at
+        && !f.ignored_at,
+    );
+    setChainSnapshot(filtered.length > 0 ? filtered : [finding]);
+    setCurrentFindingId(finding.id);
+  }, [open, finding.id]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const currentFinding =
+    chainSnapshot.find((f) => f.id === currentFindingId) ?? finding;
+  const currentIndex = chainSnapshot.findIndex(
+    (f) => f.id === currentFindingId,
+  );
+  const totalInChain = chainSnapshot.length;
+  const hasNext = currentIndex >= 0 && currentIndex < totalInChain - 1;
+
+  const detail = (currentFinding.detail || {}) as FilenameMismatchDetail;
+  const renames: FilenameRenameEntry[] = detail.renames ?? [];
+  const dirRename = detail.dir_rename ?? null;
+  const dirName = detail.dir_name || currentFinding.album_id || "";
+  const template = detail.template || "";
+  const dirTemplate = detail.dir_template || "";
+  const isCompilation = !!detail.is_compilation;
+
+  // Filter out renames that have a name-collision flag — those would
+  // overwrite each other and need user attention before applying.
+  const collisions = useMemo(
+    () => renames.filter((r) => r.collides_with),
+    [renames],
+  );
+  const safe = useMemo(
+    () => renames.filter((r) => !r.collides_with),
+    [renames],
+  );
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      applyFilenameRename(currentFinding.id, {
+        plan: safe.map((r) => ({ old: r.filename, new: r.expected })),
+        dirRename: dirRename
+          ? { old: dirRename.old, new: dirRename.new }
+          : undefined,
+      }),
+    onSuccess: (r) => {
+      if (r.ok) {
+        toast.success(r.message);
+      } else {
+        toast.warning(r.message || "Rename completed with errors");
+      }
+      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
+      qc.invalidateQueries({
+        queryKey: CHECK_DETAIL_KEY("filename-mismatch"),
+      });
+      if (hasNext) {
+        const next = chainSnapshot[currentIndex + 1];
+        setCurrentFindingId(next.id);
+      } else {
+        if (totalInChain > 1) {
+          toast.success(`Done — processed ${totalInChain} albums.`, {
+            duration: 3000,
+          });
+        }
+        onClose();
+      }
+    },
+    onError: (e) => {
+      toast.error((e as Error).message || "Rename failed");
+    },
+  });
+
+  const onApply = () => {
+    if (safe.length === 0 && !dirRename) return;
+    mutation.mutate();
+  };
+
+  const onSkipNext = () => {
+    if (hasNext) {
+      const next = chainSnapshot[currentIndex + 1];
+      setCurrentFindingId(next.id);
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]" />
+        <Dialog.Content
+          className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(720px,95vw)] bg-panel border border-line rounded-md shadow-sheet outline-none flex flex-col"
+          aria-describedby={undefined}
+        >
+          <div className="flex items-center justify-between px-4 h-11 border-b border-line">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileEdit className="w-3.5 h-3.5 text-accent shrink-0" />
+              <Dialog.Title className="font-semibold text-md truncate">
+                Rename files to match template
+              </Dialog.Title>
+              {totalInChain > 1 && currentIndex >= 0 && (
+                <span className="mono text-[11px] text-fg-4 tabular-nums shrink-0">
+                  · {currentIndex + 1} of {totalInChain}
+                </span>
+              )}
+            </div>
+            <Dialog.Close asChild>
+              <button
+                className="w-8 h-8 grid place-items-center text-fg-3 hover:text-fg hover:bg-bg-3 rounded transition"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </Dialog.Close>
+          </div>
+
+          <div className="px-4 py-3.5 space-y-3 overflow-y-auto max-h-[70vh]">
+            <div>
+              <div className="mono text-xs text-fg-3 truncate" title={dirName}>
+                {dirName}
+                {isCompilation && (
+                  <span className="ml-2 text-accent">[compilation]</span>
+                )}
+              </div>
+              <div className="mono text-[11px] text-fg-4 mt-0.5 truncate">
+                File template: <code className="text-fg-3">{template}</code>
+                {dirTemplate && (
+                  <>
+                    <span className="mx-1.5">·</span>
+                    Dir template: <code className="text-fg-3">{dirTemplate}</code>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {dirRename && (
+              <div className="border border-accent/40 rounded-md bg-accent/5 px-3 py-2.5">
+                <div className="flex items-center gap-1.5 mb-1.5 text-[11px] mono uppercase tracking-[0.06em] text-accent">
+                  <FolderInput className="w-3 h-3" />
+                  <span>Album folder rename</span>
+                </div>
+                <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-sm min-w-0">
+                  <div className="mono text-[12px] text-warn line-through truncate" title={dirRename.old}>
+                    {dirRename.old}
+                  </div>
+                  <div className="text-fg-4 mono text-xs">→</div>
+                  <div className="mono text-[12px] text-ok truncate" title={dirRename.new}>
+                    {dirRename.new}
+                  </div>
+                </div>
+                <div className="mt-1.5 text-[11px] text-fg-3 leading-relaxed">
+                  Done first; file renames below run inside the new folder.
+                  This changes the album's internal id, so any stored links
+                  pointing to the old id (in your URL bar, etc.) will need
+                  to be refreshed.
+                </div>
+              </div>
+            )}
+
+            {collisions.length > 0 && (
+              <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium text-fg">Name collision detected</div>
+                  <div className="mt-0.5 text-fg-3">
+                    {collisions.length} file{collisions.length === 1 ? "" : "s"}
+                    {" "}render to a name another file is also asking for. Those
+                    are skipped from the apply — fix the underlying tags
+                    (probably a duplicate tracknumber) and rerun the check.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="border border-line rounded-md bg-panel-2 divide-y divide-line">
+              <div className="flex items-center px-3 py-1.5 border-b border-line text-[11px] mono uppercase tracking-[0.06em] text-fg-4">
+                <span>{renames.length} file{renames.length === 1 ? "" : "s"} to rename</span>
+              </div>
+              {renames.map((r) => (
+                <RenameRow key={r.filename} entry={r} />
+              ))}
+            </div>
+
+            <p className="text-xs text-fg-4 leading-relaxed">
+              Files are renamed via a two-pass operation (staged to a temp
+              name, then to the final) so swapped names can't collide
+              mid-rename. Per-track tags follow each file automatically.
+              The displayed FLAC tags (artist, title, etc.) are not modified.
+            </p>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
+            <Dialog.Close asChild>
+              <button
+                className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
+                disabled={mutation.isPending}
+              >
+                Cancel
+              </button>
+            </Dialog.Close>
+            {hasNext && (
+              <button
+                onClick={onSkipNext}
+                disabled={mutation.isPending}
+                className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60"
+                title="Don't rename this one — go to the next finding"
+              >
+                Skip →
+              </button>
+            )}
+            <button
+              onClick={onApply}
+              disabled={mutation.isPending || (safe.length === 0 && !dirRename)}
+              className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5"
+            >
+              {mutation.isPending ? (
+                <><Loader2 className="w-3.5 h-3.5 spin" /> Renaming…</>
+              ) : (
+                <>{_buildApplyLabel(safe.length, !!dirRename, hasNext)}</>
+              )}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function _buildApplyLabel(
+  fileCount: number,
+  hasDirRename: boolean,
+  hasNext: boolean,
+): string {
+  const parts: string[] = [];
+  if (hasDirRename) parts.push("folder");
+  if (fileCount > 0) parts.push(`${fileCount} file${fileCount === 1 ? "" : "s"}`);
+  if (parts.length === 0) return hasNext ? "Skip" : "Nothing to rename";
+  return `Rename ${parts.join(" + ")}${hasNext ? " & next" : ""}`;
+}
+
+
+function RenameRow({ entry }: { entry: FilenameRenameEntry }) {
+  const stale = !!entry.collides_with;
+  return (
+    <div className="px-3 py-2 text-sm min-w-0 grid grid-cols-[1fr_auto_1fr] gap-3 items-start">
+      <div className="min-w-0">
+        <div className="mono text-[11px] text-warn line-through truncate" title={entry.filename}>
+          {entry.filename}
+        </div>
+        <div className="text-[11px] text-fg-4 mt-0.5 truncate" title={entry.title}>
+          {entry.tracknumber ? `${entry.tracknumber}. ` : ""}
+          {entry.title}
+          {entry.artist ? ` — ${entry.artist}` : ""}
+        </div>
+      </div>
+      <div className="text-fg-4 mono text-xs shrink-0 mt-1">→</div>
+      <div className="min-w-0">
+        <div
+          className={`mono text-[11px] truncate ${stale ? "text-fg-4 line-through" : "text-ok"}`}
+          title={entry.expected}
+        >
+          {entry.expected}
+        </div>
+        {stale && entry.collides_with && (
+          <div className="text-[11px] text-warn mt-0.5 truncate" title={entry.collides_with}>
+            collides with {entry.collides_with}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

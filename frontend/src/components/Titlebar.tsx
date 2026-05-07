@@ -1,0 +1,213 @@
+import { Grid, List, Loader2, Moon, RefreshCw, Search, Settings, Sun } from "lucide-react";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
+
+import { useLibraryConfig } from "@/hooks/useLibraryConfig";
+import {
+  getScanning,
+  subscribeScanning,
+  triggerRescan,
+} from "@/lib/rescanController";
+
+type ViewMode = "tiles" | "list";
+
+function readView(params: URLSearchParams): ViewMode {
+  return params.get("view") === "list" ? "list" : "tiles";
+}
+
+const ROUTE_LABELS: { match: (path: string) => boolean; label: string }[] = [
+  { match: (p) => p === "/" || p.startsWith("/library"), label: "Library" },
+  { match: (p) => p.startsWith("/jobs"), label: "AI Jobs" },
+  { match: (p) => p.startsWith("/health"), label: "Health" },
+  { match: (p) => p.startsWith("/settings"), label: "Settings" },
+];
+
+function abbreviateHome(path: string): string {
+  return path.replace(/^\/Users\/[^/]+/, "~");
+}
+
+/**
+ * Titlebar — 36px tall, full-width chrome with brand, breadcrumb, search,
+ * view toggle, rescan, theme toggle, settings.
+ *
+ * The Rescan button delegates to the Library page's `useScanStream.rescan`
+ * via the rescanController module-level registry. When Library isn't
+ * mounted, it falls back to a bare API call + toast pointing the user at
+ * the Library page so they can watch the progress.
+ */
+export default function Titlebar() {
+  const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const onLibrary = location.pathname.startsWith("/library");
+  const query = params.get("q") ?? "";
+  const view = readView(params);
+  const config = useLibraryConfig();
+
+  const scanning = useSyncExternalStore(subscribeScanning, getScanning, getScanning);
+  const [rescanning, setRescanning] = useState(false);
+
+  const onSearchChange = (value: string) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("q", value);
+    else next.delete("q");
+    setParams(next, { replace: true });
+  };
+
+  const setView = (next: ViewMode) => {
+    const p = new URLSearchParams(params);
+    // Default is tiles, so we omit the param when it's the default to keep
+    // URLs clean. ?view=list is sticky across navigation via the URL.
+    if (next === "list") p.set("view", "list");
+    else p.delete("view");
+    setParams(p, { replace: true });
+  };
+
+  const onRescan = async () => {
+    if (rescanning || scanning) return;
+    setRescanning(true);
+    try {
+      const { via } = await triggerRescan();
+      if (via === "api") {
+        toast("Rescan started in the background", {
+          description: "Open Library to watch the progress.",
+          duration: 4000,
+        });
+      }
+    } catch (err) {
+      const e = err as Error;
+      toast.error(e.message || "Couldn't start rescan");
+    } finally {
+      setRescanning(false);
+    }
+  };
+
+  // Breadcrumb: prefer the abbreviated configured library_dir, fall back to
+  // the current route name. Hardcoded "~/Music/Library" was misleading.
+  const libraryDir = config.data?.library_dir ?? null;
+  const routeLabel =
+    ROUTE_LABELS.find((r) => r.match(location.pathname))?.label ?? "";
+  const crumb =
+    onLibrary && libraryDir ? abbreviateHome(libraryDir) : routeLabel;
+
+  const rescanDisabled = rescanning || scanning || !config.data?.exists;
+  const rescanTitle = !config.data?.exists
+    ? "Configure a library directory in Settings first"
+    : scanning || rescanning
+    ? "Scanning…"
+    : "Rescan the library";
+
+  return (
+    <header className="flex items-center gap-3 h-[var(--titlebar-h)] px-3.5 border-b border-line bg-panel-2 select-none relative z-10">
+      {/* Brand */}
+      <div className="flex items-center gap-2.5 font-semibold text-md tracking-tight">
+        <BrandMark />
+        <span>Media Manager</span>
+      </div>
+
+      {/* Breadcrumb / current location */}
+      <div className="flex items-center gap-1.5 mono text-sm text-fg-3 ml-2 truncate max-w-md">
+        {onLibrary && libraryDir ? (
+          <span className="text-fg-2 truncate" title={libraryDir}>
+            {crumb}
+          </span>
+        ) : (
+          <span className="text-fg-2 truncate">{crumb}</span>
+        )}
+      </div>
+
+      <div className="flex-1" />
+
+      {/* Search — writes ?q=… to the URL so Library page can filter */}
+      <div className="flex items-center gap-2 bg-panel border border-line rounded-md px-2.5 h-8 w-80 focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-soft)] transition">
+        <Search className="w-3.5 h-3.5 text-fg-3" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={onLibrary ? "Filter albums, artists, tracks…" : "Search…"}
+          disabled={!onLibrary}
+          className="bg-transparent border-0 outline-0 flex-1 text-sm placeholder:text-fg-4 disabled:opacity-60"
+        />
+        <span className="mono text-xs text-fg-3 border border-line bg-bg-2 px-1.5 py-0.5 rounded-sm">/</span>
+      </div>
+
+      {/* View toggle */}
+      <div className="inline-flex border border-line rounded-md h-8 overflow-hidden bg-panel">
+        <button
+          className={`px-2.5 text-sm flex items-center gap-1 ${view === "tiles" ? "bg-bg-3 text-fg" : "text-fg-3"}`}
+          onClick={() => setView("tiles")}
+          title="Tile view"
+        >
+          <Grid className="w-3.5 h-3.5" />
+        </button>
+        <button
+          className={`px-2.5 text-sm flex items-center gap-1 border-l border-line ${view === "list" ? "bg-bg-3 text-fg" : "text-fg-3"}`}
+          onClick={() => setView("list")}
+          title="List view"
+        >
+          <List className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Rescan */}
+      <button
+        onClick={onRescan}
+        disabled={rescanDisabled}
+        className="inline-flex items-center gap-2 h-8 px-3 border border-line rounded-md bg-panel text-fg-2 text-sm hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 disabled:cursor-not-allowed"
+        title={rescanTitle}
+      >
+        {scanning || rescanning ? (
+          <Loader2 className="w-3.5 h-3.5 spin" />
+        ) : (
+          <RefreshCw className="w-3.5 h-3.5" />
+        )}
+        <span>{scanning || rescanning ? "Scanning…" : "Rescan"}</span>
+      </button>
+
+      {/* Theme toggle */}
+      <ThemeToggle />
+
+      {/* Settings */}
+      <Link
+        to="/settings"
+        className="inline-flex items-center justify-center w-8 h-8 border border-line rounded-md bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
+        title="Settings"
+      >
+        <Settings className="w-3.5 h-3.5" />
+      </Link>
+    </header>
+  );
+}
+
+function BrandMark() {
+  return (
+    <div
+      className="w-[18px] h-[18px] rounded-[4px] bg-accent grid place-items-center text-accent-fg font-bold text-[11px] relative"
+      aria-hidden
+    >
+      M
+      {/* Faux record-label ring */}
+      <span className="absolute inset-[3px] border rounded-full" style={{ borderColor: "color-mix(in oklch, var(--accent-fg), transparent 60%)" }} />
+      <span className="absolute w-[3px] h-[3px] bg-accent-fg rounded-full" />
+    </div>
+  );
+}
+
+function ThemeToggle() {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  return (
+    <button
+      className="inline-flex items-center justify-center w-6 h-6 border border-line rounded-[5px] bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
+      title="Toggle theme"
+      onClick={() => {
+        const root = document.documentElement;
+        const next = !dark;
+        root.classList.toggle("dark", next);
+        setDark(next);
+      }}
+    >
+      {dark ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+    </button>
+  );
+}

@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# uv / virtualenv
+.venv/
+.uv/
+
+# Environment & secrets
+.env
+*.env.local
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+*.swp
+*.swo
+
+# Runtime data (user-local, not project files)
+*.db
+*.db-shm
+*.db-wal
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Stale root-level docs (content moved to docs/)
+README 2.md

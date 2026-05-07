@@ -1,0 +1,206 @@
+@import "tailwindcss";
+
+/* ============================================================
+   Design tokens — ported from design-handoff/prototype/styles.css
+   Runtime variables on :root (light) / html.dark, exposed to
+   Tailwind via @theme so utility classes work in both themes.
+   ============================================================ */
+
+:root {
+  /* ---------- Neutral OKLCH scale (cool gray, hue 250) ---------- */
+  --n-0:    oklch(0.99 0.003 250);
+  --n-50:   oklch(0.975 0.004 250);
+  --n-100:  oklch(0.955 0.005 250);
+  --n-150:  oklch(0.93 0.006 250);
+  --n-200:  oklch(0.895 0.007 250);
+  --n-300:  oklch(0.82 0.008 250);
+  --n-400:  oklch(0.68 0.01 250);
+  --n-500:  oklch(0.56 0.012 250);
+  --n-600:  oklch(0.45 0.013 250);
+  --n-700:  oklch(0.34 0.014 250);
+  --n-800:  oklch(0.24 0.014 250);
+  --n-850:  oklch(0.19 0.013 250);
+  --n-900:  oklch(0.155 0.012 250);
+  --n-950:  oklch(0.12 0.011 250);
+  --n-1000: oklch(0.08 0.009 250);
+
+  /* ---------- Accent ---------- */
+  --accent-h:    250;
+  --accent:      oklch(0.68 0.16 var(--accent-h));
+  --accent-soft: oklch(0.68 0.16 var(--accent-h) / 0.14);
+  --accent-line: oklch(0.68 0.16 var(--accent-h) / 0.35);
+  --accent-fg:   oklch(0.18 0.02 var(--accent-h));
+
+  /* ---------- Status ---------- */
+  --ok:        oklch(0.74 0.15 152);
+  --ok-soft:   oklch(0.74 0.15 152 / 0.14);
+  --warn:      oklch(0.78 0.16 75);
+  --warn-soft: oklch(0.78 0.16 75 / 0.16);
+  --err:       oklch(0.66 0.20 25);
+  --err-soft:  oklch(0.66 0.20 25 / 0.14);
+
+  /* ---------- Type ---------- */
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Type scale (px) — roomy density: ~12% larger than the handoff's
+     "standard" mode, comfortable for extended reading without screaming */
+  --fs-xs:  12px;
+  --fs-sm:  13px;
+  --fs-md:  14.5px;   /* default body */
+  --fs-lg:  16.5px;
+  --fs-xl:  19px;
+  --fs-2xl: 25px;
+
+  /* Density — roomy: bigger row heights and padding, larger tiles */
+  --row-h:    32px;
+  --tile-min: 208px;
+  --pad-x:    18px;
+  --pad-y:    14px;
+
+  /* App-shell sizes */
+  --titlebar-h:  42px;
+  --sidebar-w:   224px;
+  --filterbar-h: 38px;
+
+  /* Light theme palette */
+  --bg:       var(--n-0);
+  --bg-2:     var(--n-50);
+  --bg-3:     var(--n-100);
+  --panel:    #ffffff;
+  --panel-2:  var(--n-50);
+  --line:     var(--n-200);
+  --line-2:   var(--n-150);
+  --fg:       var(--n-900);
+  --fg-2:     var(--n-700);
+  --fg-3:     var(--n-500);
+  --fg-4:     var(--n-400);
+
+  --shadow-1:    0 1px 0 oklch(0.2 0.01 250 / 0.04), 0 1px 2px oklch(0.2 0.01 250 / 0.04);
+  --shadow-2:    0 8px 28px oklch(0.2 0.01 250 / 0.08), 0 2px 6px oklch(0.2 0.01 250 / 0.06);
+  --shadow-sheet: -16px 0 40px oklch(0.2 0.01 250 / 0.12);
+}
+
+html.dark {
+  --bg:       var(--n-1000);
+  --bg-2:     var(--n-950);
+  --bg-3:     var(--n-900);
+  --panel:    var(--n-950);
+  --panel-2:  var(--n-900);
+  --line:     oklch(0.26 0.013 250);
+  --line-2:   oklch(0.22 0.012 250);
+  --fg:       oklch(0.96 0.005 250);
+  --fg-2:     oklch(0.82 0.008 250);
+  --fg-3:     oklch(0.6 0.012 250);
+  --fg-4:     oklch(0.45 0.012 250);
+  --accent-fg: #ffffff;
+  --shadow-1:    0 1px 0 #0006, 0 1px 2px #0004;
+  --shadow-2:    0 12px 40px #0008, 0 2px 8px #0006;
+  --shadow-sheet: -20px 0 60px #0009;
+}
+
+/* ============================================================
+   Tailwind theme — exposes runtime tokens as utility classes.
+   `bg-bg`, `text-fg`, `border-line`, etc. work in both themes.
+   ============================================================ */
+
+@theme {
+  --color-bg:        var(--bg);
+  --color-bg-2:      var(--bg-2);
+  --color-bg-3:      var(--bg-3);
+  --color-panel:     var(--panel);
+  --color-panel-2:   var(--panel-2);
+  --color-line:      var(--line);
+  --color-line-2:    var(--line-2);
+  --color-fg:        var(--fg);
+  --color-fg-2:      var(--fg-2);
+  --color-fg-3:      var(--fg-3);
+  --color-fg-4:      var(--fg-4);
+  --color-accent:      var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-line: var(--accent-line);
+  --color-accent-fg:   var(--accent-fg);
+  --color-ok:        var(--ok);
+  --color-ok-soft:   var(--ok-soft);
+  --color-warn:      var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-err:       var(--err);
+  --color-err-soft:  var(--err-soft);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+
+  --text-xs:  12px;
+  --text-sm:  13px;
+  --text-md:  14.5px;   /* body default */
+  --text-lg:  16.5px;
+  --text-xl:  19px;
+  --text-2xl: 25px;
+
+  --shadow-card:  var(--shadow-1);
+  --shadow-popup: var(--shadow-2);
+  --shadow-sheet: var(--shadow-sheet);
+}
+
+/* ============================================================
+   Base / reset
+   ============================================================ */
+
+/* Base resets MUST live inside @layer base — Tailwind v4 puts utilities in
+   the `utilities` layer, and unlayered rules win over layered rules per the
+   CSS cascade. Without the layer, `button { border: 0 }` would override our
+   `.border` utility class on every button. */
+@layer base {
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: var(--fs-md);
+    color: var(--fg);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { background: none; border: 0; padding: 0; cursor: pointer; }
+  ::selection { background: var(--accent-soft); }
+}
+
+/* Common helpers */
+.mono  { font-family: var(--font-mono); font-feature-settings: "zero", "ss02"; }
+.tnum  { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Animations (used across components)
+   ============================================================ */
+
+@keyframes spin   { to { transform: rotate(360deg); } }
+@keyframes pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent), transparent 40%); }
+  70%  { box-shadow: 0 0 0 8px color-mix(in oklch, var(--accent), transparent 100%); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--accent), transparent 100%); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes skel-pulse {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1.0; }
+}
+
+/* Sheet + dialog enter/exit (used by Radix Dialog data-state attributes) */
+@keyframes sheet-fade-in   { from { opacity: 0; }  to { opacity: 1; } }
+@keyframes sheet-fade-out  { from { opacity: 1; }  to { opacity: 0; } }
+@keyframes sheet-slide-in  { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes sheet-slide-out { from { transform: translateX(0); }    to { transform: translateX(100%); } }
+
+.spin { animation: spin 1s linear infinite; }
+
+/* Sheet (Radix Dialog) animations — targeted by classes the components add. */
+.sheet-overlay[data-state="open"]  { animation: sheet-fade-in  .18s cubic-bezier(.32,.72,.34,1); }
+.sheet-overlay[data-state="closed"]{ animation: sheet-fade-out .18s cubic-bezier(.32,.72,.34,1) forwards; }
+.sheet-content[data-state="open"]  { animation: sheet-slide-in  .22s cubic-bezier(.32,.72,.34,1); }
+.sheet-content[data-state="closed"]{ animation: sheet-slide-out .22s cubic-bezier(.32,.72,.34,1) forwards; }
