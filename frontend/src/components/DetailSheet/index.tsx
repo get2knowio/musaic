@@ -454,7 +454,7 @@ function SheetBody({
               }
             >
               {tracks.data ? (
-                <AudioAnalysis album={displayAlbum} tracks={tracks.data.tracks} />
+                <AudioAnalysis tracks={tracks.data.tracks} />
               ) : (
                 <div className="px-4 py-3 text-xs text-fg-4">Loading…</div>
               )}

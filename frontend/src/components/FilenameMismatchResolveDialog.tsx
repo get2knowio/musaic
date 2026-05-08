@@ -68,7 +68,7 @@ export default function FilenameMismatchResolveDialog({
   const totalInChain = chainSnapshot.length;
   const hasNext = currentIndex >= 0 && currentIndex < totalInChain - 1;
 
-  const detail = (currentFinding.detail || {}) as FilenameMismatchDetail;
+  const detail = (currentFinding.detail || {}) as unknown as FilenameMismatchDetail;
   const renames: FilenameRenameEntry[] = detail.renames ?? [];
   const dirRename = detail.dir_rename ?? null;
   const dirName = detail.dir_name || currentFinding.album_id || "";

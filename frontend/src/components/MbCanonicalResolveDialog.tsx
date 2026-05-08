@@ -9,7 +9,7 @@
  * Chain mode: walks through findings after each apply, same pattern
  * as the other resolve dialogs.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Disc3, FileAudio, Loader2, X } from "lucide-react";
@@ -61,7 +61,7 @@ export default function MbCanonicalResolveDialog({
   const totalInChain = chainSnapshot.length;
   const hasNext = currentIndex >= 0 && currentIndex < totalInChain - 1;
 
-  const detail = (currentFinding.detail || {}) as MbCanonicalMismatchDetail;
+  const detail = (currentFinding.detail || {}) as unknown as MbCanonicalMismatchDetail;
   const albumDiff: MbCanonicalAlbumArtistDiff | null = detail.album_artist_diff ?? null;
   const trackDiffs: MbCanonicalTrackArtistDiff[] = detail.track_artist_diffs ?? [];
 

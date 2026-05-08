@@ -1,8 +1,7 @@
 import { Activity, BarChart3 } from "lucide-react";
-import type { Album, Track } from "@/lib/types";
+import type { Track } from "@/lib/types";
 
 interface AudioAnalysisProps {
-  album: Album;
   tracks: Track[];
 }
 
@@ -11,7 +10,7 @@ interface AudioAnalysisProps {
  * handoff. Calculate-buttons + the actual SSE analysis endpoints land in
  * the next milestone — for now, we just visualize what's already there.
  */
-export default function AudioAnalysis({ album, tracks }: AudioAnalysisProps) {
+export default function AudioAnalysis({ tracks }: AudioAnalysisProps) {
   const bpmCount = tracks.filter((t) => t.bpm !== null).length;
   const rgTrackCount = tracks.filter((t) => t.replaygain_track_gain).length;
   const albumGain = tracks[0]?.replaygain_album_gain ?? null;

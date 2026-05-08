@@ -27,8 +27,14 @@ cd frontend && npm run build  # Produces dist/ served by FastAPI in production
 
 ### Type Check
 ```bash
-cd frontend && npm run typecheck  # Currently broken (known issue, lower priority)
+cd frontend && npm run typecheck
 ```
+
+### Tests
+```bash
+uv run pytest                          # Backend integration tests (hermetic, no FLAC fixtures)
+```
+Tests redirect `MEDIA_MANAGER_CONFIG_DIR` to a tmp dir via `tests/conftest.py` so the user's real `~/.media_manager` is untouched.
 
 ### Diagnostics
 ```bash
@@ -50,7 +56,9 @@ python diagnose_chromaprint.py         # Check fpcalc binary
 
 | Module | Role |
 |---|---|
-| `main.py` | All FastAPI routes (monolithic; candidate for future split) |
+| `main.py` | App construction, lifespan, frontend SPA, CLI entry — wires the routers + worker together |
+| `api/` | FastAPI routers: `library` (config/scan/albums/cover/tracks), `tags` (track tags + vocabulary), `jobs` (AI queue REST/SSE), `settings` (settings + DB backup/snapshots), `health` (checks framework REST/SSE), `apply` (album apply SSE) |
+| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
 | `scanner.py` | Filesystem scan + album parsing (directory-name convention) |
 | `db.py` | SQLite schema + migrations |
 | `ai.py` | Claude SDK integration (system prompts, JSON extraction, MCP support) |
@@ -128,9 +136,6 @@ Note: `checks/_apply.py` has a separate deterministic fix path with duplicated l
 1. **Scan lifecycle**: SSE-driven; if the browser disconnects mid-scan, the scan halts and the library cache is left partial
 2. **Health detail cache invalidation**: Fixing or ignoring a finding doesn't immediately refresh the detail view
 3. **Deterministic vs AI fix paths** have duplicate mutation logic (`checks/_apply.py` vs `tags.py`)
-4. **`main.py` is monolithic** — all routes in one file; split by concern is a pending refactor
-5. **Frontend typecheck is broken** — `npm run typecheck` fails; not blocking for day-to-day work
-6. **Legacy static frontend** at `media_manager/static/` is still shipped alongside the React app but is not the product UI
 
 ## Debugging Tips
 

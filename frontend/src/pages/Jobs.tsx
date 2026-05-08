@@ -133,7 +133,7 @@ function Header({
   onRequestBulkDelete,
 }: {
   counts: Record<string, number>;
-  onRequestBulkDelete: (p: PendingDelete) => void;
+  onRequestBulkDelete: (p: Extract<PendingDelete, { kind: "bulk" }>) => void;
 }) {
   return (
     <div className="flex items-center gap-3 px-4 h-[var(--filterbar-h)] border-b border-line bg-panel-2 text-sm shrink-0">
