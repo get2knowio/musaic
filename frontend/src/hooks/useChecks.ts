@@ -103,9 +103,10 @@ export function useIgnoreFinding() {
   return useMutation({
     mutationFn: (args: { checkId: string; findingId: number; reason?: string }) =>
       ignoreFinding(args.checkId, args.findingId, args.reason),
-    onSuccess: () => {
+    onSuccess: (_data, args) => {
       qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY(args.checkId) });
     },
   });
 }
@@ -115,9 +116,10 @@ export function useUnignoreFinding() {
   return useMutation({
     mutationFn: (args: { checkId: string; findingId: number }) =>
       unignoreFinding(args.checkId, args.findingId),
-    onSuccess: () => {
+    onSuccess: (_data, args) => {
       qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY(args.checkId) });
     },
   });
 }
@@ -127,9 +129,10 @@ export function useFixFinding() {
   return useMutation({
     mutationFn: (args: { checkId: string; findingId: number; hint?: string }) =>
       fixFinding(args.checkId, args.findingId, args.hint ?? ""),
-    onSuccess: () => {
+    onSuccess: (_data, args) => {
       qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY(args.checkId) });
       // Fix may have enqueued an AI job; refresh the jobs cache so the
       // sidebar badge / activity indicator picks it up immediately.
       qc.invalidateQueries({ queryKey: ["jobs"] });
@@ -170,6 +173,7 @@ export function useDeleteDuplicateFile() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY("duplicate-tracks") });
     },
   });
 }

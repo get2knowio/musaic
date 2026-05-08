@@ -34,6 +34,11 @@ export function useChecksStream() {
       qc.setQueryData(CHECKS_QUERY_KEY, payload.checks ?? []);
       // Findings may have changed; invalidate so consumers refetch lazily.
       qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
+      // The Health detail page reads findings off the per-check detail
+      // response (CHECK_DETAIL_KEY), not the global findings cache —
+      // invalidate that too so an open detail page refreshes when a
+      // finding gets fixed/ignored from a dialog elsewhere.
+      qc.invalidateQueries({ queryKey: ["check"] });
     });
 
     es.addEventListener("error", () => {

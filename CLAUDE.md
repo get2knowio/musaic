@@ -61,7 +61,7 @@ python diagnose_chromaprint.py         # Check fpcalc binary
 |---|---|
 | `main.py` | App construction, lifespan, frontend SPA, CLI entry — wires the routers + worker together |
 | `api/` | FastAPI routers: `library` (config/scan/albums/cover/tracks), `tags` (track tags + vocabulary), `jobs` (AI queue REST/SSE), `settings` (settings + DB backup/snapshots), `health` (checks framework REST/SSE), `apply` (album apply SSE) |
-| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
+| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `apply` (single album mutation generator used by both the streaming endpoint and the deterministic check-fix path), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
 | `scanner.py` | Filesystem scan + album parsing (directory-name convention) |
 | `db.py` | SQLite schema + migrations |
 | `ai.py` | Claude SDK integration (system prompts, JSON extraction, MCP support) |
@@ -111,15 +111,17 @@ Various Artists - Album [FLAC]
 
 ### Mutation Pipeline
 
-When the user applies AI suggestions (`tags.py`):
-1. Dry-run diff preview
-2. Write Vorbis comments via `mutagen` (explicit `.save()` required)
-3. Optionally rename files to match track-number suggestions
-4. Download + embed cover as JPEG or save as `cover.jpg` sidecar
-5. Drop thumbnail cache and rescan the album
-6. Persist track-tag sidecars (JSON colocated with FLACs)
+Single generator at `services/apply.py:apply_album_changes_iter` is the only path that mutates an album:
+1. Download cover bytes (if requested) and normalize to JPEG q95
+2. Stream `tags.apply_to_album_iter` per FLAC — Vorbis writes via `mutagen` + optional renames
+3. Migrate `track_tags` rows on filename rename
+4. Save `cover.jpg` sidecar when cover changed
+5. Drop the album thumbnail
+6. Resync the track-tag sidecar JSON
+7. Re-scan + upsert the single album row (don't drop the whole snapshot)
+8. Re-run cheap post-scan health checks so satisfied findings auto-resolve
 
-Note: `checks/_apply.py` has a separate deterministic fix path with duplicated logic — a known simplification target (see `docs/IMPROVEMENTS.md`).
+Both consumers — the `/api/albums/{id}/apply/stream` endpoint and the deterministic check-fix path (`checks/_apply.py`) — drive this same generator. The streaming endpoint forwards every yielded `(event, payload)` to the SSE socket; the check-fix path drains the iterator and reports a single ok/message outcome.
 
 ## Configuration
 
@@ -137,8 +139,6 @@ Note: `checks/_apply.py` has a separate deterministic fix path with duplicated l
 ## Known Issues
 
 1. **Scan lifecycle**: SSE-driven; if the browser disconnects mid-scan, the scan halts and the library cache is left partial
-2. **Health detail cache invalidation**: Fixing or ignoring a finding doesn't immediately refresh the detail view
-3. **Deterministic vs AI fix paths** have duplicate mutation logic (`checks/_apply.py` vs `tags.py`)
 
 ## Debugging Tips
 
