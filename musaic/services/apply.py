@@ -160,6 +160,19 @@ def apply_album_changes_iter(
                 cache_module.upsert_album(library_dir, fresh_dict)
             yield "updated_album", fresh_dict
 
+        # 6b. Invalidate the metadata-resolver cache for this album so the
+        #     next /api/albums/{id}/resolution call re-derives off the
+        #     freshly-written tags. The resolver's content_hash doesn't
+        #     capture tag-only edits (it tracks track_count / total_seconds
+        #     / dir_name / filenames), so this explicit nudge is needed for
+        #     the badge / "Apply MusicBrainz corrections" affordance to
+        #     reflect post-apply state.
+        try:
+            from . import resolver as resolver_service
+            resolver_service.invalidate(album_id)
+        except Exception:
+            _log.exception("Resolver invalidate failed for album %s (continuing)", album_id)
+
         # 7. Post-scan check rerun so any findings the apply just satisfied
         #    auto-resolve. Skipped during bulk runs (one batch rerun fires
         #    at the very end instead).

@@ -3,6 +3,7 @@ import { coverUrl } from "@/lib/api";
 import GenreTags from "@/components/GenreTags";
 import { useAlbumTags } from "@/hooks/useVocabulary";
 import type { Album } from "@/lib/types";
+import ResolutionBadge from "./ResolutionBadge";
 
 interface AlbumHeroProps {
   album: Album;
@@ -48,6 +49,7 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
               Compilation
             </span>
           )}
+          <ResolutionBadge albumId={album.id} />
         </div>
         <h2 className="text-lg font-semibold leading-tight truncate" title={album.title || album.dir_name}>
           {album.title || album.dir_name}

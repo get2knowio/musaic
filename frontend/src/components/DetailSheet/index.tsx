@@ -27,6 +27,7 @@ import {
   usePriorCoverAttempts,
   useRetryJob,
 } from "@/hooks/useJobs";
+import { useAlbumResolution } from "@/hooks/useAlbumResolution";
 import { useApplyStream } from "@/hooks/useApplyStream";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
 import type {
@@ -159,6 +160,16 @@ function SheetBody({
   // cover lookup, so they don't unintentionally repeat past dead ends.
   const priorCoverAttempts = usePriorCoverAttempts(album.id);
 
+  // Deterministic resolver output. When loaded with a confident anchor +
+  // 0 unresolved tracks, the worker will skip the AI call entirely —
+  // we mirror that in the button label so the user knows the click will
+  // be free + fast rather than the usual long AI round-trip.
+  const { data: resolution } = useAlbumResolution(album.id);
+  const deterministicCovered =
+    resolution?.anchor != null
+    && resolution.anchor.confidence >= 0.85
+    && resolution.unresolved_track_count === 0;
+
   // Whether the album has any cover at all — drives auto-bundling. If
   // "Suggest fixes" is clicked on a coverless album, we enqueue a
   // metadata+cover job instead of metadata-only.
@@ -183,6 +194,10 @@ function SheetBody({
     if (apply.state.status === "done" && apply.state.updatedAlbum) {
       onAlbumUpdated?.(apply.state.updatedAlbum);
       qc.invalidateQueries({ queryKey: ["tracks", album.id] });
+      // Backend invalidates its resolver cache in services/apply.py;
+      // bust the React Query cache too so the badge + button refresh
+      // off the freshly-derived AlbumResolution.
+      qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
       if (activeJob) {
         markActedOn.mutate({ jobId: activeJob.id, action: "applied" });
       }
@@ -475,6 +490,7 @@ function SheetBody({
                   album={displayAlbum}
                   tracks={tracks.data.tracks}
                   applyState={showApplying ? apply.state.filesByIndex : undefined}
+                  resolution={resolution}
                 />
               ) : (
                 <div className="px-4 py-3 text-xs text-fg-4">Loading tracks…</div>
@@ -524,13 +540,19 @@ function SheetBody({
               title={
                 activeJob
                   ? "An AI job already exists for this album — view it above"
+                  : deterministicCovered
+                  ? "MusicBrainz already covers this album — Apply runs directly, no AI quota burned"
                   : !albumHasCover
                   ? "No cover on disk — will also search for cover art"
                   : undefined
               }
             >
               <Sparkles className="w-3.5 h-3.5 shrink-0" />
-              <span>Suggest fixes{!albumHasCover && !activeJob ? " (+ cover)" : ""}</span>
+              <span>
+                {deterministicCovered
+                  ? "Apply MusicBrainz corrections"
+                  : `Suggest fixes${!albumHasCover && !activeJob ? " (+ cover)" : ""}`}
+              </span>
             </button>
             <div className="flex-1" />
             <MoreMenu disabled={!!activeJob} />

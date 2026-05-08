@@ -1,5 +1,5 @@
-import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
-import type { Album, Track } from "@/lib/types";
+import { CheckCircle2, Circle, Fingerprint, Loader2, XCircle } from "lucide-react";
+import type { Album, AlbumResolution, Track } from "@/lib/types";
 import type { ApplyFileState } from "@/hooks/useApplyStream";
 
 interface TrackListProps {
@@ -7,6 +7,8 @@ interface TrackListProps {
   tracks: Track[];
   /** When applying, show per-file status icons + highlight active row. */
   applyState?: Record<number, ApplyFileState>;
+  /** Optional resolver output — drives per-track fingerprint indicators. */
+  resolution?: AlbumResolution;
 }
 
 /**
@@ -15,11 +17,18 @@ interface TrackListProps {
  *   - whether BPM/RG values exist on any track (adds those columns)
  *   - whether an apply is in progress (adds a status icon column)
  */
-export default function TrackList({ album, tracks, applyState }: TrackListProps) {
+export default function TrackList({ album, tracks, applyState, resolution }: TrackListProps) {
   const showArtist = album.is_compilation;
   const showBpm = tracks.some((t) => t.bpm !== null);
   const showRg = tracks.some((t) => t.replaygain_track_gain);
   const showStatus = applyState !== undefined && Object.keys(applyState).length > 0;
+  // filename → recording_mbid for the fingerprint chip. Empty when no
+  // resolution loaded yet, or no fingerprints matched (legitimate misses).
+  const recordingMbids = new Map<string, string>(
+    (resolution?.tracks ?? [])
+      .filter((t) => t.recording_mbid)
+      .map((t) => [t.filename, t.recording_mbid!]),
+  );
 
   // Build a CSS grid template for the row.
   const cols = [
@@ -75,14 +84,26 @@ export default function TrackList({ album, tracks, applyState }: TrackListProps)
                   anywhere before. Helps when investigating duplicates,
                   weird naming, or just figuring out which file is which. */}
               <span
-                className="truncate"
+                className="truncate inline-flex items-center gap-1.5 min-w-0"
                 title={
                   t.title
                     ? `${t.title}\n${t.filename}`
                     : t.filename
                 }
               >
-                {t.title || t.filename}
+                <span className="truncate">{t.title || t.filename}</span>
+                {recordingMbids.has(t.filename) && (
+                  <a
+                    href={`https://musicbrainz.org/recording/${recordingMbids.get(t.filename)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Identified via AcoustID fingerprint — click to view on MusicBrainz"
+                    className="text-emerald-400 hover:text-emerald-300 shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Fingerprint className="w-3 h-3" />
+                  </a>
+                )}
               </span>
               {showArtist && (
                 <span

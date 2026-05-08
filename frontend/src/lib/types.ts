@@ -84,6 +84,54 @@ export interface TracksResponse {
   tracks: Track[];
 }
 
+// ---- Metadata resolver ----
+//
+// Mirrors `services/resolver.AlbumResolution.to_dict()`. A `FieldFact`
+// carries the value plus the source ("musicbrainz", "fingerprint",
+// "cache", etc.) and a 0-1 confidence so the UI can show provenance
+// without re-deriving it.
+
+export type ResolutionSource =
+  | "cache"
+  | "musicbrainz"
+  | "fingerprint"
+  | "fingerprint+mb"
+  | "current_tag"
+  | "ai"
+  | "user";
+
+export interface FieldFact<V = string> {
+  value: V;
+  source: ResolutionSource;
+  confidence: number;
+}
+
+export interface TrackResolution {
+  filename: string;
+  recording_mbid: string | null;
+  fingerprint_score: number | null;
+  canonical_title: FieldFact | null;
+  canonical_artist: FieldFact | null;
+  canonical_tracknumber: FieldFact | null;
+  canonical_duration_s: number | null;
+}
+
+export interface AlbumResolution {
+  album_id: string;
+  anchor: FieldFact | null;
+  /** "cache" | "dir-search" | "fingerprint-vote" | "ai" | "user" | "none" */
+  anchor_strategy: string;
+  canonical_title: FieldFact | null;
+  canonical_album_artist: FieldFact | null;
+  canonical_year: FieldFact | null;
+  canonical_album_artist_sort: FieldFact | null;
+  canonical_genre: FieldFact | null;
+  cover_url: FieldFact | null;
+  tracks: TrackResolution[];
+  unresolved_track_count: number;
+  notes: string[];
+}
+
 // SSE events emitted by /api/scan/stream
 export type ScanEvent =
   | { type: "start"; library_dir: string; total: number; cached_count: number; force: boolean }

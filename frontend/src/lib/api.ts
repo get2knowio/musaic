@@ -6,6 +6,7 @@
 import type {
   Album,
   AlbumListResponse,
+  AlbumResolution,
   AppConfig,
   Job,
   JobStatus,
@@ -72,6 +73,19 @@ export function getAlbum(id: string): Promise<Album> {
 
 export function getTracks(id: string): Promise<TracksResponse> {
   return request<TracksResponse>(`/api/albums/${encodeURIComponent(id)}/tracks`);
+}
+
+export function getAlbumResolution(
+  id: string,
+  opts?: { force?: boolean; hint?: string },
+): Promise<AlbumResolution> {
+  const qs = new URLSearchParams();
+  if (opts?.force) qs.set("force", "true");
+  if (opts?.hint) qs.set("hint", opts.hint);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return request<AlbumResolution>(
+    `/api/albums/${encodeURIComponent(id)}/resolution${suffix}`,
+  );
 }
 
 // --- Scan ---
