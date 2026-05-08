@@ -1,7 +1,7 @@
 """Cover-art thumbnails: pre-extract small JPEGs to a cache directory.
 
 Thumbnails are 384px on the long edge, JPEG quality 82, stored at
-`~/.media_manager/thumbs/{album_id}.jpg`. The cover endpoint serves these
+`~/.musaic/thumbs/{album_id}.jpg`. The cover endpoint serves these
 directly so tile-view doesn't re-open FLACs or push multi-megabyte original
 artwork over the wire for every visible album.
 

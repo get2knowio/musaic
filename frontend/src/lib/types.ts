@@ -1,6 +1,6 @@
 /**
- * Types matching the FastAPI response shapes in `media_manager/main.py`.
- * Keep in sync with the Album dataclass in `media_manager/scanner.py`.
+ * Types matching the FastAPI response shapes in `musaic/main.py`.
+ * Keep in sync with the Album dataclass in `musaic/scanner.py`.
  */
 
 export interface Album {

@@ -97,7 +97,7 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
       {
         onSuccess: () => {
           toast.success(`Moved ${filename} to trash`, {
-            description: "Recoverable from ~/.media_manager/trash/ until you empty the folder",
+            description: "Recoverable from ~/.musaic/trash/ until you empty the folder",
           });
           setPendingDelete(null);
         },
@@ -184,7 +184,7 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
 
             <p className="text-xs text-fg-4 mt-3 leading-relaxed">
               Deleted files are moved to the app's trash folder
-              (<code className="mono text-fg-3">~/.media_manager/trash/</code>),
+              (<code className="mono text-fg-3">~/.musaic/trash/</code>),
               not unlinked. Restore by moving them back, or empty the
               folder once you're sure.
             </p>
@@ -218,7 +218,7 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
                 <span className="mono text-fg-2 break-all">{pendingDelete}</span>
                 <br />
                 will be moved to{" "}
-                <code className="mono text-fg-2">~/.media_manager/trash/</code>.
+                <code className="mono text-fg-2">~/.musaic/trash/</code>.
                 You can restore it from there if you change your mind.
               </Dialog.Description>
             </div>

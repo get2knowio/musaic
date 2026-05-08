@@ -1,4 +1,4 @@
-# Media Manager — Frontend
+# Musaic — Frontend
 
 Vite + React 18 + TypeScript + Tailwind v4 + Radix + TanStack Query + React Router.
 
@@ -19,16 +19,13 @@ npm run dev
 ```
 
 Opens on <http://localhost:5173>. The Vite config proxies `/api/*` to the
-FastAPI server on `:8765`, so you need to be running the backend in another
-terminal:
+FastAPI server on `:8765`. Easiest is `npm run dev:all` (runs both
+processes in one terminal). To run them separately:
 
 ```bash
 # in another terminal, from project root
-.venv/bin/media-manager
+uv run musaic
 ```
-
-> Note: `uv run media-manager` is broken on this Mac (uv-run-specific issue
-> we hit earlier); use the direct script.
 
 ## Production build
 
@@ -36,9 +33,8 @@ terminal:
 npm run build
 ```
 
-Outputs to `frontend/dist/`. The FastAPI server will (eventually) serve this
-directly at `/`. Until that wiring is done, the legacy vanilla-JS UI at
-`media_manager/static/` is what loads in production.
+Outputs to `frontend/dist/`, which the FastAPI server mounts at `/` and
+serves the SPA from.
 
 ## Project layout
 

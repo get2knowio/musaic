@@ -133,7 +133,7 @@ class MissingFingerprints(Check):
                 ),
                 "pyacoustid-missing": (
                     "pyacoustid Python library not installed. Reinstall "
-                    "Media Manager's dependencies."
+                    "Musaic's dependencies."
                 ),
                 "album-missing": "Album directory missing from disk.",
                 "no-fingerprints": "Couldn't fingerprint any files in this album.",

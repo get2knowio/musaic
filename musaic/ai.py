@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 # User-Agent used when verifying AI-returned cover URLs (HEAD/GET probes).
 # Matches the user-agent the actual download path sends so any host-side
 # UA-based filtering treats verification and download identically.
-_VERIFY_UA = "media-manager/0.1"
+_VERIFY_UA = "musaic/0.1"
 
 
 # ---------- Result shapes ----------

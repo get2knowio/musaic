@@ -154,7 +154,7 @@ def suggested_backup_filename() -> str:
     schema_version so a user staring at multiple backups in a folder
     can tell them apart at a glance."""
     schema = db_module.SCHEMA_VERSION
-    return f"media-manager-v{schema}-{_now_filename_tag()}.db"
+    return f"musaic-v{schema}-{_now_filename_tag()}.db"
 
 
 # ---------- Restore ----------
@@ -166,7 +166,7 @@ class RestoreError(ValueError):
 
 def validate_upload(upload_path: str | Path) -> dict[str, Any]:
     """Open the uploaded file as a SQLite DB and confirm it's a valid
-    Media Manager backup. Returns a summary dict with schema_version
+    Musaic backup. Returns a summary dict with schema_version
     and per-table counts so the API can echo it back to the UI for
     the user's confirmation step.
 
@@ -199,7 +199,7 @@ def validate_upload(upload_path: str | Path) -> dict[str, Any]:
         missing = _REQUIRED_TABLES - tables
         if missing:
             raise RestoreError(
-                "Upload is a SQLite DB but doesn't look like a Media Manager "
+                "Upload is a SQLite DB but doesn't look like a Musaic "
                 f"backup — missing tables: {', '.join(sorted(missing))}"
             )
         try:
@@ -219,7 +219,7 @@ def validate_upload(upload_path: str | Path) -> dict[str, Any]:
             raise RestoreError(
                 f"Upload is from a newer build (schema v{upload_schema}); "
                 f"this build only knows up to v{db_module.SCHEMA_VERSION}. "
-                "Update Media Manager before restoring."
+                "Update Musaic before restoring."
             )
         counts = _gather_counts(conn)
     finally:
@@ -297,7 +297,7 @@ def restore_from(upload_path: str | Path) -> dict[str, Any]:
 
 # ---------- Snapshots ----------
 #
-# Periodic automatic backups stored in ~/.media_manager/backups/. The
+# Periodic automatic backups stored in ~/.musaic/backups/. The
 # user picks one in Settings and clicks Restore. This is the "I broke
 # something, take me back" path; the manual download/upload above is
 # for off-machine backups.

@@ -33,7 +33,7 @@ except Exception:
     sys.exit(1)
 
 # ---- 2. Pull one fingerprint string ----
-from media_manager.db import _connect_raw  # type: ignore
+from musaic.db import _connect_raw  # type: ignore
 conn = _connect_raw()
 row = conn.execute(
     "SELECT album_id, filename, fingerprint FROM track_fingerprints "
@@ -75,7 +75,7 @@ for label, fn in attempts:
 
 # ---- 4. Self-similarity sanity ----
 print("\n[4] chromaprint_similarity(fp, fp) — should be 1.0:")
-from media_manager.fingerprint import chromaprint_similarity  # type: ignore
+from musaic.fingerprint import chromaprint_similarity  # type: ignore
 sim = chromaprint_similarity(fp, fp)
 print(f"    similarity: {sim}")
 if sim != 1.0:

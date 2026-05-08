@@ -544,7 +544,7 @@ export async function downloadDbBackup(): Promise<void> {
   // otherwise build a sensible default.
   const cd = res.headers.get("Content-Disposition") ?? "";
   const m = cd.match(/filename="?([^";]+)"?/);
-  const filename = m?.[1] ?? `media-manager-${new Date().toISOString().replace(/[:.]/g, "-")}.db`;
+  const filename = m?.[1] ?? `musaic-${new Date().toISOString().replace(/[:.]/g, "-")}.db`;
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");

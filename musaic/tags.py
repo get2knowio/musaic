@@ -389,7 +389,7 @@ def download_cover(url: str, *, timeout: int = 30) -> tuple[bytes, str] | None:
     except ImportError:
         return None
     try:
-        resp = requests.get(url, timeout=timeout, headers={"User-Agent": "media-manager/0.1"})
+        resp = requests.get(url, timeout=timeout, headers={"User-Agent": "musaic/0.1"})
         if resp.status_code == 200:
             mime = resp.headers.get("content-type", "image/jpeg").split(";")[0].strip()
             # Populate cache so any subsequent reference within TTL is a hit

@@ -19,7 +19,7 @@ cd frontend && npm install  # Frontend
 cd frontend && npm run dev:all   # Both backend (:8765) + Vite (:5173) in one terminal
 
 # Or run them separately:
-uv run media-manager             # Backend on :8765; serves built frontend
+uv run musaic             # Backend on :8765; serves built frontend
 cd frontend && npm run dev       # Frontend dev server on :5173 (proxies /api to :8765)
 ```
 
@@ -37,7 +37,7 @@ cd frontend && npm run typecheck
 ```bash
 uv run pytest                          # Backend integration tests (hermetic, no FLAC fixtures)
 ```
-Tests redirect `MEDIA_MANAGER_CONFIG_DIR` to a tmp dir via `tests/conftest.py` so the user's real `~/.media_manager` is untouched.
+Tests redirect `MUSAIC_CONFIG_DIR` to a tmp dir via `tests/conftest.py` so the user's real `~/.musaic` is untouched.
 
 ### Diagnostics
 ```bash
@@ -52,8 +52,8 @@ python diagnose_chromaprint.py         # Check fpcalc binary
 ### Three-Tier Structure
 
 - **Frontend** (`frontend/src/`): Vite + React + TypeScript + Tailwind CSS v4 + Radix UI + React Router + TanStack Query
-- **Backend** (`media_manager/`): FastAPI REST API + SSE streams on `:8765`
-- **Persistence** (`~/.media_manager/library.db`): SQLite v12 schema; source of truth for jobs, findings, settings, and metadata cache
+- **Backend** (`musaic/`): FastAPI REST API + SSE streams on `:8765`
+- **Persistence** (`~/.musaic/library.db`): SQLite v12 schema; source of truth for jobs, findings, settings, and metadata cache
 
 ### Key Backend Modules
 
@@ -104,11 +104,11 @@ Various Artists - Album [FLAC]
 
 ### Health Check Framework
 
-- **Base class**: `media_manager.checks.base.Check` + `CheckMeta` (id, label, description, category, cost, fix_kind)
+- **Base class**: `musaic.checks.base.Check` + `CheckMeta` (id, label, description, category, cost, fix_kind)
 - **Cost tiers**: `cheap` (post-scan), `medium` (weekly), `heavy` (monthly) — user-overridable in settings
 - **Fix kinds**: `none` (report-only), `ai-job` (enqueue Claude task), `deterministic` (sync mutation)
 - **Runner**: upserts findings by `(check_id, album_id, summary)`; auto-resolves disappearing findings
-- **Add a new check**: Create `media_manager/checks/your_check.py` inheriting `Check`, set `meta`, implement `run()` (and optionally `fix()`), then register in `checks/__init__.py`
+- **Add a new check**: Create `musaic/checks/your_check.py` inheriting `Check`, set `meta`, implement `run()` (and optionally `fix()`), then register in `checks/__init__.py`
 
 ### Mutation Pipeline
 
@@ -132,10 +132,10 @@ Both consumers — the `/api/albums/{id}/apply/stream` endpoint and the determin
 - `DEBUG=true` — verbose logging
 
 ### Runtime Files
-- `~/.media_manager/config.json` — selected library directory
-- `~/.media_manager/library.db` — SQLite cache (schema v12)
-- `~/.media_manager/thumbs/` — pre-extracted JPEG thumbnails
-- `.env` at project root or `~/.media_manager/.env` — auth (project root wins)
+- `~/.musaic/config.json` — selected library directory
+- `~/.musaic/library.db` — SQLite cache (schema v12)
+- `~/.musaic/thumbs/` — pre-extracted JPEG thumbnails
+- `.env` at project root or `~/.musaic/.env` — auth (project root wins)
 
 ## Known Issues
 
@@ -143,7 +143,7 @@ _(none currently tracked — see `docs/IMPROVEMENTS.md` for the historical list)
 
 ## Debugging Tips
 
-- Inspect schema: `sqlite3 ~/.media_manager/library.db ".schema"`
+- Inspect schema: `sqlite3 ~/.musaic/library.db ".schema"`
 - SSE issues: Vite dev proxy in `frontend/vite.config.ts` strips `content-length` to enable streaming
 - MusicBrainz rate limits: 1-second backoff required between requests
 - FLAC mutations: always save covers as JPEG to avoid format bloat; `mutagen` requires explicit `.save()`

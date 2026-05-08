@@ -78,7 +78,7 @@ export default function DetailSheet({ albums, onAlbumUpdated }: DetailSheetProps
         if (isApplying) {
           // Don't close while writing — fire a one-time toast so the user
           // understands why their click was ignored.
-          toast.warning("Hold on — Media Manager is still writing changes.", {
+          toast.warning("Hold on — Musaic is still writing changes.", {
             description: "The sheet will stay open until apply finishes.",
             duration: 3500,
           });

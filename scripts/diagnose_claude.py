@@ -25,9 +25,9 @@ def main() -> None:
     # Load .env the same way the FastAPI app does, so the diagnostic
     # matches the server's environment.
     try:
-        import media_manager  # noqa: F401  (triggers bootstrap_env)
+        import musaic  # noqa: F401  (triggers bootstrap_env)
     except Exception as e:
-        print(f"WARN: couldn't import media_manager package: {e}")
+        print(f"WARN: couldn't import musaic package: {e}")
 
     print("=" * 60)
     print("Environment")
@@ -174,9 +174,9 @@ def _load_album(album_id: str | None) -> tuple[dict, list[dict], str]:
     if not album_id:
         return _SYNTHETIC_ALBUM, _SYNTHETIC_TRACKS, "synthetic Pink Floyd / The Wall"
     try:
-        from media_manager import cache as cache_module
-        from media_manager import config as config_module
-        from media_manager.main import _read_tracks
+        from musaic import cache as cache_module
+        from musaic import config as config_module
+        from musaic.main import _read_tracks
     except ImportError as e:
         print(f"  ✗ couldn't import library helpers: {e}")
         return _SYNTHETIC_ALBUM, _SYNTHETIC_TRACKS, "synthetic (failed to load real album)"
@@ -201,9 +201,9 @@ async def _call_real_endpoint(album_id: str | None) -> None:
     print("4. Real ai.suggest_metadata()")
     print("=" * 60)
     try:
-        from media_manager import ai
+        from musaic import ai
     except ImportError as e:
-        print(f"  ✗ couldn't import media_manager.ai: {e}")
+        print(f"  ✗ couldn't import musaic.ai: {e}")
         return
 
     album, tracks, label = _load_album(album_id)
@@ -228,9 +228,9 @@ async def _call_real_cover_endpoint(album_id: str | None) -> None:
     print("5. Real ai.suggest_cover() (Haiku + tools — same as the failing UI call)")
     print("=" * 60)
     try:
-        from media_manager import ai
+        from musaic import ai
     except ImportError as e:
-        print(f"  ✗ couldn't import media_manager.ai: {e}")
+        print(f"  ✗ couldn't import musaic.ai: {e}")
         return
 
     album, tracks, label = _load_album(album_id)

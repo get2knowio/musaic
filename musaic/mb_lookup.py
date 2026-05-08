@@ -43,7 +43,7 @@ import requests
 log = logging.getLogger(__name__)
 
 
-USER_AGENT = "media-manager/0.1 (https://github.com/paulofallon/media-manager)"
+USER_AGENT = "musaic/0.1 (https://github.com/get2knowio/musaic)"
 
 MB_RELEASE_GROUP_SEARCH = "https://musicbrainz.org/ws/2/release-group/"
 # Release-group detail (same prefix as the search endpoint, but distinct

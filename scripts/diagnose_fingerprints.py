@@ -20,8 +20,8 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
-from media_manager.db import DB_PATH, _connect_raw  # type: ignore
-from media_manager import cache as cache_module  # type: ignore
+from musaic.db import DB_PATH, _connect_raw  # type: ignore
+from musaic import cache as cache_module  # type: ignore
 
 print(f"DB:   {DB_PATH}")
 print(f"size: {DB_PATH.stat().st_size:,} bytes")

@@ -1,4 +1,4 @@
-# Handoff: Media Manager (FLAC Library Index + Metadata Editor)
+# Handoff: Musaic (FLAC Library Index + Metadata Editor)
 
 ## Overview
 

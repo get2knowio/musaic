@@ -102,7 +102,7 @@ export default function Titlebar() {
       {/* Brand */}
       <div className="flex items-center gap-2.5 font-semibold text-md tracking-tight">
         <BrandMark />
-        <span>Media Manager</span>
+        <span>Musaic</span>
       </div>
 
       {/* Breadcrumb / current location */}

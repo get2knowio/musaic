@@ -466,7 +466,7 @@ def delete_duplicate_file(finding_id: int, payload: DeleteDuplicateFilePayload) 
 
     # Soft-delete: move the file into the app's trash directory rather
     # than unlinking it permanently. The user can restore from
-    # ~/.media_manager/trash/<album_dir>/<filename> if they change
+    # ~/.musaic/trash/<album_dir>/<filename> if they change
     # their mind.
     trashed_path: Path | None = None
     if not file_already_gone:

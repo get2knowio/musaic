@@ -1,14 +1,14 @@
-# Media Manager — Independent Audit Report
+# Musaic — Independent Audit Report
 
 Audit conducted 2026-05-05 against the working tree at
-`/Users/paul/Documents/Claude/Projects/Media Manager`. No git history was
+`/Users/paul/Documents/Claude/Projects/Musaic`. No git history was
 available in the workspace mount; findings are derived from a direct read of
 the source.
 
 Scope:
-- `media_manager/checks/*` (six checks + runner + `_apply.py`)
-- `media_manager/{cache,fingerprint,mb_lookup,ai,trash}.py`
-- Worker side-effects in `media_manager/main.py`
+- `musaic/checks/*` (six checks + runner + `_apply.py`)
+- `musaic/{cache,fingerprint,mb_lookup,ai,trash}.py`
+- Worker side-effects in `musaic/main.py`
 - Frontend `frontend/src/lib/types.ts`,
   `frontend/src/components/FindingFixButton.tsx`,
   `frontend/src/components/DetailSheet/{index,AISuggestions}.tsx`
@@ -21,7 +21,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 1. `_persist_ai_mbid` URL is constructed from the search endpoint, not the detail endpoint
 
-- **File:** `media_manager/main.py:1286-1306`
+- **File:** `musaic/main.py:1286-1306`
 - **What:** The verification call is built with
   `mb_lookup.MB_RELEASE_GROUP_SEARCH.rstrip("/") + f"/{mbid}"`. The constant
   `MB_RELEASE_GROUP_SEARCH = "https://musicbrainz.org/ws/2/release-group/"`
@@ -40,7 +40,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 2. `/api/ai/suggest-metadata/{album_id}` response drops `mb_release_group_mbid`
 
-- **File:** `media_manager/main.py:489-515` (the response dict)
+- **File:** `musaic/main.py:489-515` (the response dict)
 - **What:** `MetadataSuggestion` carries `mb_release_group_mbid`, the worker
   job result includes it (`main.py:1377`), the frontend
   `MetadataSuggestionResponse` type declares it
@@ -62,8 +62,8 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 3. `delete_duplicate_file` reads `library_path` from a dict that never contains it
 
-- **File:** `media_manager/main.py:1114` and
-  `media_manager/cache.py:_row_to_album` (~`cache.py:56-94`)
+- **File:** `musaic/main.py:1114` and
+  `musaic/cache.py:_row_to_album` (~`cache.py:56-94`)
 - **What:** `library_dir = album.get("library_path") or
   str(album_path.parent.resolve())` — but `_row_to_album` doesn't include
   `library_path` in its returned dict (verified by inspection: there is no
@@ -81,7 +81,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 4. `MissingMbid.try_quick_fix` returns `FixResult` instead of `None` for unknown-album case
 
-- **File:** `media_manager/checks/missing_mbid.py:138-141`
+- **File:** `musaic/checks/missing_mbid.py:138-141`
 - **What:** When `finding.album_id is None`, `try_quick_fix` returns `None`
   (correct — runner treats as not-applicable). But when the album lookup
   fails, it returns `FixResult(ok=False, …)`. The bulk dispatcher in
@@ -104,8 +104,8 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 5. AI MBID confidence sentinel and MB Lucene score share a constant value but not a meaning
 
-- **Files:** `media_manager/main.py:1271` (`_AI_MBID_CONFIDENCE = 88`) vs
-  `media_manager/mb_lookup.py:66` (`HIGH_CONFIDENCE_SCORE = 88`)
+- **Files:** `musaic/main.py:1271` (`_AI_MBID_CONFIDENCE = 88`) vs
+  `musaic/mb_lookup.py:66` (`HIGH_CONFIDENCE_SCORE = 88`)
 - **What:** Both paths write `score=88` to `mb_match_score` on a confident
   anchor. The deterministic path writes whatever MB returned (90, 100,
   etc.); the AI path *always* writes exactly 88 as a sentinel. Downstream
@@ -140,7 +140,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 7. `duplicate_tracks.py` module docstring still describes the old MBID-grouping design
 
-- **File:** `media_manager/checks/duplicate_tracks.py:1-28`
+- **File:** `musaic/checks/duplicate_tracks.py:1-28`
 - **What:** The opening docstring (lines 5–7) reads: "Groups
   `track_fingerprints` rows on `(album_id, acoustid_recording_mbid)` having
   count > 1 — i.e. multiple files in the same album that AcoustID
@@ -157,7 +157,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 8. `acoustid_score` selected from DB but never used in duplicate-tracks
 
-- **File:** `media_manager/checks/duplicate_tracks.py:128-149`
+- **File:** `musaic/checks/duplicate_tracks.py:128-149`
 - **What:** The SELECT pulls `acoustid_score`, but the dict comprehension
   at line 144-149 only stores `filename / duration_s / fingerprint / mbid`.
   The score is dropped on the floor. Comments at L41-48 and L120-126
@@ -168,7 +168,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 9. `find_release_cached` short-circuits but misses one cache write
 
-- **File:** `media_manager/mb_lookup.py:271-341`
+- **File:** `musaic/mb_lookup.py:271-341`
 - **What:** When the cache hit path calls `_fetch_tracklist`, it can update
   `match.release_mbid` (line 331). But that fresher `release_mbid` is *not*
   written back to the anchor cache — only the original `find_release()`
@@ -186,7 +186,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 10. `MissingCoreTags.try_quick_fix` returns `ok=False` after a partial apply
 
-- **File:** `media_manager/checks/missing_core_tags.py:135-155`
+- **File:** `musaic/checks/missing_core_tags.py:135-155`
 - **What:** When MB partially fills (e.g. title+year but not artist),
   `_try_mb` returns `_MBOutcome(fully_resolved=False, applied=True, …)`.
   `try_quick_fix` sees `not fully_resolved` and returns `FixResult(ok=False,
@@ -208,21 +208,21 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 11. `cover_lookup.find_cover` references in comments — module no longer exists
 
-- **Files:** `media_manager/main.py:1342`,
-  `media_manager/mb_lookup.py:3, 432, 436`,
-  `media_manager/ai.py:663, 762`
+- **Files:** `musaic/main.py:1342`,
+  `musaic/mb_lookup.py:3, 432, 436`,
+  `musaic/ai.py:663, 762`
 - **What:** Multiple comments say "fall through to `cover_lookup.find_cover`"
   or "the older `cover_lookup.find_cover()`". The module was renamed to
   `mb_lookup` (and `find_cover` is now the back-compat shim at
   `mb_lookup.py:435`). Stale `__pycache__/cover_lookup.cpython-{310,312}.pyc`
   files are also still on disk under
-  `media_manager/__pycache__/`. No bug, but `grep` now produces noise.
+  `musaic/__pycache__/`. No bug, but `grep` now produces noise.
 - **Fix:** Update comments to say `mb_lookup.find_cover`. Optional: remove
   the orphan `.pyc` files.
 
 ### 12. `_persist_ai_mbid` docstring says "HEAD" but code uses GET
 
-- **File:** `media_manager/main.py:1281-1283`
+- **File:** `musaic/main.py:1281-1283`
 - **What:** "We HEAD the release-group endpoint before writing — 200 means
   it's real". The implementation at line 1288 is `requests.get(…)`. (Either
   works; GET is fine since MB returns small JSON; but the doc lies.)
@@ -231,7 +231,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 13. `DuplicateTracks.fix()` is a stub but its docstring contradicts itself
 
-- **File:** `media_manager/checks/duplicate_tracks.py:157-180`
+- **File:** `musaic/checks/duplicate_tracks.py:157-180`
 - **What:** Doc says it's "a stub" but also that it "should treat
   duplicate-tracks as non-actionable in bulk mode." In reality the bulk
   dispatcher uses `try_quick_fix` (which is *not* overridden — default
@@ -248,7 +248,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 14. `NoCoverArt.run` doesn't filter on the `metadata` job type
 
-- **File:** `media_manager/checks/no_cover_art.py:84-96`
+- **File:** `musaic/checks/no_cover_art.py:84-96`
 - **What:** The SQL says
   `j.job_type IN ('cover', 'metadata+cover')` for "recent failed lookups."
   But pure `metadata` jobs can ALSO produce a cover side-effect via the
@@ -262,7 +262,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 15. `_run_post_scan_checks` runs `asyncio.run(...)` per check
 
-- **File:** `media_manager/main.py:191-203`
+- **File:** `musaic/main.py:191-203`
 - **What:** Five `runs_during_scan=True` checks → five separate
   `asyncio.run` calls per scan. Each spins up its own loop, runs sequentially,
   no parallelism. Not a correctness issue but the `_run_post_scan_checks_async`
@@ -273,7 +273,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 16. Stale comment about `track-gaps` in `runner.py:_resolve_unseen`
 
-- **File:** `media_manager/checks/runner.py:270-281`
+- **File:** `musaic/checks/runner.py:270-281`
 - **What:** Docstring says "We don't run two concurrent runs of the same
   check, so any row not freshly upserted here is by definition stale." This
   is correct *given* serial dispatch (see #15) but the comment doesn't
@@ -285,7 +285,7 @@ Severity legend: 🔴 Bug · 🟡 Inconsistency · 🟢 Hygiene.
 
 ### 17. Empty `__pycache__` entries / orphan compiled modules
 
-- **Files:** `media_manager/__pycache__/cover_lookup.cpython-{310,312}.pyc`
+- **Files:** `musaic/__pycache__/cover_lookup.cpython-{310,312}.pyc`
 - **What:** As mentioned in #11; module was deleted, `.pyc` artifacts
   remain. Won't be re-imported (no source file) but it's confusing.
 - **Fix:** `find . -name "*.pyc" | xargs rm` or check in a `.gitignore`

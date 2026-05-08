@@ -6,10 +6,10 @@ This document captures the main implementation and product issues found during r
 
 The application is fundamentally a local-first music library manager structured in three tiers:
 - **Frontend UI:** The user-facing application for browsing, queueing tasks, and adjusting settings.
-- **FastAPI Backend (`media_manager/main.py`):** The orchestration layer that provides REST endpoints and Server-Sent Events (SSE) streams for long-running background tasks.
+- **FastAPI Backend (`musaic/main.py`):** The orchestration layer that provides REST endpoints and Server-Sent Events (SSE) streams for long-running background tasks.
 - **Persistence:** A SQLite database acting as a fast caching index and state store (for jobs, findings, and settings), while the user's media volume (FLAC files, `cover.jpg` sidecars) remains the ultimate source of truth.
 
-A major architectural split currently exists: the FastAPI backend serves a legacy static UI out of `media_manager/static`, while the intended product UI is a modern React SPA located in `frontend/src`. The React app heavily leverages SSE streams to reflect backend state (scans, jobs, health checks) reactively, but since it is not the default shipped surface, the intended and shipped user experiences are diverged.
+A major architectural split currently exists: the FastAPI backend serves a legacy static UI out of `musaic/static`, while the intended product UI is a modern React SPA located in `frontend/src`. The React app heavily leverages SSE streams to reflect backend state (scans, jobs, health checks) reactively, but since it is not the default shipped surface, the intended and shipped user experiences are diverged.
 
 ## 2. Flow Review
 
@@ -61,7 +61,7 @@ A major architectural split currently exists: the FastAPI backend serves a legac
 ## 3. Findings
 
 ### 1. The shipped UI and the intended UI have diverged
-The FastAPI app still serves the legacy static frontend from `media_manager/static/`, while the React app under `frontend/` contains the newer flows.
+The FastAPI app still serves the legacy static frontend from `musaic/static/`, while the React app under `frontend/` contains the newer flows.
 - **Implications:** The default app entrypoint does not expose the React routes, and the legacy frontend still calls older AI endpoints that no longer exist.
 
 ### 2. Scan and rescan behavior is more fragile than the UI suggests
@@ -73,7 +73,7 @@ The Health detail page reads from a per-check detail query, but the SSE refresh 
 - **Implications:** Fixing, ignoring, or unignoring a finding can leave the currently open Health detail page stale.
 
 ### 4. Deterministic health-check fixes use a second apply pipeline
-The deterministic fix helpers in `media_manager/checks/_apply.py` do not go through the same full mutation path used by `/api/albums/{id}/apply/stream`.
+The deterministic fix helpers in `musaic/checks/_apply.py` do not go through the same full mutation path used by `/api/albums/{id}/apply/stream`.
 - **Implications:** File rename handling, track-tag sidecar migration, and cover normalization are not fully aligned, producing subtly different results.
 
 ### 5. The frontend is not currently in a clean buildable state
@@ -92,7 +92,7 @@ There is no integration coverage for the core end-to-end flows.
    - Renames, tag writes, cover writes, sidecar maintenance, thumbnail invalidation, and targeted rescans should all happen in one unified service path instead of duplicating logic in deterministic health check fixes.
 3. **Reduce persistence concepts.**
    - SQLite should be the authoritative app-state store for settings, findings, jobs, scans, and cached metadata. The media volume should remain authoritative for FLAC contents and on-disk covers.
-4. **Split `media_manager/main.py` by concern.**
+4. **Split `musaic/main.py` by concern.**
    - It currently carries too many responsibilities. Recommended slices: `api/library.py`, `api/jobs.py`, `api/health.py`, `api/settings.py`, `services/scan.py`, `services/apply.py`.
 5. **Decouple Scan Execution from SSE Streams.**
    - Make “start scan” a first-class backend job action rather than an indirect cache-clear-plus-SSE attachment sequence. The SSE stream should just observe a scan running in the background.
@@ -109,5 +109,5 @@ There is no integration coverage for the core end-to-end flows.
    - Make `npm run typecheck` pass.
 5. **Add Integration Tests.**
    - Add one backend test path and one end-to-end smoke path for core flows (e.g., scanning, applying tags).
-6. **Refactor `media_manager/main.py`.**
+6. **Refactor `musaic/main.py`.**
    - Split the routing and service logic so that ownership is obvious to both humans and agents.

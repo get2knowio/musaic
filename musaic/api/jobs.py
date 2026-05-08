@@ -1,5 +1,5 @@
 """AI job queue endpoints. The worker that consumes the queue lives in
-`media_manager.services.worker`; this module is just the REST + SSE
+`musaic.services.worker`; this module is just the REST + SSE
 surface."""
 from __future__ import annotations
 

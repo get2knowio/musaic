@@ -73,7 +73,7 @@ Key design choices:
 ### Per-check Python contract
 
 ```python
-# media_manager/checks/base.py
+# musaic/checks/base.py
 from dataclasses import dataclass
 from typing import Iterable, Literal
 
@@ -132,7 +132,7 @@ The runner is responsible for:
 ### Registry & discovery
 
 ```python
-# media_manager/checks/__init__.py
+# musaic/checks/__init__.py
 from .missing_core_tags import MissingCoreTags
 from .track_gaps import TrackGaps
 from .no_cover_art import NoCoverArt
@@ -458,9 +458,9 @@ def run(self, scope):
 ### Phase 1 — framework
 
 1. v6 migration: `check_runs` and `check_findings` tables; add `albums.track_numbers_json` (used by check #2).
-2. `media_manager/checks/base.py` — dataclasses + Check ABC.
-3. `media_manager/checks/runner.py` — runs a check, manages upsert/resolve, emits SSE events.
-4. `media_manager/checks/__init__.py` — REGISTRY (initially empty).
+2. `musaic/checks/base.py` — dataclasses + Check ABC.
+3. `musaic/checks/runner.py` — runs a check, manages upsert/resolve, emits SSE events.
+4. `musaic/checks/__init__.py` — REGISTRY (initially empty).
 5. REST endpoints in `main.py` (list, detail, all-findings, run, ignore, unignore, fix, stream).
 6. Frontend foundation:
    - `lib/api.ts` — `listChecks`, `getCheck`, `listFindings`, `runCheck`, `ignoreFinding`, `unignoreFinding`, `fixFinding`.

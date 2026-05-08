@@ -1,7 +1,7 @@
-# Media Manager — UX Audit
+# Musaic — UX Audit
 
 Audit conducted 2026-05-05 against the working tree at
-`/Users/paul/Documents/Claude/Projects/Media Manager`. This is a holistic
+`/Users/paul/Documents/Claude/Projects/Musaic`. This is a holistic
 UX/UI audit, distinct from the code-correctness audit in
 `AUDIT_REPORT.md` — it asks whether the actions are placed where users
 would expect, whether patterns are consistent across surfaces, and where
@@ -71,7 +71,7 @@ Action surfaces by user goal (cross-referenced):
 | Rename an album folder | Disabled stub in MoreMenu | `MoreMenu.tsx:33` |
 | Re-scan a single album | Disabled stub in MoreMenu | `MoreMenu.tsx:34` |
 | Calculate BPM / ReplayGain | Disabled stub in AudioAnalysis | `AudioAnalysis.tsx:80-87` |
-| Configure trash path | **Hardcoded** to `~/.media_manager/trash` | `media_manager/trash.py:65` |
+| Configure trash path | **Hardcoded** to `~/.musaic/trash` | `musaic/trash.py:65` |
 | Configure AI parallelism, AcoustID key, FireCrawl key | Settings page | `Settings.tsx` |
 | View prior cover-lookup attempts | Surfaces only inside HintDialog when about to retry | `HintDialog.tsx:174-202` |
 | Restore an ignored finding | "Restore" button on each ignored row | `HealthDetail.tsx:619-625` |
@@ -128,7 +128,7 @@ Action surfaces by user goal (cross-referenced):
   land on Settings, scroll the entire page, and find sections for AI
   worker, Track fingerprinting, FireCrawl. **No library-directory
   field exists in the UI.** The only way to configure it is to edit
-  `~/.media_manager/config.json` by hand or POST to `/api/config`
+  `~/.musaic/config.json` by hand or POST to `/api/config`
   directly.
 - **Why it's a problem:** This is a literal dead-end for first-run
   users. The instructional copy is wrong and the documented entry point
@@ -414,7 +414,7 @@ Action surfaces by user goal (cross-referenced):
   no way to act on it.
 - **Why it's a problem:** Today no check actually emits library-level
   findings (verified via grep — every `Finding(...)` in
-  `media_manager/checks/*` carries an `album_id`). The dead branch
+  `musaic/checks/*` carries an `album_id`). The dead branch
   exists in the UI but isn't reachable. If a future check yields one,
   the user will see a row they can do nothing with except ignore.
 - **Suggested fix:** Until a check actually needs it, drop the
@@ -535,7 +535,7 @@ Action surfaces by user goal (cross-referenced):
 - **Why it's a problem:** Browser tabs all show the same title (likely
   the `index.html` default). Users with multiple windows open can't
   tell which is which.
-- **Suggested fix:** Add `useEffect(() => { document.title = "Settings · Media Manager" }, [])`
+- **Suggested fix:** Add `useEffect(() => { document.title = "Settings · Musaic" }, [])`
   per page, or pull a small `usePageTitle` hook.
 
 #### F23. "Last run … " vs "scanned … " formats

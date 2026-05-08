@@ -1,8 +1,8 @@
 """Hermetic test setup.
 
-`MEDIA_MANAGER_CONFIG_DIR` is captured at import time inside
-`media_manager.config`, so the env var MUST be set before any
-`media_manager.*` import. Pytest loads conftest.py before any test
+`MUSAIC_CONFIG_DIR` is captured at import time inside
+`musaic.config`, so the env var MUST be set before any
+`musaic.*` import. Pytest loads conftest.py before any test
 file, so the assignment at the top of this file runs early enough.
 """
 from __future__ import annotations
@@ -15,7 +15,7 @@ import tempfile
 # Tests treat this as shared state and namespace their fixtures so they
 # don't collide.
 _TMP_CONFIG = tempfile.mkdtemp(prefix="musaic-test-cfg-")
-os.environ["MEDIA_MANAGER_CONFIG_DIR"] = _TMP_CONFIG
+os.environ["MUSAIC_CONFIG_DIR"] = _TMP_CONFIG
 
 import pytest
 from fastapi.testclient import TestClient
@@ -34,7 +34,7 @@ def client() -> TestClient:
     worker doesn't start during tests — we only exercise the request
     layer here.
     """
-    from media_manager.main import app
+    from musaic.main import app
     return TestClient(app)
 
 

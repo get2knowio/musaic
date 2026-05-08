@@ -143,7 +143,7 @@ function NoLibraryConfigured() {
         </div>
         <h2 className="text-xl font-semibold mb-2">Configure your library</h2>
         <p className="text-md text-fg-3 leading-relaxed">
-          Point Media Manager at a folder containing your album directories.
+          Point Musaic at a folder containing your album directories.
           Subfolders with FLAC files are treated as albums.
         </p>
         <Link

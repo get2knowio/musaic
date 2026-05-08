@@ -19,7 +19,7 @@ from typing import Any, ClassVar, Iterable, Literal, TYPE_CHECKING
 if TYPE_CHECKING:
     # Ambient type for what a check sees; concretely a list of dicts loaded
     # from `cache.list_albums(library_path)`. Kept loose here to avoid a
-    # cycle into media_manager.cache during import.
+    # cycle into musaic.cache during import.
     AlbumDict = dict[str, Any]
 
 
@@ -45,7 +45,7 @@ FixKind = Literal["none", "ai-job", "deterministic"]
 """How a finding can be acted on.
 
 - none           : no Fix button rendered.
-- ai-job         : Fix enqueues a job through media_manager.jobs and
+- ai-job         : Fix enqueues a job through musaic.jobs and
                    returns the job_id. Frontend then surfaces "Job queued."
 - deterministic  : Fix runs synchronously in the request handler. The
                    check's fix() method does the work and returns a

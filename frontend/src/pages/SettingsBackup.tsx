@@ -27,7 +27,7 @@ import type { DbInfo, DbSnapshot } from "@/lib/types";
 /**
  * Backup & Snapshots panel for the Settings page.
  *
- * The DB at ~/.media_manager/library.db carries data that's expensive
+ * The DB at ~/.musaic/library.db carries data that's expensive
  * to recover after a wipe — paid AI-driven MBID anchors, paid
  * AcoustID fingerprints, the user's tag taxonomy. This panel surfaces
  * three protections:

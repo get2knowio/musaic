@@ -1,5 +1,5 @@
 [project]
-name = "media-manager"
+name = "musaic"
 version = "0.1.0"
 description = "Web UI for browsing and managing a local music collection"
 requires-python = ">=3.10"
@@ -26,7 +26,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["media_manager"]
+packages = ["musaic"]
 
 [dependency-groups]
 dev = [
@@ -35,7 +35,7 @@ dev = [
 ]
 
 [project.scripts]
-media-manager = "media_manager.main:run"
+musaic = "musaic.main:run"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

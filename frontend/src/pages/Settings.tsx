@@ -31,7 +31,7 @@ export default function SettingsPage() {
       <div className="max-w-2xl">
         <h1 className="text-lg font-semibold mb-1">Settings</h1>
         <p className="text-sm text-fg-3 mb-6">
-          Tune how Media Manager talks to Claude, MusicBrainz, AcoustID, and FireCrawl.
+          Tune how Musaic talks to Claude, MusicBrainz, AcoustID, and FireCrawl.
         </p>
         <GroupHeader>Library</GroupHeader>
         <LibrarySection />
@@ -121,7 +121,7 @@ function LibrarySection() {
 
       <div className="px-4 py-4 space-y-4">
         <p className="text-sm text-fg-3 leading-relaxed">
-          Point Media Manager at a folder containing your album directories.
+          Point Musaic at a folder containing your album directories.
           Subfolders with FLAC files are treated as albums. Changing the
           directory triggers a fresh scan.
         </p>

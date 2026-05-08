@@ -1,13 +1,13 @@
 # Library maintenance scripts — candidate list
 
-A working catalog of periodic / on-demand checks Media Manager could run against the FLAC library. Compiled from beets/Picard practice, FLAC community wisdom, and the existing tools in `flac-jacket/tools`.
+A working catalog of periodic / on-demand checks Musaic could run against the FLAC library. Compiled from beets/Picard practice, FLAC community wisdom, and the existing tools in `flac-jacket/tools`.
 
 Each entry calls out:
 
 - **What:** the actual check
 - **How:** data we already have vs. what we'd need to add
 - **Action:** report-only, suggest-fix, or auto-fix
-- **Existing:** anything in Media Manager or flac-jacket that already does part of the job
+- **Existing:** anything in Musaic or flac-jacket that already does part of the job
 - **AI?** whether the check benefits from Claude vs being deterministic
 
 The first column tags each check by category for sorting/filtering later.
@@ -158,7 +158,7 @@ The first column tags each check by category for sorting/filtering later.
 - **What:** decode the file, verify against the STREAMINFO MD5.
 - **How:** shell out to `flac -t <file>`, capture exit code.
 - **Action:** report failures. **Highest signal of bitrot in the whole list.** Run on a slow rotating schedule (e.g. one album a day) since it's I/O-heavy.
-- **Existing:** none in Media Manager.
+- **Existing:** none in Musaic.
 - **AI?** No.
 
 ### A2. Missing STREAMINFO MD5

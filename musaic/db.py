@@ -1,7 +1,7 @@
-"""SQLite backend for Media Manager.
+"""SQLite backend for Musaic.
 
-A single database file at `~/.media_manager/library.db` (override via
-`MEDIA_MANAGER_CONFIG_DIR`) holds the cached scan state. Tables:
+A single database file at `~/.musaic/library.db` (override via
+`MUSAIC_CONFIG_DIR`) holds the cached scan state. Tables:
 
   - `schema_version` : single-row pragma for migrations
   - `libraries`      : one row per scanned library directory

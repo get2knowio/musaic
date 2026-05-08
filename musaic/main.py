@@ -1,8 +1,8 @@
-"""FastAPI entry point for Media Manager.
+"""FastAPI entry point for Musaic.
 
-Routes are organized as APIRouter modules under `media_manager.api`;
+Routes are organized as APIRouter modules under `musaic.api`;
 shared helpers (album resolution, post-scan checks, the AI worker, SSE
-plumbing) live under `media_manager.services`. This file just wires
+plumbing) live under `musaic.services`. This file just wires
 the app together: lifespan + router includes + frontend SPA + CLI.
 """
 from __future__ import annotations
@@ -55,7 +55,7 @@ async def _lifespan(_app: FastAPI):
             await task
 
 
-app = FastAPI(title="Media Manager", version="0.1.0", lifespan=_lifespan)
+app = FastAPI(title="Musaic", version="0.1.0", lifespan=_lifespan)
 
 # Wire up the routers. Order matters only for overlapping path patterns
 # (e.g. `/api/checks/stream` must register before `/api/checks/{check_id}`,
@@ -109,7 +109,7 @@ def _configure_logging() -> None:
         ~25 MB cap; survives terminal close / restart so we can grep
         debugging output after the fact)
 
-    Level is INFO by default; override with MEDIA_MANAGER_LOG_LEVEL=DEBUG
+    Level is INFO by default; override with MUSAIC_LOG_LEVEL=DEBUG
     when chasing something specific.
     """
     import logging.handlers
@@ -117,7 +117,12 @@ def _configure_logging() -> None:
 
     from .config import CONFIG_DIR
 
-    level_name = os.environ.get("MEDIA_MANAGER_LOG_LEVEL", "INFO").upper()
+    # Honor the legacy MEDIA_MANAGER_LOG_LEVEL as a fallback so existing
+    # shell envs keep working post-rename.
+    level_name = os.environ.get(
+        "MUSAIC_LOG_LEVEL",
+        os.environ.get("MEDIA_MANAGER_LOG_LEVEL", "INFO"),
+    ).upper()
     level = getattr(logging, level_name, logging.INFO)
 
     fmt = logging.Formatter(
@@ -125,9 +130,9 @@ def _configure_logging() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Application logger — touch only `media_manager.*` and below; leave
+    # Application logger — touch only `musaic.*` and below; leave
     # uvicorn's loggers alone so its access-log format stays intact.
-    app_log = logging.getLogger("media_manager")
+    app_log = logging.getLogger("musaic")
     app_log.setLevel(level)
     # Idempotent: don't double-attach handlers if run() is called twice
     # (e.g. under --reload).
@@ -146,10 +151,10 @@ def _configure_logging() -> None:
             file_handler.setFormatter(fmt)
             file_handler._mm_marker = True  # type: ignore[attr-defined]
             app_log.addHandler(file_handler)
-            print(f"[media-manager] Logging to {file_path} (level={level_name})")
+            print(f"[musaic] Logging to {file_path} (level={level_name})")
         except Exception as e:
             # Never let log-file setup fail the boot.
-            print(f"[media-manager] Warning: couldn't set up file log ({e})")
+            print(f"[musaic] Warning: couldn't set up file log ({e})")
 
     # Don't bubble up to root — root has its own default handler that
     # would duplicate every line.
@@ -157,8 +162,8 @@ def _configure_logging() -> None:
 
 
 def run() -> None:
-    """`media-manager` console-script entry point."""
-    parser = argparse.ArgumentParser(description="Media Manager web UI")
+    """`musaic` console-script entry point."""
+    parser = argparse.ArgumentParser(description="Musaic web UI")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--reload", action="store_true", help="Enable hot reload (development)")
@@ -171,14 +176,14 @@ def run() -> None:
         "ANTHROPIC_API_KEY" if os.environ.get("ANTHROPIC_API_KEY") else None
     )
     if auth:
-        print(f"[media-manager] Claude auth: using {auth} from environment")
+        print(f"[musaic] Claude auth: using {auth} from environment")
     else:
-        print("[media-manager] Warning: no CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY found — AI features will fail")
+        print("[musaic] Warning: no CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY found — AI features will fail")
 
     import uvicorn
 
     uvicorn.run(
-        "media_manager.main:app",
+        "musaic.main:app",
         host=args.host,
         port=args.port,
         reload=args.reload,

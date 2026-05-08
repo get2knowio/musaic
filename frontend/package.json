@@ -1,11 +1,11 @@
 {
-  "name": "media-manager-frontend",
+  "name": "musaic-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:all": "concurrently -n api,web -c blue,green --kill-others-on-fail \"uv run --project .. media-manager\" \"vite\"",
+    "dev:all": "concurrently -n api,web -c blue,green --kill-others-on-fail \"uv run --project .. musaic\" \"vite\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit"

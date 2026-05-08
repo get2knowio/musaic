@@ -1,4 +1,4 @@
-"""Media Manager — web UI for browsing and managing a local music collection."""
+"""Musaic — web UI for browsing and managing a local music collection."""
 
 # Eagerly load .env files so claude-agent-sdk and any other env-driven config
 # picks up CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY without the user having

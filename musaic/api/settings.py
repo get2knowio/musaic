@@ -1,6 +1,6 @@
 """App settings + DB backup / restore + on-disk snapshots.
 
-The library DB at ~/.media_manager/library.db carries data that's
+The library DB at ~/.musaic/library.db carries data that's
 expensive to recover after a wipe (paid AI-driven MBID anchors, paid
 AcoustID fingerprints, the user's tag taxonomy). Snapshots are
 auto-taken on app startup if the configured interval has elapsed;

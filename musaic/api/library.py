@@ -171,7 +171,7 @@ def get_cover(
     """Serve cover art for an album.
 
     Default behaviour is `?size=thumb` — a pre-extracted 384px JPEG served from
-    `~/.media_manager/thumbs/{id}.jpg`, with `Cache-Control` and ETag headers so
+    `~/.musaic/thumbs/{id}.jpg`, with `Cache-Control` and ETag headers so
     browsers don't re-fetch on reload. Generated on-the-fly the first time it's
     requested if the scan didn't pre-build it.
 

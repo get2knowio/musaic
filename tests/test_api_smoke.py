@@ -163,7 +163,7 @@ def test_resolve_album_without_library(client):
     """Hitting an album endpoint with no library configured returns 409
     via resolve_album_dict."""
     # Wipe library config so we hit the no-library branch.
-    from media_manager import config as config_module
+    from musaic import config as config_module
     cfg_path = config_module.CONFIG_FILE
     backed_up = cfg_path.read_text() if cfg_path.exists() else None
     try:
@@ -179,7 +179,7 @@ def test_resolve_album_without_library(client):
 def test_spa_fallback_for_unknown_path(client):
     """Unknown non-/api paths fall back to index.html (the SPA router
     handles them). Skipped gracefully if the React build isn't present."""
-    from media_manager.main import FRONTEND_DIR
+    from musaic.main import FRONTEND_DIR
     if not (FRONTEND_DIR / "index.html").is_file():
         import pytest
         pytest.skip("frontend/dist not built")

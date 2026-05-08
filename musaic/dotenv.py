@@ -7,7 +7,7 @@ Mirrors the pattern used in flac-jacket's plex-playlists update script:
   - Silent no-op if the file doesn't exist.
 
 Lookup order applied by `bootstrap_env()`:
-    real env vars  >  $PWD/.env  >  ~/.media_manager/.env
+    real env vars  >  $PWD/.env  >  ~/.musaic/.env
 
 The first writer wins, so a real shell-exported value cannot be clobbered by a
 file, and a project-local `.env` overrides the user-level one.
@@ -53,6 +53,6 @@ def bootstrap_env() -> dict[str, int]:
     """Load .env files from conventional locations. Returns {path: keys_loaded}."""
     candidates = [
         Path.cwd() / ".env",
-        Path.home() / ".media_manager" / ".env",
+        Path.home() / ".musaic" / ".env",
     ]
     return {str(p): load_env_file(p) for p in candidates}

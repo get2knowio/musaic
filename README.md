@@ -29,7 +29,7 @@ uv sync
 ## Run
 
 ```bash
-uv run media-manager
+uv run musaic
 ```
 
 Open <http://127.0.0.1:8765>. Click the gear icon to configure your library directory.
@@ -43,7 +43,7 @@ CLAUDE_CODE_OAUTH_TOKEN=...   # preferred if you have Claude Code installed
 ANTHROPIC_API_KEY=...         # alternative
 ```
 
-Lookup order: shell environment → `.env` in the project directory → `~/.media_manager/.env`. The startup banner shows which credential was found. Without credentials the scanner and UI still work; only AI endpoints are disabled.
+Lookup order: shell environment → `.env` in the project directory → `~/.musaic/.env`. The startup banner shows which credential was found. Without credentials the scanner and UI still work; only AI endpoints are disabled.
 
 ### Optional: FireCrawl
 

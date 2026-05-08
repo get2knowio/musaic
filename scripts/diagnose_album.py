@@ -19,9 +19,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
-from media_manager.db import _connect_raw  # type: ignore
-from media_manager import fingerprint as fingerprint_module  # type: ignore
-from media_manager.checks.duplicate_tracks import (  # type: ignore
+from musaic.db import _connect_raw  # type: ignore
+from musaic import fingerprint as fingerprint_module  # type: ignore
+from musaic.checks.duplicate_tracks import (  # type: ignore
     _MAX_DURATION_DELTA_SEC,
     _MIN_FINGERPRINT_SIMILARITY,
 )

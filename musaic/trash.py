@@ -12,19 +12,19 @@ place.
 Trash layout
 ------------
 
-Root: `~/.media_manager/trash/` (override the parent via
-`MEDIA_MANAGER_CONFIG_DIR`).
+Root: `~/.musaic/trash/` (override the parent via
+`MUSAIC_CONFIG_DIR`).
 
 Files are organized under the trash root by their album's directory
 name, preserving the original filename:
 
-    ~/.media_manager/trash/<album_dir>/<filename>
+    ~/.musaic/trash/<album_dir>/<filename>
 
 On filename collision (e.g. the user deletes two files with the same
 name on different days), the trashed copy gets an ISO timestamp suffix
 inserted before the extension:
 
-    ~/.media_manager/trash/<album_dir>/<stem>__2026-05-05T16-30-45.<ext>
+    ~/.musaic/trash/<album_dir>/<stem>__2026-05-05T16-30-45.<ext>
 
 Cross-volume moves
 ------------------
