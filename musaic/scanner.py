@@ -30,7 +30,7 @@ import os
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Iterator
+from typing import Iterable, Iterator
 
 from mutagen.flac import FLAC, Picture
 
@@ -218,17 +218,46 @@ def _find_cover_file(album_dir: Path) -> str | None:
     return None
 
 
+def dedupe_by_inode(entries: Iterable[Path]) -> list[Path]:
+    """Drop entries that point to an already-seen (st_dev, st_ino).
+
+    SMB mounts from Synology can return the same underlying file under
+    two directory entries when the filename contains characters needing
+    encoding translation (e.g. `?`, `*`, `:`); both entries report the
+    same inode but iterdir() yields both, which would otherwise create
+    phantom duplicate tracks throughout the app (track list, scanner,
+    fingerprint pool, apply payloads).
+
+    Stable: preserves input order, keeps the first occurrence.
+    """
+    out: list[Path] = []
+    seen: set[tuple[int, int]] = set()
+    for e in entries:
+        try:
+            st = e.stat()
+            key = (st.st_dev, st.st_ino)
+        except OSError:
+            out.append(e)
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(e)
+    return out
+
+
 def _list_flacs(album_dir: Path) -> list[Path]:
     try:
         entries = sorted(album_dir.iterdir())
     except OSError:
         return []
-    return [
+    filtered = (
         e for e in entries
         if e.is_file()
         and e.suffix.lower() in AUDIO_EXTS
         and not e.name.startswith("._")
-    ]
+    )
+    return dedupe_by_inode(filtered)
 
 
 def compute_effective_mtime(album_dir: Path, flacs: list[Path] | None = None) -> float:

@@ -12,6 +12,7 @@ from mutagen.flac import FLAC
 
 from .. import cache as cache_module
 from .. import config as config_module
+from .. import scanner as scanner_module
 from ..scanner import album_to_dict, find_album_by_id
 
 _log = logging.getLogger(__name__)
@@ -94,9 +95,11 @@ def read_tracks(album_dir: str) -> list[dict[str, Any]]:
         val = v[0] if isinstance(v, list) else v
         return str(val)
 
-    for entry in sorted(album_path.iterdir()):
-        if not entry.is_file() or entry.suffix.lower() != ".flac" or entry.name.startswith("._"):
-            continue
+    candidates = (
+        e for e in sorted(album_path.iterdir())
+        if e.is_file() and e.suffix.lower() == ".flac" and not e.name.startswith("._")
+    )
+    for entry in scanner_module.dedupe_by_inode(candidates):
         try:
             audio = FLAC(str(entry))
             tags = audio.tags.as_dict() if audio.tags else {}
@@ -129,10 +132,11 @@ def list_album_filenames(album_dir: str) -> list[str]:
     p = Path(album_dir)
     if not p.is_dir():
         return []
-    return sorted(
-        e.name for e in p.iterdir()
+    candidates = (
+        e for e in sorted(p.iterdir())
         if e.is_file() and e.suffix.lower() == ".flac" and not e.name.startswith("._")
     )
+    return [e.name for e in scanner_module.dedupe_by_inode(candidates)]
 
 
 def track_count_for(album: dict[str, Any]) -> int:
