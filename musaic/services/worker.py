@@ -125,13 +125,14 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
 async def run_one_job(job: jobs_module.Job) -> None:
     """Execute a single job and persist its result/error.
 
-    Cover lookup currently goes through `ai.suggest_cover` — Sonnet works
-    for the vast majority of albums and gives us smart disambiguation
-    between releases. `mb_lookup.find_cover` exists as a non-AI fallback
-    for the day we want it; not wired in here yet.
+    Tier-aware: runs the deterministic resolver first
+    (`services.resolver.resolve_album`), then either synthesizes the
+    suggestion from MB data (no AI quota burned) or escalates to Claude
+    with the resolver output as additional context.
     """
     from .. import ai
     from .. import settings as settings_module
+    from . import resolver as resolver_service
 
     jobs_module.mark_running(job.id)
     notify_jobs_changed()
@@ -143,10 +144,38 @@ async def run_one_job(job: jobs_module.Job) -> None:
             raise RuntimeError(f"Album {job.album_id!r} no longer in cache")
         tracks = read_tracks(album["path"])
 
+        # Run the deterministic cascade first. Results are memoized;
+        # subsequent calls (e.g. a checks rerun for the same album) will
+        # hit the in-process cache. Off the loop because mb_lookup +
+        # fpcalc are both sync.
+        resolution = await asyncio.to_thread(
+            resolver_service.resolve_album,
+            job.album_id,
+            user_hint=job.hint,
+        )
+
         result: dict[str, Any] = {}
 
         if job.job_type in ("metadata", "metadata+cover"):
-            meta = await ai.suggest_metadata(album, tracks, user_hint=job.hint)
+            # Skip AI entirely when the resolver gave us a confident
+            # anchor with every track aligned. The synthesizer turns the
+            # resolution into the same MetadataSuggestion shape AI
+            # returns, so downstream code is identical.
+            can_skip_ai = (
+                resolution.anchor is not None
+                and resolution.anchor.confidence >= 0.85
+                and resolution.unresolved_track_count == 0
+            )
+            if can_skip_ai:
+                meta = ai.synthesize_metadata_from_resolution(album, tracks, resolution)
+                _log.info(
+                    "job %s (%s, album=%s): deterministic resolver covered everything; AI skipped",
+                    job.id, job.job_type, job.album_id,
+                )
+            else:
+                meta = await ai.suggest_metadata(
+                    album, tracks, user_hint=job.hint, resolution=resolution,
+                )
             result["metadata"] = {
                 "suggestions": meta.suggestions,
                 "tracks": [
@@ -157,11 +186,12 @@ async def run_one_job(job: jobs_module.Job) -> None:
                 "confidence": meta.confidence,
                 "mb_release_group_mbid": meta.mb_release_group_mbid,
             }
-            # Side-effect: if AI confidently identified the album on
-            # MusicBrainz, persist the MBID anchor in the cache. Verified
-            # against MB live before persisting so a well-formed but fake
-            # UUID doesn't poison the cache.
-            if meta.mb_release_group_mbid:
+            # Side-effect: if a real MBID came out (AI or synthesizer),
+            # persist the anchor. The synthesizer's MBID came from the
+            # resolver which already verified it; for AI's, the
+            # persist_ai_mbid helper does its own MB GET to reject
+            # hallucinated UUIDs.
+            if meta.mb_release_group_mbid and not can_skip_ai:
                 try:
                     await asyncio.to_thread(
                         persist_ai_mbid,
@@ -173,19 +203,18 @@ async def run_one_job(job: jobs_module.Job) -> None:
                         "AI MBID persist failed for job %s (album=%s, mbid=%s)",
                         job.id, job.album_id, meta.mb_release_group_mbid,
                     )
-            else:
-                # AI didn't return an MBID — record the lookup attempt
-                # so we don't keep asking AI to identify the same album
-                # on every health-check rerun.
+            elif not meta.mb_release_group_mbid:
+                # Neither path produced an MBID — record the attempt so
+                # missing-mbid health checks back off for the staleness
+                # window.
                 try:
                     await asyncio.to_thread(
                         cache_module.record_mb_lookup_failure,
                         job.album_id,
                     )
                     _log.info(
-                        "AI couldn't identify album=%s on MB; recorded "
-                        "lookup attempt so future checks skip it for "
-                        "the staleness window.",
+                        "No MB anchor found for album=%s (resolver+AI); "
+                        "recorded lookup attempt.",
                         job.album_id,
                     )
                 except Exception:
@@ -195,7 +224,19 @@ async def run_one_job(job: jobs_module.Job) -> None:
                     )
 
         if job.job_type in ("cover", "metadata+cover"):
-            cover = await ai.suggest_cover(album, tracks, user_hint=job.hint)
+            # If the resolver already verified a CAA cover, use it
+            # directly. Falls back to AI when no CAA cover exists for
+            # the anchored release-group, or no anchor is known yet.
+            if resolution.cover_url is not None and resolution.cover_url.confidence >= 0.85:
+                cover = ai.synthesize_cover_from_resolution(resolution)
+                _log.info(
+                    "job %s (%s, album=%s): cover from CAA via resolver; AI skipped",
+                    job.id, job.job_type, job.album_id,
+                )
+            else:
+                cover = await ai.suggest_cover(
+                    album, tracks, user_hint=job.hint, resolution=resolution,
+                )
             result["cover"] = {
                 "cover_url": cover.cover_url,
                 "source": cover.source,

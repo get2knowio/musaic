@@ -196,12 +196,50 @@ object with these keys:
   - current_tags: { title, album_artist, artist, year, genre }
   - track_count:  integer
   - total_seconds: number
-  - tracks: [{ filename, tracknumber, title, artist, duration }, …]
+  - tracks: [{ filename, tracknumber, title, artist, duration,
+              fingerprint?: { recording_mbid, score, mb_canonical_title?,
+                              mb_canonical_artist? } }, …]
+  - anchor (optional): { release_group_mbid, strategy, confidence, notes }
+                       — present when Musaic already identified the release
+                       via deterministic means (cache, MB search, or
+                       AcoustID fingerprint vote). When non-null, DO NOT
+                       redo identification — trust this MBID and focus
+                       your effort on the per-track gaps.
+  - resolver_canonical (optional): { title, album_artist, year,
+                                     album_artist_sort } — what MB says
+                                     about the anchored release. Use these
+                                     verbatim for the matching album-level
+                                     suggestions when current_tags differ.
+  - unresolved_filenames (optional): [filename, …] — tracks the
+                                     deterministic resolver couldn't pin to
+                                     a canonical recording (no fingerprint
+                                     match or alignment ambiguity). These
+                                     are exactly the per-track entries
+                                     where your effort is most valuable.
 
 The user may also include a <hint> block. Treat its content as high-confidence
 ground truth supplied by the user. If you see strong evidence the hint is wrong
 (e.g. the tracklist clearly identifies a different album), call that out in
 `notes` rather than silently overriding it.
+
+PRIOR DETERMINISTIC RESOLUTION
+==============================
+
+When `anchor` is present, the deterministic tier already did the
+identification work. Your job changes:
+
+  - DO NOT search MB for the album — the release-group is already known.
+    Echo `anchor.release_group_mbid` back as `mb_release_group_mbid`.
+  - For album-level fields, propose corrections using `resolver_canonical`
+    when current_tags disagree. No web lookups needed for those.
+  - For per-track fields, use each track's `fingerprint.mb_canonical_*`
+    when present (those are AcoustID-resolved and authoritative for that
+    file). Focus your MB / web-lookup effort on `unresolved_filenames` —
+    those are tracks the deterministic pass couldn't match (covers,
+    bonus tracks, mistitled rips, etc.).
+
+When `anchor` is absent, fall back to the full identification cascade
+below.
 
 ANCHORING LADDER (use in this order)
 ====================================
@@ -440,11 +478,15 @@ def _format_user_message(album_payload: dict[str, Any], user_hint: str = "") -> 
 
 # ---------- Album payload builder ----------
 
-def _album_payload(album_dict: dict[str, Any], tracks: list[dict[str, Any]]) -> dict[str, Any]:
+def _album_payload(
+    album_dict: dict[str, Any],
+    tracks: list[dict[str, Any]],
+    resolution: Any = None,
+) -> dict[str, Any]:
     # `directory.matched=False` if the dir name didn't fit the strict
     # `Artist - Album [FLAC]` convention; the prompt tells Claude to fall
     # back to the raw name + tracks in that case.
-    return {
+    payload = {
         "directory": {
             "dir_name": album_dict.get("dir_name"),
             "matched": album_dict.get("dir_artist") is not None or album_dict.get("dir_album") is not None or bool(album_dict.get("is_compilation")),
@@ -474,6 +516,58 @@ def _album_payload(album_dict: dict[str, Any], tracks: list[dict[str, Any]]) -> 
             for t in tracks
         ],
     }
+
+    # Resolver enrichment — only included when the worker ran the
+    # deterministic cascade and is asking AI for help with the
+    # leftovers. When present, the system prompt tells Claude to trust
+    # the anchor (no re-identification work) and focus on the
+    # `unresolved_filenames`.
+    if resolution is None:
+        return payload
+
+    fp_by_filename: dict[str, dict[str, Any]] = {}
+    for tr in resolution.tracks:
+        if tr.recording_mbid:
+            entry: dict[str, Any] = {
+                "recording_mbid": tr.recording_mbid,
+                "score": tr.fingerprint_score,
+            }
+            if tr.canonical_title:
+                entry["mb_canonical_title"] = tr.canonical_title.value
+            if tr.canonical_artist:
+                entry["mb_canonical_artist"] = tr.canonical_artist.value
+            fp_by_filename[tr.filename] = entry
+
+    unresolved: list[str] = []
+    for tr in resolution.tracks:
+        if tr.canonical_title is None:
+            unresolved.append(tr.filename)
+
+    payload["anchor"] = (
+        {
+            "release_group_mbid": resolution.anchor.value,
+            "strategy": resolution.anchor_strategy,
+            "confidence": resolution.anchor.confidence,
+            "notes": resolution.notes,
+        }
+        if resolution.anchor is not None
+        else None
+    )
+    payload["resolver_canonical"] = {
+        "title": resolution.canonical_title.value if resolution.canonical_title else None,
+        "album_artist": resolution.canonical_album_artist.value if resolution.canonical_album_artist else None,
+        "year": resolution.canonical_year.value if resolution.canonical_year else None,
+        "album_artist_sort": resolution.canonical_album_artist_sort.value if resolution.canonical_album_artist_sort else None,
+    }
+    if fp_by_filename:
+        for entry in payload["tracks"]:
+            fp = fp_by_filename.get(entry["filename"])
+            if fp is not None:
+                entry["fingerprint"] = fp
+    if unresolved:
+        payload["unresolved_filenames"] = unresolved
+
+    return payload
 
 
 # ---------- JSON extraction ----------
@@ -635,15 +729,27 @@ def set_sdk_override(fn) -> None:
     _sdk_override = fn
 
 
-async def suggest_metadata(album_dict: dict[str, Any], tracks: list[dict[str, Any]], user_hint: str = "") -> MetadataSuggestion:
+async def suggest_metadata(
+    album_dict: dict[str, Any],
+    tracks: list[dict[str, Any]],
+    user_hint: str = "",
+    resolution: Any = None,
+) -> MetadataSuggestion:
     """Ask Claude for high-confidence metadata corrections.
 
     `user_hint` is optional free-form context the user provided in the UI
     (e.g. "this is a 2012 reissue, the original is 1979"). It's wrapped in
     a <hint> block in the user message, where the system prompt instructs
     the model to treat it as ground truth.
+
+    `resolution` (optional `services.resolver.AlbumResolution`) is the
+    output of the deterministic tiered resolver. When supplied, the
+    payload is enriched with the anchor + per-track fingerprint matches +
+    list of unresolved filenames; the system prompt knows how to use
+    them. The worker should run the resolver first and only call this
+    when AI is actually needed (anchor missing or per-track gaps remain).
     """
-    payload = _album_payload(album_dict, tracks)
+    payload = _album_payload(album_dict, tracks, resolution=resolution)
     user_message = _format_user_message(payload, user_hint=user_hint)
 
     if _sdk_override:
@@ -731,7 +837,97 @@ def _validate_mbid(value: Any) -> str | None:
     return s if _MBID_RE.match(s) else None
 
 
-async def suggest_cover(album_dict: dict[str, Any], tracks: list[dict[str, Any]], user_hint: str = "") -> CoverSuggestion:
+# ---------- Resolver → suggestion synthesizers ----------
+#
+# Used by the worker to skip the AI call entirely when the deterministic
+# resolver gave us everything: high-confidence anchor + 0 unresolved
+# tracks. Output shape matches the AI response so downstream code (the
+# apply pipeline, the UI's suggestion display) is identical regardless
+# of whether the suggestions came from Claude or from MusicBrainz.
+
+
+def synthesize_metadata_from_resolution(
+    album_dict: dict[str, Any],
+    tracks: list[dict[str, Any]],
+    resolution: Any,
+) -> MetadataSuggestion:
+    """Build a MetadataSuggestion from an AlbumResolution by diffing
+    canonical fields against current_tags. Includes only fields that
+    would actually change."""
+    suggestions: dict[str, str] = {}
+
+    def diff(field: str, current_key: str, fact: Any) -> None:
+        if fact is None:
+            return
+        proposed = str(fact.value).strip()
+        current = str(album_dict.get(current_key) or "").strip()
+        if proposed and proposed != current:
+            suggestions[field] = proposed
+
+    diff("title", "title", resolution.canonical_title)
+    diff("album_artist", "album_artist", resolution.canonical_album_artist)
+    # `artist` mirrors album_artist when MB only gave us the album-level credit.
+    diff("artist", "artist", resolution.canonical_album_artist)
+    diff("year", "year", resolution.canonical_year)
+    diff("genre", "genre", resolution.canonical_genre)
+    diff("album_artist_sort", "album_artist_sort", resolution.canonical_album_artist_sort)
+
+    track_suggestions: list[TrackSuggestion] = []
+    by_filename = {t.get("filename"): t for t in tracks}
+    for tr in resolution.tracks:
+        ft = by_filename.get(tr.filename) or {}
+        cleaned: dict[str, str] = {}
+
+        def t_diff(field: str, current_key: str, fact: Any) -> None:
+            if fact is None:
+                return
+            proposed = str(fact.value).strip()
+            current = str(ft.get(current_key) or "").strip()
+            if proposed and proposed != current:
+                cleaned[field] = proposed
+
+        t_diff("title", "title", tr.canonical_title)
+        t_diff("artist", "artist", tr.canonical_artist)
+        t_diff("tracknumber", "tracknumber", tr.canonical_tracknumber)
+        if cleaned:
+            track_suggestions.append(TrackSuggestion(filename=tr.filename, suggestions=cleaned))
+
+    return MetadataSuggestion(
+        suggestions=suggestions,
+        tracks=track_suggestions,
+        notes="Derived from MusicBrainz; no AI call needed.",
+        confidence="high",
+        raw="",
+        mb_release_group_mbid=resolution.anchor.value if resolution.anchor else None,
+    )
+
+
+def synthesize_cover_from_resolution(resolution: Any) -> CoverSuggestion:
+    """Build a CoverSuggestion from an AlbumResolution. Returns
+    cover_url=None when the resolver didn't find a CAA URL — caller
+    should escalate to AI in that case rather than ship a blank
+    CoverSuggestion."""
+    if resolution.cover_url is None:
+        return CoverSuggestion(
+            cover_url=None,
+            source="MusicBrainz / Cover Art Archive",
+            notes="No cover in CAA for the anchored release-group.",
+            confidence="low",
+        )
+    return CoverSuggestion(
+        cover_url=str(resolution.cover_url.value),
+        source="Cover Art Archive (anchored release-group)",
+        notes="Derived from MusicBrainz; no AI call needed.",
+        confidence="high",
+    )
+
+
+async def suggest_cover(
+    album_dict: dict[str, Any],
+    tracks: list[dict[str, Any]],
+    user_hint: str = "",
+    resolution: Any = None,
+) -> CoverSuggestion:
     """Ask Claude for a canonical cover-art URL, with a deterministic
     MusicBrainz fallback when the AI subprocess errors opaquely.
 
@@ -747,7 +943,7 @@ async def suggest_cover(album_dict: dict[str, Any], tracks: list[dict[str, Any]]
     that the user can't act on. We only re-raise if the MB fallback ALSO
     fails to produce any answer (rare — usually means MB is down).
     """
-    payload = _album_payload(album_dict, tracks)
+    payload = _album_payload(album_dict, tracks, resolution=resolution)
     user_message = _format_user_message(payload, user_hint=user_hint)
 
     try:
