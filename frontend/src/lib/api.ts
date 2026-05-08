@@ -89,6 +89,22 @@ export function getAlbumResolution(
   );
 }
 
+/**
+ * Wipe the cached MusicBrainz anchor for an album AND blocklist the
+ * rejected release-group so the resolver's fingerprint vote / dir
+ * search / AI persist all skip it on the next run. Returns the
+ * freshly re-derived resolution + the MBID that was just blocklisted
+ * (null if the album wasn't anchored to anything).
+ */
+export function clearAlbumMbAnchor(
+  id: string,
+): Promise<{ ok: boolean; blocked_mbid: string | null; resolution: AlbumResolution }> {
+  return request(
+    `/api/albums/${encodeURIComponent(id)}/mb-anchor/clear`,
+    { method: "POST" },
+  );
+}
+
 // --- Scan ---
 
 export function rescanLibrary(): Promise<{ status: string; library_dir: string }> {

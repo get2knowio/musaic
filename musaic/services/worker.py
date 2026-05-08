@@ -60,7 +60,18 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
     to point at nonexistent data. We GET the release-group detail
     endpoint before writing — 200 means it's real, anything else means
     we drop the suggestion silently.
+
+    Also refuses MBIDs the user has rejected via the "Wrong match"
+    affordance — the AI doesn't know about per-album blocklists, and
+    persisting one would silently re-trap the user in the same loop.
     """
+    blocked = cache_module.get_blocked_mb_release_groups(album_id)
+    if mbid in blocked:
+        _log.info(
+            "AI returned blocklisted MBID for album=%s mbid=%s; refusing to persist",
+            album_id, mbid,
+        )
+        return
     import requests
     url = mb_lookup.MB_RELEASE_GROUP_DETAIL.format(mbid=mbid)
     try:

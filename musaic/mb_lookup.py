@@ -129,6 +129,7 @@ def find_release(
     hint: str = "",
     fetch_cover: bool = True,
     fetch_tracklist: bool = True,
+    exclude_release_group_mbids: set[str] | None = None,
     timeout: int = 15,
 ) -> MusicBrainzMatch:
     """One-shot lookup. Returns a (possibly empty) MusicBrainzMatch.
@@ -187,10 +188,18 @@ def find_release(
         )
 
     groups = data.get("release-groups", []) or []
+    # Filter out blocklisted release-groups before any further reasoning.
+    # Used by the "Wrong match" UI affordance — without this the same
+    # rejected release-group would keep winning.
+    blocked = exclude_release_group_mbids or set()
+    if blocked:
+        groups = [g for g in groups if g.get("id") not in blocked]
     if not groups:
         notes = f"No release-group match for artist={artist!r} title={title!r}"
         if hint:
             notes += f' (your hint: "{hint}")'
+        if blocked:
+            notes += f" (after excluding {len(blocked)} blocklisted release-group(s))"
         return MusicBrainzMatch(
             notes=notes,
             source="MusicBrainz (no match)",
@@ -303,6 +312,7 @@ def find_release_cached(
     hint: str = "",
     fetch_cover: bool = True,
     fetch_tracklist: bool = True,
+    exclude_release_group_mbids: set[str] | None = None,
     timeout: int = 15,
 ) -> MusicBrainzMatch:
     """Like find_release() but consults the per-album MB anchor cache first.
@@ -323,13 +333,29 @@ def find_release_cached(
     from . import cache as cache_module
     album_id = album.get("id")
     if not album_id:
-        return find_release(album, hint=hint, fetch_cover=fetch_cover,
-                            fetch_tracklist=fetch_tracklist, timeout=timeout)
+        return find_release(
+            album, hint=hint, fetch_cover=fetch_cover,
+            fetch_tracklist=fetch_tracklist,
+            exclude_release_group_mbids=exclude_release_group_mbids,
+            timeout=timeout,
+        )
 
+    blocked = exclude_release_group_mbids or set()
     anchor = cache_module.get_album_mb_anchor(album_id)
-    if anchor is None or _is_stale(anchor.get("last_checked_at")):
-        return find_release(album, hint=hint, fetch_cover=fetch_cover,
-                            fetch_tracklist=fetch_tracklist, timeout=timeout)
+    # If the cached anchor is itself blocklisted, treat as cache-miss so
+    # the underlying find_release re-queries (with the blocklist applied
+    # to the candidate filter).
+    if (
+        anchor is None
+        or _is_stale(anchor.get("last_checked_at"))
+        or anchor.get("release_group_mbid") in blocked
+    ):
+        return find_release(
+            album, hint=hint, fetch_cover=fetch_cover,
+            fetch_tracklist=fetch_tracklist,
+            exclude_release_group_mbids=blocked,
+            timeout=timeout,
+        )
 
     # Cache hit. Build a minimal match from cached identity fields and
     # fetch only the bits the caller wants.

@@ -578,6 +578,64 @@ def set_album_mb_anchor(
             )
 
 
+def add_blocked_mb_release_group(album_id: str, release_group_mbid: str) -> None:
+    """Add an MB release-group MBID to this album's blocklist.
+
+    The resolver's Tier 0b (dir search) and Tier 0c (fingerprint vote)
+    skip blocked MBIDs, and AI-MBID persistence refuses them. Used by
+    the "Wrong match" UI affordance — without it, fingerprint vote
+    would re-derive the same wrong release-group from cached AcoustID
+    matches the moment the user cleared the anchor, putting them right
+    back in the same loop.
+    """
+    if not release_group_mbid:
+        return
+    with db_module.connect() as conn:
+        with db_module.transaction(conn):
+            conn.execute(
+                "INSERT OR IGNORE INTO album_blocked_mb_release_groups "
+                "(album_id, release_group_mbid, blocked_at) VALUES (?, ?, ?)",
+                (album_id, release_group_mbid, _now_iso()),
+            )
+
+
+def get_blocked_mb_release_groups(album_id: str) -> set[str]:
+    """Return the set of MB release-group MBIDs blocked for this album.
+
+    Empty set when the album has no blocks (the common case). Cheap —
+    indexed lookup on a small per-album partition.
+    """
+    with db_module.connect() as conn:
+        rows = conn.execute(
+            "SELECT release_group_mbid FROM album_blocked_mb_release_groups "
+            "WHERE album_id = ?",
+            (album_id,),
+        ).fetchall()
+    return {r["release_group_mbid"] for r in rows}
+
+
+def clear_album_mb_anchor(album_id: str) -> None:
+    """Wipe the cached MusicBrainz anchor for an album.
+
+    Used by the "wrong match" escape hatch in the UI: the resolver
+    short-circuits on cache hit (Tier 0a), so a wrong anchor can lock
+    the user out of the AI re-search path until the cache is cleared.
+    Resets every column the anchor populates so the resolver starts
+    completely fresh on the next call.
+
+    Caller is responsible for invalidating the resolver's in-process
+    memoization (resolver_service.invalidate(album_id)).
+    """
+    with db_module.connect() as conn:
+        with db_module.transaction(conn):
+            conn.execute(
+                "UPDATE albums SET mb_release_group_mbid = NULL, "
+                "mb_release_mbid = NULL, mb_match_score = NULL, "
+                "mb_last_checked_at = NULL WHERE id = ?",
+                (album_id,),
+            )
+
+
 def record_mb_lookup_failure(album_id: str) -> None:
     """Mark an album as "MB lookup attempted but didn't yield an MBID."
 

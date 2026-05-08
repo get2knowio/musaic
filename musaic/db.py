@@ -26,7 +26,7 @@ from typing import Iterator
 from .config import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "library.db"
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 log = logging.getLogger(__name__)
 
@@ -231,6 +231,23 @@ SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_tag_vocabulary_sort ON tag_vocabulary(sort_order, tag)",
+    # --- v13: per-album MusicBrainz release-group blocklist ---
+    # Populated by the "Wrong match" UI affordance: when the user
+    # rejects a cached MB anchor for an album, the rejected
+    # release_group_mbid is recorded here so the resolver's Tier 0b
+    # (dir-search) and Tier 0c (fingerprint vote) skip it, and AI
+    # MBID-persist refuses it. Without this, fingerprint vote would
+    # immediately re-derive the same wrong release-group from the
+    # cached AcoustID matches and the user would be stuck.
+    """
+    CREATE TABLE IF NOT EXISTS album_blocked_mb_release_groups (
+        album_id           TEXT NOT NULL,
+        release_group_mbid TEXT NOT NULL,
+        blocked_at         TEXT NOT NULL,
+        PRIMARY KEY (album_id, release_group_mbid),
+        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE
+    )
+    """,
 ]
 
 
@@ -413,6 +430,21 @@ MIGRATIONS: dict[int, list[str]] = {
         # the UI show "AI reviewed: yes/no" so the user doesn't
         # re-run AI on already-reviewed albums by accident.
         "ALTER TABLE albums ADD COLUMN metadata_ai_acted_on_at TEXT",
+    ],
+    13: [
+        # Per-album MB release-group blocklist (the "Wrong match"
+        # escape hatch). The CREATE TABLE in SCHEMA_STATEMENTS handles
+        # fresh installs (IF NOT EXISTS); this mirrors it for upgraded
+        # DBs.
+        """
+        CREATE TABLE IF NOT EXISTS album_blocked_mb_release_groups (
+            album_id           TEXT NOT NULL,
+            release_group_mbid TEXT NOT NULL,
+            blocked_at         TEXT NOT NULL,
+            PRIMARY KEY (album_id, release_group_mbid),
+            FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE
+        )
+        """,
     ],
     6: [
         # Maintenance / health-check infrastructure. The CREATE TABLEs in

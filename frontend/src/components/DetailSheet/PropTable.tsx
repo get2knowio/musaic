@@ -1,3 +1,5 @@
+import { ExternalLink } from "lucide-react";
+
 import type { Album } from "@/lib/types";
 
 interface PropTableProps {
@@ -58,9 +60,16 @@ function musicBrainzCell(album: Album): React.ReactNode {
   if (mbid) {
     return (
       <span className="inline-flex flex-wrap items-baseline gap-1.5">
-        <code className="mono text-xs text-fg-3 break-all" title={`release-group: ${mbid}`}>
+        <a
+          href={`https://musicbrainz.org/release-group/${mbid}`}
+          target="_blank"
+          rel="noreferrer"
+          title={`Open release-group ${mbid} on MusicBrainz`}
+          className="mono text-xs text-accent hover:underline break-all inline-flex items-baseline gap-1"
+        >
           {mbid}
-        </code>
+          <ExternalLink className="w-3 h-3 self-center shrink-0" />
+        </a>
         {checkedAt && (
           <span className="text-fg-4 text-xs">
             (checked {formatLocal(checkedAt)})

@@ -231,6 +231,43 @@ def get_tracks(album_id: str) -> dict[str, Any]:
     return {"album_id": album_id, "tracks": read_tracks(album["path"])}
 
 
+@router.post("/api/albums/{album_id}/mb-anchor/clear")
+async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
+    """Wipe the cached MusicBrainz anchor for an album AND blocklist
+    the rejected release-group.
+
+    Escape hatch for the "wrong release-group locked in" case
+    (typically compilations where MB matched a same-title-but-different
+    release). Without the blocklist, the resolver's Tier 0c
+    (fingerprint vote) immediately re-derives the same wrong release-
+    group from the cached AcoustID matches and the user is right back
+    where they started. Adding the rejected MBID to the per-album
+    blocklist (`album_blocked_mb_release_groups`) makes the rejection
+    sticky across all three tiers + AI persistence.
+
+    Returns the freshly re-derived resolution so the caller can update
+    its UI immediately.
+    """
+    resolve_album_dict(album_id)
+    # Capture the currently-cached anchor BEFORE clearing it — that's
+    # the MBID we need to blocklist.
+    rejected = cache_module.get_album_mb_anchor(album_id)
+    if rejected and rejected.get("release_group_mbid"):
+        cache_module.add_blocked_mb_release_group(
+            album_id, rejected["release_group_mbid"],
+        )
+    cache_module.clear_album_mb_anchor(album_id)
+    resolver_service.invalidate(album_id)
+    fresh = await asyncio.to_thread(
+        resolver_service.resolve_album, album_id,
+    )
+    return {
+        "ok": True,
+        "blocked_mbid": rejected.get("release_group_mbid") if rejected else None,
+        "resolution": fresh.to_dict(),
+    }
+
+
 @router.get("/api/albums/{album_id}/resolution")
 async def get_album_resolution(
     album_id: str,

@@ -30,6 +30,7 @@ import {
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
 import { useApplyStream } from "@/hooks/useApplyStream";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
+import { clearAlbumMbAnchor } from "@/lib/api";
 import type {
   Album,
   CoverSuggestionResponse,
@@ -346,6 +347,29 @@ function SheetBody({
     }
   };
 
+  // "Wrong match" escape hatch: clears the cached MB anchor so the
+  // synthesizer stops returning the same wrong cover/title from a
+  // stale release-group. Discards the current suggestions in the same
+  // step so the user immediately sees the standard sheet (with empty
+  // resolution) and can re-trigger AI — typically with a hint.
+  const [clearingAnchor, setClearingAnchor] = useState(false);
+  const onClearAnchor = async () => {
+    setClearingAnchor(true);
+    try {
+      const res = await clearAlbumMbAnchor(album.id);
+      qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
+      onDiscard();
+      const toastMsg = res.blocked_mbid
+        ? `Rejected ${res.blocked_mbid.slice(0, 8)}… and added it to this album's blocklist. Re-run AI (a hint helps narrow the search).`
+        : "Cleared MusicBrainz match. Re-run AI (a hint helps narrow the search).";
+      toast.success(toastMsg, { duration: 6000 });
+    } catch (err) {
+      toast.error((err as Error).message || "Couldn't clear MusicBrainz anchor");
+    } finally {
+      setClearingAnchor(false);
+    }
+  };
+
   return (
     <>
       {/* Sheet head */}
@@ -447,6 +471,8 @@ function SheetBody({
             cover={coverResult}
             onAccept={onApply}
             onDiscard={onDiscard}
+            onClearAnchor={onClearAnchor}
+            clearingAnchor={clearingAnchor}
             applying={isApplying}
           />
         ) : (

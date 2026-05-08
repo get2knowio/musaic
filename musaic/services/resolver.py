@@ -194,16 +194,26 @@ class _AnchorCandidate:
     release_mbid: str | None = None
 
 
-def _try_dir_search(album: dict[str, Any], *, user_hint: str = "") -> _AnchorCandidate | None:
+def _try_dir_search(
+    album: dict[str, Any],
+    *,
+    user_hint: str = "",
+    blocked: set[str] | None = None,
+) -> _AnchorCandidate | None:
     """Tier 0b: classic find_release path. Already auto-caches a confident
     anchor via cache.set_album_mb_anchor as a side effect.
 
     When `user_hint` is supplied, find_release uses it to rerank MB
     candidates (substring match against title/artist credit) — Tier 2
     bias on top of Tier 0b's pick.
+
+    `blocked` is the per-album rejected-MBID set populated by the
+    "Wrong match" UI affordance. Forwarded to mb_lookup so the search
+    skips the rejected release-group(s).
     """
     match = mb_lookup.find_release(
         album, hint=user_hint, fetch_cover=False, fetch_tracklist=False,
+        exclude_release_group_mbids=blocked,
     )
     if not match.mbid or match.score < mb_lookup.MEDIUM_CONFIDENCE_SCORE:
         return None
@@ -216,7 +226,11 @@ def _try_dir_search(album: dict[str, Any], *, user_hint: str = "") -> _AnchorCan
     )
 
 
-def _try_fingerprint_vote(album: dict[str, Any]) -> _AnchorCandidate | None:
+def _try_fingerprint_vote(
+    album: dict[str, Any],
+    *,
+    blocked: set[str] | None = None,
+) -> _AnchorCandidate | None:
     """Tier 0c: ensure fingerprints exist for every track, look up each
     recording's release-groups, vote.
 
@@ -241,6 +255,10 @@ def _try_fingerprint_vote(album: dict[str, Any]) -> _AnchorCandidate | None:
         return None
 
     # Map each recording to its release-groups, weight votes by AcoustID score.
+    # Skip blocklisted release-groups outright so they can't win — the
+    # whole point of "Wrong match" is that we should never re-anchor to
+    # a rejected MBID, even if every per-track fingerprint points at it.
+    blocked_set = blocked or set()
     rg_votes: Counter[str] = Counter()
     rg_titles: dict[str, str] = {}
     for tf in matched:
@@ -250,6 +268,8 @@ def _try_fingerprint_vote(album: dict[str, Any]) -> _AnchorCandidate | None:
             continue
         for rg in rgs:
             rg_mbid = rg["release_group_mbid"]
+            if rg_mbid in blocked_set:
+                continue
             rg_votes[rg_mbid] += weight
             rg_titles.setdefault(rg_mbid, rg["title"])
 
@@ -460,16 +480,33 @@ def _resolve_uncached(album: dict[str, Any], *, user_hint: str) -> AlbumResoluti
         for f in cached_fps
     }
 
-    # Tier 0a: cache hit.
+    # Per-album blocklist of MB release-groups the user has rejected
+    # (via the "Wrong match" UI). Forwarded to every tier so we don't
+    # silently re-anchor to one of them via fingerprint vote / dir
+    # search / cache.
+    blocked = cache_module.get_blocked_mb_release_groups(album["id"])
+
+    # Tier 0a: cache hit. Skip a cached anchor that's been blocklisted —
+    # this normally won't happen (the clear-anchor path wipes the cache
+    # before adding to the blocklist) but guard against drift if a
+    # caller persists an anchor through a different code path.
     anchor_row = cache_module.get_album_mb_anchor(album["id"])
-    if anchor_row and anchor_row.get("release_group_mbid"):
+    if (
+        anchor_row
+        and anchor_row.get("release_group_mbid")
+        and anchor_row["release_group_mbid"] not in blocked
+    ):
         score = int(anchor_row.get("score") or 0)
         resolution.anchor = FieldFact(anchor_row["release_group_mbid"], "cache", score / 100.0)
         resolution.anchor_strategy = "cache"
         resolution.notes.append(f"Tier 0a: anchored from cache (score {score})")
     else:
+        if blocked:
+            resolution.notes.append(
+                f"Blocklist active ({len(blocked)} release-group(s) rejected via Wrong match)"
+            )
         # Tier 0b: dir-search (hint biases candidate reranking when set).
-        candidate = _try_dir_search(album, user_hint=user_hint)
+        candidate = _try_dir_search(album, user_hint=user_hint, blocked=blocked)
         if candidate:
             resolution.anchor = FieldFact(
                 candidate.release_group_mbid, candidate.source,
@@ -479,7 +516,7 @@ def _resolve_uncached(album: dict[str, Any], *, user_hint: str) -> AlbumResoluti
             resolution.notes.append(f"Tier 0b: {candidate.notes}")
         else:
             # Tier 0c: fingerprint vote.
-            candidate = _try_fingerprint_vote(album)
+            candidate = _try_fingerprint_vote(album, blocked=blocked)
             if candidate:
                 resolution.anchor = FieldFact(
                     candidate.release_group_mbid, candidate.source,

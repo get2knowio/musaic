@@ -14,6 +14,15 @@ interface AISuggestionsProps {
   cover: CoverSuggestionResponse | null;
   onAccept: () => void;
   onDiscard: () => void;
+  /** Wipe the cached MB anchor + discard these suggestions. Escape
+   *  hatch for the "wrong release-group locked in" case where the
+   *  resolver synthesizes the same wrong cover/metadata every time
+   *  because the album's `mb_release_group_mbid` is cached against the
+   *  wrong release. */
+  onClearAnchor: () => void;
+  /** Whether the cached anchor is in flight being cleared — disables
+   *  the button + shows progress. */
+  clearingAnchor: boolean;
   applying: boolean;
 }
 
@@ -43,6 +52,8 @@ export default function AISuggestions({
   cover,
   onAccept,
   onDiscard,
+  onClearAnchor,
+  clearingAnchor,
   applying,
 }: AISuggestionsProps) {
   // We need the live track listing to compute "before" values for per-track diffs.
@@ -136,6 +147,7 @@ export default function AISuggestions({
           >
             Discard
           </button>
+          <ClearAnchorButton onClick={onClearAnchor} busy={clearingAnchor} />
         </div>
       </div>
     );
@@ -280,6 +292,7 @@ export default function AISuggestions({
         >
           Discard
         </button>
+        <ClearAnchorButton onClick={onClearAnchor} busy={clearingAnchor} disabled={applying} />
         <button
           onClick={onAccept}
           disabled={applying}
@@ -290,6 +303,28 @@ export default function AISuggestions({
         </button>
       </div>
     </div>
+  );
+}
+
+/** "Wrong match?" escape hatch — clears the cached MB anchor so the
+ *  next AI run isn't short-circuited by a synthesizer that keeps
+ *  returning the same wrong cover/title from a stale release-group. */
+function ClearAnchorButton({
+  onClick, busy, disabled = false,
+}: {
+  onClick: () => void;
+  busy: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy || disabled}
+      title="Wipe the cached MusicBrainz match so a new AI run can search again. Use when the wrong release-group has been locked in (common for compilations). Tip: re-run with a hint to bias the search."
+      className="h-8 px-3 border border-amber-500/40 text-amber-300 rounded text-sm hover:bg-amber-500/10 transition disabled:opacity-60"
+    >
+      {busy ? "Clearing…" : "Wrong match"}
+    </button>
   );
 }
 
