@@ -88,6 +88,13 @@ class MBTrack:
     artist: str | None = None  # only meaningful for compilations
     recording_mbid: str | None = None  # canonical recording — used by fingerprint match
 
+    @property
+    def length_s(self) -> float | None:
+        """Convenience accessor in seconds — duration comparisons are
+        almost always against FLAC track lengths, which we already
+        track in seconds (via mutagen's `audio.info.length`)."""
+        return self.length_ms / 1000.0 if self.length_ms is not None else None
+
 
 @dataclass
 class MusicBrainzMatch:
