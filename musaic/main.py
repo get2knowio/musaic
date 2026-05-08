@@ -75,6 +75,7 @@ app.include_router(api.jobs.router)
 app.include_router(api.settings.router)
 app.include_router(api.health.router)
 app.include_router(api.apply.router)
+app.include_router(api.analyze.router)
 
 
 # ---------- Frontend ----------

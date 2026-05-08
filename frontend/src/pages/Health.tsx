@@ -5,6 +5,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Image as ImageIcon,
+  Info,
   FileWarning,
   Files,
   Loader2,
@@ -18,45 +19,41 @@ import { usePageTitle } from "@/hooks/usePageTitle";
 import type { CheckCategory, CheckSummary } from "@/lib/types";
 
 /**
- * Health page — index. Card per registered check; click into detail.
+ * Health page — index. Dense table-style list, one row per registered
+ * check. Click a row → detail page.
  *
- * Phase 1 ships with REGISTRY=[] on the backend, so this page renders an
- * empty state. Phase 2 brings the cards to life.
+ * The previous card-grid layout left visible dead space when a category
+ * had only 1-2 checks (cover art, duplicates, files), and the right-rail
+ * count chip + run button kept squeezing the title until it truncated.
+ * The list flattens that into a single sortable column set.
  */
 export default function HealthPage() {
   usePageTitle("Health");
   const { data: checks = [], isLoading } = useChecks();
 
-  // Group cards by category so similar checks cluster visually.
-  const grouped = useMemo(() => {
-    const map = new Map<CheckCategory, CheckSummary[]>();
-    for (const c of checks) {
-      const list = map.get(c.meta.category) ?? [];
-      list.push(c);
-      map.set(c.meta.category, list);
-    }
-    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  // Sort by category (alpha) then label so similar checks still cluster
+  // visually even without category headers.
+  const rows = useMemo(() => {
+    return [...checks].sort((a, b) => {
+      const catCmp = a.meta.category.localeCompare(b.meta.category);
+      if (catCmp !== 0) return catCmp;
+      return a.meta.label.localeCompare(b.meta.label);
+    });
   }, [checks]);
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <Header totalChecks={checks.length} totalIssues={checks.reduce((n, c) => n + c.open_count, 0)} />
+      <Header
+        totalChecks={checks.length}
+        totalIssues={checks.reduce((n, c) => n + c.open_count, 0)}
+      />
       {isLoading && checks.length === 0 ? (
         <div className="px-4 py-8 text-center text-fg-3 text-sm">Loading…</div>
       ) : checks.length === 0 ? (
         <Empty />
       ) : (
-        <div className="px-4 py-4 space-y-6">
-          {grouped.map(([category, items]) => (
-            <section key={category}>
-              <h2 className="mono text-[11px] uppercase tracking-[0.08em] text-fg-4 mb-2 px-1">
-                {CATEGORY_LABEL[category] ?? category}
-              </h2>
-              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))" }}>
-                {items.map((c) => <CheckCard key={c.meta.id} check={c} />)}
-              </div>
-            </section>
-          ))}
+        <div className="px-4 py-4">
+          <CheckTable rows={rows} />
         </div>
       )}
     </div>
@@ -100,7 +97,35 @@ function Empty() {
   );
 }
 
-function CheckCard({ check }: { check: CheckSummary }) {
+/* -------------------- Table -------------------- */
+
+// Grid template: icon · title · category · open count · last run · run button.
+// `minmax(0, 1fr)` on the title column lets it absorb spare width without
+// forcing truncation on shorter labels.
+const COLS = "20px minmax(0, 1fr) 140px 80px 110px 96px";
+
+function CheckTable({ rows }: { rows: CheckSummary[] }) {
+  return (
+    <div className="border border-line rounded-md overflow-hidden bg-panel-2">
+      <div
+        className="grid gap-3 px-3 py-2 border-b border-line text-fg-4 mono text-[10.5px] uppercase tracking-[0.06em]"
+        style={{ gridTemplateColumns: COLS }}
+      >
+        <span />
+        <span>Check</span>
+        <span>Category</span>
+        <span className="text-right">Open</span>
+        <span>Last run</span>
+        <span />
+      </div>
+      <div className="divide-y divide-line">
+        {rows.map((c) => <CheckRow key={c.meta.id} check={c} />)}
+      </div>
+    </div>
+  );
+}
+
+function CheckRow({ check }: { check: CheckSummary }) {
   const Icon = ICON_FOR_CATEGORY[check.meta.category] ?? Activity;
   const lastRun = check.last_run;
   const isRunning = lastRun?.status === "running";
@@ -123,50 +148,65 @@ function CheckCard({ check }: { check: CheckSummary }) {
   return (
     <Link
       to={`/health/${encodeURIComponent(check.meta.id)}`}
-      className="block border border-line bg-panel-2 rounded-md p-3 hover:border-accent hover:-translate-y-0.5 hover:shadow-card transition"
+      className="grid gap-3 px-3 py-2 items-center text-sm hover:bg-bg-2 transition group"
+      style={{ gridTemplateColumns: COLS }}
     >
-      <div className="flex items-start gap-3">
-        <Icon className="w-4 h-4 text-accent shrink-0 mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-medium truncate">{check.meta.label}</span>
-            <span className="ml-auto inline-flex items-center gap-1.5">
-              {check.open_count > 0 ? (
-                <span className="inline-flex items-center gap-1 mono text-[11px] font-semibold text-warn px-1.5 py-0.5 rounded-full bg-warn-soft border border-warn/30 tabular-nums">
-                  <AlertCircle className="w-3 h-3" />
-                  {check.open_count}
-                </span>
-              ) : lastRun?.status === "completed" ? (
-                <span className="inline-flex items-center gap-1 mono text-[11px] font-semibold text-ok">
-                  <CheckCircle2 className="w-3 h-3" /> 0
-                </span>
-              ) : null}
-            </span>
-          </div>
-          <p className="text-sm text-fg-3 leading-snug mt-1">{check.meta.description}</p>
-          <div className="flex items-center justify-between mt-2 text-xs text-fg-4 mono">
-            <span className="tabular-nums">
-              {isRunning ? (
-                <span className="inline-flex items-center gap-1.5 text-accent">
-                  <Loader2 className="w-3 h-3 spin" /> Running…
-                </span>
-              ) : lastRun ? (
-                <>Last run {fmtRelative(lastRun.completed_at || lastRun.started_at)}</>
-              ) : (
-                <span className="italic">Never run</span>
-              )}
-            </span>
-            <button
-              onClick={onRun}
-              disabled={isRunning || runMutation.isPending}
-              className="h-6 px-2 rounded border border-line text-fg-2 hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 inline-flex items-center gap-1 normal-case tracking-normal"
-            >
-              <Sparkles className="w-3 h-3" />
-              {runMutation.isPending ? "Starting…" : "Run now"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <Icon className="w-3.5 h-3.5 text-accent" />
+      <span className="flex items-center gap-1.5 min-w-0">
+        <span className="font-medium truncate" title={check.meta.label}>
+          {check.meta.label}
+        </span>
+        <span
+          tabIndex={0}
+          role="img"
+          aria-label={check.meta.description}
+          title={check.meta.description}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          className="text-fg-4 hover:text-fg-2 shrink-0 cursor-help"
+        >
+          <Info className="w-3 h-3" />
+        </span>
+      </span>
+      <span className="text-fg-4 text-xs mono truncate" title={CATEGORY_LABEL[check.meta.category]}>
+        {CATEGORY_LABEL[check.meta.category] ?? check.meta.category}
+      </span>
+      <span className="text-right">
+        {check.open_count > 0 ? (
+          <span className="inline-flex items-center gap-1 mono text-[11px] font-semibold text-warn px-1.5 py-0.5 rounded-full bg-warn-soft border border-warn/30 tabular-nums">
+            <AlertCircle className="w-3 h-3" />
+            {check.open_count}
+          </span>
+        ) : lastRun?.status === "completed" ? (
+          <span className="inline-flex items-center gap-1 mono text-[11px] font-semibold text-ok">
+            <CheckCircle2 className="w-3 h-3" /> 0
+          </span>
+        ) : (
+          <span className="text-fg-4 text-xs mono">—</span>
+        )}
+      </span>
+      <span className="text-xs text-fg-4 mono tabular-nums truncate">
+        {isRunning ? (
+          <span className="inline-flex items-center gap-1.5 text-accent">
+            <Loader2 className="w-3 h-3 spin" /> Running…
+          </span>
+        ) : lastRun ? (
+          fmtRelative(lastRun.completed_at || lastRun.started_at)
+        ) : (
+          <span className="italic">Never run</span>
+        )}
+      </span>
+      {/* Run-now is hover-revealed on the row to keep the resting visual
+          uncluttered; focus-within keeps it accessible to keyboard users. */}
+      <span className="justify-self-end opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+        <button
+          onClick={onRun}
+          disabled={isRunning || runMutation.isPending}
+          className="h-6 px-2 rounded border border-line text-fg-2 hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 inline-flex items-center gap-1 normal-case tracking-normal text-xs mono"
+        >
+          <Sparkles className="w-3 h-3" />
+          {runMutation.isPending ? "Starting…" : "Run now"}
+        </button>
+      </span>
     </Link>
   );
 }

@@ -60,13 +60,18 @@ export default function FindingsSection({ album, hasActiveJob, applying, onApply
   // Hide the section entirely when there's nothing to show.
   if (open.length === 0 && ignored.length === 0 && !mbPreviewVisible) return null;
 
+  // Most-common open check on this album → drives the "Bulk fix in Health"
+  // deep-link in the section meta, so the user discovers the bulk affordance
+  // without us spending a paragraph telling them about it.
+  const topCheckId = pickTopCheck(open);
+
   return (
     <Section
       id={`findings-${albumId}`}
       title="Findings"
       defaultOpen={open.length > 0 || mbPreviewVisible}
       meta={
-        <span>
+        <span className="inline-flex items-center gap-2">
           {open.length > 0 ? (
             <span className="text-warn font-semibold">{open.length} open</span>
           ) : mbPreviewVisible ? (
@@ -75,7 +80,17 @@ export default function FindingsSection({ album, hasActiveJob, applying, onApply
             <span className="text-fg-4">{ignored.length} ignored</span>
           )}
           {(open.length > 0 || mbPreviewVisible) && ignored.length > 0 && (
-            <span className="text-fg-4"> · {ignored.length} ignored</span>
+            <span className="text-fg-4">· {ignored.length} ignored</span>
+          )}
+          {topCheckId && (
+            <Link
+              to={`/health/${encodeURIComponent(topCheckId)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-0.5 text-fg-3 hover:text-accent hover:underline"
+              title="Bulk-fix similar findings across the library"
+            >
+              Bulk fix ↗
+            </Link>
           )}
         </span>
       }
@@ -87,53 +102,24 @@ export default function FindingsSection({ album, hasActiveJob, applying, onApply
         onApply={onApply}
         bare
       />
-      {open.length > 0 && <BulkHealthHint findings={open} />}
       <FindingsList findings={open} />
       {ignored.length > 0 && <IgnoredCollapsed findings={ignored} />}
     </Section>
   );
 }
 
-/**
- * Note above the per-album findings list pointing the user at the Health
- * detail page for the same check. That's where the bulk affordances live —
- * users who only ever fix findings one-by-one from the album sheet never
- * discover the time-saver. We use the most-common open check as the deep
- * link target so the click lands on the bulk view they'd actually want.
- */
-function BulkHealthHint({ findings }: { findings: Finding[] }) {
-  const { data: checks = [] } = useChecks();
-
-  // Pick the single open check most represented across this album's findings;
-  // tie-broken by check label order to keep the link target deterministic.
-  const checkCounts = new Map<string, number>();
-  for (const f of findings) {
-    checkCounts.set(f.check_id, (checkCounts.get(f.check_id) ?? 0) + 1);
+/** Most-common open check on this album. Tie-broken by Map insertion order
+ *  so the deep-link target stays deterministic across renders. */
+function pickTopCheck(findings: Finding[]): string | null {
+  if (findings.length === 0) return null;
+  const counts = new Map<string, number>();
+  for (const f of findings) counts.set(f.check_id, (counts.get(f.check_id) ?? 0) + 1);
+  let topId: string | null = null;
+  let topN = 0;
+  for (const [cid, n] of counts) {
+    if (n > topN) { topId = cid; topN = n; }
   }
-  let topCheckId: string | null = null;
-  let topCount = 0;
-  for (const [cid, count] of checkCounts) {
-    if (count > topCount) {
-      topCheckId = cid;
-      topCount = count;
-    }
-  }
-  if (!topCheckId) return null;
-  const checkLabel =
-    checks.find((c) => c.meta.id === topCheckId)?.meta.label ?? topCheckId;
-
-  return (
-    <p className="px-4 py-2 text-xs text-fg-3 leading-relaxed border-b border-line bg-bg-2">
-      You can also bulk-fix similar findings across the library from{" "}
-      <Link
-        to={`/health/${encodeURIComponent(topCheckId)}`}
-        className="text-accent hover:underline"
-      >
-        Health → {checkLabel}
-      </Link>
-      .
-    </p>
-  );
+  return topId;
 }
 
 function FindingsList({ findings }: { findings: Finding[] }) {

@@ -10,7 +10,7 @@
  * the resolver trace (`notes` array) so a curious user can see
  * exactly how Musaic got here without opening any other UI surface.
  */
-import { CheckCircle2, Fingerprint, Loader2, Search, ShieldQuestion } from "lucide-react";
+import { CheckCircle2, Loader2, ShieldQuestion } from "lucide-react";
 
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
 
@@ -25,7 +25,7 @@ export default function ResolutionBadge({ albumId }: Props) {
     return (
       <Chip tone="neutral" title="Looking up this album in MusicBrainz and via per-track AcoustID fingerprints…">
         <Loader2 className="w-3 h-3 spin" />
-        <span>Resolving…</span>
+        <span>Resolving</span>
       </Chip>
     );
   }
@@ -35,7 +35,7 @@ export default function ResolutionBadge({ albumId }: Props) {
     return (
       <Chip tone="amber" title={withTrace("Couldn't fetch the resolver result for this album.", detail)}>
         <ShieldQuestion className="w-3 h-3" />
-        <span>Resolution unavailable</span>
+        <span>Not identified</span>
       </Chip>
     );
   }
@@ -52,7 +52,7 @@ export default function ResolutionBadge({ albumId }: Props) {
         )}
       >
         <ShieldQuestion className="w-3 h-3" />
-        <span>Unanchored</span>
+        <span>Not identified</span>
       </Chip>
     );
   }
@@ -61,26 +61,15 @@ export default function ResolutionBadge({ albumId }: Props) {
   const matched = resolution.tracks.length - unresolved_track_count;
   const total = resolution.tracks.length;
 
-  const label =
+  const strategyDetail =
     anchor_strategy === "fingerprint-vote"
-      ? `Anchored • fingerprints${total ? ` (${matched}/${total})` : ""}`
+      ? `Matched via per-track AcoustID fingerprints (${matched} of ${total} tracks aligned to the canonical tracklist).`
       : anchor_strategy === "dir-search"
-      ? "Anchored • directory match"
+      ? "Matched from this album's directory name and total runtime."
       : anchor_strategy === "cache"
-      ? "Anchored • cached"
+      ? "Matched from the local cache (anchor was discovered on a prior run)."
       : anchor_strategy === "ai"
-      ? "Anchored • AI"
-      : "Anchored";
-
-  const explanation =
-    anchor_strategy === "fingerprint-vote"
-      ? `Matched to a MusicBrainz release group by voting across per-track AcoustID fingerprints (${matched} of ${total} tracks aligned to the canonical tracklist). Suggestions can be generated for free, without Claude AI.`
-      : anchor_strategy === "dir-search"
-      ? "Matched to a MusicBrainz release group from this album's directory name and total runtime. Suggestions can be generated for free, without Claude AI."
-      : anchor_strategy === "cache"
-      ? "Matched to a MusicBrainz release group from the local cache (the anchor was discovered on a prior run and saved to the database). Suggestions can be generated for free, without Claude AI."
-      : anchor_strategy === "ai"
-      ? "Matched to a MusicBrainz release group via Claude AI. Suggestions can be generated for free now that the anchor is known."
+      ? "Matched via Claude AI; the anchor is now cached for free reuse."
       : "Matched to a MusicBrainz release group.";
 
   const tail =
@@ -88,20 +77,18 @@ export default function ResolutionBadge({ albumId }: Props) {
       ? ` ${unresolved_track_count} of ${total} tracks couldn't be aligned automatically and may still need AI help.`
       : "";
 
-  const icon =
-    anchor_strategy === "fingerprint-vote" ? <Fingerprint className="w-3 h-3" />
-    : anchor_strategy === "dir-search" ? <Search className="w-3 h-3" />
-    : <CheckCircle2 className="w-3 h-3" />;
-
   // Confident anchor + every track resolved → green. Anchor present but
-  // some tracks didn't align → still green-ish (we have an album anchor
-  // and AI can be tightly scoped).
+  // some tracks didn't align → blue (we have an album anchor and AI can
+  // be tightly scoped).
   const tone = unresolved_track_count === 0 ? "green" : "blue";
 
   return (
-    <Chip tone={tone} title={withTrace(explanation + tail, trace)}>
-      {icon}
-      <span>{label}</span>
+    <Chip
+      tone={tone}
+      title={withTrace(`${strategyDetail}${tail} Suggestions can be generated for free, without Claude AI.`, trace)}
+    >
+      <CheckCircle2 className="w-3 h-3" />
+      <span>Identified</span>
     </Chip>
   );
 }

@@ -122,8 +122,12 @@ export default function HealthDetailPage() {
 
       <div className="grid grid-cols-[1fr_280px] gap-4 px-4 py-4 min-h-0">
         <div className="min-w-0 space-y-3">
-          <p className="text-sm text-fg-3 leading-relaxed">{detail.meta.description}</p>
-          <FindingsList checkId={detail.meta.id} findings={findings} fixKind={detail.meta.fix_kind} />
+          <FindingsList
+            checkId={detail.meta.id}
+            findings={findings}
+            fixKind={detail.meta.fix_kind}
+            description={detail.meta.description}
+          />
         </div>
         <RunsSidebar runs={detail.runs} />
       </div>
@@ -493,10 +497,15 @@ function FindingsList({
   checkId,
   findings,
   fixKind,
+  description,
 }: {
   checkId: string;
   findings: Finding[];
   fixKind: "none" | "ai-job" | "deterministic";
+  /** What this check looks for. Surfaced in the empty state so a user
+   *  who has zero findings still has an explanation of what they're
+   *  looking at. Hidden from the populated list to keep the page tight. */
+  description: string;
 }) {
   const [showIgnored, setShowIgnored] = useState(false);
   const visible = showIgnored ? findings : findings.filter((f) => !f.ignored_at);
@@ -515,7 +524,7 @@ function FindingsList({
       <div className="border border-line rounded-md bg-panel-2 px-4 py-8 text-center">
         <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-ok" />
         <p className="text-md font-medium">No open findings</p>
-        <p className="text-sm text-fg-3 mt-1">Either nothing's wrong, or everything's been ignored / fixed.</p>
+        <p className="text-sm text-fg-3 mt-1 max-w-prose mx-auto leading-relaxed">{description}</p>
       </div>
     );
   }
