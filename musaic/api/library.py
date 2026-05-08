@@ -26,6 +26,7 @@ from ..services.albums import (
     read_tracks,
     sort_albums,
 )
+from ..services import resolver as resolver_service
 from ..services import scan as scan_service
 from ..services.sse import sse_event
 
@@ -218,3 +219,30 @@ def get_cover(
 def get_tracks(album_id: str) -> dict[str, Any]:
     album = resolve_album_dict(album_id)
     return {"album_id": album_id, "tracks": read_tracks(album["path"])}
+
+
+@router.get("/api/albums/{album_id}/resolution")
+async def get_album_resolution(
+    album_id: str,
+    force: bool = Query(False, description="Skip the in-process cache; re-run the cascade"),
+    hint: str = Query("", description="Optional user hint biasing candidate selection"),
+) -> dict[str, Any]:
+    """Run the metadata-resolution cascade for one album. Returns the
+    `AlbumResolution` payload — anchor + canonical fields + per-track
+    matches + a trace of which strategies fired. AI is NOT invoked
+    automatically; check `anchor` and `unresolved_track_count` to decide
+    whether escalation is warranted.
+
+    Off the FastAPI event loop via to_thread because the underlying
+    MB / fpcalc calls are sync and can take a few seconds on a cold
+    cache.
+    """
+    # Make sure the album exists before kicking off any work.
+    resolve_album_dict(album_id)
+    resolution = await asyncio.to_thread(
+        resolver_service.resolve_album,
+        album_id,
+        user_hint=hint,
+        force=force,
+    )
+    return resolution.to_dict()

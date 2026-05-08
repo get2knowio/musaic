@@ -404,6 +404,53 @@ from functools import lru_cache
 
 
 @lru_cache(maxsize=2048)
+def get_recording_release_groups(mbid: str, timeout: int = 10) -> list[dict[str, str]] | None:
+    """Fetch the release-groups that contain a given recording MBID.
+
+    Returns a list of `{release_group_mbid, title}` dicts, or None on
+    network / parse failure. Empty list means MB knows the recording
+    but it isn't on any release-group (rare — mostly bootleg / unreleased
+    items with `?inc=releases` data missing).
+
+    Used by the metadata resolver's fingerprint-vote tier: each per-track
+    AcoustID hit gives us a recording_mbid; mapping those to release-groups
+    and counting the most common one anchors the album for free.
+    """
+    if not mbid:
+        return None
+    try:
+        resp = requests.get(
+            MB_RECORDING_DETAIL.format(mbid=mbid),
+            params={"fmt": "json", "inc": "releases+release-groups"},
+            headers={"User-Agent": USER_AGENT},
+            timeout=timeout,
+        )
+    except requests.RequestException as e:
+        log.warning("MB recording release-groups lookup failed for %s: %s", mbid, e)
+        return None
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        log.warning("MB recording release-groups HTTP %s for %s", resp.status_code, mbid)
+        return None
+    try:
+        data = resp.json()
+    except ValueError:
+        return None
+
+    # Recording → releases → release-group. Multiple releases can share the
+    # same release-group (different pressings of the same album); de-dupe.
+    seen: dict[str, str] = {}
+    for release in data.get("releases") or []:
+        rg = release.get("release-group") or {}
+        rg_mbid = rg.get("id")
+        if not rg_mbid or rg_mbid in seen:
+            continue
+        seen[rg_mbid] = rg.get("title") or ""
+    return [{"release_group_mbid": k, "title": v} for k, v in seen.items()]
+
+
+@lru_cache(maxsize=2048)
 def get_recording_canonical(mbid: str, timeout: int = 10) -> dict[str, str] | None:
     """Fetch a MusicBrainz recording's canonical title + primary artist.
 
