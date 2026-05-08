@@ -1,26 +1,31 @@
 """Check X1 — albums not yet anchored to a MusicBrainz release.
 
 Detects albums where `mb_release_group_mbid` is NULL — i.e. we've never
-identified them on MusicBrainz. Each Fix click runs `find_release_cached`
-which writes back the MBID on a confident match, unlocking everything
-downstream that depends on it: cover lookups short-circuit the search
-step, the year-fallback path can browse releases without re-searching,
-and the duplicate-tracks check has a stable identity to group on.
+identified them on MusicBrainz. Each Fix click runs the deterministic
+resolver (Tier 0a → 0b dir-search → 0c fingerprint vote) which writes
+back the MBID on a confident match, unlocking everything downstream
+that depends on it: cover lookups short-circuit the search step, the
+year-fallback path can browse releases without re-searching, and the
+duplicate-tracks check has a stable identity to group on.
 
 Two-tier fix path:
-  1. Try MB-direct first. If `dir_artist` + `dir_album` produce a confident
-     match, the MBID gets written back via `cache.set_album_mb_anchor`
-     (free, no AI quota burned).
-  2. If MB-direct fails — usually because the directory name doesn't fit
-     MB's canonical "Artist - Album" form (e.g. "Caravelli" vs MB's "The
-     Caravelli Singers") — enqueue an AI metadata job. The AI can use
+  1. Try the deterministic resolver first. Tier 0b (dir-name MB search)
+     handles albums whose folder names match MB's canonical form;
+     Tier 0c (per-track AcoustID fingerprint vote) handles the
+     misnamed-folder cases as long as fpcalc + an AcoustID API key
+     are configured. Either tier writes back via
+     cache.set_album_mb_anchor when it succeeds — free, no AI quota.
+  2. If the resolver returns no anchor — usually because the dir
+     name is too far from canonical AND fingerprinting is unavailable
+     or split-vote — enqueue an AI metadata job. The AI can use
      WebSearch / WebFetch to disambiguate and returns the MBID in its
      suggestion. Worker validates the MBID format, verifies it exists
      against MB live, then persists via the same anchor path.
 
-Bulk-action ("Identify on MusicBrainz") still runs MB-direct only — the
-bulk path is for sweeping the library deterministically; per-album AI
-disambiguation goes through the per-finding Fix click.
+Bulk-action ("Identify on MusicBrainz") runs the same resolver pass —
+the bulk path now benefits from fingerprint-vote anchoring for free,
+not just dir-search. AI escalation never happens from a bulk pass; the
+per-finding Fix click is the only path that can spend AI quota.
 """
 from __future__ import annotations
 
@@ -29,7 +34,7 @@ from typing import Iterable
 
 from .. import db as db_module
 from .. import jobs as jobs_module
-from .. import mb_lookup
+from ..services import resolver as resolver_service
 from .base import Check, CheckMeta, CheckScope, Finding, FixResult
 
 log = logging.getLogger(__name__)
@@ -49,15 +54,14 @@ class MissingMbid(Check):
         category="external",
         cost="cheap",
         runs_during_scan=True,
-        # ai-job: per-finding Fix falls through to AI when MB-direct
-        # can't disambiguate the dir-name. The HintDialog flow lets the
-        # user supply context (regional pressing, year, alternate name)
-        # before kicking off the AI job. The AI's job result includes
-        # the release-group MBID; the worker validates the format,
-        # verifies it exists in MB, then persists via
-        # cache.set_album_mb_anchor (same anchor write the deterministic
-        # path uses). The bulk action stays MB-direct only — see
-        # try_quick_fix.
+        # ai-job: per-finding Fix falls through to AI when the
+        # deterministic resolver can't anchor the album. The HintDialog
+        # flow lets the user supply context (regional pressing, year,
+        # alternate name) before kicking off the AI job. The AI's job
+        # result includes the release-group MBID; the worker validates
+        # the format, verifies it exists in MB, then persists via
+        # cache.set_album_mb_anchor (same anchor write the resolver
+        # uses). The bulk action stays resolver-only — see try_quick_fix.
         fix_kind="ai-job",
         bulk_action_label="Identify on MusicBrainz",
     )
@@ -120,25 +124,25 @@ class MissingMbid(Check):
     def fix(self, finding: Finding, *, user_hint: str = "") -> FixResult:
         """Two-tier fix path.
 
-        Without a hint: try MB-direct first (free + deterministic).
-        Only fall through to AI when MB couldn't disambiguate. AI uses
-        WebSearch to figure out the canonical name, returns the MBID,
-        and the worker writes it back via cache.set_album_mb_anchor.
+        Without a hint: try the deterministic resolver first
+        (dir-search + fingerprint vote — free). Only fall through to
+        AI when the resolver couldn't anchor.
 
-        With a hint: skip the MB-direct shortcut and go straight to AI
-        — the user added context for a reason, and silently bypassing
-        them with an MB-direct match would discard their input.
+        With a hint: skip straight to AI — the user added context for
+        a reason, and silently bypassing them with a deterministic
+        match would discard their input.
         """
         if finding.album_id is None:
             return FixResult(ok=False, message="No album to identify")
+
+        if not user_hint:
+            det_result = self._try_resolver(finding.album_id)
+            if det_result.ok:
+                return det_result
+
         album = _load_album(finding.album_id)
         if album is None:
             return FixResult(ok=False, message="Album not found in cache")
-
-        if not user_hint:
-            mb_result = self._try_mb_direct(finding, album)
-            if mb_result is not None and mb_result.ok:
-                return mb_result
 
         # Fall through to AI metadata job. The job's result includes
         # mb_release_group_mbid when AI confidently identified the
@@ -164,50 +168,54 @@ class MissingMbid(Check):
         )
 
     def try_quick_fix(self, finding: Finding) -> FixResult | None:
-        """Bulk-mode entry point. MB-direct only — never enqueues AI
-        from a bulk pass (the bulk action is for sweeping cheap fixes,
-        not committing N AI jobs in one click).
+        """Bulk-mode entry point. Resolver-only — never enqueues AI from
+        a bulk pass (the bulk action is for sweeping cheap fixes, not
+        committing N AI jobs in one click). The resolver covers both
+        dir-name MB search AND fingerprint vote, so the bulk action now
+        anchors more albums than the old MB-direct-only path did.
 
-        Both unknown-album cases (no album_id on the finding, or the
-        album row vanished from the cache) return None so the bulk
-        dispatcher counts them as 'not-applicable' rather than
-        'skipped' — a missing cache row is an environmental issue,
-        not 'MB couldn't find it.'
+        Returns None when the album row vanished from the cache — the
+        bulk dispatcher counts that as 'not-applicable' rather than
+        'skipped' (an environmental issue, not 'we tried and failed').
         """
         if finding.album_id is None:
             return None
-        album = _load_album(finding.album_id)
-        if album is None:
-            return None
-        return self._try_mb_direct(finding, album)
+        return self._try_resolver(finding.album_id)
 
-    def _try_mb_direct(self, finding: Finding, album: dict) -> FixResult:
-        """Run the deterministic MusicBrainz search. find_release writes
-        the anchor back via cache.set_album_mb_anchor on a confident
-        match. Don't fetch cover or tracklist here — that's extra HTTP
-        round-trips for a check whose only goal is the MBID."""
-        match = mb_lookup.find_release(
-            album, fetch_cover=False, fetch_tracklist=False,
-        )
-        if match.confident and match.mbid:
-            log.info(
-                "Identified %s on MusicBrainz: mbid=%s score=%d",
-                finding.album_id, match.mbid, match.score,
-            )
+    def _try_resolver(self, album_id: str) -> FixResult:
+        """Run the resolver. Anchor → success; no anchor → caller
+        decides whether to escalate (per-finding fix) or report a soft
+        failure (bulk pass). Anchor writes happen as a side-effect of
+        the resolver's Tier 0b/0c (cache.set_album_mb_anchor)."""
+        try:
+            resolution = resolver_service.resolve_album(album_id)
+        except Exception as e:
+            log.exception("Resolver failed for album %s", album_id)
+            return FixResult(ok=False, message=f"Resolver error: {e}")
+
+        if resolution.anchor is None:
             return FixResult(
-                ok=True,
-                message=f"Anchored to release-group {match.mbid} (score {match.score}/100)",
+                ok=False,
+                message=(
+                    "Couldn't identify the album from the directory name "
+                    "or per-track fingerprints. Try editing the directory "
+                    "name to the canonical \"Artist - Album\" form and "
+                    "re-running, or use the per-finding Fix to escalate "
+                    "to AI."
+                ),
             )
+
+        score = int((resolution.anchor.confidence or 0) * 100)
         log.info(
-            "Couldn't identify %s on MusicBrainz: score=%d notes=%s",
-            finding.album_id, match.score, (match.notes or "").splitlines()[0][:120],
+            "Identified %s via %s: mbid=%s score=%d",
+            album_id, resolution.anchor_strategy,
+            resolution.anchor.value, score,
         )
         return FixResult(
-            ok=False,
+            ok=True,
             message=(
-                f"MusicBrainz didn't confidently match (score {match.score}/100). "
-                f"Try editing the directory name to the canonical "
-                f"\"Artist - Album\" form and re-running."
+                f"Anchored to release-group {resolution.anchor.value} "
+                f"via {resolution.anchor_strategy} (score {score}/100)"
             ),
         )
 
