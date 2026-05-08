@@ -6,22 +6,30 @@ use the *SORT fields (ALBUMARTISTSORT / ARTISTSORT / ALBUMSORT) for
 sidebar / library alphabetization. Without them, "The Beatles" sorts
 under "T" instead of "B" — annoying once the library gets big.
 
-What we check, per album:
+What we flag, per album:
   - album_artist starts with one of the leading articles → expect
     album_artist_sort populated as the rotated form ("X, The")
   - artist (the per-album artist tag) → same, expect artist_sort
   - title (the album name) → same, expect album_sort
 
-We DON'T flag personal-name cases ("Bob Dylan" → "Dylan, Bob") here.
-Detecting them reliably needs MusicBrainz data, which the
-missing-core-tags / track-gaps AI flow already handles for free
-when the user runs it. Sticking to the article-rotation rule keeps
-this check fully deterministic.
+We DON'T flag personal-name cases ("Bob Dylan" → "Dylan, Bob") in run()
+— detecting them reliably needs MusicBrainz data, and walking MB for
+every album in run() would defeat the cheap-cost classification. The
+mb-canonical-mismatch check covers personal-name + credit-permutation
+drift for already-anchored albums.
 
-Fix path: deterministic. Generates the rotated form for each missing
-sort field, calls apply_direct to write it back to the FLAC tags. No
-AI quota burned. The bulk action sweeps the whole library at once;
-articles are unambiguous so the bulk path is safe.
+Fix path: deterministic. For album_artist_sort specifically, prefer
+MusicBrainz's canonical `sort-name` (via the resolver) when the album
+is already anchored — it handles "Bob Dylan → Dylan, Bob" and "Ray
+Conniff & His Orchestra → Conniff, Ray" cases that pure article
+rotation can't. Falls back to article rotation when no anchor exists
+or MB has no usable sort-name. The other two fields (artist_sort /
+album_sort) stay rotation-only; the resolver doesn't expose canonical
+sort variants for those.
+
+The bulk action sweeps the whole library; articles are unambiguous
+and the MB-preferred sort is at least as good as rotation, so the
+bulk path is safe.
 """
 from __future__ import annotations
 
@@ -29,6 +37,7 @@ import logging
 from typing import Iterable
 
 from .. import db as db_module
+from ..services import resolver as resolver_service
 from . import _apply as direct_apply
 from .base import Check, CheckMeta, CheckScope, Finding, FixResult
 
@@ -132,16 +141,34 @@ class MissingSortTags(Check):
             )
 
     def fix(self, finding: Finding, *, user_hint: str = "") -> FixResult:
-        # user_hint is ignored — article rotation is a fixed transform,
-        # no user context can influence it. Accept the kwarg to match
-        # the base class signature.
+        # user_hint is ignored — sort tags are derived deterministically
+        # (MB sort-name when available, article rotation otherwise).
+        # Accept the kwarg to match the base class signature.
         if finding.album_id is None:
             return FixResult(ok=False, message="No album to fix")
         album = _load_album(finding.album_id)
         if album is None:
             return FixResult(ok=False, message="Album not found in cache")
 
-        proposals = _build_proposals(album)
+        # If the album is already anchored, the resolver's Tier 0a is a
+        # cache hit and Tier 1 is one MB request to fetch the canonical
+        # `sort-name`. Skip the call entirely when the album lacks an
+        # anchor so we don't pay an MB search round trip for nothing.
+        mb_sort: str | None = None
+        if album.get("mb_release_group_mbid"):
+            try:
+                resolution = resolver_service.resolve_album(finding.album_id)
+                if resolution.canonical_album_artist_sort:
+                    mb_sort = (
+                        resolution.canonical_album_artist_sort.value or ""
+                    ).strip() or None
+            except Exception:
+                # Resolver failure must never block the rotation
+                # fallback — sort tags are too useful to gate on a
+                # transient MB hiccup.
+                log.exception("Resolver call failed for sort lookup; falling back to rotation")
+
+        proposals = _build_proposals(album, mb_album_artist_sort=mb_sort)
         if not proposals:
             return FixResult(
                 ok=False,
@@ -174,7 +201,8 @@ def _load_album(album_id: str) -> dict | None:
     with db_module.connect() as conn:
         row = conn.execute(
             "SELECT id, path, dir_name, title, artist, album_artist, "
-            "       album_artist_sort, artist_sort, album_sort "
+            "       album_artist_sort, artist_sort, album_sort, "
+            "       mb_release_group_mbid "
             "FROM albums WHERE id = ?",
             (album_id,),
         ).fetchone()
@@ -221,13 +249,24 @@ def _rotate_article(value: str) -> str:
     return value
 
 
-def _build_proposals(album: dict) -> dict[str, str]:
+def _build_proposals(
+    album: dict,
+    *,
+    mb_album_artist_sort: str | None = None,
+) -> dict[str, str]:
     """For each missing sort field whose primary has an article prefix,
-    propose the rotated form. Returns a dict keyed by suggestion-field
-    name (matching the AI / apply pipeline's key conventions)."""
+    propose a value. Prefers MusicBrainz's canonical `sort-name` for
+    album_artist_sort when the resolver supplied one (handles
+    personal-name + credit-permutation cases that pure rotation can't);
+    falls back to article rotation for the other two fields and when
+    no MB sort is available."""
     proposals: dict[str, str] = {}
     for pcol, scol, _ in _FIELD_PAIRS:
         primary = album.get(pcol)
-        if _starts_with_article(primary) and _is_blank(album.get(scol)):
-            proposals[scol] = _rotate_article(primary)
+        if not (_starts_with_article(primary) and _is_blank(album.get(scol))):
+            continue
+        if scol == "album_artist_sort" and mb_album_artist_sort:
+            proposals[scol] = mb_album_artist_sort
+        else:
+            proposals[scol] = _rotate_article(primary or "")
     return proposals
