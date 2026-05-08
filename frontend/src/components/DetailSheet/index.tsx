@@ -12,6 +12,7 @@ import TrackList from "./TrackList";
 import AISuggestions from "./AISuggestions";
 import ApplyProgress from "./ApplyProgress";
 import FindingsSection from "./FindingsSection";
+import MbPreviewSection from "./MbPreviewSection";
 import MoreMenu from "./MoreMenu";
 import MyTagsSection from "./MyTagsSection";
 import Section from "./Section";
@@ -370,6 +371,24 @@ function SheetBody({
       {/* Sheet body — scrolls */}
       <div className="flex-1 overflow-y-auto">
         <AlbumHero album={displayAlbum} />
+
+        {/* MusicBrainz preview — inline diff + apply path that bypasses
+            the AI job queue when the resolver has everything we need.
+            Auto-hides when there are no diffs or an AI job is in flight
+            (we don't want two competing "what would change" surfaces).
+            On a clean apply the resolver invalidates and this unmounts. */}
+        <MbPreviewSection
+          album={displayAlbum}
+          hasActiveJob={!!activeJob}
+          applying={isApplying}
+          onApply={async (suggestions, trackSuggestions) => {
+            await apply.start(album.id, {
+              suggestions,
+              track_suggestions: trackSuggestions,
+              cover_url: null,
+            });
+          }}
+        />
 
         {/* In-flight job banner — shown while a job for THIS album is queued
             or running. Source of truth: the live jobs cache via SSE. Survives

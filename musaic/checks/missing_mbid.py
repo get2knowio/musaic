@@ -180,6 +180,10 @@ class MissingMbid(Check):
         """
         if finding.album_id is None:
             return None
+        # Distinguish missing-album from can't-anchor for the bulk
+        # dispatcher: missing = "not-applicable", can't-anchor = "skipped".
+        if _load_album(finding.album_id) is None:
+            return None
         return self._try_resolver(finding.album_id)
 
     def _try_resolver(self, album_id: str) -> FixResult:
