@@ -194,11 +194,16 @@ class _AnchorCandidate:
     release_mbid: str | None = None
 
 
-def _try_dir_search(album: dict[str, Any]) -> _AnchorCandidate | None:
+def _try_dir_search(album: dict[str, Any], *, user_hint: str = "") -> _AnchorCandidate | None:
     """Tier 0b: classic find_release path. Already auto-caches a confident
-    anchor via cache.set_album_mb_anchor as a side effect."""
+    anchor via cache.set_album_mb_anchor as a side effect.
+
+    When `user_hint` is supplied, find_release uses it to rerank MB
+    candidates (substring match against title/artist credit) — Tier 2
+    bias on top of Tier 0b's pick.
+    """
     match = mb_lookup.find_release(
-        album, fetch_cover=False, fetch_tracklist=False,
+        album, hint=user_hint, fetch_cover=False, fetch_tracklist=False,
     )
     if not match.mbid or match.score < mb_lookup.MEDIUM_CONFIDENCE_SCORE:
         return None
@@ -463,8 +468,8 @@ def _resolve_uncached(album: dict[str, Any], *, user_hint: str) -> AlbumResoluti
         resolution.anchor_strategy = "cache"
         resolution.notes.append(f"Tier 0a: anchored from cache (score {score})")
     else:
-        # Tier 0b: dir-search.
-        candidate = _try_dir_search(album)
+        # Tier 0b: dir-search (hint biases candidate reranking when set).
+        candidate = _try_dir_search(album, user_hint=user_hint)
         if candidate:
             resolution.anchor = FieldFact(
                 candidate.release_group_mbid, candidate.source,
@@ -520,6 +525,6 @@ def _resolve_uncached(album: dict[str, Any], *, user_hint: str) -> AlbumResoluti
         resolution.notes.append("No anchor found via Tiers 0a-0c; AI escalation may be required")
 
     if user_hint:
-        resolution.notes.append(f"Hint: {user_hint!r} (not yet wired into candidate selection)")
+        resolution.notes.append(f"Hint applied to dir-search reranking: {user_hint!r}")
 
     return resolution

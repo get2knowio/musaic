@@ -189,7 +189,23 @@ def find_release(
             source="MusicBrainz (no match)",
         )
 
+    # Hint-biased reranking. The hint is treated as the user's
+    # high-confidence ground truth (e.g. "this is the 1979 original, not
+    # the 2012 remaster"). When set, prefer candidates whose title or
+    # artist credit contains the hint substring; among those, the
+    # highest-scoring one wins. Fall through to plain top-by-score when
+    # no candidate matches the hint at all.
     top = groups[0]
+    hint_q = (hint or "").strip().lower()
+    if hint_q:
+        def _candidate_text(g: dict[str, Any]) -> str:
+            credits = g.get("artist-credit") or []
+            artist_str = " ".join(ac.get("name", "") for ac in credits)
+            return f"{g.get('title', '')} {artist_str}".lower()
+
+        matched = [g for g in groups if hint_q in _candidate_text(g)]
+        if matched:
+            top = max(matched, key=lambda g: int(g.get("score", 0) or 0))
     mbid = top.get("id")
     score = int(top.get("score", 0) or 0)
     rg_title = top.get("title") or title

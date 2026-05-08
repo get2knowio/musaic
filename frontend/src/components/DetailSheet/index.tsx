@@ -169,6 +169,11 @@ function SheetBody({
     resolution?.anchor != null
     && resolution.anchor.confidence >= 0.85
     && resolution.unresolved_track_count === 0;
+  // CAA cover already verified for the anchored release-group? The
+  // worker will short-circuit ai.suggest_cover when this is true.
+  const coverFromMb =
+    resolution?.cover_url != null
+    && resolution.cover_url.confidence >= 0.85;
 
   // Whether the album has any cover at all — drives auto-bundling. If
   // "Suggest fixes" is clicked on a coverless album, we enqueue a
@@ -528,10 +533,16 @@ function SheetBody({
               onClick={onSuggestCover}
               disabled={!!activeJob}
               className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              title={activeJob ? "An AI job already exists for this album — view it above" : undefined}
+              title={
+                activeJob
+                  ? "An AI job already exists for this album — view it above"
+                  : coverFromMb
+                  ? "Cover already verified in Cover Art Archive — no AI quota burned"
+                  : undefined
+              }
             >
               <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>Find cover art</span>
+              <span>{coverFromMb ? "Get cover from MusicBrainz" : "Find cover art"}</span>
             </button>
             <button
               onClick={onSuggestMetadata}
@@ -541,7 +552,7 @@ function SheetBody({
                 activeJob
                   ? "An AI job already exists for this album — view it above"
                   : deterministicCovered
-                  ? "MusicBrainz already covers this album — Apply runs directly, no AI quota burned"
+                  ? "MusicBrainz already covers this album — suggestions appear instantly, no AI quota burned"
                   : !albumHasCover
                   ? "No cover on disk — will also search for cover art"
                   : undefined
@@ -550,7 +561,7 @@ function SheetBody({
               <Sparkles className="w-3.5 h-3.5 shrink-0" />
               <span>
                 {deterministicCovered
-                  ? "Apply MusicBrainz corrections"
+                  ? "Find MusicBrainz corrections"
                   : `Suggest fixes${!albumHasCover && !activeJob ? " (+ cover)" : ""}`}
               </span>
             </button>
