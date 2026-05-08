@@ -6,8 +6,9 @@ import type { Job } from "@/lib/types";
 
 interface HintDialogProps {
   open: boolean;
-  /** What we're about to ask Claude — drives the title and placeholder. */
-  mode: "metadata" | "cover";
+  /** What we're about to ask Claude — drives the title and placeholder.
+   *  `metadata+cover` is the combined "Suggest fixes (+ cover)" path. */
+  mode: "metadata" | "cover" | "metadata+cover";
   /** Album title (for context in the dialog header). */
   albumTitle: string;
   /** Pre-fill the textarea (used by "Edit hint & retry" after a failure). */
@@ -47,11 +48,14 @@ const PLACEHOLDERS: Record<HintDialogProps["mode"], string> = {
     "e.g. This is a 2012 reissue, original was 1979. Track 7 is mislabeled — it's really 'Comfortably Numb'. The album was released under a different name in the UK.",
   cover:
     "e.g. Use the original 1979 cover, not the 2011 remaster artwork. Skip the live version cover.",
+  "metadata+cover":
+    "e.g. This is the 1991 Time Life 'Solid Gold Soul 1957' compilation; use that cover, not the original-album artwork.",
 };
 
 const TITLES: Record<HintDialogProps["mode"], string> = {
   metadata: "Suggest metadata fixes",
   cover: "Find cover art",
+  "metadata+cover": "Suggest fixes + find cover art",
 };
 
 const SUBTITLES: Record<HintDialogProps["mode"], string> = {
@@ -59,6 +63,8 @@ const SUBTITLES: Record<HintDialogProps["mode"], string> = {
     "Add any context that might help Claude — release year, edition, mislabeled tracks, anything you notice. Optional.",
   cover:
     "Add any context about which cover you want — original vs reissue, regional variant, etc. Optional.",
+  "metadata+cover":
+    "Add any context that might help Claude identify the album and its cover — release year, edition, compilation series, regional variant. Optional.",
 };
 
 /** Checks where an empty-hint submit hits MusicBrainz first (free, fast) and
@@ -87,7 +93,8 @@ export default function HintDialog({
 
   // Only show prior-attempts context when the upcoming call will actually do
   // a cover lookup. (Pure-metadata jobs aren't gated by cover history.)
-  const showPriorAttempts = mode === "cover" && priorCoverAttempts.length > 0;
+  const showPriorAttempts =
+    (mode === "cover" || mode === "metadata+cover") && priorCoverAttempts.length > 0;
 
   // Per-check placeholder when available, mode-level default otherwise.
   const placeholder =
@@ -201,7 +208,11 @@ export default function HintDialog({
               className="h-8 px-3 rounded bg-accent text-accent-fg font-medium text-sm hover:opacity-90 transition inline-flex items-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              {mode === "cover" ? "Find cover art" : "Suggest fixes"}
+              {mode === "cover"
+                ? "Find cover art"
+                : mode === "metadata+cover"
+                ? "Suggest fixes + cover"
+                : "Suggest fixes"}
             </button>
           </div>
         </Dialog.Content>

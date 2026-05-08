@@ -547,12 +547,12 @@ function SheetBody({
         )}
       </div>
 
-      {/* Hint dialog — gates each AI call. We treat both "cover" AND
-          "metadata+cover" combos as cover-mode for prior-attempts purposes,
-          since either kind will run a cover lookup. */}
+      {/* Hint dialog — gates each AI call. The mode mirrors the pending
+          job type 1:1; HintDialog's prior-attempts banner already
+          conditions itself on (mode === "cover" || "metadata+cover"). */}
       <HintDialog
         open={pendingType !== null}
-        mode={pendingType === "metadata" ? "metadata" : "cover"}
+        mode={pendingType ?? "metadata"}
         albumTitle={displayAlbum.title || displayAlbum.dir_name}
         priorCoverAttempts={
           pendingType === "cover" || pendingType === "metadata+cover"
