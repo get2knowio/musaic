@@ -8,6 +8,7 @@ import type {
   AlbumListResponse,
   AlbumResolution,
   AppConfig,
+  FingerprintPoolStatus,
   Job,
   JobStatus,
   JobType,
@@ -92,6 +93,10 @@ export function getAlbumResolution(
 
 export function rescanLibrary(): Promise<{ status: string; library_dir: string }> {
   return request("/api/scan/rescan", { method: "POST" });
+}
+
+export function getFingerprintPoolStatus(): Promise<FingerprintPoolStatus> {
+  return request<FingerprintPoolStatus>("/api/fingerprint-pool/status");
 }
 
 // --- AI Jobs ---

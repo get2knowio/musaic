@@ -84,6 +84,24 @@ export interface TracksResponse {
   tracks: Track[];
 }
 
+// ---- Fingerprint pool ----
+
+/** Status of the eager AcoustID-fingerprinting pool that runs after
+ * each scan. Mirrors `services/fingerprint_pool._state`. */
+export interface FingerprintPoolStatus {
+  status: "idle" | "running" | "done" | "cancelled" | "unavailable";
+  library_dir: string | null;
+  total: number;
+  completed: number;
+  errors: number;
+  current_album_id: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  /** Populated when status === "unavailable" — usually "fpcalc not
+   *  installed" or "AcoustID API key not set". */
+  skip_reason: string | null;
+}
+
 // ---- Metadata resolver ----
 //
 // Mirrors `services/resolver.AlbumResolution.to_dict()`. A `FieldFact`
