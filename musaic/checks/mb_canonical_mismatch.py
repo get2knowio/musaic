@@ -14,11 +14,11 @@ Scope (intentionally narrow per user direction):
   - album_artist (string compare; whitespace+case-insensitive
     equivalence is "good enough", more aggressive normalization
     would mask real drift)
-  - per-track ARTIST credits — only when track_fingerprints rows
-    exist for the album AND the AcoustID-resolved recording_mbid
-    has a corresponding entry in the MB release's tracklist. This
-    skips the position-based-match false-positive on out-of-order
-    rips (the user explicitly opted out of position matching).
+  - per-track ARTIST credits — only when the resolver matched the
+    track to a canonical recording (via AcoustID fingerprint vote
+    or position+duration alignment). Skips the position-based-match
+    false-positive on out-of-order rips because the resolver tracks
+    fingerprint provenance.
 
 Out of scope: album title, per-track titles. The user can extend
 later if desired.
@@ -28,14 +28,24 @@ custom Resolve dialog and opts in field-by-field. No bulk
 deterministic action — the entire point is to put the human in the
 loop because some "diffs" are deliberate (artist using "&" vs MB's
 "and", user preferring a regional credit, etc.).
+
+Implementation note: this check used to do its own MusicBrainz
+lookups (`mb_lookup.find_release_cached`) per album. As of the
+resolver refactor it consumes `services.resolver.AlbumResolution`
+instead — same MB cost per album but the resolution memoizes across
+checks, so a "Run all checks" pass (which today touches several
+checks per album) goes from N×M MB requests to M.
 """
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any, Iterable
 
+from mutagen.flac import FLAC
+
 from .. import db as db_module
-from .. import mb_lookup
+from ..services import resolver as resolver_service
 from .base import Check, CheckMeta, CheckScope, Finding, FixResult
 
 log = logging.getLogger(__name__)
@@ -50,26 +60,31 @@ class MbCanonicalMismatch(Check):
             "canonical form. The Resolve dialog shows a per-field diff "
             "(\"The Beatles\" → \"Beatles, The\" etc.); pick which to "
             "accept. Per-track artist credits on compilations are also "
-            "compared, but only for tracks with AcoustID fingerprints — "
-            "those let us match the file to the right MB recording "
-            "regardless of disk order."
+            "compared, but only for tracks the resolver matched via "
+            "AcoustID fingerprint or duration alignment — those are the "
+            "files we know map to the right MB recording regardless of "
+            "disk order."
         ),
         category="metadata",
         cost="medium",
-        # MB API calls are rate-limited (1 req/sec) and we do a few
-        # per album. Don't run during scan.
+        # MB API calls are rate-limited (1 req/sec). The resolver
+        # memoizes per album so a Run All scan is one MB request per
+        # album regardless of how many checks consume the result.
         runs_during_scan=False,
         fix_kind="deterministic",
         bulk_action_label=None,
     )
 
     def run(self, scope: CheckScope) -> Iterable[Finding]:
+        # Only consider albums that already have an MBID anchor — drift
+        # detection requires knowing which release we're comparing
+        # against. Surfacing unanchored albums is `missing-mbid`'s job.
         with db_module.connect() as conn:
             rows = conn.execute(
                 """
                 SELECT id, dir_name, album_artist, title, year,
                        is_compilation, mb_release_group_mbid,
-                       mb_release_mbid, mb_match_score
+                       mb_release_mbid, mb_match_score, path
                 FROM albums
                 WHERE library_path = ?
                   AND mb_release_group_mbid IS NOT NULL
@@ -97,18 +112,22 @@ class MbCanonicalMismatch(Check):
             # case; we only flag drift between two non-empty values.
             return None
 
-        # Use the cached find_release_cached path — for an album that
-        # already has an MBID anchor, this is just a release-detail
-        # fetch (one MB request). We need fetch_tracklist=True to
-        # cross-check per-track artists.
-        match = mb_lookup.find_release_cached(
-            album={"id": album_id},
-            fetch_cover=False,
-            fetch_tracklist=True,
-        )
-        if not match.confident:
+        # The resolver does the MB fetch + per-track alignment for us.
+        # When this check runs after the album was already identified,
+        # Tier 0a + Tier 1 fire — one find_release_cached round trip
+        # (release-detail by MBID, no search step), shared with any
+        # other check / UI that asks about this album.
+        resolution = resolver_service.resolve_album(album_id)
+        if resolution.anchor is None:
+            # Anchor went away (album rescan invalidated, MBID no
+            # longer valid in MB, etc.). Don't flag drift for an album
+            # we can't authoritatively compare against.
             return None
-        canonical_album_artist = (match.artist or "").strip()
+        canonical_album_artist = (
+            resolution.canonical_album_artist.value.strip()
+            if resolution.canonical_album_artist
+            else ""
+        )
         if not canonical_album_artist:
             return None
 
@@ -122,9 +141,9 @@ class MbCanonicalMismatch(Check):
                 "canonical": canonical_album_artist,
             }
 
-        # Per-track diffs (only for albums with fingerprints whose
-        # recording_mbids match the MB tracklist).
-        track_diffs = self._track_diffs(album_id, match)
+        # Per-track diffs (only for tracks the resolver mapped to a
+        # canonical recording).
+        track_diffs = self._track_diffs(row, resolution)
 
         if album_diff is None and not track_diffs:
             return None
@@ -139,9 +158,12 @@ class MbCanonicalMismatch(Check):
                 "dir_name":          row["dir_name"],
                 "is_compilation":    bool(row["is_compilation"]),
                 "headline":          canonical_album_artist or row["dir_name"] or album_id,
-                "mbid":              match.mbid,
-                "release_mbid":      match.release_mbid,
-                "score":             match.score,
+                "mbid":              resolution.anchor.value,
+                # release_mbid lives on the album row when known; resolver
+                # doesn't separate it out, but the apply path doesn't need
+                # it functionally — it's a diagnostic for the dialog.
+                "release_mbid":      row.get("mb_release_mbid"),
+                "score":             int((resolution.anchor.confidence or 0) * 100),
                 "album_artist_diff": album_diff,
                 "track_artist_diffs": track_diffs,
             },
@@ -149,73 +171,43 @@ class MbCanonicalMismatch(Check):
 
     def _track_diffs(
         self,
-        album_id: str,
-        match: mb_lookup.MusicBrainzMatch,
+        album_row: dict[str, Any],
+        resolution: resolver_service.AlbumResolution,
     ) -> list[dict[str, Any]]:
-        """Compare each fingerprinted track's ARTIST tag against the
-        MB-canonical artist credit for the corresponding recording.
+        """Compare each resolver-matched track's ARTIST tag against its
+        canonical artist credit.
 
-        Only tracks where AcoustID resolved to a recording_mbid that
-        also appears in the MB release's tracklist are checked —
-        position-based matching was explicitly excluded, since it
-        false-positives on out-of-order rips.
+        Tracks without a `canonical_artist` (no AcoustID match AND no
+        duration-unique alignment) are skipped — we can't reliably
+        attribute drift on those.
         """
-        if not match.tracklist:
-            return []
-        # Build recording_mbid → MB track lookup (lower-case for
-        # robust matching even though MBIDs are already canonical).
-        by_recording: dict[str, mb_lookup.MBTrack] = {
-            (t.recording_mbid or "").lower(): t
-            for t in match.tracklist
-            if t.recording_mbid
-        }
-        if not by_recording:
+        candidates = [
+            t for t in resolution.tracks
+            if t.canonical_artist is not None
+        ]
+        if not candidates:
             return []
 
-        # Pull per-track tag values + fingerprint match data. We
-        # need both the on-disk ARTIST (from the FLAC) AND the
-        # AcoustID-resolved recording_mbid (from track_fingerprints).
-        from pathlib import Path
-        from mutagen.flac import FLAC
-        with db_module.connect() as conn:
-            album_path_row = conn.execute(
-                "SELECT path FROM albums WHERE id = ?", (album_id,),
-            ).fetchone()
-            fp_rows = conn.execute(
-                "SELECT filename, acoustid_recording_mbid "
-                "FROM track_fingerprints "
-                "WHERE album_id = ? AND acoustid_recording_mbid IS NOT NULL",
-                (album_id,),
-            ).fetchall()
-        if album_path_row is None or not fp_rows:
-            return []
-        album_path = Path(album_path_row["path"])
+        album_path = Path(album_row.get("path") or "")
         if not album_path.is_dir():
             return []
 
         diffs: list[dict[str, Any]] = []
-        for fp in fp_rows:
-            recording_mbid = (fp["acoustid_recording_mbid"] or "").lower()
-            mb_track = by_recording.get(recording_mbid)
-            if mb_track is None:
-                # This fingerprinted track isn't on the MB release we
-                # cached as the album anchor. Could be a different
-                # release of the same release-group — skip rather
-                # than false-flag.
-                continue
-            canonical_artist = (mb_track.artist or "").strip()
+        for tr in candidates:
+            canonical_artist = tr.canonical_artist.value.strip()
             if not canonical_artist:
                 continue
-            flac_path = album_path / fp["filename"]
+            flac_path = album_path / tr.filename
             if not flac_path.is_file():
                 continue
             try:
                 audio = FLAC(str(flac_path))
                 tags = audio.tags or {}
-                current_artist = ""
                 v = tags.get("artist") or tags.get("ARTIST") or []
-                if v:
-                    current_artist = (v[0] if isinstance(v, list) else str(v)).strip()
+                current_artist = (
+                    (v[0] if isinstance(v, list) else str(v)).strip()
+                    if v else ""
+                )
             except Exception:
                 continue
             if not current_artist:
@@ -223,11 +215,11 @@ class MbCanonicalMismatch(Check):
             if _normalize_for_compare(current_artist) == _normalize_for_compare(canonical_artist):
                 continue
             diffs.append({
-                "filename":      fp["filename"],
+                "filename":      tr.filename,
                 "current":       current_artist,
                 "canonical":     canonical_artist,
-                "recording_mbid": fp["acoustid_recording_mbid"],
-                "mb_title":      mb_track.title,
+                "recording_mbid": tr.recording_mbid,
+                "mb_title":      tr.canonical_title.value if tr.canonical_title else None,
             })
         return diffs
 
@@ -274,59 +266,38 @@ def apply_canonical(
     accept_album_artist: bool,
     accept_track_filenames: list[str],
 ) -> dict[str, Any]:
-    """Apply the user-confirmed subset of the canonical diff. Re-fetches
-    the MB release (cached, so cheap) so we apply the SAME values the
-    Resolve dialog showed — guards against MB drift between the
-    finding being emitted and the user clicking Apply."""
+    """Apply the user-confirmed subset of the canonical diff. Reads
+    canonical values off the resolver so they match what the dialog
+    showed — the resolver memoizes, so this is free if the dialog was
+    just open. force=True ensures we re-derive in the rare case the
+    album was apply-edited between the dialog opening and the user
+    clicking Apply (which would have invalidated the cached resolution
+    anyway via services.apply)."""
     from . import _apply as direct_apply
-    with db_module.connect() as conn:
-        row = conn.execute(
-            "SELECT album_artist, mb_release_mbid FROM albums WHERE id = ?",
-            (album_id,),
-        ).fetchone()
-    if row is None:
-        return {"ok": False, "message": "Album not found", "applied": 0}
 
-    match = mb_lookup.find_release_cached(
-        album={"id": album_id},
-        fetch_cover=False,
-        fetch_tracklist=bool(accept_track_filenames),
-    )
-    if not match.confident:
+    resolution = resolver_service.resolve_album(album_id)
+    if resolution.anchor is None:
         return {
             "ok": False,
-            "message": "MB lookup didn't return a confident match; nothing applied.",
+            "message": "Album lost its MusicBrainz anchor; nothing applied.",
             "applied": 0,
         }
 
     suggestions: dict[str, str] = {}
-    if accept_album_artist:
-        canonical = (match.artist or "").strip()
+    if accept_album_artist and resolution.canonical_album_artist:
+        canonical = resolution.canonical_album_artist.value.strip()
         if canonical:
             suggestions["album_artist"] = canonical
 
     track_suggestions: dict[str, dict[str, str]] = {}
     if accept_track_filenames:
-        by_recording = {
-            (t.recording_mbid or "").lower(): t
-            for t in match.tracklist
-            if t.recording_mbid
+        canonical_by_filename = {
+            tr.filename: tr.canonical_artist.value.strip()
+            for tr in resolution.tracks
+            if tr.canonical_artist is not None
         }
-        with db_module.connect() as conn:
-            fp_rows = conn.execute(
-                "SELECT filename, acoustid_recording_mbid FROM track_fingerprints "
-                "WHERE album_id = ?",
-                (album_id,),
-            ).fetchall()
-        fp_by_filename = {r["filename"]: r["acoustid_recording_mbid"] for r in fp_rows}
         for fn in accept_track_filenames:
-            recording_mbid = (fp_by_filename.get(fn) or "").lower()
-            if not recording_mbid:
-                continue
-            mb_track = by_recording.get(recording_mbid)
-            if mb_track is None:
-                continue
-            canonical = (mb_track.artist or "").strip()
+            canonical = canonical_by_filename.get(fn) or ""
             if canonical:
                 track_suggestions[fn] = {"artist": canonical}
 
