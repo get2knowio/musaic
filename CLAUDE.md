@@ -16,8 +16,11 @@ cd frontend && npm install  # Frontend
 
 ### Run
 ```bash
-uv run media-manager        # Backend on :8765; serves built frontend
-cd frontend && npm run dev  # Frontend dev server on :5173 (proxies /api to :8765)
+cd frontend && npm run dev:all   # Both backend (:8765) + Vite (:5173) in one terminal
+
+# Or run them separately:
+uv run media-manager             # Backend on :8765; serves built frontend
+cd frontend && npm run dev       # Frontend dev server on :5173 (proxies /api to :8765)
 ```
 
 ### Build
