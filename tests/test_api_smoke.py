@@ -191,3 +191,36 @@ def test_spa_fallback_for_unknown_path(client):
 def test_unknown_api_path_returns_404(client):
     r = client.get("/api/this-does-not-exist")
     assert r.status_code == 404
+
+
+def test_scan_status_endpoint(client):
+    r = client.get("/api/scan/status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] in ("idle", "running", "done", "error")
+
+
+def test_scan_stream_against_empty_library(client, empty_library):
+    """End-to-end scan smoke. The scan now runs as a background task so
+    a client disconnect doesn't kill it; this test verifies the stream
+    still delivers a complete event log to a connected client."""
+    import json as _json
+    client.post("/api/config", json={"library_dir": str(empty_library)})
+
+    events: list[tuple[str, dict]] = []
+    with client.stream("GET", "/api/scan/stream?force=true") as resp:
+        assert resp.status_code == 200
+        current_event = None
+        for raw_line in resp.iter_lines():
+            line = raw_line if isinstance(raw_line, str) else raw_line.decode()
+            if line.startswith("event: "):
+                current_event = line[len("event: "):].strip()
+            elif line.startswith("data: ") and current_event:
+                events.append((current_event, _json.loads(line[len("data: "):])))
+                if current_event in ("done", "error"):
+                    break
+                current_event = None
+
+    names = [e[0] for e in events]
+    assert "start" in names
+    assert names[-1] == "done", f"got events: {names}"

@@ -1,10 +1,9 @@
 """Library config, scan, album browse, cover, tracks."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import mimetypes
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +18,6 @@ from ..scanner import (
     album_to_dict,
     find_album_by_id,
     get_embedded_cover,
-    incremental_scan,
 )
 from ..services.albums import (
     albums_for,
@@ -28,7 +26,7 @@ from ..services.albums import (
     read_tracks,
     sort_albums,
 )
-from ..services.post_scan import run_post_scan_checks
+from ..services import scan as scan_service
 from ..services.sse import sse_event
 
 _log = logging.getLogger(__name__)
@@ -82,9 +80,20 @@ def list_albums(refresh: bool = Query(False, description="Drop the cache so the 
     }
 
 
+@router.get("/api/scan/status")
+def scan_status() -> dict[str, Any]:
+    """Current scan state. Lets the UI detect an in-flight scan on page
+    load (rather than relying on the SSE stream alone)."""
+    return scan_service.get_state()
+
+
 @router.get("/api/scan/stream")
-def scan_stream(force: bool = Query(False, description="Ignore cache; re-read every album")) -> StreamingResponse:
+async def scan_stream(force: bool = Query(False, description="Ignore cache; re-read every album")) -> StreamingResponse:
     """Stream a library scan as Server-Sent Events.
+
+    The scan itself runs as a background asyncio task, so a client
+    disconnect no longer halts the scan — late subscribers (or
+    reconnects) catch up via the in-process event buffer.
 
     Events emitted (event name → payload):
       - `start`    : { library_dir, total, cached_count, force }
@@ -100,88 +109,20 @@ def scan_stream(force: bool = Query(False, description="Ignore cache; re-read ev
     if not Path(cfg.library_dir).is_dir():
         raise HTTPException(status_code=409, detail=f"Configured library directory does not exist: {cfg.library_dir}")
 
-    library_dir = cfg.library_dir
+    # Kick off a scan if none is running. If one IS running, the client
+    # subscribes to it from the beginning of its event log (so a fresh
+    # connect mid-scan replays "start", every "album" so far, etc.).
+    if not scan_service.is_running():
+        await scan_service.start_scan(cfg.library_dir, force=force)
 
-    def event_gen():
-        # Background pool for thumbnail generation. Sized small to avoid disk
-        # I/O contention; album events fire as soon as scanned (don't wait).
-        thumb_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="mm-thumb")
+    async def event_gen():
         try:
-            cached_by_path: dict[str, dict[str, Any]] = {}
-            if not force:
-                snap = cache_module.load_snapshot(library_dir)
-                cached_by_path = dict(snap.albums_by_path)
-
-            collected: dict[str, dict[str, Any]] = {}
-            removed: list[dict[str, Any]] = []
-            total = 0
-            scanned = 0
-            started = False
-
-            for status, payload in incremental_scan(library_dir, cached_by_path):
-                if status == "discovered":
-                    total = payload["total"]
-                    yield sse_event("start", {
-                        "library_dir": library_dir,
-                        "total": total,
-                        "cached_count": len(cached_by_path),
-                        "force": force,
-                    })
-                    started = True
-                    continue
-
-                if status == "removed":
-                    removed.append({"id": payload.get("id"), "path": payload.get("path")})
-                    if payload.get("id"):
-                        thumbs_module.delete_thumb(payload["id"])
-                    yield sse_event("removed", {"id": payload.get("id"), "path": payload.get("path")})
-                    continue
-
-                # "cached" or "fresh" → an album dict
-                album = dict(payload)
-                album["_status"] = status
-                collected[album["path"]] = album
-                scanned += 1
-
-                force_thumb = (status == "fresh")
-                thumb_pool.submit(thumbs_module.ensure_thumb, album, force=force_thumb)
-
-                yield sse_event("album", album)
-                step = 1 if total < 200 else max(1, total // 100)
-                if scanned == total or scanned % step == 0:
-                    yield sse_event("progress", {"scanned": scanned, "total": total})
-
-            if not started:
-                yield sse_event("start", {
-                    "library_dir": library_dir, "total": 0, "cached_count": 0, "force": force,
-                })
-
-            scanned_at = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
-            new_snap = cache_module.LibrarySnapshot(
-                library_dir=library_dir,
-                scanned_at=scanned_at,
-                albums_by_path={p: {k: v for k, v in a.items() if k != "_status"} for p, a in collected.items()},
-            )
-            cache_module.save_snapshot(new_snap)
-
-            try:
-                imported = cache_module.import_track_tag_sidecars(new_snap)
-                if imported:
-                    _log.info("Imported track tag sidecars for %d album(s)", imported)
-            except Exception:
-                _log.exception("track tag sidecar import failed")
-
-            run_post_scan_checks(library_dir)
-
-            yield sse_event("done", {
-                "count": len(collected),
-                "removed_count": len(removed),
-                "scanned_at": scanned_at,
-            })
-        except Exception as e:
-            yield sse_event("error", {"detail": str(e)})
-        finally:
-            thumb_pool.shutdown(wait=True, cancel_futures=False)
+            async for _seq, name, payload in scan_service.subscribe(from_seq=0):
+                yield sse_event(name, payload)
+        except asyncio.CancelledError:
+            # Client disconnected. The scan task keeps running in the
+            # background — the next subscriber will catch up.
+            return
 
     return StreamingResponse(
         event_gen(),
@@ -195,15 +136,16 @@ def scan_stream(force: bool = Query(False, description="Ignore cache; re-read ev
 
 
 @router.post("/api/scan/rescan")
-def force_rescan() -> dict[str, Any]:
-    """Drop the cache for the configured library so the next /api/scan/stream
-    call does a full re-read. Returns immediately; the actual scan happens
-    when the client opens the SSE stream."""
+async def force_rescan() -> dict[str, Any]:
+    """Drop the cache for the configured library and kick off a fresh
+    background scan. Returns immediately; clients observe progress via
+    /api/scan/stream or /api/scan/status."""
     cfg = config_module.load_config()
     if not cfg.library_dir:
         raise HTTPException(status_code=409, detail="No library directory configured")
     cache_module.drop_snapshot(cfg.library_dir)
-    return {"status": "cache cleared", "library_dir": cfg.library_dir}
+    state = await scan_service.start_scan(cfg.library_dir, force=True)
+    return {"status": "scan started", "library_dir": cfg.library_dir, "scan": state}
 
 
 @router.get("/api/albums/{album_id}")

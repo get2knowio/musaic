@@ -61,7 +61,7 @@ python diagnose_chromaprint.py         # Check fpcalc binary
 |---|---|
 | `main.py` | App construction, lifespan, frontend SPA, CLI entry — wires the routers + worker together |
 | `api/` | FastAPI routers: `library` (config/scan/albums/cover/tracks), `tags` (track tags + vocabulary), `jobs` (AI queue REST/SSE), `settings` (settings + DB backup/snapshots), `health` (checks framework REST/SSE), `apply` (album apply SSE) |
-| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `apply` (single album mutation generator used by both the streaming endpoint and the deterministic check-fix path), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
+| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `apply` (single album mutation generator used by both the streaming endpoint and the deterministic check-fix path), `scan` (background library-scan task with replayable event buffer), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
 | `scanner.py` | Filesystem scan + album parsing (directory-name convention) |
 | `db.py` | SQLite schema + migrations |
 | `ai.py` | Claude SDK integration (system prompts, JSON extraction, MCP support) |
@@ -75,9 +75,10 @@ python diagnose_chromaprint.py         # Check fpcalc binary
 ### SSE Streams
 
 Long-running tasks emit progress via Server-Sent Events:
-- `POST /api/scan/stream` — yields albums as scanned
+- `GET /api/scan/stream` — yields albums as scanned (kicks off a background scan if none running; client disconnect leaves the scan running)
+- `GET /api/scan/status` — current scan state (poll this to detect an in-flight scan on page load)
 - `GET /api/ai/jobs/stream` — job status updates (queued → running → done/failed)
-- `POST /api/checks/stream` — finding discovery during check runs
+- `GET /api/checks/stream` — finding discovery during check runs
 - `POST /api/albums/{id}/apply/stream` — per-file diff + application progress
 
 The frontend hooks (`useScanStream`, `useApplyStream`, `useChecksStream`) consume these. Streams terminate on client disconnect with no auto-reconnect; the hooks handle this at a higher level.
@@ -138,7 +139,7 @@ Both consumers — the `/api/albums/{id}/apply/stream` endpoint and the determin
 
 ## Known Issues
 
-1. **Scan lifecycle**: SSE-driven; if the browser disconnects mid-scan, the scan halts and the library cache is left partial
+_(none currently tracked — see `docs/IMPROVEMENTS.md` for the historical list)_
 
 ## Debugging Tips
 
