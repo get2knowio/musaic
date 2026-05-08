@@ -88,6 +88,16 @@ def scan_status() -> dict[str, Any]:
     return scan_service.get_state()
 
 
+@router.get("/api/fingerprint-pool/status")
+def fingerprint_pool_status() -> dict[str, Any]:
+    """Eager fingerprinting pool state — what the post-scan fpcalc /
+    AcoustID worker is up to. Status enum: idle | running | done |
+    cancelled | unavailable. UI can poll this for a progress bar; fine
+    to ignore entirely on installs without fpcalc."""
+    from ..services import fingerprint_pool
+    return fingerprint_pool.get_state()
+
+
 @router.get("/api/scan/stream")
 async def scan_stream(force: bool = Query(False, description="Ignore cache; re-read every album")) -> StreamingResponse:
     """Stream a library scan as Server-Sent Events.

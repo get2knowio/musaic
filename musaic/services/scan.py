@@ -201,6 +201,20 @@ async def _run_scan(library_dir: str, force: bool) -> None:
     except Exception:
         _log.exception("post-scan checks failed (continuing)")
 
+    # Eager fingerprinting: kick off a background pool that walks the
+    # library and computes AcoustID fingerprints for albums lacking
+    # them. The pool is fire-and-forget — we don't await it here, so
+    # the scan reports "done" immediately and the user gets their
+    # fresh album list. Skipped silently when fpcalc / AcoustID isn't
+    # configured. Stops the previous pool first so a fresh scan that
+    # added albums starts a clean pass.
+    try:
+        from . import fingerprint_pool
+        await fingerprint_pool.stop()
+        await fingerprint_pool.warm_library(library_dir)
+    except Exception:
+        _log.exception("Failed to kick off eager fingerprinting (continuing)")
+
     if _state.status != "error":
         _state.status = "done"
         _state.completed_at = _utc_iso_now()

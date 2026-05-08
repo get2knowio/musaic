@@ -61,7 +61,7 @@ python diagnose_chromaprint.py         # Check fpcalc binary
 |---|---|
 | `main.py` | App construction, lifespan, frontend SPA, CLI entry — wires the routers + worker together |
 | `api/` | FastAPI routers: `library` (config/scan/albums/cover/tracks), `tags` (track tags + vocabulary), `jobs` (AI queue REST/SSE), `settings` (settings + DB backup/snapshots), `health` (checks framework REST/SSE), `apply` (album apply SSE) |
-| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `apply` (single album mutation generator used by both the streaming endpoint and the deterministic check-fix path), `scan` (background library-scan task with replayable event buffer), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
+| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `apply` (single album mutation generator used by both the streaming endpoint and the deterministic check-fix path), `resolver` (tiered metadata cascade — cache → MB search → fingerprint vote → AI), `scan` (background library-scan task with replayable event buffer), `fingerprint_pool` (eager fpcalc/AcoustID warmer kicked off after each scan), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
 | `scanner.py` | Filesystem scan + album parsing (directory-name convention) |
 | `db.py` | SQLite schema + migrations |
 | `ai.py` | Claude SDK integration (system prompts, JSON extraction, MCP support) |
@@ -77,6 +77,7 @@ python diagnose_chromaprint.py         # Check fpcalc binary
 Long-running tasks emit progress via Server-Sent Events:
 - `GET /api/scan/stream` — yields albums as scanned (kicks off a background scan if none running; client disconnect leaves the scan running)
 - `GET /api/scan/status` — current scan state (poll this to detect an in-flight scan on page load)
+- `GET /api/fingerprint-pool/status` — eager-fingerprinting pool state (started after every successful scan; idle/running/done/cancelled/unavailable)
 - `GET /api/ai/jobs/stream` — job status updates (queued → running → done/failed)
 - `GET /api/checks/stream` — finding discovery during check runs
 - `POST /api/albums/{id}/apply/stream` — per-file diff + application progress

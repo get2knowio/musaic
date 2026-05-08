@@ -53,6 +53,15 @@ async def _lifespan(_app: FastAPI):
         task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await task
+        # The eager fingerprinting pool is fire-and-forget from the
+        # scan service; it might still be running when uvicorn signals
+        # shutdown. Cancel it so we exit cleanly instead of leaving
+        # an fpcalc subprocess orphaned.
+        try:
+            from .services import fingerprint_pool
+            await fingerprint_pool.stop()
+        except Exception:
+            _log.exception("fingerprint-pool stop failed during shutdown")
 
 
 app = FastAPI(title="Musaic", version="0.1.0", lifespan=_lifespan)
