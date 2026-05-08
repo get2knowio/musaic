@@ -450,6 +450,14 @@ def resolve_album(
         if cached is not None:
             return cached
 
+    # Snapshot the pre-cascade anchor so we can detect newly-written
+    # anchors after _resolve_uncached returns. A side-effect anchor
+    # write (Tier 0b or 0c) satisfies the unidentified-album check's
+    # invariant; without firing run_post_scan_checks the finding stays
+    # open until the next library scan. This is the side-effect-mutation
+    # / stale-findings anti-pattern documented in services/post_scan.
+    prev_anchor = album.get("mb_release_group_mbid")
+
     # Coalesce concurrent resolves for the same album onto one worker.
     with _get_album_lock(album_id):
         if not force:
@@ -462,6 +470,18 @@ def resolve_album(
 
         with _cache_lock:
             _cache[cache_key] = resolution
+
+    if prev_anchor is None and resolution.anchor is not None:
+        try:
+            from .post_scan import run_post_scan_checks, library_path_for_checks
+            library_path = library_path_for_checks()
+            if library_path:
+                run_post_scan_checks(library_path)
+        except Exception:
+            _log.exception(
+                "post-resolver check rerun failed for album %s (continuing)",
+                album_id,
+            )
 
     return resolution
 

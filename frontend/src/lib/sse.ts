@@ -72,10 +72,21 @@ export async function postSse(
   events: Record<string, (data: unknown) => void>,
   signal?: AbortSignal,
 ): Promise<void> {
+  // Detect FormData / Blob bodies and skip JSON encoding + Content-Type
+  // (the browser sets the right multipart boundary automatically).
+  const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const headers: Record<string, string> = { Accept: "text/event-stream" };
+  let payload: BodyInit;
+  if (isFormData) {
+    payload = body as FormData;
+  } else {
+    headers["Content-Type"] = "application/json";
+    payload = JSON.stringify(body);
+  }
   const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify(body),
+    headers,
+    body: payload,
     signal,
   });
   if (!resp.ok) {
@@ -95,6 +106,32 @@ export async function postSse(
   let buffer = "";
   let event = "message";
   let data = "";
+  // Captured handler-thrown error. We finish reading the SSE stream so
+  // the connection closes cleanly, then re-throw so the caller's await
+  // rejects. (Throwing mid-loop would orphan the connection.)
+  let handlerError: unknown = null;
+
+  const dispatch = (eventName: string, rawData: string): void => {
+    if (handlerError !== null) return;  // already aborting
+    const handler = events[eventName];
+    if (!handler) return;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(rawData);
+    } catch (e) {
+      // Malformed payload — log + drop; the stream itself stays alive.
+      console.warn("SSE parse error", e, rawData);
+      return;
+    }
+    try {
+      handler(parsed);
+    } catch (e) {
+      // Handler decided this event is fatal (typically an `error`
+      // event whose handler throws). Capture and propagate after the
+      // stream drains.
+      handlerError = e;
+    }
+  };
 
   for (;;) {
     const { value, done } = await reader.read();
@@ -104,17 +141,7 @@ export async function postSse(
     buffer = lines.pop() ?? ""; // last line may be incomplete
     for (const line of lines) {
       if (line === "") {
-        if (data) {
-          const handler = events[event];
-          if (handler) {
-            try {
-              handler(JSON.parse(data));
-            } catch (e) {
-              // Ignore malformed events; never crash the stream.
-              console.warn("SSE parse error", e, data);
-            }
-          }
-        }
+        if (data) dispatch(event, data);
         event = "message";
         data = "";
       } else if (line.startsWith("event: ")) {
@@ -123,5 +150,17 @@ export async function postSse(
         data = data ? data + "\n" + line.slice(6) : line.slice(6);
       }
     }
+    // Bail early if a handler signaled fatal failure — keep reading
+    // would just queue more work for nothing.
+    if (handlerError !== null) {
+      try { reader.cancel(); } catch { /* ignore */ }
+      break;
+    }
+  }
+
+  if (handlerError !== null) {
+    throw handlerError instanceof Error
+      ? handlerError
+      : new Error(String(handlerError));
   }
 }

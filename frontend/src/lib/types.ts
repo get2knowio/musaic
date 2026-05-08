@@ -198,6 +198,11 @@ export type JobType = "metadata" | "cover" | "metadata+cover";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "acted_on";
 
 export interface JobResult {
+  /** Captured Claude transcript leading up to a failed job. Populated
+   *  by the worker when the SDK call throws — provides context that
+   *  the bare exception message ("exit code 1 …") usually doesn't.
+   *  Absent on completed jobs. */
+  failure_excerpt?: string;
   metadata?: {
     suggestions: Partial<Record<"title" | "album_artist" | "artist" | "year" | "genre", string>>;
     tracks: TrackSuggestionEntry[];
@@ -460,38 +465,6 @@ export interface FilenameRenameResult {
   /** New album_id after the dir rename (sha1 of the new path).
    *  Only set when dir_renamed is true. */
   new_album_id?: string;
-}
-
-// ----- mb-canonical-mismatch finding shape -----
-
-export interface MbCanonicalAlbumArtistDiff {
-  current: string;
-  canonical: string;
-}
-
-export interface MbCanonicalTrackArtistDiff {
-  filename: string;
-  current: string;
-  canonical: string;
-  recording_mbid: string;
-  mb_title: string;
-}
-
-export interface MbCanonicalMismatchDetail {
-  dir_name: string;
-  is_compilation: boolean;
-  headline: string;
-  mbid: string;
-  release_mbid: string | null;
-  score: number;
-  album_artist_diff: MbCanonicalAlbumArtistDiff | null;
-  track_artist_diffs: MbCanonicalTrackArtistDiff[];
-}
-
-export interface MbCanonicalApplyResult {
-  ok: boolean;
-  message: string;
-  applied: number;
 }
 
 // ----- Apply (SSE) -----

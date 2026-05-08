@@ -108,7 +108,8 @@ def test_health_checks_index(client):
     assert isinstance(body["checks"], list)
     # Sanity: known checks are registered. id lives under meta.
     ids = {c["meta"]["id"] for c in body["checks"]}
-    assert "missing-core-tags" in ids
+    assert "tags-out-of-sync" in ids
+    assert "unidentified-album" in ids
     assert "no-cover-art" in ids
 
 

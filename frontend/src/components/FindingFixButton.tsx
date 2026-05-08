@@ -16,19 +16,20 @@
  * during a normal session and parity reduces cognitive load.
  *
  * Why we filter by job_type, not just album: an album can have multiple
- * findings of different kinds (no-cover-art AND missing-mbid AND
- * missing-core-tags). Each finding is fixed by a *specific* job type — a
- * cover job doesn't help the MBID finding. Without filtering, every Fix
- * click would flip every other finding's button on the same album to
+ * findings of different kinds (no-cover-art AND unidentified-album AND
+ * tags-out-of-sync). Each finding is fixed by a *specific* job type — a
+ * cover job doesn't help the identify finding. Without filtering, every
+ * Fix click would flip every other finding's button on the same album to
  * "Running" too, which is confusing and wrong.
  *
- * Deterministic checks (missing-fingerprints, duplicate-tracks) don't
- * enqueue AI jobs at all — their fix path is synchronous. They get an
- * empty job-type allowlist so the button stays in idle "Fix" state even
- * when an unrelated AI job is running on the same album. missing-mbid is
- * a hybrid: per-finding Fix tries MB-direct first and falls through to
- * an AI metadata job when MB couldn't disambiguate, so it DOES appear in
- * JOB_TYPES_FOR_CHECK and HINT_MODE_FOR_CHECK below.
+ * Deterministic checks (duplicate-tracks, inconsistent-artist-sort,
+ * filename-mismatch) don't enqueue AI jobs at all — their fix path is
+ * synchronous. They get an empty job-type allowlist so the button stays
+ * in idle "Fix" state even when an unrelated AI job is running on the
+ * same album. The hybrid checks (`unidentified-album`, `tags-out-of-sync`)
+ * try MB-direct first and fall through to an AI metadata job when MB
+ * can't disambiguate — they DO appear in JOB_TYPES_FOR_CHECK and
+ * HINT_MODE_FOR_CHECK below.
  *
  * Errors (rare — usually a 409 conflict from a race) still toast, since the
  * button state didn't change as expected and the user needs the explanation.
@@ -46,25 +47,25 @@ import type { CheckFixKind, Finding, JobType } from "@/lib/types";
 import ArtistSortResolveDialog from "./ArtistSortResolveDialog";
 import DuplicateResolveDialog from "./DuplicateResolveDialog";
 import FilenameMismatchResolveDialog from "./FilenameMismatchResolveDialog";
-import MbCanonicalResolveDialog from "./MbCanonicalResolveDialog";
 import HintDialog from "./DetailSheet/HintDialog";
 
 
 /** Which AI job_types would resolve a finding from each check. A finding's
  *  button only reflects the album's active job when that job's type is in
  *  this list — otherwise it stays idle. Checks not listed
- *  (missing-fingerprints, duplicate-tracks) don't go through the AI queue
- *  at all, so the lookup falls through to "no match → idle."
+ *  (duplicate-tracks, inconsistent-artist-sort, filename-mismatch) don't
+ *  go through the AI queue, so the lookup falls through to "idle."
  *
- *  missing-mbid is here because per-finding Fix falls through to AI when
- *  MB-direct can't disambiguate; the metadata job's result includes the
- *  identified MBID and the worker persists it via cache.set_album_mb_anchor.
- *  Bulk "Identify on MusicBrainz" stays MB-direct and doesn't enqueue AI. */
+ *  Both consolidated checks (`unidentified-album` and `tags-out-of-sync`)
+ *  are here because per-finding Fix can fall through to AI: the identify
+ *  cascade ends with an AI metadata job when the resolver can't anchor;
+ *  the tag-sync fix falls through to AI when the resolver can't fill all
+ *  the missing fields (genre, or anything on an unanchored album). */
 const JOB_TYPES_FOR_CHECK: Record<string, JobType[]> = {
-  "no-cover-art":      ["cover", "metadata+cover"],
-  "missing-core-tags": ["metadata", "metadata+cover"],
-  "track-gaps":        ["metadata", "metadata+cover"],
-  "missing-mbid":      ["metadata", "metadata+cover"],
+  "no-cover-art":        ["cover", "metadata+cover"],
+  "track-gaps":          ["metadata", "metadata+cover"],
+  "unidentified-album":  ["metadata", "metadata+cover"],
+  "tags-out-of-sync":    ["metadata", "metadata+cover"],
 };
 
 /** Which HintDialog mode to use for each AI-job check. The mode picks the
@@ -72,10 +73,10 @@ const JOB_TYPES_FOR_CHECK: Record<string, JobType[]> = {
  *  Checks not listed don't open the hint dialog (they're either deterministic
  *  or have no AI path). */
 const HINT_MODE_FOR_CHECK: Record<string, "metadata" | "cover"> = {
-  "no-cover-art":      "cover",
-  "missing-core-tags": "metadata",
-  "track-gaps":        "metadata",
-  "missing-mbid":      "metadata",
+  "no-cover-art":        "cover",
+  "track-gaps":          "metadata",
+  "unidentified-album":  "metadata",
+  "tags-out-of-sync":    "metadata",
 };
 
 interface Props {
@@ -100,7 +101,6 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [artistSortOpen, setArtistSortOpen] = useState(false);
   const [filenameOpen, setFilenameOpen] = useState(false);
-  const [mbCanonicalOpen, setMbCanonicalOpen] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
 
   // Album lookup for the hint-dialog header — keeps the title in the
@@ -117,11 +117,11 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
 
   // Only treat the album's active job as relevant if its type would
   // actually resolve THIS finding. Checks with no entry in the table
-  // (deterministic ones — missing-fingerprints, duplicate-tracks) get
-  // null here unconditionally, so an unrelated AI job on the same album
-  // doesn't drag their button into the disabled "Running" state.
-  // missing-mbid IS in the table (it's a hybrid), so an active metadata
-  // job on the album does correctly reflect through to its button.
+  // (deterministic ones like duplicate-tracks, inconsistent-artist-sort,
+  // filename-mismatch) get null here unconditionally so an unrelated AI
+  // job on the same album doesn't drag their button into "Running."
+  // The hybrid checks (`unidentified-album`, `tags-out-of-sync`) ARE in
+  // the table — an active metadata job correctly reflects to their button.
   const allowedTypes = JOB_TYPES_FOR_CHECK[finding.check_id];
   const activeJob =
     albumJob && allowedTypes && allowedTypes.includes(albumJob.job_type)
@@ -136,31 +136,6 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   // get no button at all.
   if (fixKind === "none" || finding.album_id == null || finding.ignored_at) {
     return null;
-  }
-
-  // mb-canonical-mismatch — per-field opt-in dialog so the user can
-  // accept some diffs and reject others (e.g. accept the album
-  // artist normalization but skip a per-track artist they prefer
-  // to keep their way).
-  if (finding.check_id === "mb-canonical-mismatch") {
-    return (
-      <>
-        <button
-          onClick={(e) => { e.stopPropagation(); setMbCanonicalOpen(true); }}
-          className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
-          title="Review the canonical-name diffs and apply"
-        >
-          <Copy className="w-3 h-3" />
-          Resolve…
-        </button>
-        <MbCanonicalResolveDialog
-          finding={finding}
-          findings={siblings}
-          open={mbCanonicalOpen}
-          onClose={() => setMbCanonicalOpen(false)}
-        />
-      </>
-    );
   }
 
   // Filename-mismatch uses a custom Resolve dialog showing the
@@ -324,11 +299,9 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
       setHintOpen(true);
       return;
     }
-    // Deterministic check with no hint mode (missing-fingerprints,
-    // duplicate-tracks routes through its own Resolve dialog above).
-    // missing-mbid is a hybrid that DOES have a hint mode and won't
-    // reach this branch — see HINT_MODE_FOR_CHECK above. Fire straight
-    // through, no dialog.
+    // Deterministic check with no hint mode. (Hybrid checks like
+    // unidentified-album and tags-out-of-sync DO have a hint mode and
+    // take the branch above.) Fire straight through with no dialog.
     submitFix("");
   };
 

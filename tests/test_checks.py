@@ -1,15 +1,13 @@
-"""Per-check tests for the resolver-consuming checks
-(`mb_canonical_mismatch`, `missing_mbid`, `missing_sort_tags`).
+"""Per-check tests for the merged identification + tag-sync checks.
 
-The resolver itself is exercised in test_resolver.py. These tests
-mock the resolver so we can isolate the check-level glue: SQL
-filters, diff loops, fix paths (deterministic + AI-fallback),
-bulk paths, and the apply orchestrator.
+After the 10 → 7 consolidation:
+  - `unidentified-album` replaces `missing-fingerprints` + `missing-mbid`.
+  - `tags-out-of-sync` replaces `missing-core-tags` + `missing-sort-tags`
+    + `mb-canonical-mismatch`.
 
-Pattern: each test inserts a small set of album rows directly into
-the test DB, monkeypatches `services.resolver.resolve_album` to
-return whatever AlbumResolution shape we want, then calls the check
-method under test.
+These tests insert album rows directly, monkeypatch the resolver so the
+fixture controls anchor + canonical values, and exercise the run/fix/
+try_quick_fix paths in isolation.
 """
 from __future__ import annotations
 
@@ -19,9 +17,8 @@ import pytest
 
 from musaic import db as db_module
 from musaic.checks import (
-    mb_canonical_mismatch,
-    missing_mbid,
-    missing_sort_tags,
+    tags_out_of_sync,
+    unidentified_album,
 )
 from musaic.checks.base import CheckScope, Finding
 from musaic.services import resolver as resolver_service
@@ -41,8 +38,7 @@ LIBRARY_PATH = "/fake/library"
 @pytest.fixture(autouse=True)
 def _clean_albums_table():
     """Wipe albums + related tables between tests so state from one
-    test doesn't bleed into another. The DB itself was created by
-    conftest.py via the env-var redirect to a session-shared tmp dir."""
+    test doesn't bleed into another."""
     with db_module.connect() as conn:
         with db_module.transaction(conn):
             conn.execute("DELETE FROM albums")
@@ -71,6 +67,7 @@ def _insert_album(
     artist: str = "Test Artist",
     title: str = "Test Album",
     year: str = "1979",
+    genre: str = "Rock",
     mb_release_group_mbid: str | None = None,
     mb_release_mbid: str | None = None,
     mb_match_score: int | None = None,
@@ -89,7 +86,7 @@ def _insert_album(
                     """
                     INSERT INTO albums (
                         id, library_path, path, dir_name,
-                        title, artist, album_artist, year,
+                        title, artist, album_artist, year, genre,
                         track_count, sample_track,
                         is_compilation,
                         mb_release_group_mbid, mb_release_mbid,
@@ -97,7 +94,7 @@ def _insert_album(
                         album_artist_sort, artist_sort, album_sort
                     ) VALUES (
                         ?, ?, ?, ?,
-                        ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?,
                         ?, ?,
                         ?,
                         ?, ?, ?, ?,
@@ -106,7 +103,7 @@ def _insert_album(
                     """,
                     (
                         id, LIBRARY_PATH, f"/fake/library/{id}", dir_name,
-                        title, artist, album_artist, year,
+                        title, artist, album_artist, year, genre,
                         track_count, "",
                         1 if is_compilation else 0,
                         mb_release_group_mbid, mb_release_mbid,
@@ -115,9 +112,22 @@ def _insert_album(
                     ),
                 )
             except sqlite3.IntegrityError:
-                # Reusing same id within a test? Tests should use distinct
-                # ids; surface this loudly rather than silently update.
                 raise
+
+
+def _insert_fingerprint(album_id: str, filename: str = "01.flac") -> None:
+    """Insert one track_fingerprints row so an album counts as 'fingerprinted'."""
+    with db_module.connect() as conn:
+        with db_module.transaction(conn):
+            conn.execute(
+                """
+                INSERT INTO track_fingerprints (
+                    album_id, filename, fingerprint, duration_s,
+                    last_computed_at
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                (album_id, filename, "fp-bytes", 200.0, "2026-01-01T00:00:00Z"),
+            )
 
 
 def _make_resolution(
@@ -125,20 +135,24 @@ def _make_resolution(
     album_id: str = "a1",
     anchor_mbid: str | None = "rg-1",
     anchor_strategy: str = "cache",
-    canonical_album_artist: str | None = "Canonical Artist",
+    canonical_title: str | None = None,
+    canonical_album_artist: str | None = None,
+    canonical_year: str | None = None,
     canonical_album_artist_sort: str | None = None,
     track_canonical_artist: str | None = None,
     track_filename: str = "01.flac",
 ) -> AlbumResolution:
-    """Build a minimal AlbumResolution for monkeypatch returns. Only
-    populates the fields each check actually reads off the resolver."""
     res = AlbumResolution(
         album_id=album_id,
         anchor=FieldFact(anchor_mbid, "musicbrainz", 0.95) if anchor_mbid else None,
         anchor_strategy=anchor_strategy if anchor_mbid else "none",
     )
+    if canonical_title:
+        res.canonical_title = FieldFact(canonical_title, "musicbrainz", 0.95)
     if canonical_album_artist:
         res.canonical_album_artist = FieldFact(canonical_album_artist, "musicbrainz", 0.95)
+    if canonical_year:
+        res.canonical_year = FieldFact(canonical_year, "musicbrainz", 0.95)
     if canonical_album_artist_sort:
         res.canonical_album_artist_sort = FieldFact(canonical_album_artist_sort, "musicbrainz", 0.95)
     if track_canonical_artist:
@@ -149,149 +163,104 @@ def _make_resolution(
     return res
 
 
-# ---------- mb_canonical_mismatch ----------
+# ============================================================
+# unidentified-album (replaces missing-fingerprints + missing-mbid)
+# ============================================================
 
 
-def test_mb_canonical_mismatch_run_flags_album_artist_drift(monkeypatch):
-    """Album whose current album_artist disagrees with MB's canonical
-    form gets a finding."""
-    _insert_album(
-        id="a1",
-        album_artist="The Beatles",
-        mb_release_group_mbid="rg-1",
-    )
-    monkeypatch.setattr(
-        resolver_service, "resolve_album",
-        lambda _id: _make_resolution(canonical_album_artist="Beatles, The"),
-    )
+def test_unidentified_run_flags_album_missing_both_signals():
+    """Album with no anchor AND no fingerprints → flagged with both
+    prerequisites listed."""
+    _insert_album(id="a1", mb_release_group_mbid=None)
 
-    check = mb_canonical_mismatch.MbCanonicalMismatch()
+    check = unidentified_album.UnidentifiedAlbum()
     findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
 
     assert len(findings) == 1
     f = findings[0]
     assert f.album_id == "a1"
-    assert f.detail["album_artist_diff"] == {
-        "current": "The Beatles",
-        "canonical": "Beatles, The",
-    }
+    assert f.detail["needs_fingerprints"] is True
+    assert f.detail["needs_anchor"] is True
+    assert "Not fingerprinted" in f.summary or "fingerprint" in f.summary.lower()
 
 
-def test_mb_canonical_mismatch_run_skips_when_canonical_matches(monkeypatch):
-    """Whitespace+case-insensitive equivalence — no finding emitted."""
-    _insert_album(
-        id="a1",
-        album_artist="Beatles, The",
-        mb_release_group_mbid="rg-1",
-    )
-    monkeypatch.setattr(
-        resolver_service, "resolve_album",
-        lambda _id: _make_resolution(canonical_album_artist="Beatles, The"),
-    )
+def test_unidentified_run_flags_anchored_but_unfingerprinted():
+    """Has anchor but no fingerprints → still flagged (fingerprints are
+    a separate prerequisite for AcoustID-driven checks)."""
+    _insert_album(id="a1", mb_release_group_mbid="rg-x")
 
-    check = mb_canonical_mismatch.MbCanonicalMismatch()
-    assert list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all"))) == []
-
-
-def test_mb_canonical_mismatch_run_skips_unanchored_albums(monkeypatch):
-    """SQL pre-filter excludes albums without an MBID anchor — the
-    check shouldn't even try to resolve them."""
-    _insert_album(id="a1", album_artist="Anything", mb_release_group_mbid=None)
-
-    # Resolver shouldn't even be called.
-    def _explode(_id):
-        raise AssertionError("resolver should not be called for unanchored albums")
-
-    monkeypatch.setattr(resolver_service, "resolve_album", _explode)
-
-    check = mb_canonical_mismatch.MbCanonicalMismatch()
-    assert list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all"))) == []
-
-
-def test_mb_canonical_mismatch_apply_calls_apply_direct_with_resolver_values(monkeypatch):
-    """apply_canonical reads canonical fields off the resolver and
-    forwards them to apply_direct as suggestions."""
-    _insert_album(id="a1", album_artist="The Beatles", mb_release_group_mbid="rg-1")
-    monkeypatch.setattr(
-        resolver_service, "resolve_album",
-        lambda _id: _make_resolution(canonical_album_artist="Beatles, The"),
-    )
-
-    captured = {}
-
-    def fake_apply_direct(*, album_id, suggestions, track_suggestions, rerun_checks):
-        captured["album_id"] = album_id
-        captured["suggestions"] = suggestions
-        captured["track_suggestions"] = track_suggestions
-        return (True, "Wrote 1 file")
-
-    from musaic.checks import _apply as direct_apply
-    monkeypatch.setattr(direct_apply, "apply_direct", fake_apply_direct)
-
-    result = mb_canonical_mismatch.apply_canonical(
-        album_id="a1",
-        accept_album_artist=True,
-        accept_track_filenames=[],
-    )
-
-    assert result["ok"] is True
-    assert captured["suggestions"] == {"album_artist": "Beatles, The"}
-    assert captured["track_suggestions"] is None  # falsy ⇒ omitted
-
-
-# ---------- missing_mbid ----------
-
-
-def test_missing_mbid_run_flags_unanchored_albums():
-    """Album without an MBID + never previously checked → flagged."""
-    _insert_album(id="a1", mb_release_group_mbid=None, mb_last_checked_at=None)
-    _insert_album(id="a2", mb_release_group_mbid="rg-x")  # already anchored
-
-    check = missing_mbid.MissingMbid()
+    check = unidentified_album.UnidentifiedAlbum()
     findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
 
     assert len(findings) == 1
-    assert findings[0].album_id == "a1"
+    assert findings[0].detail["needs_fingerprints"] is True
+    assert findings[0].detail["needs_anchor"] is False
 
 
-def test_missing_mbid_run_skips_recently_checked_albums():
-    """An album we recently tried (within the staleness window) shouldn't
-    re-surface — the empty `mb_last_checked_at` row keeps it visible."""
+def test_unidentified_run_flags_fingerprinted_but_unanchored():
+    """Has fingerprints but no anchor → flagged for the anchor only."""
+    _insert_album(id="a1", mb_release_group_mbid=None)
+    _insert_fingerprint("a1")
+
+    check = unidentified_album.UnidentifiedAlbum()
+    findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
+
+    assert len(findings) == 1
+    assert findings[0].detail["needs_fingerprints"] is False
+    assert findings[0].detail["needs_anchor"] is True
+
+
+def test_unidentified_run_skips_fully_identified():
+    """Anchor + fingerprints + within staleness window → no finding."""
+    _insert_album(id="a1", mb_release_group_mbid="rg-x")
+    _insert_fingerprint("a1")
+
+    check = unidentified_album.UnidentifiedAlbum()
+    findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
+    assert findings == []
+
+
+def test_unidentified_run_respects_staleness_window():
+    """Recent failed lookup (mb_last_checked_at within window) shouldn't
+    re-surface."""
     from datetime import datetime, timezone
     recent = datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
     _insert_album(id="a1", mb_release_group_mbid=None, mb_last_checked_at=recent)
+    _insert_fingerprint("a1")  # fingerprints already done
 
-    check = missing_mbid.MissingMbid()
-    assert list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all"))) == []
+    check = unidentified_album.UnidentifiedAlbum()
+    findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
+    assert findings == []
 
 
-def test_missing_mbid_fix_uses_resolver_first(monkeypatch):
-    """fix() with no hint runs the resolver; if it anchors, return ok
-    without enqueuing AI."""
+def test_unidentified_fix_uses_resolver_first(monkeypatch):
+    """When fingerprints already exist and no hint given: resolver-first;
+    success → no AI job."""
     _insert_album(id="a1", mb_release_group_mbid=None)
+    _insert_fingerprint("a1")
+
     monkeypatch.setattr(
         resolver_service, "resolve_album",
         lambda _id: _make_resolution(anchor_mbid="rg-1", anchor_strategy="dir-search"),
     )
 
-    # AI enqueue must NOT be called.
-    def _explode(*a, **kw):
-        raise AssertionError("AI should not be enqueued when resolver succeeded")
+    def _explode_enqueue(*a, **kw):
+        raise AssertionError("AI must not be enqueued when resolver succeeded")
 
     from musaic import jobs as jobs_module
-    monkeypatch.setattr(jobs_module, "enqueue", _explode)
+    monkeypatch.setattr(jobs_module, "enqueue", _explode_enqueue)
 
-    check = missing_mbid.MissingMbid()
+    check = unidentified_album.UnidentifiedAlbum()
     result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
 
     assert result.ok is True
     assert "rg-1" in result.message
-    assert "dir-search" in result.message
 
 
-def test_missing_mbid_fix_falls_through_to_ai_when_resolver_fails(monkeypatch):
-    """When the resolver returns no anchor, fix() enqueues an AI job."""
+def test_unidentified_fix_falls_through_to_ai_when_resolver_fails(monkeypatch):
     _insert_album(id="a1", mb_release_group_mbid=None)
+    _insert_fingerprint("a1")
+
     monkeypatch.setattr(
         resolver_service, "resolve_album",
         lambda _id: _make_resolution(anchor_mbid=None),
@@ -312,23 +281,21 @@ def test_missing_mbid_fix_falls_through_to_ai_when_resolver_fails(monkeypatch):
     from musaic import jobs as jobs_module
     monkeypatch.setattr(jobs_module, "enqueue", fake_enqueue)
 
-    check = missing_mbid.MissingMbid()
+    check = unidentified_album.UnidentifiedAlbum()
     result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
 
     assert result.ok is True
     assert result.job_id == "job-1"
-    assert len(enqueue_calls) == 1
     assert enqueue_calls[0]["job_type"] == "metadata"
-    assert enqueue_calls[0]["hint"] == ""
 
 
-def test_missing_mbid_fix_with_hint_skips_resolver(monkeypatch):
-    """A user-supplied hint means we go straight to AI — skipping the
-    resolver would discard the user's added context."""
+def test_unidentified_fix_with_hint_skips_resolver(monkeypatch):
+    """Hint → straight to AI (resolver can't use the user's context)."""
     _insert_album(id="a1", mb_release_group_mbid=None)
+    _insert_fingerprint("a1")
 
     def _explode(_id):
-        raise AssertionError("resolver should not be called when a hint was supplied")
+        raise AssertionError("resolver should not be called when a hint is supplied")
 
     monkeypatch.setattr(resolver_service, "resolve_album", _explode)
 
@@ -347,66 +314,254 @@ def test_missing_mbid_fix_with_hint_skips_resolver(monkeypatch):
     from musaic import jobs as jobs_module
     monkeypatch.setattr(jobs_module, "enqueue", fake_enqueue)
 
-    check = missing_mbid.MissingMbid()
+    check = unidentified_album.UnidentifiedAlbum()
     result = check.fix(
         Finding(album_id="a1", summary="x", severity="info"),
-        user_hint="1979 original pressing, not the 2012 remaster",
+        user_hint="1979 original pressing",
     )
 
     assert result.ok is True
-    assert captured["hint"] == "1979 original pressing, not the 2012 remaster"
+    assert captured["hint"] == "1979 original pressing"
 
 
-def test_missing_mbid_quick_fix_returns_none_for_missing_album():
-    """Bulk path: if the album row vanished, return None so the bulk
-    dispatcher counts it as 'not-applicable' rather than 'skipped'."""
-    check = missing_mbid.MissingMbid()
+def test_unidentified_fingerprints_step_runs_when_missing(monkeypatch):
+    """Fix on an unfingerprinted album triggers fingerprint_album first,
+    then runs the resolver. Verifies both calls happen in order."""
+    _insert_album(id="a1", mb_release_group_mbid=None)
+
+    fingerprint_calls = []
+
+    def fake_fingerprint_album(album_id, album_path, **kw):
+        fingerprint_calls.append((album_id, album_path))
+        # Simulate fingerprinting succeeding so the album gets some rows.
+        _insert_fingerprint(album_id)
+        return [type("R", (), {"acoustid_recording_mbid": "rec-1"})()]
+
+    from musaic import fingerprint as fingerprint_module
+    monkeypatch.setattr(fingerprint_module, "fingerprint_album", fake_fingerprint_album)
+
+    monkeypatch.setattr(
+        resolver_service, "resolve_album",
+        lambda _id: _make_resolution(anchor_mbid="rg-1", anchor_strategy="fingerprint-vote"),
+    )
+
+    check = unidentified_album.UnidentifiedAlbum()
+    result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
+
+    assert result.ok is True
+    assert len(fingerprint_calls) == 1
+    assert "fingerprinted 1 files" in result.message
+    assert "rg-1" in result.message
+
+
+def test_unidentified_quick_fix_returns_none_for_missing_album():
+    check = unidentified_album.UnidentifiedAlbum()
     result = check.try_quick_fix(Finding(album_id="ghost", summary="x", severity="info"))
     assert result is None
 
 
-# ---------- missing_sort_tags ----------
+# ============================================================
+# tags-out-of-sync (replaces missing-core-tags + missing-sort-tags
+#                   + mb-canonical-mismatch)
+# ============================================================
 
 
-def test_missing_sort_tags_run_flags_article_prefix_with_empty_sort():
+def test_tags_out_of_sync_run_flags_canonical_drift(monkeypatch):
+    """Anchored album whose album_artist disagrees with MB canonical."""
     _insert_album(
-        id="a1", album_artist="The Beatles",
-        album_artist_sort=None,
+        id="a1",
+        album_artist="The Beatles",
+        mb_release_group_mbid="rg-1",
+    )
+    monkeypatch.setattr(
+        resolver_service, "resolve_album",
+        lambda _id: _make_resolution(canonical_album_artist="Beatles, The"),
     )
 
-    check = missing_sort_tags.MissingSortTags()
+    check = tags_out_of_sync.TagsOutOfSync()
     findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
 
     assert len(findings) == 1
-    assert findings[0].album_id == "a1"
-    proposed = {m["field"]: m["proposed_sort"] for m in findings[0].detail["missing"]}
-    assert proposed["album_artist"] == "Beatles, The"
+    f = findings[0]
+    diffs = f.detail["album_diffs"]
+    assert any(
+        d["field"] == "album_artist"
+        and d["current"] == "The Beatles"
+        and d["canonical"] == "Beatles, The"
+        for d in diffs
+    )
 
 
-def test_missing_sort_tags_run_skips_when_sort_already_set():
+def test_tags_out_of_sync_run_flags_missing_core_field():
+    """Album with blank year (no anchor needed) → finding with
+    missing_core populated."""
+    _insert_album(id="a1", year="", mb_release_group_mbid=None)
+
+    check = tags_out_of_sync.TagsOutOfSync()
+    findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
+
+    assert len(findings) == 1
+    assert "year" in findings[0].detail["missing_core"]
+
+
+def test_tags_out_of_sync_run_flags_missing_sort_tag(monkeypatch):
+    """The Beatles + no album_artist_sort → finding with sort proposal."""
     _insert_album(
         id="a1", album_artist="The Beatles",
-        album_artist_sort="Beatles, The",
+        album_artist_sort=None,
+        mb_release_group_mbid=None,
     )
-    check = missing_sort_tags.MissingSortTags()
-    assert list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all"))) == []
+
+    check = tags_out_of_sync.TagsOutOfSync()
+    findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
+
+    assert len(findings) == 1
+    assert findings[0].detail["sort_proposals"] == {"album_artist_sort": "Beatles, The"}
 
 
-def test_missing_sort_tags_run_skips_when_no_article_prefix():
-    """Personal-name cases (Bob Dylan → Dylan, Bob) intentionally don't
-    fire here — they need MB data and would defeat cheap-cost."""
-    _insert_album(id="a1", album_artist="Bob Dylan", album_artist_sort=None)
-    check = missing_sort_tags.MissingSortTags()
-    assert list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all"))) == []
+def test_tags_out_of_sync_run_clean_album_no_finding(monkeypatch):
+    """Anchored, canonical-matching, all required fields present → no finding."""
+    _insert_album(
+        id="a1",
+        album_artist="Beatles, The",
+        title="Abbey Road",
+        year="1969",
+        genre="Rock",
+        album_artist_sort=None,  # no article prefix on "Beatles, The" → fine
+        mb_release_group_mbid="rg-1",
+    )
+    monkeypatch.setattr(
+        resolver_service, "resolve_album",
+        lambda _id: _make_resolution(
+            canonical_album_artist="Beatles, The",
+            canonical_title="Abbey Road",
+            canonical_year="1969",
+        ),
+    )
+
+    check = tags_out_of_sync.TagsOutOfSync()
+    findings = list(check.run(CheckScope(library_path=LIBRARY_PATH, kind="all")))
+    assert findings == []
 
 
-def test_missing_sort_tags_fix_prefers_mb_sort_when_anchored(monkeypatch):
-    """Anchored album → resolver returns canonical sort → fix uses MB's
-    value instead of mechanical article rotation. Useful for credit
-    permutations like 'Ray Conniff & His Orchestra' → 'Conniff, Ray',
-    which rotation can't produce. We use 'The Beatles' → 'Beatles, the'
-    (lowercase article) to verify the mechanical path WASN'T used —
-    rotation would produce 'Beatles, The'."""
+def test_tags_out_of_sync_fix_applies_canonical_when_anchored(monkeypatch):
+    """Anchored album with drift → resolver-driven apply, no AI."""
+    _insert_album(
+        id="a1", album_artist="The Beatles",
+        mb_release_group_mbid="rg-1",
+    )
+    monkeypatch.setattr(
+        resolver_service, "resolve_album",
+        lambda _id: _make_resolution(canonical_album_artist="Beatles, The"),
+    )
+
+    captured = {}
+
+    def fake_apply_direct(*, album_id, suggestions, track_suggestions, **kw):
+        captured["suggestions"] = suggestions
+        captured["track_suggestions"] = track_suggestions
+        return (True, "Wrote 1 file")
+
+    monkeypatch.setattr(
+        tags_out_of_sync.direct_apply, "apply_direct", fake_apply_direct,
+    )
+
+    def _explode(*a, **kw):
+        raise AssertionError("AI should not be enqueued when canonical apply suffices")
+
+    from musaic import jobs as jobs_module
+    monkeypatch.setattr(jobs_module, "enqueue", _explode)
+
+    check = tags_out_of_sync.TagsOutOfSync()
+    result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
+
+    assert result.ok is True
+    assert captured["suggestions"]["album_artist"] == "Beatles, The"
+
+
+def test_tags_out_of_sync_fix_falls_back_to_ai_for_missing_genre(monkeypatch):
+    """Missing genre on an anchored album → genre is AI-only,
+    so we should also enqueue an AI job after the canonical apply."""
+    _insert_album(
+        id="a1",
+        album_artist="The Beatles",
+        title="Abbey Road",
+        year="1969",
+        genre="",  # missing — AI fallback only
+        mb_release_group_mbid="rg-1",
+    )
+    monkeypatch.setattr(
+        resolver_service, "resolve_album",
+        lambda _id: _make_resolution(
+            canonical_album_artist="Beatles, The",
+            canonical_title="Abbey Road",
+            canonical_year="1969",
+        ),
+    )
+
+    apply_calls = []
+
+    def fake_apply_direct(**kw):
+        apply_calls.append(kw)
+        return (True, "ok")
+
+    monkeypatch.setattr(
+        tags_out_of_sync.direct_apply, "apply_direct", fake_apply_direct,
+    )
+
+    from dataclasses import dataclass
+
+    @dataclass
+    class _FakeJob:
+        id: str = "job-genre"
+
+    enqueue_calls = []
+
+    def fake_enqueue(**kw):
+        enqueue_calls.append(kw)
+        return _FakeJob()
+
+    from musaic import jobs as jobs_module
+    monkeypatch.setattr(jobs_module, "enqueue", fake_enqueue)
+
+    check = tags_out_of_sync.TagsOutOfSync()
+    result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
+
+    assert result.ok is True
+    assert result.job_id == "job-genre"
+    assert len(apply_calls) == 1  # canonical write happened
+    assert len(enqueue_calls) == 1  # AI follow-up for genre
+
+
+def test_tags_out_of_sync_fix_unanchored_blank_core_goes_to_ai(monkeypatch):
+    """Unanchored album missing title → resolver can't help → AI job."""
+    _insert_album(id="a1", title="", mb_release_group_mbid=None)
+
+    from dataclasses import dataclass
+
+    @dataclass
+    class _FakeJob:
+        id: str = "job-ai"
+
+    enqueue_calls = []
+
+    def fake_enqueue(**kw):
+        enqueue_calls.append(kw)
+        return _FakeJob()
+
+    from musaic import jobs as jobs_module
+    monkeypatch.setattr(jobs_module, "enqueue", fake_enqueue)
+
+    check = tags_out_of_sync.TagsOutOfSync()
+    result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
+
+    assert result.ok is True
+    assert result.job_id == "job-ai"
+
+
+def test_tags_out_of_sync_fix_uses_mb_sort_when_available(monkeypatch):
+    """Anchored album → resolver provides canonical sort → fix prefers
+    MB sort-name over rotation."""
     _insert_album(
         id="a1",
         album_artist="The Beatles",
@@ -424,21 +579,20 @@ def test_missing_sort_tags_fix_prefers_mb_sort_when_anchored(monkeypatch):
         captured["suggestions"] = suggestions
         return (True, "ok")
 
-    from musaic.checks import _apply as direct_apply
-    monkeypatch.setattr(direct_apply, "apply_direct", fake_apply_direct)
+    monkeypatch.setattr(
+        tags_out_of_sync.direct_apply, "apply_direct", fake_apply_direct,
+    )
 
-    check = missing_sort_tags.MissingSortTags()
+    check = tags_out_of_sync.TagsOutOfSync()
     result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
 
     assert result.ok is True
-    # MB's lowercase-article variant survives — we didn't fall through
-    # to article rotation (which would have produced "Beatles, The").
+    # MB lowercase variant survives — proves we didn't fall through to rotation.
     assert captured["suggestions"]["album_artist_sort"] == "Beatles, the"
 
 
-def test_missing_sort_tags_fix_falls_back_to_rotation_when_no_anchor(monkeypatch):
-    """Album without an MBID anchor → resolver isn't called → rotation
-    wins. The mb_release_group_mbid IS NULL guard short-circuits."""
+def test_tags_out_of_sync_fix_falls_back_to_rotation_when_unanchored(monkeypatch):
+    """Unanchored album with article prefix → article rotation."""
     _insert_album(
         id="a1",
         album_artist="The Beatles",
@@ -446,22 +600,30 @@ def test_missing_sort_tags_fix_falls_back_to_rotation_when_no_anchor(monkeypatch
         mb_release_group_mbid=None,
     )
 
-    def _explode(_id):
-        raise AssertionError("resolver should not be called for unanchored albums")
-
-    monkeypatch.setattr(resolver_service, "resolve_album", _explode)
-
     captured = {}
 
     def fake_apply_direct(*, album_id, suggestions, **kw):
         captured["suggestions"] = suggestions
         return (True, "ok")
 
-    from musaic.checks import _apply as direct_apply
-    monkeypatch.setattr(direct_apply, "apply_direct", fake_apply_direct)
+    monkeypatch.setattr(
+        tags_out_of_sync.direct_apply, "apply_direct", fake_apply_direct,
+    )
 
-    check = missing_sort_tags.MissingSortTags()
+    check = tags_out_of_sync.TagsOutOfSync()
     result = check.fix(Finding(album_id="a1", summary="x", severity="info"))
 
     assert result.ok is True
     assert captured["suggestions"]["album_artist_sort"] == "Beatles, The"
+
+
+def test_tags_out_of_sync_quick_fix_skips_when_nothing_deterministic(monkeypatch):
+    """Bulk path on an unanchored album with only AI-fillable fields →
+    soft fail (the per-finding fix handles AI escalation)."""
+    _insert_album(id="a1", title="", mb_release_group_mbid=None)
+
+    check = tags_out_of_sync.TagsOutOfSync()
+    result = check.try_quick_fix(Finding(album_id="a1", summary="x", severity="info"))
+
+    assert result is not None
+    assert result.ok is False

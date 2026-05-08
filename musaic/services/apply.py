@@ -50,6 +50,8 @@ def apply_album_changes_iter(
     suggestions: dict[str, str] | None = None,
     track_suggestions: dict[str, dict[str, str]] | None = None,
     cover_url: str | None = None,
+    cover_bytes: bytes | None = None,
+    cover_mime: str | None = None,
     dry_run: bool = False,
     rerun_post_scan_checks: bool = True,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
@@ -58,6 +60,12 @@ def apply_album_changes_iter(
     `library_dir` should be the resolved library root — used by the
     upsert step so the album row lands at the right `library_path`.
     Pass `""` to skip the upsert (rare; only valid in tests).
+
+    Cover input is one of:
+      - `cover_url`: download via requests, normalize to JPEG q95.
+      - `cover_bytes` + `cover_mime`: bytes already in hand (manual
+        upload from the UI). Still normalized to JPEG q95.
+      - neither: leave existing cover alone.
 
     `rerun_post_scan_checks` controls whether the cheap post-scan
     checks run after a successful apply. The bulk quick-fix-all caller
@@ -68,11 +76,17 @@ def apply_album_changes_iter(
     album_id = album["id"]
     album_path = album["path"]
 
-    cover_bytes: bytes | None = None
-    cover_mime: str | None = None
+    if cover_url and cover_bytes is not None:
+        yield "error", {
+            "detail": "Pass cover_url OR cover_bytes — not both. (Caller bug.)",
+        }
+        return
+
+    final_cover_bytes: bytes | None = None
+    final_cover_mime: str | None = None
 
     try:
-        # 1. Cover download (if requested) + normalize to JPEG q95.
+        # 1a. Cover download path (apply with a remote URL).
         if cover_url:
             yield "cover_downloading", {"url": cover_url}
             downloaded = download_cover(cover_url)
@@ -80,24 +94,35 @@ def apply_album_changes_iter(
                 yield "error", {"detail": f"Failed to download cover from {cover_url}"}
                 return
             raw_bytes, raw_mime = downloaded
-            cover_bytes = normalize_to_jpeg(raw_bytes, quality=95)
-            cover_mime = "image/jpeg"
+            final_cover_bytes = normalize_to_jpeg(raw_bytes, quality=95)
+            final_cover_mime = "image/jpeg"
             yield "cover_downloaded", {
                 "source_bytes": len(raw_bytes),
                 "source_mime": raw_mime,
-                "bytes": len(cover_bytes),
-                "mime": cover_mime,
+                "bytes": len(final_cover_bytes),
+                "mime": final_cover_mime,
+            }
+        # 1b. Direct-bytes path (manual upload). Same JPEG normalization.
+        elif cover_bytes is not None:
+            raw_mime = cover_mime or "image/jpeg"
+            final_cover_bytes = normalize_to_jpeg(cover_bytes, quality=95)
+            final_cover_mime = "image/jpeg"
+            yield "cover_downloaded", {
+                "source_bytes": len(cover_bytes),
+                "source_mime": raw_mime,
+                "bytes": len(final_cover_bytes),
+                "mime": final_cover_mime,
             }
 
         # 2. Per-file write events.
-        had_art_change = cover_bytes is not None
+        had_art_change = final_cover_bytes is not None
         had_renames = False
         for ev_name, ev_payload in apply_to_album_iter(
             album_path,
             suggestions,
             track_suggestions=track_suggestions,
-            cover_bytes=cover_bytes,
-            cover_mime=cover_mime,
+            cover_bytes=final_cover_bytes,
+            cover_mime=final_cover_mime,
             dry_run=dry_run,
         ):
             if ev_name == "file_done" and ev_payload.get("art_changed"):
@@ -127,8 +152,8 @@ def apply_album_changes_iter(
 
         # 3. cover.jpg sidecar so external tools (Plex, OS thumbnailer)
         #    pick up the new art without re-extracting from FLAC.
-        if cover_bytes is not None:
-            saved = save_cover_to_album_dir(album_path, cover_bytes)
+        if final_cover_bytes is not None:
+            saved = save_cover_to_album_dir(album_path, final_cover_bytes)
             if saved is not None:
                 yield "cover_saved", {"path": str(saved), "filename": saved.name}
 

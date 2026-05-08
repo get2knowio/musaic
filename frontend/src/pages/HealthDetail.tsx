@@ -348,18 +348,19 @@ function ConfirmBody({
   totalFindings: number;
 }) {
   // Per-check pacing copy. Most checks are MB-rate-limited (1 req/s per
-  // album); fingerprinting is the outlier — fpcalc + AcoustID lookup runs
-  // ~1 sec per *track*, so a 12-track album takes ~12s on its own.
-  const isFingerprint = checkId === "missing-fingerprints";
-  const isMbDirect = checkId === "missing-mbid";
-  // For "missing-core-tags", "track-gaps", "no-cover-art" — fix_kind is
-  // ai-job, meaning leftovers fall through to AI.
+  // album); the identify cascade can also run fpcalc — fpcalc + AcoustID
+  // lookup is ~1 sec per *track*, so a 12-track album takes ~12s on its
+  // own. The unidentified-album bulk hits the worst case when the
+  // library has never been fingerprinted.
+  const isIdentify = checkId === "unidentified-album";
+  // ai-job fix_kind means leftovers from the bulk pass fall through to
+  // AI when the user opens a per-finding Fix later.
   const fallsThroughToAi = fixKind === "ai-job";
 
-  const lowSec = isFingerprint
+  const lowSec = isIdentify
     ? totalFindings * 8        // wild guess, ~8 tracks per album
     : totalFindings;           // ~1 req/s for MB
-  const highSec = isFingerprint
+  const highSec = isIdentify
     ? totalFindings * 15
     : Math.ceil(totalFindings * 1.5);
 
@@ -368,34 +369,30 @@ function ConfirmBody({
       <p className="text-sm text-fg-2 mb-2">
         We'll run <b>{bulkActionLabel}</b> against each of <b>{totalFindings}</b>{" "}
         open finding{totalFindings === 1 ? "" : "s"} on <b>{checkLabel}</b>.
-        {fallsThroughToAi ? (
+        {isIdentify ? (
+          <>
+            {" "}Each album is fingerprinted (when missing) and run through
+            the resolver to find its MusicBrainz match. Albums that don't
+            match stay open — use the per-finding Fix to escalate to AI
+            with a hint, or try editing the directory name to the
+            canonical "Artist - Album" form first.
+          </>
+        ) : fallsThroughToAi ? (
           <>
             {" "}Findings we can resolve via MusicBrainz will be applied
             directly; the rest stay open for you to Fix individually (which
             queues an AI job).
           </>
-        ) : isMbDirect ? (
-          <>
-            {" "}MusicBrainz writes the release-group MBID back so future
-            lookups skip the search step. Albums that don't match stay open
-            — try editing the directory name to "Artist - Album" form first.
-          </>
-        ) : isFingerprint ? (
-          <>
-            {" "}This runs <code className="mono text-[11px]">fpcalc</code> on
-            every track and submits each fingerprint to AcoustID. Requires
-            fpcalc (<code className="mono text-[11px]">brew install
-            chromaprint</code>) and an AcoustID API key.
-          </>
         ) : null}
       </p>
       <p className="text-xs text-fg-3 leading-relaxed">
-        {isFingerprint ? (
+        {isIdentify ? (
           <>
-            Fingerprinting takes ~1 second per track, so this run will take
-            roughly{" "}
+            Fingerprinting takes ~1 second per track when needed, so this
+            run will take up to{" "}
             <b>{Math.ceil(lowSec / 60)}–{Math.ceil(highSec / 60)} minutes</b>{" "}
-            for {totalFindings} album{totalFindings === 1 ? "" : "s"}.
+            for {totalFindings} album{totalFindings === 1 ? "" : "s"} (less
+            if many are already fingerprinted).
           </>
         ) : (
           <>

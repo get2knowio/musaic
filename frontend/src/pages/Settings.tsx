@@ -424,7 +424,7 @@ function FingerprintSection() {
 
         <Row
           label="AcoustID API key"
-          help="Used only by the track-gaps and missing-fingerprints fix paths. Stored locally; never sent to Claude."
+          help="Used only by the track-gaps and unidentified-album fix paths. Stored locally; never sent to Claude."
         >
           {isSet && !editing ? (
             <>

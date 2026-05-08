@@ -96,7 +96,7 @@ export default function AISuggestions({
   // when it does, the worker has already persisted it to the cache
   // by the time the user sees this UI. We surface it explicitly so
   // the user can SEE that side-effect happened (or that it didn't,
-  // if the missing-mbid finding is staying open).
+  // if the unidentified-album finding is staying open).
   const mbid = metadata?.mb_release_group_mbid ?? null;
   const mbidStatus: "identified" | "not-identified" | "n/a" =
     metadataWasRequested
@@ -114,7 +114,7 @@ export default function AISuggestions({
         : "No metadata fixes found, and we couldn't identify a cover for this album.";
     } else if (metadataWasRequested) {
       primary = mbidStatus === "identified"
-        ? "No tag corrections needed — current metadata looks accurate. The album was identified on MusicBrainz; the missing-mbid finding will clear momentarily."
+        ? "No tag corrections needed — current metadata looks accurate. The album was identified on MusicBrainz; the unidentified-album finding will clear momentarily."
         : "No high-confidence corrections, and Claude couldn't identify this on MusicBrainz either. Try editing the directory name or adding a hint.";
     } else {
       primary = "Couldn't identify a cover for this album.";
@@ -158,7 +158,7 @@ export default function AISuggestions({
       {/* MBID identification status. Independent of the tag/cover diff —
           the MBID was persisted server-side as soon as the job completed
           (validated UUID + verified live against MB). Surfacing it here
-          so the user can see the missing-mbid side-effect happened. */}
+          so the user can see the unidentified-album side-effect happened. */}
       {mbidStatus !== "n/a" && (
         <div className="border border-line rounded-md bg-panel-2 p-3 text-sm">
           <MbidStatusLine status={mbidStatus} mbid={mbid} />
@@ -470,7 +470,7 @@ function MbidStatusLine({
           >
             {mbid}
           </a>
-          {" "}— verified and saved. The missing-mbid finding will clear momentarily.
+          {" "}— verified and saved. The unidentified-album finding will clear momentarily.
         </span>
       </div>
     );
@@ -482,7 +482,7 @@ function MbidStatusLine({
         MusicBrainz:
       </span>
       <span>
-        not identified. The missing-mbid finding stays open — try editing the
+        not identified. The unidentified-album finding stays open — try editing the
         directory name to canonical "Artist - Album" form, or click Fix again
         with a hint.
       </span>

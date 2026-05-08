@@ -457,13 +457,23 @@ def save_cover_to_album_dir(album_dir: str | Path, jpeg_bytes: bytes) -> Path | 
             pass
         return None
 
-    # Best-effort cleanup of stale duplicates
+    # Best-effort cleanup of stale duplicates. The same-file check uses
+    # inode comparison (`os.path.samefile`) rather than `.resolve()`
+    # string equality — on case-insensitive filesystems (macOS APFS by
+    # default), `cover.jpg` and `cover.JPG` resolve to different path
+    # strings but are the same physical file. The string compare would
+    # delete the cover we just wrote.
     for name in _COMPETING_COVER_FILES:
         stale = album_path / name
         try:
-            if stale.is_file() and stale.resolve() != target.resolve():
-                stale.unlink()
-                log.info("removed stale cover sibling: %s", stale.name)
+            if not stale.is_file():
+                continue
+            if os.path.samefile(str(stale), str(target)):
+                # Same physical file as our target (case-insensitive FS) —
+                # leave it alone.
+                continue
+            stale.unlink()
+            log.info("removed stale cover sibling: %s", stale.name)
         except OSError:
             pass
     return target

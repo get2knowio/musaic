@@ -119,7 +119,7 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
         album_id, mbid,
     )
 
-    # Kick off a check rerun so the missing-mbid finding clears
+    # Kick off a check rerun so the unidentified-album finding clears
     # immediately rather than waiting for the next library scan.
     try:
         cfg = config_module.load_config()
@@ -131,6 +131,27 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
             "post-MBID-persist check rerun failed for album=%s (continuing)",
             album_id,
         )
+
+
+def _format_transcript(buffer: list[str], *, max_bytes: int) -> str | None:
+    """Join a transcript buffer into a single string, keeping the
+    tail when the joined size exceeds `max_bytes`. The tail is more
+    informative for debugging since the failure happened at the end.
+
+    Returns None for an empty buffer so `mark_failed` skips writing
+    `result_json` entirely.
+    """
+    if not buffer:
+        return None
+    joined = "\n\n---\n\n".join(piece.strip() for piece in buffer if piece.strip())
+    if not joined:
+        return None
+    encoded = joined.encode("utf-8")
+    if len(encoded) <= max_bytes:
+        return joined
+    truncated = encoded[-max_bytes:].decode("utf-8", errors="replace")
+    omitted = len(encoded) - max_bytes
+    return f"… [{omitted} bytes truncated] …\n\n{truncated}"
 
 
 async def run_one_job(job: jobs_module.Job) -> None:
@@ -147,6 +168,13 @@ async def run_one_job(job: jobs_module.Job) -> None:
 
     jobs_module.mark_running(job.id)
     notify_jobs_changed()
+
+    # Install a fresh transcript buffer for this job. Anything Claude
+    # streams during the call ends up here (assistant text + result
+    # message). We pull it back out in the except clause so the user
+    # can see why a failed job failed — currently we discard everything
+    # but the exception text, which is often just "exit code 1."
+    transcript_buffer = ai.install_transcript_buffer()
 
     try:
         # Re-resolve album from cache (it may have been mutated since enqueue).
@@ -268,7 +296,13 @@ async def run_one_job(job: jobs_module.Job) -> None:
         else:
             _log.exception("job %s (%s, album=%s) failed",
                            job.id, job.job_type, job.album_id)
-        jobs_module.mark_failed(job.id, msg)
+        # Persist whatever Claude streamed before the failure so the
+        # user can see context in the Jobs UI. Cap the size: long agent
+        # transcripts can be hundreds of KB and we don't want them in
+        # every job-list payload. ~16 KB keeps the last few assistant
+        # turns in full while bounding the result_json blob.
+        excerpt = _format_transcript(transcript_buffer, max_bytes=16_000)
+        jobs_module.mark_failed(job.id, msg, failure_excerpt=excerpt)
         # Auto-pause the queue on first error.
         try:
             settings_module.set_ai_queue_paused(True)

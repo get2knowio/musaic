@@ -20,9 +20,9 @@ interface HintDialogProps {
   priorCoverAttempts?: Job[];
   /** The check id this dialog was opened for, when launched from a finding's
    *  Fix button. Drives the placeholder copy (different checks call for
-   *  different hint examples) and the cost/path callout (e.g. missing-mbid
-   *  tries MB first for free before falling through to AI). Omitted when
-   *  the dialog is opened from the DetailSheet footer. */
+   *  different hint examples) and the cost/path callout (e.g.
+   *  unidentified-album tries MB first for free before falling through to
+   *  AI). Omitted when the dialog is opened from the DetailSheet footer. */
   checkId?: string | null;
   /** Called with the trimmed hint (possibly empty) when the user submits. */
   onSubmit: (hint: string) => void;
@@ -33,9 +33,9 @@ interface HintDialogProps {
  *  check isn't listed (or when no checkId was passed at all — i.e. opened
  *  from the DetailSheet footer). */
 const PLACEHOLDERS_BY_CHECK: Record<string, string> = {
-  "missing-mbid":
+  "unidentified-album":
     "e.g. UK pressing, 1979 original (not the 2012 reissue). Released as 'X' in Japan.",
-  "missing-core-tags":
+  "tags-out-of-sync":
     "e.g. This is the soundtrack to the 1979 film, not the band of the same name.",
   "track-gaps":
     "e.g. The CD has a hidden bonus track at position 12.5; track 7 is misnumbered.",
@@ -70,7 +70,10 @@ const SUBTITLES: Record<HintDialogProps["mode"], string> = {
 /** Checks where an empty-hint submit hits MusicBrainz first (free, fast) and
  *  only falls through to a paid AI call when MB can't disambiguate. The
  *  dialog surfaces this so the user can predict what their click will do. */
-const HAS_MB_DIRECT_PATH = new Set<string>(["missing-mbid"]);
+const HAS_MB_DIRECT_PATH = new Set<string>([
+  "unidentified-album",
+  "tags-out-of-sync",
+]);
 
 /**
  * Pre-AI dialog for adding free-form context to the prompt. Always shown

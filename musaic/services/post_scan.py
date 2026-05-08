@@ -5,6 +5,49 @@ Two variants because the call sites are split between sync generators
 (SSE scan + apply) and async coroutines (bulk quick-fix-all). Calling
 the sync version inside a running event loop raises; calling the async
 version from sync code can't await.
+
+----------------------------------------------------------------------
+The "stale findings" anti-pattern
+----------------------------------------------------------------------
+
+Health-check findings stay in the DB until a check actually re-runs and
+discovers their underlying condition has gone away. The runner's
+auto-resolve only fires for findings whose check ran on the same
+library_path during the same call — there is no global "something
+changed, re-evaluate everything" hook.
+
+That makes any state-mutating helper that satisfies a check's invariant
+**caller-responsible** for triggering a post-scan rerun. Helpers that
+fall in this category:
+
+  - `cache.upsert_album` / `cache.delete_album`  (album row state)
+  - `cache.set_album_mb_anchor`                  (MB anchor — gates
+                                                 unidentified-album +
+                                                 tags-out-of-sync)
+  - `fingerprint.fingerprint_album`              (track fingerprints —
+                                                 gates unidentified-album)
+  - `tags.apply_to_album_iter`                   (Vorbis comments — gates
+                                                 tags-out-of-sync,
+                                                 inconsistent-artist-sort)
+  - on-disk renames                              (gates filename-mismatch)
+
+Any caller of those helpers MUST call `run_post_scan_checks` (or its
+async variant) afterwards or the satisfied finding will linger until the
+next library scan. `services.apply.apply_album_changes_iter` already
+does this — most call sites should funnel through it. The exceptions
+that need to fire post-scan themselves:
+
+  - the AI worker (writes anchor without going through apply)
+  - the synchronous fix-finding endpoint (resolver-driven fixes don't
+    go through apply)
+  - the eager fingerprint pool (fingerprints in bulk after a scan)
+  - the audio-analysis service (writes BPM/RG tags directly)
+  - the resolver itself (Tier 0b/0c persists anchors as a side effect
+    of read paths like the album-sheet badge query)
+
+If you add a new state-mutating path, decide which bucket it lives in.
+The grep `grep -rn 'run_post_scan_checks\\|apply_album_changes_iter' musaic/`
+should show the path covered by one of these.
 """
 from __future__ import annotations
 

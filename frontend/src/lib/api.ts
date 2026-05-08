@@ -368,26 +368,6 @@ export function getDuplicateFindingCanonical(
  *  migration, post-rename rescan all happen server-side. */
 import type { FilenameRenameResult } from "./types";
 
-/** Apply the user-confirmed subset of an mb-canonical-mismatch
- *  finding's diffs. */
-import type { MbCanonicalApplyResult } from "./types";
-
-export function applyMbCanonical(
-  findingId: number,
-  args: { acceptAlbumArtist: boolean; acceptTrackFilenames: string[] },
-): Promise<MbCanonicalApplyResult> {
-  return request(
-    `/api/checks/mb-canonical-mismatch/findings/${findingId}/apply`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        accept_album_artist: args.acceptAlbumArtist,
-        accept_track_filenames: args.acceptTrackFilenames,
-      }),
-    },
-  );
-}
-
 export function applyFilenameRename(
   findingId: number,
   args: {

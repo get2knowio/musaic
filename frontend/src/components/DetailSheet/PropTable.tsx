@@ -51,8 +51,8 @@ export default function PropTable({ album }: PropTableProps) {
  *
  * Telling these apart matters for the user — "Not found" + "checked
  * recently" is a stable state (don't bother re-running AI), while
- * "Not yet checked" signals a free win available via the missing-mbid
- * Fix button.
+ * "Not yet checked" signals a free win available via the
+ * unidentified-album Fix button.
  */
 function musicBrainzCell(album: Album): React.ReactNode {
   const mbid = album.mb_release_group_mbid ?? null;

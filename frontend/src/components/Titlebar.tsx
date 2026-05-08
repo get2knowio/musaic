@@ -5,6 +5,12 @@ import { toast } from "sonner";
 
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
 import {
+  COLUMN_MAX,
+  COLUMN_MIN,
+  setTileColumns,
+  useTileColumns,
+} from "@/hooks/useTileColumns";
+import {
   getScanning,
   subscribeScanning,
   triggerRescan,
@@ -137,6 +143,11 @@ export default function Titlebar() {
         <span className="mono text-xs text-fg-3 border border-line bg-bg-2 px-1.5 py-0.5 rounded-sm">/</span>
       </div>
 
+      {/* Tile-size slider — only meaningful when viewing the Library
+          tile grid. List view ignores the column count, so we hide
+          rather than disable to keep the chrome tight. */}
+      {onLibrary && view === "tiles" && <TileColumnsSlider />}
+
       {/* View toggle */}
       <div className="inline-flex border border-line rounded-md h-8 overflow-hidden bg-panel">
         <button
@@ -182,6 +193,47 @@ export default function Titlebar() {
         <Settings className="w-3.5 h-3.5" />
       </Link>
     </header>
+  );
+}
+
+/**
+ * 5-stop slider for choosing how many tile columns the Library grid
+ * shows. Default (no preference set) uses the responsive auto-fill
+ * layout — slider exposes 3..7 fixed-column overrides plus an
+ * implicit "reset" via double-click on the label.
+ */
+function TileColumnsSlider() {
+  const columns = useTileColumns();
+  // The slider visually represents 3-7. When `columns` is null (auto),
+  // anchor the thumb at 5 (the typical auto-fill outcome on a wide
+  // viewport) so the control isn't sitting empty.
+  const value = columns ?? 5;
+
+  return (
+    <div className="inline-flex items-center gap-2 h-8 px-2.5 border border-line rounded-md bg-panel">
+      <button
+        type="button"
+        onDoubleClick={() => setTileColumns(null)}
+        className="mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4 hover:text-fg-2 transition cursor-pointer"
+        title="Tiles per row · double-click to reset to auto"
+      >
+        Size
+      </button>
+      <input
+        type="range"
+        min={COLUMN_MIN}
+        max={COLUMN_MAX}
+        step={1}
+        value={value}
+        onChange={(e) => setTileColumns(parseInt(e.target.value, 10))}
+        className="w-20 accent-accent cursor-pointer"
+        aria-label={`Tiles per row (currently ${columns === null ? "auto" : columns})`}
+        title={columns === null ? "Auto — drag to set fixed column count" : `${columns} columns per row`}
+      />
+      <span className="mono text-[11px] tabular-nums text-fg-3 w-3 text-center">
+        {columns === null ? "·" : columns}
+      </span>
+    </div>
   );
 }
 

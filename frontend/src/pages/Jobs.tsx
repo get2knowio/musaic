@@ -268,6 +268,7 @@ function Empty({ filterLabel, totalJobs }: { filterLabel: string; totalJobs: num
 function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) => void }) {
   const navigate = useNavigate();
   const retry = useRetryJob();
+  const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   const onOpen = () => {
     if (job.status === "completed") {
@@ -280,6 +281,12 @@ function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) 
   // user click and get a server-side 409.
   const isRunning = job.status === "running";
   const canRetry = job.status === "failed";
+  // Captured Claude transcript leading up to the failure. Only present on
+  // failed jobs whose worker call streamed at least one assistant message
+  // before erroring out — empty for the rate-limit "exit code 1 from
+  // first turn" case (nothing was said yet).
+  const failureExcerpt =
+    job.status === "failed" ? job.result?.failure_excerpt ?? null : null;
 
   const onRetry = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -295,58 +302,85 @@ function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) 
   return (
     <div
       className={
-        "grid gap-3 px-3 py-2 border-b border-line last:border-0 items-center text-sm " +
+        "border-b border-line last:border-0 " +
         (job.status === "completed" ? "cursor-pointer hover:bg-bg-3" : "")
       }
-      style={{ gridTemplateColumns: "100px minmax(0, 1.2fr) 110px 110px 72px" }}
       onClick={onOpen}
     >
-      <StatusPill status={job.status} actedOnAction={job.acted_on_action} />
-      <div className="min-w-0">
-        <div className="font-medium truncate" title={job.album_title || job.album_path}>
-          {job.album_title || job.album_id}
+      <div
+        className="grid gap-3 px-3 py-2 items-center text-sm"
+        style={{ gridTemplateColumns: "100px minmax(0, 1.2fr) 110px 110px 72px" }}
+      >
+        <StatusPill status={job.status} actedOnAction={job.acted_on_action} />
+        <div className="min-w-0">
+          <div className="font-medium truncate" title={job.album_title || job.album_path}>
+            {job.album_title || job.album_id}
+          </div>
+          {job.error && job.status === "failed" && (
+            <div className="text-xs text-err truncate mt-0.5" title={job.error}>
+              {job.error}
+            </div>
+          )}
+          {job.hint && (
+            <div className="text-xs text-fg-4 italic truncate mt-0.5" title={job.hint}>
+              "{job.hint}"
+            </div>
+          )}
+          {failureExcerpt && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setTranscriptOpen((v) => !v);
+              }}
+              className="mt-1 mono text-[11px] text-fg-3 hover:text-accent transition inline-flex items-center gap-1"
+              aria-expanded={transcriptOpen}
+            >
+              {transcriptOpen ? "▾" : "▸"} {transcriptOpen ? "Hide" : "Show"} Claude's response
+            </button>
+          )}
         </div>
-        {job.error && job.status === "failed" && (
-          <div className="text-xs text-err truncate mt-0.5" title={job.error}>
-            {job.error}
-          </div>
-        )}
-        {job.hint && (
-          <div className="text-xs text-fg-4 italic truncate mt-0.5" title={job.hint}>
-            "{job.hint}"
-          </div>
-        )}
-      </div>
-      <span className="mono text-xs text-fg-3">{jobTypeLabel(job.job_type)}</span>
-      <span className="mono text-xs text-fg-4 tabular-nums" title={job.created_at}>
-        {fmtRelative(job.completed_at || job.started_at || job.created_at)}
-      </span>
-      <div className="flex items-center justify-end gap-0.5">
-        {canRetry && (
+        <span className="mono text-xs text-fg-3">{jobTypeLabel(job.job_type)}</span>
+        <span className="mono text-xs text-fg-4 tabular-nums" title={job.created_at}>
+          {fmtRelative(job.completed_at || job.started_at || job.created_at)}
+        </span>
+        <div className="flex items-center justify-end gap-0.5">
+          {canRetry && (
+            <button
+              onClick={onRetry}
+              disabled={retry.isPending}
+              className="w-7 h-7 grid place-items-center rounded text-fg-4 hover:bg-bg-3 hover:text-accent transition disabled:opacity-50"
+              title="Retry this job"
+              aria-label="Retry job"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
           <button
-            onClick={onRetry}
-            disabled={retry.isPending}
-            className="w-7 h-7 grid place-items-center rounded text-fg-4 hover:bg-bg-3 hover:text-accent transition disabled:opacity-50"
-            title="Retry this job"
-            aria-label="Retry job"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isRunning) return;
+              onRequestDelete(job);
+            }}
+            disabled={isRunning}
+            className="w-7 h-7 grid place-items-center rounded text-fg-4 hover:bg-bg-3 hover:text-err transition disabled:opacity-30 disabled:cursor-not-allowed"
+            title={isRunning ? "Can't delete a job while it's running" : "Delete job"}
+            aria-label={isRunning ? "Can't delete a running job" : "Delete job"}
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
-        )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isRunning) return;
-            onRequestDelete(job);
-          }}
-          disabled={isRunning}
-          className="w-7 h-7 grid place-items-center rounded text-fg-4 hover:bg-bg-3 hover:text-err transition disabled:opacity-30 disabled:cursor-not-allowed"
-          title={isRunning ? "Can't delete a job while it's running" : "Delete job"}
-          aria-label={isRunning ? "Can't delete a running job" : "Delete job"}
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-        </button>
+        </div>
       </div>
+      {failureExcerpt && transcriptOpen && (
+        <div
+          className="px-3 pb-3 text-xs"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <pre className="mono whitespace-pre-wrap break-words bg-bg-2 border border-line rounded-md p-3 max-h-80 overflow-y-auto text-fg-2 leading-relaxed">
+            {failureExcerpt}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }

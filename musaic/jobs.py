@@ -282,13 +282,29 @@ def mark_completed(job_id: str, result: dict[str, Any]) -> None:
             )
 
 
-def mark_failed(job_id: str, error: str) -> None:
+def mark_failed(
+    job_id: str,
+    error: str,
+    *,
+    failure_excerpt: str | None = None,
+) -> None:
+    """Mark a job failed with the SDK error message.
+
+    `failure_excerpt` is the captured Claude transcript leading up to
+    the failure — surfaced in the Jobs UI so the user can see what
+    Claude said (or didn't say) before the call blew up. Stored under
+    `result_json.failure_excerpt` so we don't need a schema column for
+    a debugging-only field. Set to None or empty string to skip.
+    """
+    result_json: str | None = None
+    if failure_excerpt:
+        result_json = json.dumps({"failure_excerpt": failure_excerpt})
     with db_module.connect() as conn:
         with db_module.transaction(conn):
             conn.execute(
                 "UPDATE ai_jobs SET status = 'failed', error = ?, "
-                "completed_at = ? WHERE id = ?",
-                (error, _now_iso(), job_id),
+                "result_json = ?, completed_at = ? WHERE id = ?",
+                (error, result_json, _now_iso(), job_id),
             )
 
 

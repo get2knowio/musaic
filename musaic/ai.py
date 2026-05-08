@@ -20,6 +20,7 @@ shapes documented below.
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import json
 import logging
 import re
@@ -27,6 +28,39 @@ from dataclasses import dataclass, field
 from typing import Any
 
 log = logging.getLogger(__name__)
+
+
+# Per-call transcript buffer. The worker installs a fresh list before
+# running an AI suggestion call; `_query_async` appends every assistant
+# text block + result message to it as they stream. On failure the
+# worker reads the buffer back so the user can see whatever Claude said
+# before the call blew up — otherwise that context is lost to the void.
+#
+# Contextvar (not threadlocal) so the value follows asyncio.to_thread
+# hops through the SDK runner correctly. Default `None` = "don't bother
+# capturing"; a `[]` = "append to me." Capacity caps live at the
+# read site (worker.run_one_job) — the buffer itself is unbounded for
+# simplicity, since it's per-call and discarded between jobs.
+_transcript_buffer: contextvars.ContextVar[list[str] | None] = contextvars.ContextVar(
+    "_ai_transcript_buffer", default=None,
+)
+
+
+def install_transcript_buffer() -> list[str]:
+    """Install a fresh transcript buffer for the current call. Returns
+    the list — caller reads it back after the AI call completes (or
+    fails). Idempotent within a single asyncio task."""
+    buf: list[str] = []
+    _transcript_buffer.set(buf)
+    return buf
+
+
+def _record_transcript(piece: str) -> None:
+    """Append a streamed message to the active transcript buffer if any.
+    No-op when no buffer is installed (e.g. tests, direct calls)."""
+    buf = _transcript_buffer.get()
+    if buf is not None and piece:
+        buf.append(piece)
 
 # User-Agent used when verifying AI-returned cover URLs (HEAD/GET probes).
 # Matches the user-agent the actual download path sends so any host-side
@@ -710,9 +744,11 @@ async def _query_async(*, prompt: str, allowed_tools: list[str], model: str,
             for block in message.content:
                 if hasattr(block, "text") and block.text:
                     last_text = block.text
+                    _record_transcript(block.text)
         if isinstance(message, ResultMessage):
             if message.result:
                 final_text = message.result
+                _record_transcript(message.result)
     return final_text or last_text
 
 

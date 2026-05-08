@@ -5,10 +5,6 @@ tags, no cover art, file integrity, etc.) and yields `Finding` objects.
 The runner persists those findings in the `check_findings` table, dedupes
 across runs, and auto-resolves findings whose underlying issue has gone
 away.
-
-Phase 1 lands the framework with `REGISTRY = []` — the UI shows "no checks
-installed yet" and the SSE stream is silent. Phase 2+ append concrete
-check classes here.
 """
 from __future__ import annotations
 
@@ -23,29 +19,22 @@ from .base import (
 from .duplicate_tracks import DuplicateTracks
 from .filename_mismatch import FilenameMismatch
 from .inconsistent_artist_sort import InconsistentArtistSort
-from .mb_canonical_mismatch import MbCanonicalMismatch
-from .missing_core_tags import MissingCoreTags
-from .missing_fingerprints import MissingFingerprints
-from .missing_mbid import MissingMbid
-from .missing_sort_tags import MissingSortTags
 from .no_cover_art import NoCoverArt
+from .tags_out_of_sync import TagsOutOfSync
 from .track_gaps import TrackGaps
+from .unidentified_album import UnidentifiedAlbum
 
-# Concrete check classes in dispatch / display order. Order here doubles
-# as the order they appear in the Health index page within each category
-# bucket. Foundations first (identifying albums, fingerprinting them) so
-# downstream checks have data to work with.
+# Concrete check classes in dispatch / display order. Order doubles as
+# the order they appear in the Health index page. Foundations first
+# (identifying albums) so downstream checks have data to work with.
 REGISTRY: list[type[Check]] = [
-    MissingMbid,             # external — anchor albums to MusicBrainz
-    MissingFingerprints,     # audio — populate AcoustID data
-    MissingCoreTags,         # metadata
-    TrackGaps,               # metadata
-    MissingSortTags,         # metadata — article-rotation sort tags
-    InconsistentArtistSort,  # metadata — cluster-level sort normalization
-    NoCoverArt,              # cover
-    DuplicateTracks,         # duplicates (needs fingerprints)
-    MbCanonicalMismatch,     # metadata — MB-canonical artist credits
-    FilenameMismatch,        # files — filenames vs user template
+    UnidentifiedAlbum,        # external — fingerprint + MB anchor in one
+    TagsOutOfSync,            # metadata — canonical drift, missing core, sort tags
+    TrackGaps,                # metadata — track-number sequencing
+    InconsistentArtistSort,   # metadata — cluster-level sort normalization
+    NoCoverArt,               # cover
+    DuplicateTracks,          # duplicates (needs fingerprints)
+    FilenameMismatch,         # files — filenames vs user template
 ]
 
 

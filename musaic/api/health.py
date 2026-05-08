@@ -86,11 +86,6 @@ class FilenameRenamePayload(BaseModel):
     dir_rename: DirRenameEntry | None = None
 
 
-class MbCanonicalApplyPayload(BaseModel):
-    accept_album_artist: bool = False
-    accept_track_filenames: list[str] = []
-
-
 # ---------- Endpoints ----------
 
 
@@ -214,6 +209,21 @@ def fix_finding(
         result = checks_runner.fix_finding(finding_id, user_hint=user_hint)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # Synchronous deterministic success (ok with no job_id, e.g. the
+    # resolver-driven path in `unidentified-album` writes an anchor
+    # without going through `apply_direct`) doesn't otherwise trigger a
+    # post-scan rerun. Without this, the satisfied finding stays open
+    # until the next library scan. AI-job fixes don't need this — the
+    # worker reruns post-scan when it persists results.
+    if result.ok and result.job_id is None:
+        try:
+            cfg = config_module.load_config()
+            if cfg.library_dir:
+                run_post_scan_checks(cfg.library_dir)
+        except Exception:
+            _log.exception("post-fix check rerun failed (continuing)")
+
     return {
         "ok":      result.ok,
         "message": result.message,
@@ -382,39 +392,6 @@ def apply_filename_rename(
             run_post_scan_checks(cfg.library_dir)
     except Exception:
         _log.exception("post-rename check rerun failed (continuing)")
-    return result
-
-
-@router.post("/api/checks/mb-canonical-mismatch/findings/{finding_id}/apply")
-def apply_mb_canonical(
-    finding_id: int,
-    payload: MbCanonicalApplyPayload,
-) -> dict[str, Any]:
-    """Custom action for the mb-canonical-mismatch check: apply the
-    user-confirmed subset of the diffs. Re-fetches MB at apply time
-    (cached) so we use the same values the user saw."""
-    from ..checks import mb_canonical_mismatch
-    finding = checks_runner.get_finding(finding_id)
-    if finding is None or finding["check_id"] != "mb-canonical-mismatch":
-        raise HTTPException(status_code=404, detail="Finding not found")
-    album_id = finding.get("album_id")
-    if not album_id:
-        raise HTTPException(status_code=400, detail="Finding has no album")
-    if not payload.accept_album_artist and not payload.accept_track_filenames:
-        raise HTTPException(
-            status_code=400,
-            detail="Pick at least one field to apply",
-        )
-    result = mb_canonical_mismatch.apply_canonical(
-        album_id=album_id,
-        accept_album_artist=payload.accept_album_artist,
-        accept_track_filenames=payload.accept_track_filenames,
-    )
-    if not result.get("ok"):
-        raise HTTPException(
-            status_code=409,
-            detail=result.get("message") or "Apply failed",
-        )
     return result
 
 

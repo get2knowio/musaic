@@ -26,7 +26,7 @@ from typing import Iterator
 from .config import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "library.db"
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 log = logging.getLogger(__name__)
 
@@ -487,6 +487,26 @@ MIGRATIONS: dict[int, list[str]] = {
         # sequences without re-reading every FLAC. Denormalize them at scan
         # time. Existing rows get NULL; the next scan populates.
         "ALTER TABLE albums ADD COLUMN track_numbers_json TEXT",
+    ],
+    14: [
+        # Health-check consolidation: missing-fingerprints + missing-mbid
+        # collapsed into 'unidentified-album'; missing-core-tags +
+        # missing-sort-tags + mb-canonical-mismatch collapsed into
+        # 'tags-out-of-sync'. The merged checks emit fresh findings under
+        # the new ids; resolve any rows still open under the old ids so
+        # they don't linger forever (the runner only auto-resolves
+        # findings whose check actually runs again, and the old check
+        # ids are gone from the registry).
+        """
+        UPDATE check_findings
+        SET resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+        WHERE resolved_at IS NULL
+          AND check_id IN (
+            'missing-fingerprints', 'missing-mbid',
+            'missing-core-tags', 'missing-sort-tags',
+            'mb-canonical-mismatch'
+          )
+        """,
     ],
 }
 

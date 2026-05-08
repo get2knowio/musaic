@@ -1,8 +1,10 @@
-import { Music, Tag as TagIcon } from "lucide-react";
+import { useState } from "react";
+import { ImagePlus, Music, Tag as TagIcon } from "lucide-react";
 import { coverUrl } from "@/lib/api";
 import GenreTags from "@/components/GenreTags";
 import { useAlbumTags } from "@/hooks/useVocabulary";
 import type { Album } from "@/lib/types";
+import CoverUploadDialog from "./CoverUploadDialog";
 import ResolutionBadge from "./ResolutionBadge";
 
 interface AlbumHeroProps {
@@ -12,6 +14,11 @@ interface AlbumHeroProps {
 /**
  * Top of the detail sheet: cover + title + artist + meta strip + badges.
  * Always visible (never collapsed) since it's the album's identity.
+ *
+ * The cover thumb doubles as the entry point for manual cover upload —
+ * hover/focus reveals an "Replace" overlay that opens
+ * `CoverUploadDialog`. Useful when the user has the right artwork
+ * (clipboard, file on disk, URL) and Claude can't find it.
  */
 export default function AlbumHero({ album }: AlbumHeroProps) {
   const artist = album.is_compilation
@@ -25,9 +32,17 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
   const tagsQuery = useAlbumTags(album.id);
   const myTags = tagsQuery.data?.album_tags ?? [];
 
+  const [uploadOpen, setUploadOpen] = useState(false);
+
   return (
     <div className="flex gap-4 px-4 py-3.5 border-b border-line">
-      <div className="w-24 h-24 shrink-0 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4 shadow-card">
+      <button
+        type="button"
+        onClick={() => setUploadOpen(true)}
+        className="relative w-24 h-24 shrink-0 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4 shadow-card group focus:outline-none focus:ring-2 focus:ring-accent"
+        title={hasCover ? "Replace cover art" : "Upload cover art"}
+        aria-label={hasCover ? "Replace cover art" : "Upload cover art"}
+      >
         {hasCover ? (
           <img
             src={coverUrl(album, { size: "full" })}
@@ -40,7 +55,16 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
         ) : (
           <Music className="w-7 h-7" />
         )}
-      </div>
+        <span className="absolute inset-0 bg-black/55 text-white text-[11px] mono uppercase tracking-[0.06em] flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition">
+          <ImagePlus className="w-4 h-4" />
+          {hasCover ? "Replace" : "Upload"}
+        </span>
+      </button>
+      <CoverUploadDialog
+        album={album}
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+      />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mono text-[11px] uppercase tracking-[0.08em] text-fg-4 mb-1">
           <span>Album</span>
