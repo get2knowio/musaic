@@ -2,6 +2,7 @@ import { Music } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
 import { coverUrl } from "@/lib/api";
+import { displayArtist } from "@/lib/albumFields";
 import type { Album, Job } from "@/lib/types";
 import JobStatusBadge from "./JobStatusBadge";
 
@@ -57,7 +58,7 @@ function Row({ album, activeJob }: { album: Album; activeJob: Job | null }) {
   const location = useLocation();
   const artist = album.is_compilation
     ? "Various Artists"
-    : album.album_artist || album.artist || "Unknown artist";
+    : displayArtist(album, "Unknown artist");
   const hasCover = album.has_embedded_cover || album.cover_file !== null;
 
   return (

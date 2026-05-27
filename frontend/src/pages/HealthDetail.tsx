@@ -32,6 +32,7 @@ import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import FindingFixButton from "@/components/FindingFixButton";
 import IgnoreFindingControl from "@/components/IgnoreFindingControl";
+import { displayArtist } from "@/lib/albumFields";
 import type { Album, CheckRun, Finding } from "@/lib/types";
 
 /**
@@ -718,7 +719,7 @@ function fmtRelative(iso: string | null): string {
 function formatAlbumLine(a: Album): string {
   const artist = a.is_compilation
     ? "Various Artists"
-    : (a.album_artist || a.artist || "").trim();
+    : displayArtist(a);
   const title = (a.title || a.dir_name || "").trim();
   if (artist && title) return `${title} — ${artist}`;
   return title || a.dir_name || a.id;

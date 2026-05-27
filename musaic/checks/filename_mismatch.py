@@ -53,6 +53,7 @@ from typing import Any, Iterable
 
 from mutagen.flac import FLAC
 
+from .. import album_fields
 from .. import db as db_module
 from .. import filename_template as ft
 from .. import settings as settings_module
@@ -312,23 +313,15 @@ def _check_dir(
     title = row["title"] or ""
     if not title.strip():
         return None
-    # Fallback chain for the album-artist token. Many libraries carry
-    # only an ARTIST tag on the FLAC files (no ALBUMARTIST), which
-    # makes the scanner store row["album_artist"]=None even though
-    # row["artist"] is populated. Without the fallback, the dir
-    # template renders `{albumartist}` as empty and the proposed dir
-    # silently drops the artist — e.g. "Henry Mancini - Foo [FLAC]"
-    # becomes "Foo [FLAC]". Falling back to `artist` and finally to
-    # the directory-parsed artist keeps the rename safe.
-    aa = (row["album_artist"] or "").strip()
-    if not aa:
-        aa = (row["artist"] or "").strip()
-    if not aa:
-        # `dir_artist` only set when the scanner recognized the
-        # `Artist - Album [FLAC]` directory convention; using it as a
-        # last resort is correct because it's literally the current
-        # surface form the user already accepted.
-        aa = (row["dir_artist"] or "").strip()
+    # Use the centralized cascade (album_artist → artist → dir_artist).
+    # `include_dir_artist=True` is appropriate here because we're
+    # rendering a path: an empty {albumartist} token would silently
+    # drop the artist from the proposed directory name (the Mancini
+    # bug). See `album_fields.display_artist` for the rationale.
+    aa = album_fields.display_artist(
+        {k: row[k] for k in ("album_artist", "artist", "dir_artist")},
+        include_dir_artist=True,
+    )
     rendered = ft.render(template, {
         "title":       title,
         "album":       title,                    # alias: many users

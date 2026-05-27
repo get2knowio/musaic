@@ -2,6 +2,7 @@
  * Library album sort. Driven by a URL param (`?sort=<key>-<dir>`) so it's
  * shareable + survives reloads, like `?view` and `?filter`.
  */
+import { displayArtist } from "./albumFields";
 import type { Album } from "./types";
 
 export type SortField = "artist" | "title" | "year" | "scanned";
@@ -63,8 +64,8 @@ function primaryValue(a: Album, field: SortField): string | number {
     case "artist":
       return (a.is_compilation
         ? "various artists"
-        : (a.album_artist || a.artist || "")
-      ).toLowerCase().trim();
+        : displayArtist(a)
+      ).toLowerCase();
     case "title":
       return (a.title || a.dir_name || "").toLowerCase().trim();
     case "year":

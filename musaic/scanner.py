@@ -426,14 +426,22 @@ def scan_albums(root: str | os.PathLike) -> Iterator[Album]:
 
 
 def scan_albums_list(root: str | os.PathLike) -> list[Album]:
+    from . import album_fields
     albums = list(scan_albums(root))
     # Sort by Vorbis sort variant when present (so "The Beatles" sorts
     # under "B" and Ray Conniff variants cluster together), falling
     # back through album_artist / artist when no sort tag is set.
     # Same precedence the frontend uses; keeps API response order
-    # aligned with what the user sees in the sidebar.
+    # aligned with what the user sees in the sidebar. The cascade
+    # lives in album_fields.sort_key so it stays in lockstep with
+    # other consumers (cache.list_albums, the HealthDetail page).
     albums.sort(key=lambda a: (
-        (a.album_artist_sort or a.artist_sort or a.album_artist or a.artist or "").lower(),
+        album_fields.sort_key({
+            "album_artist_sort": a.album_artist_sort,
+            "artist_sort":       a.artist_sort,
+            "album_artist":      a.album_artist,
+            "artist":            a.artist,
+        }),
         (a.year or ""),
         (a.album_sort or a.title or "").lower(),
     ))

@@ -3,6 +3,7 @@ import { ImagePlus, Music, Tag as TagIcon } from "lucide-react";
 import { coverUrl } from "@/lib/api";
 import GenreTags from "@/components/GenreTags";
 import { useAlbumTags } from "@/hooks/useVocabulary";
+import { displayArtist } from "@/lib/albumFields";
 import type { Album } from "@/lib/types";
 import CoverUploadDialog from "./CoverUploadDialog";
 import ResolutionBadge from "./ResolutionBadge";
@@ -23,7 +24,7 @@ interface AlbumHeroProps {
 export default function AlbumHero({ album }: AlbumHeroProps) {
   const artist = album.is_compilation
     ? "Various Artists"
-    : album.album_artist || album.artist || "Unknown artist";
+    : displayArtist(album, "Unknown artist");
   const hasCover = album.has_embedded_cover || album.cover_file !== null;
   const lengthStr = album.total_seconds ? formatDuration(album.total_seconds) : "—";
   // My Tags chips (album-level intersection only). Hidden when the

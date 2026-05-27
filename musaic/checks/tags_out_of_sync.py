@@ -376,10 +376,15 @@ def compute_diffs(album: dict[str, Any]) -> AlbumDiffs:
 
 def _missing_core_fields(album: dict[str, Any]) -> list[str]:
     """Mirrors the old missing-core-tags SQL filter, applied in Python."""
+    from .. import album_fields
     out: list[str] = []
     if not (album.get("title") or "").strip():
         out.append("title")
-    if not (album.get("album_artist") or album.get("artist") or "").strip():
+    # `include_dir_artist=False`: this check asks "is there any artist
+    # tag we can write to disk?" — the directory-parsed artist isn't a
+    # tag the file actually carries, so it shouldn't satisfy the
+    # missing-tag invariant.
+    if not album_fields.display_artist(album):
         out.append("album_artist")
     if not (album.get("year") or "").strip():
         out.append("year")

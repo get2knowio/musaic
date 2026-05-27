@@ -1,4 +1,5 @@
 import { CheckCircle2, Circle, Fingerprint, Loader2, XCircle } from "lucide-react";
+import { displayArtist } from "@/lib/albumFields";
 import type { Album, AlbumResolution, Track } from "@/lib/types";
 import type { ApplyFileState } from "@/hooks/useApplyStream";
 
@@ -25,9 +26,7 @@ export default function TrackList({ album, tracks, applyState, resolution }: Tra
   //     suffix convention, plus albums with guest credits).
   // Falls back to false when all tracks share the album artist (or are
   // blank) — column would be redundant in that case.
-  const albumArtistNorm = (album.album_artist || album.artist || "")
-    .trim()
-    .toLowerCase();
+  const albumArtistNorm = displayArtist(album).toLowerCase();
   const hasVaryingArtists = tracks.some((t) => {
     const trackArtist = (t.artist || "").trim().toLowerCase();
     return trackArtist && trackArtist !== albumArtistNorm;

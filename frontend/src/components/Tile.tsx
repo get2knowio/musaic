@@ -1,6 +1,7 @@
 import { Music } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { coverUrl } from "@/lib/api";
+import { displayArtist as displayArtistField } from "@/lib/albumFields";
 import type { Album, Job } from "@/lib/types";
 import JobStatusBadge from "./JobStatusBadge";
 
@@ -92,5 +93,5 @@ function CoverImage({ album }: { album: Album }) {
 
 function displayArtist(album: Album): string {
   if (album.is_compilation) return "Various Artists";
-  return album.album_artist || album.artist || "Unknown artist";
+  return displayArtistField(album, "Unknown artist");
 }
