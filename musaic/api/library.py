@@ -327,7 +327,7 @@ def get_tracks(album_id: str) -> dict[str, Any]:
 
 
 @router.post("/api/albums/{album_id}/mb-anchor/clear")
-async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
+def clear_mb_anchor(album_id: str) -> dict[str, Any]:
     """Wipe the cached MusicBrainz anchor for an album AND blocklist
     the rejected release-group.
 
@@ -340,8 +340,15 @@ async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
     blocklist (`album_blocked_mb_release_groups`) makes the rejection
     sticky across all three tiers + AI persistence.
 
-    Returns the freshly re-derived resolution so the caller can update
-    its UI immediately.
+    Publishes a single `AlbumTagsChanged` event so SSE consumers
+    invalidate their caches. The frontend's
+    `['album-resolution', id]` refetch re-runs the resolver on demand
+    via `GET /api/albums/{id}/resolution`, which is where Tier 0b/0c
+    will (or won't) re-derive a new anchor — and where that path
+    publishes `AlbumMbAnchorSet` as a side effect if it does.
+    Concentrating the resolver call in one place avoids the previous
+    double-publish + concurrent-rerun race where both the endpoint
+    and the resolver side-effect fired for one user action.
     """
     resolve_album_dict(album_id)
     # Capture the currently-cached anchor BEFORE clearing it — that's
@@ -353,9 +360,6 @@ async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
         )
     cache_module.clear_album_mb_anchor(album_id)
     resolver_service.invalidate(album_id)
-    # Publish an event so SSE consumers (frontend cache invalidation,
-    # post-scan rerun) react. AlbumTagsChanged is the closest fit —
-    # the album row's mb_* columns just changed.
     try:
         from .. import library_events
         library_events.publish(library_events.AlbumTagsChanged(
@@ -363,13 +367,9 @@ async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
         ))
     except Exception:
         _log.exception("library_events publish failed for clear_mb_anchor %s", album_id)
-    fresh = await asyncio.to_thread(
-        resolver_service.resolve_album, album_id,
-    )
     return {
         "ok": True,
         "blocked_mbid": rejected.get("release_group_mbid") if rejected else None,
-        "resolution": fresh.to_dict(),
     }
 
 

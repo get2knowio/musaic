@@ -7,15 +7,19 @@ import { getAlbumTags, getVocabulary } from "@/lib/api";
  * vocabulary). Drives the Settings "My Tags" panel and the picker
  * popovers in the album / track tag editors.
  *
- * Mutation handlers (SettingsMyTags / MyTagsSection) write directly
- * into the cache via setQueryData/invalidateQueries, so refetching
- * on focus isn't useful — staleTime: Infinity avoids that race.
+ * `staleTime: 30s` (not Infinity) because tag mutations don't ride
+ * the `library_events` bus — api/tags.py doesn't publish events, and
+ * useLibraryEventsStream has no vocabulary handler. Mutation handlers
+ * (SettingsMyTags / MyTagsSection) write through `setQueryData`, but
+ * that doesn't help a second browser tab or an external SQLite edit.
+ * The 30s staleness window + default refetch-on-window-focus catches
+ * those cross-tab / out-of-band changes.
  */
 export function useVocabulary() {
   return useQuery({
     queryKey: ["vocabulary"],
     queryFn: getVocabulary,
-    staleTime: Infinity,
+    staleTime: 30_000,
   });
 }
 
@@ -25,15 +29,15 @@ export function useVocabulary() {
  * MyTagsSection editor so they stay in sync without each component
  * holding its own copy of the same query.
  *
- * MyTagsSection writes the canonical next-state via setQueryData on
- * every mutation, so this cache is always current. staleTime:
- * Infinity matches.
+ * Same 30s window as `useVocabulary` for the same reason — tag
+ * mutations aren't on the library_events bus, so refetch-on-focus is
+ * the cross-tab safety net.
  */
 export function useAlbumTags(albumId: string | undefined) {
   return useQuery({
     queryKey: ["album-tags", albumId],
     queryFn: () => getAlbumTags(albumId!),
     enabled: !!albumId,
-    staleTime: Infinity,
+    staleTime: 30_000,
   });
 }

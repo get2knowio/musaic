@@ -98,6 +98,24 @@ def test_no_subscribers_is_a_no_op():
     bus.publish(AlbumTagsChanged(album_id="a1"))  # asserts no raise
 
 
+def test_register_dedupes_by_callback_identity():
+    """Registering the same `(event_type, callback)` pair twice is a
+    no-op; each event fires the callback exactly once. Hardens against
+    a second `register_all()` (uvicorn --reload, future re-init,
+    test setup that forgets reset_for_tests) silently doubling every
+    event's fan-out."""
+    call_count = 0
+
+    def handler(_ev):
+        nonlocal call_count
+        call_count += 1
+
+    bus.register(AlbumTagsChanged, handler, name="dup-test")
+    bus.register(AlbumTagsChanged, handler, name="dup-test")  # duplicate
+    bus.publish(AlbumTagsChanged(album_id="a1"))
+    assert call_count == 1, "duplicate registration should be a no-op"
+
+
 def test_unregister_removes_only_the_matching_callback():
     seen: list[str] = []
     cb1 = lambda ev: seen.append("cb1")

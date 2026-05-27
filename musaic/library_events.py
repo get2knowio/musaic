@@ -227,7 +227,14 @@ def register(
     notification=300. Same-priority order is registration order.
 
     `name` is purely for log readability; defaults to the callback's
-    `__qualname__`."""
+    `__qualname__`.
+
+    Re-registering the same `(event_type, callback)` pair is a no-op
+    (logged at debug). Production startup wires subscribers once via
+    `event_subscribers.register_all()`; a second call (uvicorn
+    `--reload`, future re-init code, test setup that forgets
+    `reset_for_tests()`) would otherwise silently double every event's
+    fan-out."""
     reg = _Registration(
         callback=callback,
         background=background,
@@ -235,9 +242,18 @@ def register(
         name=name or getattr(callback, "__qualname__", repr(callback)),
     )
     with _lock:
-        _subscribers[event_type].append(reg)
+        existing = _subscribers[event_type]
+        for r in existing:
+            if r.callback is callback:
+                _log.debug(
+                    "library_events.register: %s already subscribed to %s; "
+                    "skipping duplicate",
+                    reg.name, event_type.__name__,
+                )
+                return
+        existing.append(reg)
         # Stable sort: priority first, registration order on ties.
-        _subscribers[event_type].sort(key=lambda r: r.priority)
+        existing.sort(key=lambda r: r.priority)
 
 
 def unregister(event_type: Type[Event], callback: Subscriber) -> None:

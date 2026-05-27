@@ -528,7 +528,17 @@ def fix_finding(finding_id: int, *, user_hint: str = "") -> FixResult:
         severity=finding_dict["severity"],
         detail=finding_dict["detail"],
     )
-    return instance.fix(finding_obj, user_hint=user_hint)
+    try:
+        return instance.fix(finding_obj, user_hint=user_hint)
+    finally:
+        # Always wake `/api/checks/stream` after a fix attempt, even
+        # when fix() returned ok=True without mutating anything (no-op
+        # fast-path, idempotent fix). The frontend's `useFixFinding`
+        # mutation handler dropped its explicit FINDINGS/CHECKS
+        # invalidations relying on the bus; without this wake, a
+        # satisfied-but-not-yet-resolved finding would linger in the
+        # dialog until the next unrelated mutation.
+        notify_changed()
 
 
 def try_quick_fix_finding(finding_id: int) -> FixResult | None:

@@ -191,6 +191,19 @@ async def _run_scan(library_dir: str, force: bool) -> None:
         _state.error = str(e)
         _state.completed_at = _utc_iso_now()
         _changed.set()
+        # Publish LibraryScanCompleted even on the error path so
+        # `useLibraryEventsStream` invalidates `["albums-snapshot"]`
+        # and per-album caches against whatever partial state landed
+        # in the DB. Without this, a failed scan could leave an
+        # inconsistent snapshot displayed indefinitely (staleTime:
+        # Infinity on every bus-driven query).
+        try:
+            from .. import library_events
+            library_events.publish(
+                library_events.LibraryScanCompleted(album_count=_state.scanned),
+            )
+        except Exception:
+            _log.exception("library_events publish failed on scan-error path")
         return
 
     # Worker finished cleanly. Publish LibraryScanCompleted; the

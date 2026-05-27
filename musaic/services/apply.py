@@ -199,6 +199,13 @@ def apply_album_changes_iter(
         #     replaced the prior explicit direct calls with this
         #     single publish-driven path.
         #
+        #     Skipped when the album dir vanished mid-apply (fresh is
+        #     None) — `cache.delete_album` already published
+        #     `AlbumDeleted`, which is the right signal. Firing
+        #     `AlbumTagsChanged` for a deleted album_id on top would
+        #     spawn a duplicate post-scan rerun against a row that no
+        #     longer exists.
+        #
         #     Note on bulk runs: the per-apply rerun used to be gated
         #     on `rerun_post_scan_checks` so the bulk dispatcher could
         #     suppress N reruns in favor of one end-of-batch rerun.
@@ -207,18 +214,19 @@ def apply_album_changes_iter(
         #     The events still publish — invalidation + notify are
         #     cheap and bulk-mode-safe — only the post-scan rerun
         #     defers to the bulk dispatcher's end-of-batch call.
-        try:
-            from .. import library_events
-            library_events.publish(library_events.AlbumTagsChanged(
-                album_id=album_id,
-                fields=tuple(suggestions.keys()) if suggestions else (),
-            ))
-            if had_art_change:
-                library_events.publish(
-                    library_events.AlbumCoverChanged(album_id=album_id),
-                )
-        except Exception:
-            _log.exception("library_events publish failed for apply %s", album_id)
+        if fresh is not None:
+            try:
+                from .. import library_events
+                library_events.publish(library_events.AlbumTagsChanged(
+                    album_id=album_id,
+                    fields=tuple(suggestions.keys()) if suggestions else (),
+                ))
+                if had_art_change:
+                    library_events.publish(
+                        library_events.AlbumCoverChanged(album_id=album_id),
+                    )
+            except Exception:
+                _log.exception("library_events publish failed for apply %s", album_id)
     except Exception as e:
         _log.exception("apply_album_changes_iter failed for album %s", album_id)
         yield "error", {"detail": str(e)}

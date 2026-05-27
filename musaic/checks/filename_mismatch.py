@@ -599,6 +599,21 @@ def execute_renames(
         cleaned.append((old_p, new_p))
 
     if not cleaned and not dir_renamed:
+        # Always publish AlbumRenamed(old==new) on a no-op apply so the
+        # _filename_mismatch_rerun subscriber re-evaluates against the
+        # current filesystem and the now-stale finding clears. Without
+        # this, the dialog's deleted explicit FINDINGS invalidation
+        # leaves the resolved finding visible until the user navigates.
+        try:
+            from .. import library_events
+            library_events.publish(library_events.AlbumRenamed(
+                old_album_id=new_album_id, new_album_id=new_album_id,
+            ))
+        except Exception:
+            log.exception(
+                "library_events publish failed for no-op rename %s",
+                new_album_id,
+            )
         if already_done and already_done == sum(
             1 for e in plan
             if (e.get("old") or "").strip()
