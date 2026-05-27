@@ -48,6 +48,18 @@ that need to fire post-scan themselves:
 If you add a new state-mutating path, decide which bucket it lives in.
 The grep `grep -rn 'run_post_scan_checks\\|apply_album_changes_iter' musaic/`
 should show the path covered by one of these.
+
+A subtler trap: **side-effect writes from read-shaped calls.**
+`mb_lookup.find_release` looks like a query — but on a confident hit it
+writes the MB anchor to cache. `fingerprint.fingerprint_album` looks
+like an analysis — but it always writes `track_fingerprints` rows. When
+those calls happen inside a fix path whose outer result is `ok=False`
+(MB found a match but cover wasn't usable; fingerprints written but
+couldn't map to a renumbering), gating the post-scan rerun on the outer
+`result.ok` leaves the side-effected mutations stale. That's why the
+sync fix endpoint and the bulk quick-fix dispatcher both fire
+`run_post_scan_checks` regardless of outcome (commit Sweep A) — there's
+no clean correlation between "fix succeeded" and "did the side effect."
 """
 from __future__ import annotations
 

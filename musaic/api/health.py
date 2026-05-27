@@ -210,13 +210,18 @@ def fix_finding(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Synchronous deterministic success (ok with no job_id, e.g. the
-    # resolver-driven path in `unidentified-album` writes an anchor
-    # without going through `apply_direct`) doesn't otherwise trigger a
-    # post-scan rerun. Without this, the satisfied finding stays open
-    # until the next library scan. AI-job fixes don't need this — the
-    # worker reruns post-scan when it persists results.
-    if result.ok and result.job_id is None:
+    # Synchronous deterministic fix attempts may mutate cache state
+    # even when the high-level result reports ok=False — `mb_lookup.
+    # find_release` writes an anchor as a side effect of any confident
+    # MB hit (regardless of whether the fix consumed it), and
+    # `fingerprint.fingerprint_album` writes track_fingerprints rows
+    # regardless of whether the caller could map them. Without the
+    # post_scan rerun, those side-effected mutations leave findings
+    # on OTHER checks (e.g. `unidentified-album`) stale until the
+    # next library scan. Fire unconditionally for any sync deterministic
+    # attempt; AI-job fixes don't need this — the worker reruns
+    # post-scan when it persists results.
+    if result.job_id is None:
         try:
             cfg = config_module.load_config()
             if cfg.library_dir:
@@ -600,7 +605,14 @@ async def quick_fix_all(check_id: str) -> StreamingResponse:
             # Single post-scan rerun for the whole batch. MUST use the async
             # variant — we're inside an async coroutine; the sync variant
             # internally calls asyncio.run() which would raise here.
-            if counts["fixed"] > 0:
+            #
+            # Fire even when nothing was "fixed" from the dispatcher's POV:
+            # try_quick_fix paths (no_cover_art, track_gaps, unidentified-
+            # album) routinely side-effect cache state (MB anchor backfill,
+            # track_fingerprints rows) via mb_lookup/fingerprint even when
+            # the high-level result is skipped — those writes can satisfy
+            # findings on OTHER checks that would otherwise stay stale.
+            if len(finding_ids) > 0:
                 try:
                     library_path = library_path_for_checks()
                     await run_post_scan_checks_async(library_path)
