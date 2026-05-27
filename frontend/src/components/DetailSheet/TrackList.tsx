@@ -18,7 +18,21 @@ interface TrackListProps {
  *   - whether an apply is in progress (adds a status icon column)
  */
 export default function TrackList({ album, tracks, applyState, resolution }: TrackListProps) {
-  const showArtist = album.is_compilation;
+  // Show the artist column when either:
+  //   - the directory parser flagged this as a compilation, OR
+  //   - any track's artist differs from the album_artist (covers
+  //     compilations whose folder doesn't follow the `[FLAC]`
+  //     suffix convention, plus albums with guest credits).
+  // Falls back to false when all tracks share the album artist (or are
+  // blank) — column would be redundant in that case.
+  const albumArtistNorm = (album.album_artist || album.artist || "")
+    .trim()
+    .toLowerCase();
+  const hasVaryingArtists = tracks.some((t) => {
+    const trackArtist = (t.artist || "").trim().toLowerCase();
+    return trackArtist && trackArtist !== albumArtistNorm;
+  });
+  const showArtist = album.is_compilation || hasVaryingArtists;
   const showBpm = tracks.some((t) => t.bpm !== null);
   const showRg = tracks.some((t) => t.replaygain_track_gain);
   const showStatus = applyState !== undefined && Object.keys(applyState).length > 0;

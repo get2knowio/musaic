@@ -88,8 +88,14 @@ class TagsOutOfSync(Check):
             "or anything on an unanchored album)."
         ),
         category="metadata",
-        cost="cheap",
-        runs_during_scan=True,
+        # `medium` because run() walks every anchored album and asks
+        # the resolver for a canonical comparison — that's a MusicBrainz
+        # fetch per album on a cold cache (1 req/sec rate limit), which
+        # adds up to minutes for a moderately-sized library. Not safe to
+        # fire in the post-scan tail; users run it explicitly from the
+        # Health page when they want drift detection.
+        cost="medium",
+        runs_during_scan=False,
         # ai-job: per-finding Fix may end with an AI metadata job when
         # the resolver can't fill everything. The bulk action stays
         # deterministic via try_quick_fix.

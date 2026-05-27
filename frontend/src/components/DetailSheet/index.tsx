@@ -204,6 +204,19 @@ function SheetBody({
       // bust the React Query cache too so the badge + button refresh
       // off the freshly-derived AlbumResolution.
       qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
+      // Findings + checks: the post-apply post-scan rerun resolves any
+      // findings the apply just satisfied (no-cover-art, etc.) and
+      // notifies via SSE — but the SSE round-trip can be slow enough
+      // that the user sees the stale finding for a beat before it
+      // clears. Belt-and-suspenders invalidate so the cache refreshes
+      // immediately off the newly-resolved DB state.
+      qc.invalidateQueries({ queryKey: ["findings"] });
+      qc.invalidateQueries({ queryKey: ["checks"] });
+      // Same logic for the album list — the merged updated_album dict
+      // we just stored locally is good for THIS album's sheet, but
+      // sibling consumers (Library tile counts, Sidebar filter chips)
+      // read from the ["albums-snapshot"] cache.
+      qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
       if (activeJob) {
         markActedOn.mutate({ jobId: activeJob.id, action: "applied" });
       }

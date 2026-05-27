@@ -457,6 +457,24 @@ def upsert_album(library_dir: str, album: dict[str, Any]) -> None:
             )
 
 
+def get_album_by_id(album_id: str) -> dict[str, Any] | None:
+    """Return the merged album dict (scanner-owned + cached MB fields)
+    for a single album. None when the row isn't in the cache.
+
+    Use after `upsert_album` when the caller needs the post-upsert
+    state — the upsert only writes scanner-owned columns, so the
+    in-hand dict won't reflect cached fields like
+    `mb_release_group_mbid` set by other subsystems. This helper goes
+    back to the DB and gives you the merged truth.
+    """
+    with db_module.connect() as conn:
+        row = conn.execute(
+            f"SELECT {', '.join(db_module.ALBUM_COLUMNS)} FROM albums WHERE id = ?",
+            (album_id,),
+        ).fetchone()
+    return _row_to_album(row) if row else None
+
+
 def delete_album(album_id: str) -> None:
     """Remove a single album row by id (e.g. after the directory disappears)."""
     with db_module.connect() as conn:

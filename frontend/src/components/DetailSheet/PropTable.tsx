@@ -1,5 +1,9 @@
-import { ExternalLink } from "lucide-react";
+import { useState } from "react";
+import { ExternalLink, Loader2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
+import { clearAlbumMbAnchor } from "@/lib/api";
 import type { Album } from "@/lib/types";
 
 interface PropTableProps {
@@ -34,7 +38,7 @@ export default function PropTable({ album }: PropTableProps) {
           <span className="text-fg-4">none</span>
         )}
       </Row>
-      <Row label="MusicBrainz">{musicBrainzCell(album)}</Row>
+      <Row label="MusicBrainz"><MusicBrainzCell album={album} /></Row>
       <Row label="AI reviewed">{aiReviewedCell(album)}</Row>
       <Row label="folder">
         <code className="mono text-xs text-fg-3 break-all">{album.path}</code>
@@ -45,18 +49,54 @@ export default function PropTable({ album }: PropTableProps) {
 
 /** MusicBrainz status cell. Three states keyed off (mbid, checked_at):
  *
- *   - mbid present                       → "<uuid>" + "(checked …)"
+ *   - mbid present                       → "<uuid>" + "(checked …)" + Wrong match
  *   - mbid null, checked_at present      → "Not found" + "(last checked …)"
  *   - both null                          → "Not yet checked"
  *
- * Telling these apart matters for the user — "Not found" + "checked
- * recently" is a stable state (don't bother re-running AI), while
- * "Not yet checked" signals a free win available via the
- * unidentified-album Fix button.
+ * The "Wrong match" affordance is the same escape hatch the AI-suggestions
+ * panel surfaces: it clears the cached anchor AND adds the MBID to the
+ * album's blocklist so future automatic resolution can't pick the same
+ * wrong release-group. Inlined here so the user can clear without first
+ * having to run an AI job to surface the post-suggestion control.
  */
-function musicBrainzCell(album: Album): React.ReactNode {
+function MusicBrainzCell({ album }: { album: Album }) {
+  const qc = useQueryClient();
+  const [clearing, setClearing] = useState(false);
+
   const mbid = album.mb_release_group_mbid ?? null;
   const checkedAt = album.mb_last_checked_at ?? null;
+
+  const onClear = async () => {
+    if (clearing || !mbid) return;
+    // Lightweight confirm — the action is recoverable (the user can re-run
+    // AI / the resolver to land a new anchor), but blocklisting is a real
+    // side effect and a misclick shouldn't silently drop a good match.
+    const ok = window.confirm(
+      `Clear MusicBrainz match for this album?\n\n` +
+      `${mbid}\n\n` +
+      `This release-group will be added to the album's blocklist so ` +
+      `automatic resolution can't pick it again. You can re-identify ` +
+      `the album with a hint via "Suggest fixes".`,
+    );
+    if (!ok) return;
+    setClearing(true);
+    try {
+      const res = await clearAlbumMbAnchor(album.id);
+      const msg = res.blocked_mbid
+        ? `Cleared and blocklisted ${res.blocked_mbid.slice(0, 8)}…`
+        : "MusicBrainz anchor cleared";
+      toast.success(msg, { duration: 4500 });
+      qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
+      qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
+      qc.invalidateQueries({ queryKey: ["findings"] });
+      qc.invalidateQueries({ queryKey: ["checks"] });
+    } catch (err) {
+      toast.error((err as Error).message || "Couldn't clear MusicBrainz anchor");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   if (mbid) {
     return (
       <span className="inline-flex flex-wrap items-baseline gap-1.5">
@@ -75,6 +115,19 @@ function musicBrainzCell(album: Album): React.ReactNode {
             (checked {formatLocal(checkedAt)})
           </span>
         )}
+        <button
+          type="button"
+          onClick={onClear}
+          disabled={clearing}
+          className="text-xs text-fg-4 hover:text-err transition disabled:opacity-60 inline-flex items-baseline gap-1"
+          title="Clear this MusicBrainz match and blocklist it for this album"
+        >
+          {clearing ? (
+            <><Loader2 className="w-3 h-3 spin self-center" /> Clearing…</>
+          ) : (
+            "Wrong match?"
+          )}
+        </button>
       </span>
     );
   }

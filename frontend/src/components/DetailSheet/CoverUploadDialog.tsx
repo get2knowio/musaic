@@ -151,12 +151,16 @@ export default function CoverUploadDialog({ album, open, onClose }: Props) {
 
       if (coverChanged) {
         toast.success("Cover updated", { duration: 2500 });
-        // Bust caches so the AlbumHero img re-fetches and the album row
-        // reflects has_embedded_cover. Use a cache-busting query string
-        // on direct img loads so the browser re-fetches even though
-        // the URL is otherwise unchanged.
-        qc.invalidateQueries({ queryKey: ["albums"] });
+        // Bust every cache that displays album cover state. The
+        // post-apply post-scan rerun on the backend resolves any
+        // satisfied findings (no-cover-art) — invalidate findings here
+        // too so the album sheet's Findings row clears immediately
+        // rather than waiting on the SSE round-trip.
+        qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
         qc.invalidateQueries({ queryKey: ["tracks", album.id] });
+        qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
+        qc.invalidateQueries({ queryKey: ["findings"] });
+        qc.invalidateQueries({ queryKey: ["checks"] });
       } else {
         toast.warning("Apply finished but no cover change was reported");
       }

@@ -183,6 +183,16 @@ def apply_album_changes_iter(
             fresh_dict = album_to_dict(fresh)
             if library_dir:
                 cache_module.upsert_album(library_dir, fresh_dict)
+                # Re-read the row post-upsert so the event carries the
+                # MERGED dict (scanner-owned columns from this scan +
+                # cached MB anchor / sort variants / etc. from other
+                # subsystems). Without this, the frontend's local album
+                # state loses fields like `mb_release_group_mbid`,
+                # leading to "IDENTIFIED" badge + "MusicBrainz: not yet
+                # checked" inconsistency in the album sheet.
+                merged = cache_module.get_album_by_id(album_id)
+                if merged is not None:
+                    fresh_dict = merged
             yield "updated_album", fresh_dict
 
         # 6b. Invalidate the metadata-resolver cache for this album so the
@@ -201,8 +211,24 @@ def apply_album_changes_iter(
         # 7. Post-scan check rerun so any findings the apply just satisfied
         #    auto-resolve. Skipped during bulk runs (one batch rerun fires
         #    at the very end instead).
+        #
+        #    Run in a background thread, NOT inline. Some checks
+        #    (tags-out-of-sync) walk every anchored album through the
+        #    resolver, which can hit MusicBrainz at 1 req/sec on a cold
+        #    cache — minutes of work for a moderately-sized library.
+        #    Blocking the apply response on that turned the cover-upload
+        #    + AI-suggestion-apply UIs into "Applying…" forever spinners.
+        #    The check runner notifies SSE on completion, so the
+        #    frontend's findings cache still refreshes when the work
+        #    eventually finishes — just not synchronously with the apply.
         if rerun_post_scan_checks and library_dir:
-            run_post_scan_checks(library_dir)
+            import threading
+            threading.Thread(
+                target=run_post_scan_checks,
+                args=(library_dir,),
+                daemon=True,
+                name=f"post-apply-checks-{album_id}",
+            ).start()
     except Exception as e:
         _log.exception("apply_album_changes_iter failed for album %s", album_id)
         yield "error", {"detail": str(e)}
