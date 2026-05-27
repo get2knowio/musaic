@@ -40,6 +40,7 @@ from ..library_events import (
     AlbumRenamed,
     AlbumScopedEvent,
     AlbumTagsChanged,
+    BulkBatchCompleted,
     Event,
     LibraryScanCompleted,
     TrackFingerprinted,
@@ -183,11 +184,12 @@ def _post_scan_rerun_for_rename(ev: AlbumRenamed) -> None:
         events.in_post_scan_rerun.reset(token)
 
 
-def _post_scan_rerun_library_wide(ev: LibraryScanCompleted) -> None:
-    """Library-scoped reruns at the end of a scan — equivalent to the
-    current `run_post_scan_checks` call from `services.scan._run_scan`.
-    Same recursion guard so a scan finishing inside another rerun
-    doesn't recursively trigger a third."""
+def _post_scan_rerun_library_wide(ev: Event) -> None:
+    """Library-scoped reruns triggered by library-wide events —
+    LibraryScanCompleted (end of a scan) and BulkBatchCompleted
+    (end of a bulk-fix loop). Same recursion guard so a scan
+    finishing inside another rerun doesn't recursively trigger a
+    third."""
     if events.in_post_scan_rerun.get():
         return
     from ..checks._apply import in_bulk_run
@@ -306,6 +308,10 @@ def register_all() -> None:
     events.register(
         LibraryScanCompleted, _post_scan_rerun_library_wide,
         priority=200, background=True, name="_post_scan_rerun_library_wide",
+    )
+    events.register(
+        BulkBatchCompleted, _post_scan_rerun_library_wide,
+        priority=200, background=True, name="_post_scan_rerun_library_wide:bulk",
     )
     # filename-mismatch is the one runs_during_scan=False check the bus
     # drives — too expensive for the post-scan tail, but per-album

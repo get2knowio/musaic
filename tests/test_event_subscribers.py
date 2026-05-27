@@ -23,6 +23,7 @@ from musaic.library_events import (
     AlbumMbAnchorSet,
     AlbumRenamed,
     AlbumTagsChanged,
+    BulkBatchCompleted,
     LibraryScanCompleted,
     TrackFingerprinted,
 )
@@ -175,6 +176,18 @@ def test_library_scan_completed_triggers_full_rerun(_isolated_bus):
     """LibraryScanCompleted is the one library-wide event — fires
     a full post-scan, no album_ids scope."""
     bus.publish(LibraryScanCompleted(album_count=42))
+    _wait_for_threads()
+    assert len(_isolated_bus["rerun_calls"]) == 1
+    _, kw = _isolated_bus["rerun_calls"][0]
+    assert kw == {"album_ids": None} or kw == {}
+
+
+def test_bulk_batch_completed_triggers_full_rerun(_isolated_bus):
+    """BulkBatchCompleted is published by the quick-fix-all dispatcher
+    after the loop exits + in_bulk_run is reset. The subscriber fires
+    one library-wide post_scan covering the cumulative state from the
+    batch."""
+    bus.publish(BulkBatchCompleted())
     _wait_for_threads()
     assert len(_isolated_bus["rerun_calls"]) == 1
     _, kw = _isolated_bus["rerun_calls"][0]

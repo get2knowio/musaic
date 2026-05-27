@@ -20,10 +20,7 @@ from .. import mb_lookup
 from ..checks import runner as checks_runner
 from ..scanner import album_to_dict, scan_one_album
 from ..services.albums import cached_album_dict
-from ..services.post_scan import (
-    library_path_for_checks,
-    run_post_scan_checks_async,
-)
+from ..services.post_scan import library_path_for_checks
 from ..services.sse import sse_event
 
 _log = logging.getLogger(__name__)
@@ -687,30 +684,27 @@ async def quick_fix_all(check_id: str) -> StreamingResponse:
                         "message": result.message,
                     })
 
-            # Single post-scan rerun for the whole batch. MUST use the async
-            # variant — we're inside an async coroutine; the sync variant
-            # internally calls asyncio.run() which would raise here.
-            #
-            # Fire even when nothing was "fixed" from the dispatcher's POV:
-            # try_quick_fix paths (no_cover_art, track_gaps, unidentified-
-            # album) routinely side-effect cache state (MB anchor backfill,
-            # track_fingerprints rows) via mb_lookup/fingerprint even when
-            # the high-level result is skipped — those writes can satisfy
-            # findings on OTHER checks that would otherwise stay stale.
-            if len(finding_ids) > 0:
-                try:
-                    library_path = library_path_for_checks()
-                    await run_post_scan_checks_async(library_path)
-                except Exception:
-                    _log.exception("post-bulk check rerun failed; continuing")
-
             yield sse_event("done", {"total": len(finding_ids), **counts})
         except asyncio.CancelledError:
             return
         except Exception as e:
             yield sse_event("error", {"detail": f"{type(e).__name__}: {e}"})
         finally:
+            # Reset the bulk-run flag BEFORE publishing the batch-done
+            # event — otherwise the subscriber sees in_bulk_run=True
+            # and short-circuits (defeating the whole point of the
+            # coalesced rerun). Per-event reruns during the loop were
+            # suppressed by the flag; this one publish kicks off the
+            # single library-wide pass off-thread.
             in_bulk_run.reset(token)
+            if len(finding_ids) > 0:
+                try:
+                    from .. import library_events
+                    library_events.publish(library_events.BulkBatchCompleted())
+                except Exception:
+                    _log.exception(
+                        "library_events publish failed for bulk batch end",
+                    )
 
     return StreamingResponse(
         event_gen(),

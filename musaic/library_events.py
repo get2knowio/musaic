@@ -162,6 +162,20 @@ class AlbumDeleted(AlbumScopedEvent):
     Producer: cache.delete_album."""
 
 
+@dataclass(frozen=True)
+class BulkBatchCompleted(Event):
+    """A bulk-fix loop just finished. Producers (the
+    quick-fix-all endpoint, future batch operations) set
+    `checks._apply.in_bulk_run` for the duration of the loop to
+    suppress per-event reruns, then publish this event AFTER
+    resetting the flag. Subscribers fire one coalesced rerun
+    covering the cumulative state from the batch.
+
+    Library-wide (not album-scoped) because a bulk loop touches
+    many albums and the runner's library-wide pass is more
+    efficient than N scoped reruns."""
+
+
 # ---------- Registry ----------
 
 
