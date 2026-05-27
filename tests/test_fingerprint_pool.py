@@ -75,3 +75,18 @@ def test_stop_is_noop_when_nothing_running():
     the lifespan shutdown handler regardless of pool state)."""
     asyncio.run(fingerprint_pool.stop())
     assert fingerprint_pool._task is None
+
+
+def test_warm_library_signals_changed_event_on_unavailable(monkeypatch):
+    """The SSE stream awaits `changed_event()`; flipping to
+    "unavailable" should wake it. Without this signal, the stream
+    would only fire once every 30s (keepalive timeout) on installs
+    without fpcalc — a noticeable lag in the titlebar pill."""
+    monkeypatch.setattr(
+        fp_module, "is_available",
+        lambda: (False, "fpcalc binary not found"),
+    )
+    # Make sure the changed event starts clear so we observe the set.
+    fingerprint_pool.changed_event().clear()
+    asyncio.run(fingerprint_pool.warm_library("/some/library"))
+    assert fingerprint_pool.changed_event().is_set()

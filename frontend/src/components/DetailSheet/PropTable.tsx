@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { clearAlbumMbAnchor } from "@/lib/api";
@@ -60,7 +59,6 @@ export default function PropTable({ album }: PropTableProps) {
  * having to run an AI job to surface the post-suggestion control.
  */
 function MusicBrainzCell({ album }: { album: Album }) {
-  const qc = useQueryClient();
   const [clearing, setClearing] = useState(false);
 
   const mbid = album.mb_release_group_mbid ?? null;
@@ -86,10 +84,9 @@ function MusicBrainzCell({ album }: { album: Album }) {
         ? `Cleared and blocklisted ${res.blocked_mbid.slice(0, 8)}…`
         : "MusicBrainz anchor cleared";
       toast.success(msg, { duration: 4500 });
-      qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
-      qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
-      qc.invalidateQueries({ queryKey: ["findings"] });
-      qc.invalidateQueries({ queryKey: ["checks"] });
+      // Cache invalidation is handled by the App-level
+      // useLibraryEventsStream subscriber — the backend publishes
+      // AlbumTagsChanged after wiping the anchor.
     } catch (err) {
       toast.error((err as Error).message || "Couldn't clear MusicBrainz anchor");
     } finally {

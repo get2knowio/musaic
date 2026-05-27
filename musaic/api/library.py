@@ -88,14 +88,109 @@ def scan_status() -> dict[str, Any]:
     return scan_service.get_state()
 
 
+@router.get("/api/library-events/stream")
+async def library_events_stream() -> StreamingResponse:
+    """SSE stream of `library_events` bus events.
+
+    Drives frontend cache invalidation: instead of every mutation
+    handler remembering a checklist of `qc.invalidateQueries` calls,
+    the frontend's `useLibraryEventsStream` subscribes here once and
+    invalidates by event name. See `docs/connectivity_design.md`.
+
+    Each event arrives as a named SSE event (event: AlbumTagsChanged,
+    etc.) with a JSON payload carrying the event's identity fields
+    (album_id, fields, source, etc.).
+
+    Per-connection bounded queue (256 events); if a client falls
+    behind, the oldest events are dropped with a warning and the
+    client is expected to refetch on the next event it sees. This is
+    a "something changed" signal, not durable state.
+    """
+    from ..services import library_events_relay
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=library_events_relay.QUEUE_MAXSIZE)
+    library_events_relay.register_connection(loop, queue)
+
+    async def event_gen():
+        # Initial "hello" so the client knows the stream is open.
+        # No state payload — the client already has its caches; this
+        # stream only carries deltas.
+        yield sse_event("ready", {})
+        try:
+            while True:
+                try:
+                    name, payload = await asyncio.wait_for(
+                        queue.get(), timeout=30.0,
+                    )
+                    yield sse_event(name, payload)
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            return
+        finally:
+            library_events_relay.unregister_connection(queue)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.get("/api/fingerprint-pool/status")
 def fingerprint_pool_status() -> dict[str, Any]:
     """Eager fingerprinting pool state — what the post-scan fpcalc /
     AcoustID worker is up to. Status enum: idle | running | done |
-    cancelled | unavailable. UI can poll this for a progress bar; fine
-    to ignore entirely on installs without fpcalc."""
+    cancelled | unavailable.
+
+    Retained for one-shot reads (status pages, tests, the rare REST
+    consumer). Live consumers should subscribe to
+    `/api/fingerprint-pool/stream` instead — the SSE channel pushes a
+    `state` event on every transition with no polling required.
+    """
     from ..services import fingerprint_pool
     return fingerprint_pool.get_state()
+
+
+@router.get("/api/fingerprint-pool/stream")
+async def fingerprint_pool_stream() -> StreamingResponse:
+    """SSE stream of fingerprint-pool state transitions.
+
+    Mirrors `/api/checks/stream`: emit current state on connect, then
+    one `state` event per change. The pool sets a module-level
+    asyncio.Event after every mutation; this handler awaits with a
+    30-second timeout for keepalive pings.
+    """
+    from ..services import fingerprint_pool
+
+    async def event_gen():
+        yield sse_event("state", fingerprint_pool.get_state())
+        ev = fingerprint_pool.changed_event()
+        try:
+            while True:
+                try:
+                    await asyncio.wait_for(ev.wait(), timeout=30.0)
+                    ev.clear()
+                    yield sse_event("state", fingerprint_pool.get_state())
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/api/scan/stream")
@@ -258,6 +353,16 @@ async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
         )
     cache_module.clear_album_mb_anchor(album_id)
     resolver_service.invalidate(album_id)
+    # Publish an event so SSE consumers (frontend cache invalidation,
+    # post-scan rerun) react. AlbumTagsChanged is the closest fit —
+    # the album row's mb_* columns just changed.
+    try:
+        from .. import library_events
+        library_events.publish(library_events.AlbumTagsChanged(
+            album_id=album_id, fields=("mb_release_group_mbid",),
+        ))
+    except Exception:
+        _log.exception("library_events publish failed for clear_mb_anchor %s", album_id)
     fresh = await asyncio.to_thread(
         resolver_service.resolve_album, album_id,
     )

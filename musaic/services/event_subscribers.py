@@ -327,3 +327,9 @@ def register_all() -> None:
         Event, _findings_runner_notify,
         priority=300, name="_findings_runner_notify",
     )
+
+    # Relay tier (400) — fan events out to /api/library-events/stream
+    # subscribers. Lowest priority so the SSE consumer sees the post-
+    # mutation, post-rerun state rather than mid-flight noise.
+    from . import library_events_relay
+    library_events_relay.register_bus_subscriber()

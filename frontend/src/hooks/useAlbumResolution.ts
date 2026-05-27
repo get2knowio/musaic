@@ -18,10 +18,11 @@ export function useAlbumResolution(albumId: string | null | undefined) {
     queryKey: ALBUM_RESOLUTION_KEY(albumId ?? ""),
     queryFn: () => getAlbumResolution(albumId!),
     enabled: !!albumId,
-    // Resolver output rarely changes within a session (only when scan
-    // detects new tags or the user applies). Stale time keeps the UI
-    // snappy across navigate-away-and-back.
-    staleTime: 5 * 60 * 1000,
+    // useLibraryEventsStream invalidates this cache on
+    // AlbumTagsChanged / AlbumMbAnchorSet / TrackFingerprinted —
+    // every mutation that could change the resolver's output. SSE
+    // keeps it fresh, so refetch-on-focus would just race.
+    staleTime: Infinity,
     // Network failure shouldn't keep the album sheet from rendering —
     // the badge component handles `data === undefined` gracefully.
     retry: false,

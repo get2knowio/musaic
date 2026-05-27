@@ -10,6 +10,8 @@ import Titlebar from "@/components/Titlebar";
 import Sidebar from "@/components/Sidebar";
 import { useJobsStream } from "@/hooks/useJobsStream";
 import { useChecksStream } from "@/hooks/useChecksStream";
+import { useFingerprintPoolStream } from "@/hooks/useFingerprintPoolStream";
+import { useLibraryEventsStream } from "@/hooks/useLibraryEventsStream";
 import { useTrackLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
 
 /**
@@ -26,6 +28,18 @@ export default function App() {
   // Single subscriber to the health-checks SSE stream — keeps the cached
   // checks summary + open findings fresh as runs / ignores happen.
   useChecksStream();
+
+  // Single subscriber to the fingerprint-pool SSE stream — mirrors
+  // backend pool state into the cache so the titlebar pill renders
+  // live progress without polling.
+  useFingerprintPoolStream();
+
+  // Single subscriber to the library_events SSE stream — owns cache
+  // invalidation for the whole app. Mutation handlers don't repeat
+  // the invalidate-checklist; they trigger backend mutations and the
+  // bus events round-trip back here to invalidate the right keys.
+  // See docs/connectivity_design.md.
+  useLibraryEventsStream();
 
   // Save the user's last /library URL to sessionStorage so the Sidebar's
   // "Library" link can restore the same filter / search / open album when

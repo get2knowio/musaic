@@ -14,6 +14,10 @@ export function useAlbumsSnapshot() {
   return useQuery({
     queryKey: ["albums-snapshot"],
     queryFn: async () => (await listAlbums()).albums,
-    staleTime: 30_000,
+    // useLibraryEventsStream invalidates this cache on every album-
+    // scoped mutation (tags, cover, anchor, rename, delete) plus on
+    // LibraryScanCompleted / BulkBatchCompleted. SSE keeps it fresh —
+    // refetch-on-focus would race with it.
+    staleTime: Infinity,
   });
 }

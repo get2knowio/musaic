@@ -228,6 +228,9 @@ export function useSettings() {
   return useQuery<AppSettings>({
     queryKey: SETTINGS_QUERY_KEY,
     queryFn: getSettings,
+    // Settings change only via useUpdateSettings (which calls
+    // setQueryData on success). 30s refetch catches another tab
+    // editing the same settings.json out-of-band.
     staleTime: 30_000,
   });
 }

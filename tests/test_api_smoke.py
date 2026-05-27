@@ -225,3 +225,32 @@ def test_scan_stream_against_empty_library(client, empty_library):
     names = [e[0] for e in events]
     assert "start" in names
     assert names[-1] == "done", f"got events: {names}"
+
+
+def test_fingerprint_pool_status_endpoint(client):
+    r = client.get("/api/fingerprint-pool/status")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["status"] in (
+        "idle", "running", "done", "cancelled", "unavailable",
+    )
+
+
+def test_library_events_stream_endpoint_registered(client):
+    """The /api/library-events/stream route exists. Full stream
+    behaviour is covered by test_library_events_relay (relay + queue
+    contract) — the TestClient + httpx + persistent SSE combo hangs
+    in pytest when there's no terminal event the server can send to
+    cleanly close, so we keep this layer to wire-presence only."""
+    from musaic.main import app
+    paths = {r.path for r in app.routes if hasattr(r, "path")}
+    assert "/api/library-events/stream" in paths
+
+
+def test_fingerprint_pool_stream_endpoint_registered(client):
+    """Same wire-presence check for /api/fingerprint-pool/stream —
+    state-change semantics are pinned in the fingerprint_pool unit
+    tests; this guards against router de-registration."""
+    from musaic.main import app
+    paths = {r.path for r in app.routes if hasattr(r, "path")}
+    assert "/api/fingerprint-pool/stream" in paths

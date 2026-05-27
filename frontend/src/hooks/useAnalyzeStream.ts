@@ -11,7 +11,6 @@
  */
 
 import { useCallback, useReducer, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { postSse } from "@/lib/sse";
 
 export type AnalysisKind = "bpm" | "replaygain";
@@ -129,9 +128,7 @@ export interface UseAnalyzeStreamResult {
 
 export function useAnalyzeStream(): UseAnalyzeStreamResult {
   const [state, dispatch] = useReducer(reducer, INITIAL);
-  const qc = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
-  const albumIdRef = useRef<string | null>(null);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
@@ -144,7 +141,6 @@ export function useAnalyzeStream(): UseAnalyzeStreamResult {
       reset();
       const abort = new AbortController();
       abortRef.current = abort;
-      albumIdRef.current = albumId;
 
       try {
         await postSse(
@@ -167,15 +163,13 @@ export function useAnalyzeStream(): UseAnalyzeStreamResult {
               dispatch({ type: "album_done", gain: d.replaygain_album_gain, peak: d.replaygain_album_peak });
             },
             updated_album: () => {
-              // Album row may have shifted (mtime). Trigger a tracks
-              // refetch — the new BPM / RG values are stored on the
-              // FLACs and read fresh by services/albums.read_tracks.
-              qc.invalidateQueries({ queryKey: ["tracks", albumIdRef.current] });
+              // Album row may have shifted (mtime); tracks refetch is
+              // handled by useLibraryEventsStream — audio_analysis
+              // publishes AlbumTagsChanged after writing.
             },
             done: (data) => {
               const d = data as { errors: number };
               dispatch({ type: "done", errors: d.errors });
-              qc.invalidateQueries({ queryKey: ["tracks", albumIdRef.current] });
             },
             error: (data) => dispatch({ type: "error", detail: (data as { detail: string }).detail }),
           },
@@ -188,7 +182,7 @@ export function useAnalyzeStream(): UseAnalyzeStreamResult {
         abortRef.current = null;
       }
     },
-    [qc, reset],
+    [reset],
   );
 
   return { state, start, reset };

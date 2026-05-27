@@ -14,7 +14,6 @@
  */
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useQueryClient } from "@tanstack/react-query";
 import { Image as ImageIcon, Link as LinkIcon, Loader2, Upload, X } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,7 +34,6 @@ type Source =
 const MAX_BYTES = 25 * 1024 * 1024;
 
 export default function CoverUploadDialog({ album, open, onClose }: Props) {
-  const qc = useQueryClient();
   const [source, setSource] = useState<Source>({ kind: "empty" });
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -151,16 +149,9 @@ export default function CoverUploadDialog({ album, open, onClose }: Props) {
 
       if (coverChanged) {
         toast.success("Cover updated", { duration: 2500 });
-        // Bust every cache that displays album cover state. The
-        // post-apply post-scan rerun on the backend resolves any
-        // satisfied findings (no-cover-art) — invalidate findings here
-        // too so the album sheet's Findings row clears immediately
-        // rather than waiting on the SSE round-trip.
-        qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
-        qc.invalidateQueries({ queryKey: ["tracks", album.id] });
-        qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
-        qc.invalidateQueries({ queryKey: ["findings"] });
-        qc.invalidateQueries({ queryKey: ["checks"] });
+        // Cache invalidation is handled by the App-level
+        // useLibraryEventsStream subscriber — services/apply
+        // publishes AlbumCoverChanged + AlbumTagsChanged.
       } else {
         toast.warning("Apply finished but no cover change was reported");
       }

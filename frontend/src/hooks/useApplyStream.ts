@@ -8,7 +8,6 @@
  */
 
 import { useCallback, useReducer, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { postSse } from "@/lib/sse";
 import type { Album, ApplyPayload, FileChange } from "@/lib/types";
 
@@ -131,7 +130,6 @@ export interface UseApplyStreamResult {
 
 export function useApplyStream(): UseApplyStreamResult {
   const [state, dispatch] = useReducer(reducer, INITIAL);
-  const qc = useQueryClient();
   const abortRef = useRef<AbortController | null>(null);
 
   const reset = useCallback(() => {
@@ -166,9 +164,9 @@ export function useApplyStream(): UseApplyStreamResult {
             updated_album: (data) => {
               const album = data as Album;
               dispatch({ type: "updated_album", album });
-              // Tracks may have changed too — invalidate so the next read picks up
-              // any new BPM / RG / tag values.
-              qc.invalidateQueries({ queryKey: ["tracks", album.id] });
+              // No explicit tracks invalidation — services/apply
+              // publishes AlbumTagsChanged on completion, which
+              // useLibraryEventsStream maps to ["tracks", album.id].
             },
             removed_album: () => {
               // The album disappeared from disk during apply. Treat as error.
@@ -185,7 +183,7 @@ export function useApplyStream(): UseApplyStreamResult {
         abortRef.current = null;
       }
     },
-    [qc, reset],
+    [reset],
   );
 
   return { state, start, reset };

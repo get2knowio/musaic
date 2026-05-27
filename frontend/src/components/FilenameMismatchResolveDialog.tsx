@@ -13,16 +13,11 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, FileEdit, FolderInput, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { applyFilenameRename, fetchFilenameRenamePreview } from "@/lib/api";
-import {
-  CHECKS_QUERY_KEY,
-  CHECK_DETAIL_KEY,
-  FINDINGS_QUERY_KEY,
-} from "@/hooks/useChecks";
 import type {
   Finding,
   FilenameMismatchDetail,
@@ -46,8 +41,6 @@ export default function FilenameMismatchResolveDialog({
   onClose,
   findings,
 }: Props) {
-  const qc = useQueryClient();
-
   // Chain snapshot — frozen at open so post-apply cache
   // invalidation doesn't shift positions under us.
   const [chainSnapshot, setChainSnapshot] = useState<Finding[]>([]);
@@ -132,11 +125,11 @@ export default function FilenameMismatchResolveDialog({
       } else {
         toast.warning(r.message || "Rename completed with errors");
       }
-      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
-      qc.invalidateQueries({
-        queryKey: CHECK_DETAIL_KEY("filename-mismatch"),
-      });
+      // Cache invalidation is handled by the App-level
+      // useLibraryEventsStream subscriber — execute_renames publishes
+      // AlbumRenamed (with old==new for file-only renames), the bus
+      // runs a per-album filename-mismatch rerun, and the resulting
+      // findings/checks deltas flow through the SSE channels.
       if (hasNext) {
         const next = chainSnapshot[currentIndex + 1];
         setCurrentFindingId(next.id);

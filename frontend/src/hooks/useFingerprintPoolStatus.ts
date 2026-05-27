@@ -1,12 +1,13 @@
 /**
- * Polls /api/fingerprint-pool/status while the pool is running, idles
- * otherwise.
+ * Thin cache reader for the fingerprint-pool state.
  *
- * The pool is fire-and-forget on the backend (kicked off by the scan
- * service after every successful scan). The user sees its progress in
- * the titlebar pill; once it transitions out of "running" the pill
- * unmounts and we stop polling. No SSE — the data is small and
- * polling at 2s while running is fine.
+ * The cache is populated + kept fresh by `useFingerprintPoolStream`
+ * (mounted once at App level). This hook just reads the same cache key,
+ * so any component that wants the current pool state can call it
+ * without triggering its own fetch loop.
+ *
+ * `staleTime: Infinity` because the SSE stream is the single source
+ * of truth — refetching on focus/mount would race with it.
  */
 import { useQuery } from "@tanstack/react-query";
 
@@ -19,14 +20,7 @@ export function useFingerprintPoolStatus() {
   return useQuery<FingerprintPoolStatus>({
     queryKey: FINGERPRINT_POOL_STATUS_KEY,
     queryFn: getFingerprintPoolStatus,
-    // 30s baseline poll catches the pool flipping into "running" after
-    // a fresh scan; bumps to 2s while we know it's running so the
-    // counter feels live. refetchInterval can return false (off) or
-    // a number (ms).
-    refetchInterval: (query) => {
-      const data = query.state.data as FingerprintPoolStatus | undefined;
-      return data?.status === "running" ? 2_000 : 30_000;
-    },
+    staleTime: Infinity, // SSE keeps it fresh
     refetchOnWindowFocus: false,
     retry: false,
   });

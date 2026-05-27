@@ -2,7 +2,6 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { AlertTriangle, Image as ImageIcon, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import AlbumHero from "./AlbumHero";
@@ -143,7 +142,6 @@ function SheetBody({
 }) {
   const tracks = useTracks(album.id);
   const apply = useApplyStream();
-  const qc = useQueryClient();
   const enqueue = useEnqueueJob();
   const markActedOn = useMarkJobActedOn();
   const deleteJob = useDeleteJob();
@@ -196,33 +194,21 @@ function SheetBody({
   // parent (so the tile re-renders with new cover/title/etc.) and mark the
   // job as acted-on (action="applied") so it disappears from the active
   // queue and the "needs review" badge.
+  //
+  // Cache invalidation is handled by the App-level useLibraryEventsStream
+  // subscriber — services/apply.apply_album_changes_iter publishes
+  // AlbumTagsChanged (+ AlbumCoverChanged when art changed), which fans
+  // out to ["albums-snapshot"], ["tracks", id], ["album-resolution", id],
+  // ["findings"], ["checks"] on its own.
   useEffect(() => {
     if (apply.state.status === "done" && apply.state.updatedAlbum) {
       onAlbumUpdated?.(apply.state.updatedAlbum);
-      qc.invalidateQueries({ queryKey: ["tracks", album.id] });
-      // Backend invalidates its resolver cache in services/apply.py;
-      // bust the React Query cache too so the badge + button refresh
-      // off the freshly-derived AlbumResolution.
-      qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
-      // Findings + checks: the post-apply post-scan rerun resolves any
-      // findings the apply just satisfied (no-cover-art, etc.) and
-      // notifies via SSE — but the SSE round-trip can be slow enough
-      // that the user sees the stale finding for a beat before it
-      // clears. Belt-and-suspenders invalidate so the cache refreshes
-      // immediately off the newly-resolved DB state.
-      qc.invalidateQueries({ queryKey: ["findings"] });
-      qc.invalidateQueries({ queryKey: ["checks"] });
-      // Same logic for the album list — the merged updated_album dict
-      // we just stored locally is good for THIS album's sheet, but
-      // sibling consumers (Library tile counts, Sidebar filter chips)
-      // read from the ["albums-snapshot"] cache.
-      qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
       if (activeJob) {
         markActedOn.mutate({ jobId: activeJob.id, action: "applied" });
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apply.state.status, apply.state.updatedAlbum, onAlbumUpdated, qc, album.id]);
+  }, [apply.state.status, apply.state.updatedAlbum, onAlbumUpdated, album.id]);
 
   // Map the active job's result back into the legacy AISuggestions component
   // shape. AISuggestions takes a metadata response + cover response separately.
@@ -370,7 +356,9 @@ function SheetBody({
     setClearingAnchor(true);
     try {
       const res = await clearAlbumMbAnchor(album.id);
-      qc.invalidateQueries({ queryKey: ["album-resolution", album.id] });
+      // Cache invalidation is handled by the App-level
+      // useLibraryEventsStream subscriber — the backend publishes
+      // AlbumTagsChanged after wiping the anchor.
       onDiscard();
       const toastMsg = res.blocked_mbid
         ? `Rejected ${res.blocked_mbid.slice(0, 8)}… and added it to this album's blocklist. Re-run AI (a hint helps narrow the search).`
