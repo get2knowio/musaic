@@ -1,65 +1,76 @@
-"""Post-scan check fan-out — run every check that opted in via
-`runs_during_scan=True` after a scan, apply, AI MBID persist, etc.
+"""Post-scan check fan-out — runs every `runs_during_scan=True` check
+across the library (or a per-album subset) and lets the runner's
+auto-resolve clear satisfied findings.
 
-Two variants because the call sites are split between sync generators
-(SSE scan + apply) and async coroutines (bulk quick-fix-all). Calling
-the sync version inside a running event loop raises; calling the async
-version from sync code can't await.
+This module is the LOW-LEVEL worker. The CANONICAL entry point is the
+`library_events` bus + the `_post_scan_rerun` subscriber, which
+drives the right scoping based on what event was published. Direct
+calls to `run_post_scan_checks` from outside `event_subscribers.py`
+should be rare and well-justified — the bus exists specifically to
+make the right reruns happen automatically without producers having
+to remember.
 
 ----------------------------------------------------------------------
-The "stale findings" anti-pattern
+How state mutations propagate today
 ----------------------------------------------------------------------
 
-Health-check findings stay in the DB until a check actually re-runs and
-discovers their underlying condition has gone away. The runner's
-auto-resolve only fires for findings whose check ran on the same
-library_path during the same call — there is no global "something
-changed, re-evaluate everything" hook.
+The flow:
 
-That makes any state-mutating helper that satisfies a check's invariant
-**caller-responsible** for triggering a post-scan rerun. Helpers that
-fall in this category:
+  1. A producer mutates state (writes tags, sets an MB anchor,
+     fingerprints an album, renames files, etc.).
+  2. The producer publishes a `library_events` event naming the
+     domain change — `AlbumTagsChanged`, `AlbumMbAnchorSet`,
+     `TrackFingerprinted`, `AlbumRenamed`, `AlbumDeleted`,
+     `LibraryScanCompleted`, `BulkBatchCompleted`.
+  3. Subscribers in `services.event_subscribers` fan out the
+     concerns the producer used to invoke manually:
+       * `_resolver_invalidate` — drops the per-album resolver memo
+       * `_thumb_drop` — drops the album's pre-extracted thumb
+       * `_post_scan_rerun` — calls THIS module's `run_post_scan_
+         checks` (background thread, scope_kind='albums' for album-
+         scoped events, 'all' for library-wide ones)
+       * `_filename_mismatch_rerun` — the one non-runs_during_scan
+         check the bus drives (per-album on AlbumRenamed)
+       * `_findings_runner_notify` — wakes any open SSE
+         /api/checks/stream socket so the UI refetches
 
-  - `cache.upsert_album` / `cache.delete_album`  (album row state)
-  - `cache.set_album_mb_anchor`                  (MB anchor — gates
-                                                 unidentified-album +
-                                                 tags-out-of-sync)
-  - `fingerprint.fingerprint_album`              (track fingerprints —
-                                                 gates unidentified-album)
-  - `tags.apply_to_album_iter`                   (Vorbis comments — gates
-                                                 tags-out-of-sync,
-                                                 inconsistent-artist-sort)
-  - on-disk renames                              (gates filename-mismatch)
+  4. The producer keeps going. The bus has done its job before the
+     producer's HTTP response is returned (subscribers run inline
+     or get a background thread spawned).
 
-Any caller of those helpers MUST call `run_post_scan_checks` (or its
-async variant) afterwards or the satisfied finding will linger until the
-next library scan. `services.apply.apply_album_changes_iter` already
-does this — most call sites should funnel through it. The exceptions
-that need to fire post-scan themselves:
+The producer's only responsibility is `publish(...)`. The bus handles
+the rest, identically for every callsite. This was move E from issue
+#1; the migration retired ~150 lines of ad-hoc fan-out across 9
+producers and made the stale-findings bug class mechanically
+unreachable for new code paths.
 
-  - the AI worker (writes anchor without going through apply)
-  - the synchronous fix-finding endpoint (resolver-driven fixes don't
-    go through apply)
-  - the eager fingerprint pool (fingerprints in bulk after a scan)
-  - the audio-analysis service (writes BPM/RG tags directly)
-  - the resolver itself (Tier 0b/0c persists anchors as a side effect
-    of read paths like the album-sheet badge query)
+----------------------------------------------------------------------
+Recursion guard
+----------------------------------------------------------------------
 
-If you add a new state-mutating path, decide which bucket it lives in.
-The grep `grep -rn 'run_post_scan_checks\\|apply_album_changes_iter' musaic/`
-should show the path covered by one of these.
+Both `run_post_scan_checks` and `run_post_scan_checks_async` set
+`library_events.in_post_scan_rerun` for the duration of the call.
+Subscribers consult the flag and skip when it's set — this prevents
+the runner from re-entering itself when a check writes data that
+publishes an event that would route back here. The flag inherits
+into background subscriber threads via `contextvars.copy_context().
+run(...)` (the bus's responsibility — see `library_events.py`).
 
-A subtler trap: **side-effect writes from read-shaped calls.**
-`mb_lookup.find_release` looks like a query — but on a confident hit it
-writes the MB anchor to cache. `fingerprint.fingerprint_album` looks
-like an analysis — but it always writes `track_fingerprints` rows. When
-those calls happen inside a fix path whose outer result is `ok=False`
-(MB found a match but cover wasn't usable; fingerprints written but
-couldn't map to a renumbering), gating the post-scan rerun on the outer
-`result.ok` leaves the side-effected mutations stale. That's why the
-sync fix endpoint and the bulk quick-fix dispatcher both fire
-`run_post_scan_checks` regardless of outcome (commit Sweep A) — there's
-no clean correlation between "fix succeeded" and "did the side effect."
+Idempotency is the real safety net. Even if the guard fails open,
+the second pass through the runner finds the same state (Tier 0a MB
+anchor cache hits replace Tier 0b/0c side-effect writes; tags-out-of-
+sync sees no new diffs; etc.). The guard is an optimization, not a
+correctness mechanism.
+
+----------------------------------------------------------------------
+Two variants
+----------------------------------------------------------------------
+
+Two functions because the call sites are split between sync generators
+(SSE scan + apply) and async coroutines (bulk dispatcher). Calling the
+sync version inside a running event loop raises (asyncio.run does);
+calling the async version from sync code can't await. Both honor the
+same `album_ids` keyword for scoped reruns.
 """
 from __future__ import annotations
 

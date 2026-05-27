@@ -46,10 +46,10 @@ async def _lifespan(_app: FastAPI):
     except Exception:
         _log.exception("Auto-snapshot on startup failed (continuing)")
 
-    # Register library_events subscribers (Phase 1 of move E from
-    # issue #1). Dual-fire alongside existing direct run_post_scan_checks
-    # calls — idempotency makes that safe; see
-    # docs/library_events_design.md for the migration plan.
+    # Register library_events subscribers. They drive every cross-
+    # cutting concern (post-scan reruns, resolver invalidation, thumb
+    # drops, SSE notify) for mutations from anywhere in the codebase;
+    # producers just publish events. See docs/library_events_design.md.
     try:
         from .services import event_subscribers
         event_subscribers.register_all()

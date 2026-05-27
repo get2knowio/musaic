@@ -1,11 +1,15 @@
 """In-process pub/sub for library-state mutations.
 
-Design context: `docs/library_events_design.md`. This module is Phase 1
-of architectural move E from issue #1 — additive, dual-fire alongside
-existing direct `run_post_scan_checks` calls. Producers can publish
-events; subscribers register at app startup; eventually the direct
-fan-out calls get deleted (Phase 2) and the post_scan caller-
-responsibility doc gets rewritten (Phase 3).
+Design context: `docs/library_events_design.md`. This module is the
+canonical fan-out for cross-cutting concerns (post-scan reruns,
+resolver invalidation, thumb drops, SSE notify) that used to live
+ad-hoc at every mutation site. Producers publish events; subscribers
+registered at app startup react.
+
+Architectural move E from issue #1, fully migrated: Phase 1 shipped
+the bus + dual-fire, Phase 2 deleted every direct `run_post_scan_
+checks` caller in favor of `publish(...)`, Phase 3 rewrote the
+post_scan module docstring to reflect the new flow.
 
 Scope discipline (kept tight on purpose):
   - In-process only. Not a message bus, not a queue, not durable.

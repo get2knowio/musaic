@@ -1,29 +1,29 @@
 """Subscribers for `musaic.library_events`.
 
-This is Phase 1 of move E from issue #1 (design doc:
+Move E from issue #1, fully migrated through Phase 3 (design doc:
 `docs/library_events_design.md`). Each subscriber owns one
-cross-cutting concern that endpoints currently invoke ad-hoc; the
-goal is to delete those direct calls once dual-firing has been
-verified in production for a while.
+cross-cutting concern; producers that used to invoke these ad-hoc
+now just `publish(...)` and the bus fans out.
 
 Subscribers registered here, in priority order:
 
-  100 — `_resolver_invalidate`   drop resolver memo for the album
-  100 — `_thumb_drop`            drop the album's pre-extracted thumb
-  200 — `_post_scan_rerun`       scope-aware run_post_scan_checks
-                                  (background; owns recursion guard)
-  300 — `_findings_runner_notify` wake checks_runner.changed_event()
-                                   so /api/checks/stream re-renders
+  100 — `_resolver_invalidate`         drop resolver memo for the album
+  100 — `_thumb_drop`                  drop the album's pre-extracted thumb
+  200 — `_post_scan_rerun`             scope-aware run_post_scan_checks
+                                        (background; honors recursion +
+                                        in_bulk_run guards)
+  200 — `_filename_mismatch_rerun`     the one non-runs_during_scan
+                                        check the bus drives — per-album
+                                        on AlbumRenamed
+  300 — `_findings_runner_notify`      wake checks_runner.changed_event()
+                                        so /api/checks/stream re-renders
 
-The recursion guard lives in `_post_scan_rerun` (not at the bus
-level); the bus stays domain-agnostic. See `docs/library_events_
-design.md#second-design-review-pass-on-the-guard` for the rationale.
-
-Phase 1 leaves all existing direct `run_post_scan_checks` calls in
-place — these subscribers fire ALONGSIDE them. Idempotency makes the
-double-fire safe (a second post-scan rerun over the same state finds
-the same findings). Phase 2 removes the direct calls one producer at
-a time.
+The recursion guard (`library_events.in_post_scan_rerun`) is set by
+`run_post_scan_checks` itself (lower in the call stack — see its
+docstring) and consulted here as a cheap early-exit before spawning
+work. Bulk-fix coalescing (`checks._apply.in_bulk_run`) suppresses
+per-event reruns during a bulk loop; the bulk dispatcher publishes
+one BulkBatchCompleted at the end for the coalesced rerun.
 """
 from __future__ import annotations
 
