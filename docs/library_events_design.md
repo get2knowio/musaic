@@ -2,7 +2,7 @@
 
 Tracking issue: [#1 — Tech debt: systemic patterns behind recurring whack-a-mole bugs](https://github.com/get2knowio/musaic/issues/1).
 
-Status: **design only** — no implementation in this commit. This document scopes the change, captures the trade-offs, and is the gate before any code lands.
+**Status: shipped through Phase 3 (all phases complete).** This document was originally written as a design-only proposal; everything below is now implemented. See [What actually shipped](#what-actually-shipped) for the as-built summary and commit list. The historical design narrative is preserved for context — read it for the *why*, refer to the code (`musaic/library_events.py`, `musaic/services/event_subscribers.py`) for the *what*.
 
 ---
 
@@ -252,33 +252,46 @@ When E is fully rolled out and the direct `run_post_scan_checks` callers have be
 - It doesn't change the resolver's lazy-by-default posture. The bus reacts to anchor *writes*; resolve_album still runs on demand.
 - It doesn't introduce a third-party plugin system. Subscribers are hard-coded modules registered at app startup, named in `main.py` lifespan.
 
-## Migration plan
+## Migration plan (as executed)
 
-Three-phase rollout to avoid a big-bang switch:
+Three-phase rollout, all complete:
 
-1. **Phase 1 — ship the bus + dual-fire.** Add `library_events.py` and the subscribers. Producers publish events but keep their existing direct `run_post_scan_checks` calls. Verify subscribers fire correctly + idempotently (double rerun is wasted work, not a bug). Add `tests/test_library_events.py` covering dispatch, ordering, isolation, recursion guard.
-2. **Phase 2 — delete direct calls.** Producer by producer, remove the direct `run_post_scan_checks` (and cache.invalidate, thumb drop, etc.) calls now that the bus covers them. One PR per producer keeps the blast radius small. Each PR runs `tests/test_*` to confirm no regression.
-3. **Phase 3 — update the docstring + remove the dead helpers.** Rewrite `services/post_scan.py`'s module docstring to describe the bus instead of the caller-responsibility rule. Anything that's now dead code goes.
+1. **Phase 1 — ship the bus + dual-fire.** Landed as `5fb57b8`. Bus + 5 subscribers + 26 new tests. Producers got `publish(...)` calls *alongside* their existing direct `run_post_scan_checks` calls — idempotency made the double-fire safe. Hardened with `ac7c911` (move contextvar into `run_post_scan_checks` itself so direct callers also gate against re-entry).
+2. **Phase 2 — delete direct calls.** Producer-by-producer, one commit each: `b4cd01c` scan → `c9dc241` apply (+ bulk-suppression moved to subscriber) → `17ea3d9` audio_analysis + worker + resolver → `2add1c3` sync-fix + delete-duplicate → `c560e89` fingerprint_pool → `f086108` apply_filename_rename (added `_filename_mismatch_rerun` subscriber for the one non-runs_during_scan check the bus drives) → `3e26257` quick_fix_all (added `BulkBatchCompleted` event for the coalesced end-of-batch rerun). Zero direct callers of `run_post_scan_checks` remain outside `event_subscribers.py`.
+3. **Phase 3 — rewrite the docstring + remove dead language.** Landed as `7889fe4`. `services/post_scan.py`'s caller-responsibility narrative replaced with a description of the event-driven flow; "Phase 1" / "dual-fire" framing stripped from `library_events.py`, `event_subscribers.py`, and `main.py`.
 
-We can stop at Phase 1 if Phase 2 turns up surprises — Phase 1 is strictly additive and reversible.
+No surprises during the rollout — the three load-bearing recursion-guard tests gating Phase 1 (`test_in_flight_rerun_short_circuits_nested_publish`, `test_background_subscriber_inherits_in_flight_flag`, `test_concurrent_unrelated_rerun_is_not_suppressed`) all passed first try, and the subsequent producer-by-producer deletions caused no regressions across the full test suite. The optional fallback "stop at Phase 1 if Phase 2 turns up surprises" was not needed.
 
-## Open questions
+## Open questions (resolved)
 
-The decisions above are the leading defaults; these are the points where committing without more thought would be premature.
+The points the design left open got resolved during implementation:
 
-- **Coarse vs fine events.** Is `AlbumTagsChanged(fields=[...])` the right shape, or should it be a separate event per field (`AlbumTitleChanged`, etc.)? Coarse is cheaper to publish; fine lets subscribers filter without inspecting a payload. Lean: coarse, because every subscriber today wants the whole change anyway.
-- **Should publish be a typed decorator or a runtime call?** Decorator (`@library_events.published("album.tags-changed")` on the mutation function) is prettier but harder to call from inside a generator. Runtime `publish()` is uglier but works everywhere. Lean: runtime call.
-- **Should events queue when there's no subscriber for a given type?** No-op or warn? Lean: no-op silently in prod, log at debug. Tests can assert via a fixture.
-- **`AlbumDeleted` — do we need it today?** Nothing currently consumes it, but having the event would let `_post_scan_rerun` auto-resolve findings on deleted albums (we currently rely on the next library scan picking that up). Cheap to ship, useful enough.
+- **Coarse vs fine events** → Coarse. `AlbumTagsChanged(fields=tuple[str, ...])` carries the changed field names as a tuple; subscribers ignore it today but the field is there for future filtering. No per-field event types added.
+- **Decorator vs runtime call** → Runtime call. `publish(EventType(...))` ended up clean enough at every callsite, and avoided the generator-function tax decorators would have imposed on `apply_album_changes_iter`.
+- **Events with no subscriber** → No-op silently. The bus skips when `_subscribers[event_type]` is empty (the `extend` over the type's MRO just yields nothing). Tested in `test_publish_into_void_does_not_warn_or_raise`.
+- **`AlbumDeleted`** → Shipped. `cache.delete_album` publishes it; `_thumb_drop` listens. This closed a gap where deleted-album findings used to linger until the next library scan.
 
-## Out of scope (explicitly)
+Two new events were added during Phase 2 that the design didn't anticipate:
 
-- A frontend event bus. The frontend already uses TanStack Query + SSE; that stays.
-- Cross-process / cross-host events. Single-process is enough for a local-first app.
+- **`LibraryScanCompleted(album_count: int)`** — replaced the original taxonomy's `AlbumScanned(album_id)`. Per-album events during scan would have spawned N background subscribers (one per album); a single library-scoped event at the end is more efficient and matches what `services/scan.py` actually wants.
+- **`BulkBatchCompleted()`** — fired by `api/health.py:quick_fix_all` after its bulk loop exits + `in_bulk_run` is reset. Routes to the same library-wide subscriber as `LibraryScanCompleted`. Without this, the bulk endpoint would have been the one persistent direct caller.
+
+## Out of scope (still — and still right)
+
+- A frontend event bus. The frontend uses TanStack Query + SSE; that stays.
+- Cross-process / cross-host events. Single-process for a local-first app.
 - Event sourcing. Events are notifications, not the source of truth. The DB is.
 
 ---
 
-**Recommendation:** land Phase 1 as a single PR after another design review pass. Phase 2 + Phase 3 should NOT be bundled with Phase 1 — keep the cutover incremental so each deletion of a direct `run_post_scan_checks` call can be verified independently.
+## What actually shipped
 
-The biggest risk is the recursion guard — getting it wrong would silently skip post-scan reruns in legitimate cases. A focused test fixture (`tests/test_library_events.py::test_subscriber_can_publish_without_reentry`) needs to exercise it before Phase 2 starts.
+Final state, post-Phase-3:
+
+- **`musaic/library_events.py`** — 8 frozen event types (`Event` → `AlbumScopedEvent` → `AlbumTagsChanged` / `AlbumCoverChanged` / `AlbumMbAnchorSet` / `TrackFingerprinted` / `AlbumDeleted`; `AlbumRenamed` (carries old+new ids); `LibraryScanCompleted`; `BulkBatchCompleted`), `register()` + `publish()` API, priority-ordered dispatch, background subscribers via `Thread(target=copy_context().run, ...)`, `in_post_scan_rerun: ContextVar[bool]` recursion guard.
+- **`musaic/services/event_subscribers.py`** — 5 subscriber concerns (`_resolver_invalidate`, `_thumb_drop`, `_post_scan_rerun` + rename + library-wide variants, `_filename_mismatch_rerun`, `_findings_runner_notify`) wired via `register_all()` from the FastAPI lifespan.
+- **`musaic/services/post_scan.py`** — reframed as the low-level worker `_post_scan_rerun` drives; both sync + async variants set/reset `in_post_scan_rerun` on entry/exit.
+- **9 producer sites** publish events: `services/scan.py`, `services/apply.py`, `services/audio_analysis.py`, `services/worker.py`, `services/resolver.py`, `mb_lookup.py` (×2: `find_release` + `find_release_cached` backfill), `fingerprint.py`, `cache.delete_album`, `checks/filename_mismatch.execute_renames` (dir + file branches), and api endpoints (`delete_duplicate_file`, `quick_fix_all`).
+- **Tests:** 36 new across `test_library_events.py` (13 — dispatch + ordering + isolation + the 3 load-bearing recursion-guard scenarios), `test_event_subscribers.py` (17 — per-subscriber invocation contracts including bulk-run suppression), `test_post_scan_guard.py` (6 — sync + async guard semantics). Total 141 passing (was 77 before the issue-1 work began).
+
+The stale-findings bug class is now mechanically unreachable for new code paths — adding a new producer means thinking about which event to publish, not which 5 fan-out calls to remember.
