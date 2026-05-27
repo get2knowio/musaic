@@ -568,6 +568,7 @@ def delete_duplicate_file(finding_id: int, payload: DeleteDuplicateFilePayload) 
     #     manual AlbumTagsChanged (track_count effectively changed)
     #     so the duplicate-tracks + track-gaps findings auto-resolve
     #     via the bus's _post_scan_rerun subscriber.
+    rescan_succeeded = False
     try:
         fresh = scan_one_album(album_path)
         if fresh is None:
@@ -588,8 +589,28 @@ def delete_duplicate_file(finding_id: int, payload: DeleteDuplicateFilePayload) 
                     "library_events publish failed for delete-duplicate %s",
                     album_id,
                 )
+        rescan_succeeded = True
     except Exception:
         _log.exception("post-delete rescan failed for %s (continuing)", album_id)
+
+    # If the rescan path raised (FS race, sidecar corruption, missing
+    # library config), neither the delete-branch's AlbumDeleted nor
+    # the upsert-branch's AlbumTagsChanged ever published — but the
+    # track_fingerprint row IS gone. Publish a fallback AlbumTagsChanged
+    # so the duplicate-tracks finding still has a signal to re-evaluate
+    # against; otherwise the resolved finding lingers in the dialog
+    # until something unrelated triggers a rerun.
+    if not rescan_succeeded:
+        try:
+            from .. import library_events
+            library_events.publish(library_events.AlbumTagsChanged(
+                album_id=album_id, fields=("track_count",),
+            ))
+        except Exception:
+            _log.exception(
+                "library_events fallback publish failed for delete-duplicate %s",
+                album_id,
+            )
 
     if file_already_gone:
         return {

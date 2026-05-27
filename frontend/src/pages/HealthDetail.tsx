@@ -16,11 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
-
 import {
-  CHECKS_QUERY_KEY,
-  FINDINGS_QUERY_KEY,
   streamQuickFixAll,
   useCheck,
   useRunCheck,
@@ -174,7 +170,6 @@ function BulkQuickFixDialog({
   fixKind: "none" | "ai-job" | "deterministic";
   totalFindings: number;
 }) {
-  const qc = useQueryClient();
   const [phase, setPhase] = useState<"confirm" | "running" | "done">("confirm");
   const [progress, setProgress] = useState<{
     total: number;
@@ -227,9 +222,9 @@ function BulkQuickFixDialog({
         cancelRef.current = null;  // allow a future re-run from this dialog
         setSummary(s);
         setPhase("done");
-        // Refresh caches so the trimmed findings list lands without a manual reload.
-        qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-        qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
+        // Cache refresh rides the BulkBatchCompleted event the backend
+        // publishes at end-of-loop — useLibraryEventsStream catches it
+        // and invalidates the findings/checks caches.
       },
       onError: (detail) => {
         cancelRef.current = null;

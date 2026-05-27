@@ -327,3 +327,19 @@ def register_all() -> None:
         Event, _findings_runner_notify,
         priority=300, name="_findings_runner_notify",
     )
+
+    # Relay tier (400) — fan events out to /api/library-events/stream
+    # subscribers. Lowest priority so the SSE consumer sees the post-
+    # invalidation state (priority-100 subscribers ran inline already).
+    #
+    # NOTE: priority-200 `_post_scan_rerun` is `background=True`, so
+    # publish() only Thread.start()s it before priority 300/400 run —
+    # the relay fires BEFORE the rerun finishes. That means SSE-driven
+    # invalidations of findings/checks would refetch stale data. The
+    # frontend's `useLibraryEventsStream` therefore deliberately does
+    # NOT invalidate findings/checks; that responsibility lives on
+    # `useChecksStream`, which wakes when `run_check` calls
+    # `notify_changed()` at the end of the rerun. See
+    # frontend/src/hooks/useLibraryEventsStream.ts for the contract.
+    from . import library_events_relay
+    library_events_relay.register_bus_subscriber()

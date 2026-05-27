@@ -49,6 +49,24 @@ _state: dict[str, Any] = {
 _state_lock = threading.Lock()
 _task: asyncio.Task | None = None
 
+# SSE wakeup. Set after every mutation inside _state_lock so the
+# stream coalesces bursts (one wake covers N rapid changes) and the
+# handler always reads the latest snapshot. Same shape as
+# checks.runner._changed.
+_changed = asyncio.Event()
+
+
+def changed_event() -> asyncio.Event:
+    """Return the module-level event so an SSE handler can `await .wait()`."""
+    return _changed
+
+
+def _notify_changed() -> None:
+    """Wake any SSE subscribers. Always safe to call: `asyncio.Event.set`
+    is sync-thread-safe in CPython, and the handler does `clear()` after
+    consuming."""
+    _changed.set()
+
 
 def get_state() -> dict[str, Any]:
     with _state_lock:
@@ -91,6 +109,7 @@ async def warm_library(library_dir: str) -> dict[str, Any]:
                 "errors": 0,
                 "current_album_id": None,
             })
+        _notify_changed()
         _log.info("Eager fingerprinting unavailable: %s", reason)
         return get_state()
 
@@ -106,6 +125,7 @@ async def warm_library(library_dir: str) -> dict[str, Any]:
             "completed_at": None,
             "skip_reason": None,
         })
+    _notify_changed()
     _task = asyncio.create_task(_run_pool(library_dir), name="fingerprint-pool")
     return get_state()
 
@@ -154,6 +174,7 @@ async def _run_pool(library_dir: str) -> None:
         candidates = _candidates(library_dir)
         with _state_lock:
             _state["total"] = len(candidates)
+        _notify_changed()
         _log.info(
             "Eager fingerprinting starting: %d album(s) need fingerprints",
             len(candidates),
@@ -162,6 +183,7 @@ async def _run_pool(library_dir: str) -> None:
         for album_id, album_path in candidates:
             with _state_lock:
                 _state["current_album_id"] = album_id
+            _notify_changed()
             try:
                 await asyncio.to_thread(
                     fp_module.fingerprint_album, album_id, album_path,
@@ -179,6 +201,7 @@ async def _run_pool(library_dir: str) -> None:
                 _log.exception("Unexpected error fingerprinting %s", album_id)
                 with _state_lock:
                     _state["errors"] += 1
+            _notify_changed()
             # Yield to the loop. AcoustID's rate budget is shared across
             # all our requests; a small inter-album sleep is cheap
             # politeness.
@@ -201,6 +224,7 @@ async def _run_pool(library_dir: str) -> None:
                     "Eager fingerprinting done: completed=%d errors=%d",
                     _state["completed"], _state["errors"],
                 )
+        _notify_changed()
         # Per-album reruns now ride the bus: `fingerprint.fingerprint_
         # album` publishes TrackFingerprinted per album, the
         # _post_scan_rerun subscriber runs a scoped rerun off-thread,

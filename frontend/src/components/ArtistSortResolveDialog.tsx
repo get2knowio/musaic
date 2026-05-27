@@ -27,12 +27,11 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2, Disc3, FileAudio, Loader2, Users, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { applyInconsistentArtistSort } from "@/lib/api";
-import { CHECKS_QUERY_KEY, CHECK_DETAIL_KEY, FINDINGS_QUERY_KEY } from "@/hooks/useChecks";
 import type { Finding } from "@/lib/types";
 
 /**
@@ -145,7 +144,6 @@ export default function ArtistSortResolveDialog({
   );
   const state = detail.state ?? "unsorted";
   const canonical = detail.canonical_sort ?? null;
-  const qc = useQueryClient();
 
   const albumCount = useMemo(
     () => new Set(members.filter((m) => m.kind === "album").map((m) => m.album_id)).size,
@@ -208,16 +206,11 @@ export default function ArtistSortResolveDialog({
       applyInconsistentArtistSort(currentFinding.id, v),
     onSuccess: (r) => {
       toast.success(r.message);
-      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
-      // The Health detail page renders from the per-check detail
-      // cache (CHECK_DETAIL_KEY), not the global findings list.
-      // Without this the resolved cluster keeps showing on the page
-      // even though server-side it was auto-resolved by the post-
-      // apply check rerun.
-      qc.invalidateQueries({
-        queryKey: CHECK_DETAIL_KEY("inconsistent-artist-sort"),
-      });
+      // Cache invalidation is handled by the App-level
+      // useLibraryEventsStream subscriber — apply_cluster_sort writes
+      // through apply_direct which publishes AlbumTagsChanged per
+      // album, and useChecksStream picks up the auto-resolved cluster
+      // when the post-apply rerun fires notify_changed().
       // Advance through the chain instead of closing on every apply.
       // Saves the user a round-trip back to the list page when
       // they're working through dozens / hundreds of findings.

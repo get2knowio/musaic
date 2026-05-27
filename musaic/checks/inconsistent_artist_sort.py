@@ -745,6 +745,21 @@ def apply_cluster_sort(
         except Exception:
             log.exception("post-cluster-apply check sweep failed (continuing)")
         log.info("apply_cluster_sort: post-apply rerun complete")
+
+        # Publish BulkBatchCompleted as a fallback: if the sync rerun
+        # sweep above silently failed (every asyncio.run raised, or
+        # cfg.library_dir was missing), the bus subscriber's
+        # library-wide rerun is the only remaining path that can
+        # auto-resolve the cluster's finding. Cheap on success too —
+        # the rerun is idempotent and the relay just delivers a
+        # broad-invalidate event to connected clients.
+        try:
+            from .. import library_events
+            library_events.publish(library_events.BulkBatchCompleted())
+        except Exception:
+            log.exception(
+                "library_events publish failed for apply_cluster_sort end"
+            )
     else:
         log.warning(
             "apply_cluster_sort: zero albums succeeded, skipping rerun "

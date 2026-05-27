@@ -84,43 +84,30 @@ export function useFindingsForCheck(checkId: string | null | undefined): Finding
 // ---- Mutations ----
 
 export function useRunCheck() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (args: { checkId: string; scope?: "all" | "incremental" | "albums"; albumIds?: string[] }) =>
       runCheck(args.checkId, { scope: args.scope ?? "all", albumIds: args.albumIds }),
-    onSuccess: (_run, args) => {
-      // SSE pushes the next snapshot, but invalidate so the detail page
-      // re-fetches its sidebar of recent runs immediately.
-      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY(args.checkId) });
-      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-    },
+    // No onSuccess: the checks runner calls notify_changed() at the end
+    // of every run, which wakes /api/checks/stream → useChecksStream
+    // refetches the affected caches automatically.
   });
 }
 
 export function useIgnoreFinding() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (args: { checkId: string; findingId: number; reason?: string }) =>
       ignoreFinding(args.checkId, args.findingId, args.reason),
-    onSuccess: (_data, args) => {
-      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY(args.checkId) });
-    },
+    // useChecksStream handles the refetch — ignore_finding wakes
+    // notify_changed() via the runner.
   });
 }
 
 export function useUnignoreFinding() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (args: { checkId: string; findingId: number }) =>
       unignoreFinding(args.checkId, args.findingId),
-    onSuccess: (_data, args) => {
-      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY(args.checkId) });
-    },
+    // useChecksStream handles the refetch — unignore_finding wakes
+    // notify_changed() via the runner.
   });
 }
 
@@ -129,12 +116,11 @@ export function useFixFinding() {
   return useMutation({
     mutationFn: (args: { checkId: string; findingId: number; hint?: string }) =>
       fixFinding(args.checkId, args.findingId, args.hint ?? ""),
-    onSuccess: (_data, args) => {
-      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY(args.checkId) });
-      // Fix may have enqueued an AI job; refresh the jobs cache so the
-      // sidebar badge / activity indicator picks it up immediately.
+    onSuccess: () => {
+      // Findings + checks refetches ride the library-events SSE channel
+      // (every fix path's underlying mutation publishes an event).
+      // Jobs are not on that bus — invalidate explicitly so the sidebar
+      // badge / activity indicator picks up the freshly-enqueued job.
       qc.invalidateQueries({ queryKey: ["jobs"] });
     },
   });
@@ -166,15 +152,12 @@ export function useDuplicateFindingCanonical(
  *  finding stays open until the cluster shrinks to <= 1 file; subsequent
  *  deletes hit the same hook. */
 export function useDeleteDuplicateFile() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (args: { findingId: number; filename: string }) =>
       deleteDuplicateFile(args.findingId, args.filename),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY });
-      qc.invalidateQueries({ queryKey: CHECK_DETAIL_KEY("duplicate-tracks") });
-    },
+    // delete-duplicate-file publishes AlbumTagsChanged (or AlbumDeleted
+    // when the rescan finds the album dir empty); the library-events
+    // SSE channel handles the cache refresh.
   });
 }
 

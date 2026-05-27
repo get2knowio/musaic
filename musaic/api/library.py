@@ -88,14 +88,109 @@ def scan_status() -> dict[str, Any]:
     return scan_service.get_state()
 
 
+@router.get("/api/library-events/stream")
+async def library_events_stream() -> StreamingResponse:
+    """SSE stream of `library_events` bus events.
+
+    Drives frontend cache invalidation: instead of every mutation
+    handler remembering a checklist of `qc.invalidateQueries` calls,
+    the frontend's `useLibraryEventsStream` subscribes here once and
+    invalidates by event name. See `docs/connectivity_design.md`.
+
+    Each event arrives as a named SSE event (event: AlbumTagsChanged,
+    etc.) with a JSON payload carrying the event's identity fields
+    (album_id, fields, source, etc.).
+
+    Per-connection bounded queue (256 events); if a client falls
+    behind, the oldest events are dropped with a warning and the
+    client is expected to refetch on the next event it sees. This is
+    a "something changed" signal, not durable state.
+    """
+    from ..services import library_events_relay
+
+    loop = asyncio.get_running_loop()
+    queue: asyncio.Queue = asyncio.Queue(maxsize=library_events_relay.QUEUE_MAXSIZE)
+    library_events_relay.register_connection(loop, queue)
+
+    async def event_gen():
+        # Initial "hello" so the client knows the stream is open.
+        # No state payload — the client already has its caches; this
+        # stream only carries deltas.
+        yield sse_event("ready", {})
+        try:
+            while True:
+                try:
+                    name, payload = await asyncio.wait_for(
+                        queue.get(), timeout=30.0,
+                    )
+                    yield sse_event(name, payload)
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            return
+        finally:
+            library_events_relay.unregister_connection(queue)
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @router.get("/api/fingerprint-pool/status")
 def fingerprint_pool_status() -> dict[str, Any]:
     """Eager fingerprinting pool state — what the post-scan fpcalc /
     AcoustID worker is up to. Status enum: idle | running | done |
-    cancelled | unavailable. UI can poll this for a progress bar; fine
-    to ignore entirely on installs without fpcalc."""
+    cancelled | unavailable.
+
+    Retained for one-shot reads (status pages, tests, the rare REST
+    consumer). Live consumers should subscribe to
+    `/api/fingerprint-pool/stream` instead — the SSE channel pushes a
+    `state` event on every transition with no polling required.
+    """
     from ..services import fingerprint_pool
     return fingerprint_pool.get_state()
+
+
+@router.get("/api/fingerprint-pool/stream")
+async def fingerprint_pool_stream() -> StreamingResponse:
+    """SSE stream of fingerprint-pool state transitions.
+
+    Mirrors `/api/checks/stream`: emit current state on connect, then
+    one `state` event per change. The pool sets a module-level
+    asyncio.Event after every mutation; this handler awaits with a
+    30-second timeout for keepalive pings.
+    """
+    from ..services import fingerprint_pool
+
+    async def event_gen():
+        yield sse_event("state", fingerprint_pool.get_state())
+        ev = fingerprint_pool.changed_event()
+        try:
+            while True:
+                try:
+                    await asyncio.wait_for(ev.wait(), timeout=30.0)
+                    ev.clear()
+                    yield sse_event("state", fingerprint_pool.get_state())
+                except asyncio.TimeoutError:
+                    yield ": ping\n\n"
+        except asyncio.CancelledError:
+            return
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.get("/api/scan/stream")
@@ -232,7 +327,7 @@ def get_tracks(album_id: str) -> dict[str, Any]:
 
 
 @router.post("/api/albums/{album_id}/mb-anchor/clear")
-async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
+def clear_mb_anchor(album_id: str) -> dict[str, Any]:
     """Wipe the cached MusicBrainz anchor for an album AND blocklist
     the rejected release-group.
 
@@ -245,8 +340,15 @@ async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
     blocklist (`album_blocked_mb_release_groups`) makes the rejection
     sticky across all three tiers + AI persistence.
 
-    Returns the freshly re-derived resolution so the caller can update
-    its UI immediately.
+    Publishes a single `AlbumTagsChanged` event so SSE consumers
+    invalidate their caches. The frontend's
+    `['album-resolution', id]` refetch re-runs the resolver on demand
+    via `GET /api/albums/{id}/resolution`, which is where Tier 0b/0c
+    will (or won't) re-derive a new anchor — and where that path
+    publishes `AlbumMbAnchorSet` as a side effect if it does.
+    Concentrating the resolver call in one place avoids the previous
+    double-publish + concurrent-rerun race where both the endpoint
+    and the resolver side-effect fired for one user action.
     """
     resolve_album_dict(album_id)
     # Capture the currently-cached anchor BEFORE clearing it — that's
@@ -258,13 +360,16 @@ async def clear_mb_anchor(album_id: str) -> dict[str, Any]:
         )
     cache_module.clear_album_mb_anchor(album_id)
     resolver_service.invalidate(album_id)
-    fresh = await asyncio.to_thread(
-        resolver_service.resolve_album, album_id,
-    )
+    try:
+        from .. import library_events
+        library_events.publish(library_events.AlbumTagsChanged(
+            album_id=album_id, fields=("mb_release_group_mbid",),
+        ))
+    except Exception:
+        _log.exception("library_events publish failed for clear_mb_anchor %s", album_id)
     return {
         "ok": True,
         "blocked_mbid": rejected.get("release_group_mbid") if rejected else None,
-        "resolution": fresh.to_dict(),
     }
 
 

@@ -92,13 +92,19 @@ export function getAlbumResolution(
 /**
  * Wipe the cached MusicBrainz anchor for an album AND blocklist the
  * rejected release-group so the resolver's fingerprint vote / dir
- * search / AI persist all skip it on the next run. Returns the
- * freshly re-derived resolution + the MBID that was just blocklisted
- * (null if the album wasn't anchored to anything).
+ * search / AI persist all skip it on the next run. Returns the MBID
+ * that was just blocklisted (null if the album wasn't anchored to
+ * anything).
+ *
+ * Resolver re-derivation happens lazily on the next
+ * `['album-resolution', id]` refetch (triggered by the AlbumTagsChanged
+ * event this endpoint publishes). Concentrating the resolver call
+ * there avoids the double-publish + concurrent-rerun race where both
+ * this endpoint and the resolver's side-effect fired for one click.
  */
 export function clearAlbumMbAnchor(
   id: string,
-): Promise<{ ok: boolean; blocked_mbid: string | null; resolution: AlbumResolution }> {
+): Promise<{ ok: boolean; blocked_mbid: string | null }> {
   return request(
     `/api/albums/${encodeURIComponent(id)}/mb-anchor/clear`,
     { method: "POST" },

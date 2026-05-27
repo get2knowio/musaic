@@ -39,11 +39,12 @@ uv run pytest                          # 141 backend tests (hermetic, no FLAC fi
 ```
 
 Test layout:
-- `tests/test_api_smoke.py` — 18 cases exercising every router slice through TestClient (config, settings, vocab, jobs, health, scan, etc.). End-to-end SSE smoke for `/api/scan/stream` against an empty library.
+- `tests/test_api_smoke.py` — 22 cases exercising every router slice through TestClient (config, settings, vocab, jobs, health, scan, etc.). End-to-end SSE smoke for `/api/scan/stream`; route-registration smoke for `/api/library-events/stream` + `/api/fingerprint-pool/stream` (the full stream behaviour is pinned in `test_library_events_relay.py`).
 - `tests/test_resolver.py` — 12 cases for the tiered resolver internals (cache hit, dir-search, fingerprint vote, alignment, memoization, synthesizer). Mocks `mb_lookup` + `fingerprint`.
 - `tests/test_checks.py` — 27 cases for the merged checks (`unidentified-album`, `tags-out-of-sync`, `inconsistent-artist-sort`). Inserts album rows directly into the test DB; mocks the resolver to isolate check-level glue.
-- `tests/test_fingerprint_pool.py` — 3 control-plane cases for the eager fingerprinting pool (unavailable short-circuit, idempotent re-call, no-op stop).
+- `tests/test_fingerprint_pool.py` — 4 control-plane cases for the eager fingerprinting pool (unavailable short-circuit, idempotent re-call, no-op stop, changed-event signaled on every state mutation for the SSE wakeup).
 - `tests/test_library_events.py` — 13 cases for the event-bus contract: dispatch, ordering, isolation, the 3 load-bearing recursion-guard scenarios (in-flight short-circuit, background contextvar inheritance, concurrent unrelated rerun NOT suppressed). New tests for new events go here.
+- `tests/test_library_events_relay.py` — 9 cases for the SSE relay subscriber: serialization of each event type, multi-connection fan-out, unregister stops delivery, bounded-queue drops oldest on overflow, cross-thread publish reaches the queue via `loop.call_soon_threadsafe`, relay runs at priority 400 (after every other subscriber).
 - `tests/test_event_subscribers.py` — 17 cases pinning each subscriber's invocation contract via stubbed side-effect targets. New subscriber → new test here.
 - `tests/test_post_scan_guard.py` — 6 cases for the recursion guard at the `run_post_scan_checks` level (sync + async variants, nested-call short-circuit, exception resets flag).
 - `tests/test_filename_mismatch_plan_preview.py` — 9 cases for `derive_plan` + the `/plan-preview` endpoint (re-derives instead of echoing stored detail, the load-bearing assertion).
@@ -102,16 +103,26 @@ Per-track tracks with a confident `recording_mbid` from AcoustID get a small fin
 
 ### SSE + Status Endpoints
 
-Long-running tasks emit progress via Server-Sent Events:
-- `GET /api/scan/stream` — yields albums as scanned (kicks off a background scan if none running; client disconnect leaves the scan running)
-- `GET /api/scan/status` — current scan state (poll this to detect an in-flight scan on page load)
-- `GET /api/fingerprint-pool/status` — eager-fingerprinting pool state (started after every successful scan; idle/running/done/cancelled/unavailable)
-- `GET /api/ai/jobs/stream` — job status updates (queued → running → done/failed)
-- `GET /api/checks/stream` — finding discovery during check runs
-- `POST /api/albums/{id}/apply/stream` — per-file diff + application progress
-- `GET /api/albums/{id}/resolution` — full resolver output for one album (anchor + canonical fields + per-track matches + trace). Not SSE — single GET.
+Long-running tasks AND cross-cutting cache freshness flow through Server-Sent Events. Three streams are App-level (one connection for the app's lifetime); the rest are per-operation:
 
-The frontend hooks (`useScanStream`, `useApplyStream`, `useChecksStream`, `useAlbumResolution`, `useFingerprintPoolStatus`) consume these. Streams terminate on client disconnect with no auto-reconnect; the hooks handle this at a higher level.
+App-level:
+- `GET /api/library-events/stream` — every `library_events` bus event relayed as a named SSE event. Drives `useLibraryEventsStream`, which owns TanStack Query cache invalidation for albums/tracks/resolution/findings/checks. See [Architectural patterns](#architectural-patterns) #5.
+- `GET /api/ai/jobs/stream` — job status updates (queued → running → done/failed). Drives `useJobsStream`.
+- `GET /api/checks/stream` — check / finding state changes. Drives `useChecksStream`.
+- `GET /api/fingerprint-pool/stream` — eager-fingerprinting pool state (`idle | running | done | cancelled | unavailable`). Drives `useFingerprintPoolStream`. Replaced the old 2s polling.
+
+Per-operation (die at end of operation):
+- `GET /api/scan/stream` — yields albums as scanned (kicks off a background scan if none running; client disconnect leaves the scan running)
+- `POST /api/albums/{id}/apply/stream` — per-file diff + application progress
+- `POST /api/albums/{id}/analyze/stream` — per-file BPM / ReplayGain progress
+- `POST /api/checks/{check_id}/quick-fix-all` — per-finding outcome stream for bulk quick-fix runs
+
+Status / lookups (not SSE):
+- `GET /api/scan/status` — current scan state (poll this to detect an in-flight scan on page load)
+- `GET /api/fingerprint-pool/status` — one-shot pool state (live consumers use the `/stream` channel above)
+- `GET /api/albums/{id}/resolution` — full resolver output for one album (anchor + canonical fields + per-track matches + trace).
+
+The frontend hooks (`useScanStream`, `useApplyStream`, `useChecksStream`, `useLibraryEventsStream`, `useJobsStream`, `useFingerprintPoolStream`, `useAlbumResolution`) consume these. Streams terminate on client disconnect; `EventSource`-based hooks auto-reconnect, the `fetch`+`postSse` ones don't (per-operation streams that die anyway).
 
 ### Directory Naming Convention (flac-jacket)
 
@@ -157,7 +168,7 @@ Strategies run cheapest-first; first confident match wins. Anchors discovered by
 
 After every successful scan completes, `services.scan._run_scan` kicks off `fingerprint_pool.warm_library` as a fire-and-forget task. The pool walks albums where `track_count > COUNT(track_fingerprints)`, calls `fingerprint_album` (fpcalc + AcoustID lookup) serially with a 0.5s inter-album sleep. This warms Tier 0c so an album the user opens for the first time anchors instantly instead of paying the per-track fpcalc latency on demand.
 
-Skipped silently when fpcalc / AcoustID isn't configured (status flips to `unavailable`). Cancelled cleanly during app shutdown via the lifespan handler. UI surfaces progress via the titlebar's `FingerprintPoolPill` (polls `/api/fingerprint-pool/status` every 2s while running).
+Skipped silently when fpcalc / AcoustID isn't configured (status flips to `unavailable`). Cancelled cleanly during app shutdown via the lifespan handler. UI surfaces progress via the titlebar's `FingerprintPoolPill`, which subscribes to `/api/fingerprint-pool/stream` (the pool sets an `asyncio.Event` after every state mutation; the SSE handler awaits and yields).
 
 ### Health Check Framework
 
@@ -271,6 +282,37 @@ displayArtist(album, "Unknown artist")     // → "Henry Mancini" or "Unknown ar
 ```
 
 `mb_lookup.find_release` deliberately keeps its own cascade (`dir_artist → album_artist → artist`) because the on-disk name is the search anchor; it's the one documented exception. Otherwise, reach for the shared helper before adding a new fallback chain.
+
+### 5. SSE-driven frontend cache invalidation (subscribe once, invalidate by event)
+
+**Anti-pattern (retired):** every frontend mutation handler had a 3–5 line `qc.invalidateQueries(...)` checklist of which TanStack Query caches to bust — `["albums-snapshot"]`, `["tracks", id]`, `["album-resolution", id]`, `["findings"]`, `["checks"]`. Different handlers remembered different subsets (DetailSheet's apply hit all 5, PropTable's clear-anchor missed `["tracks"]`, cover upload missed nothing but in a different order). 57 invalidations spread across ~10 files; every new endpoint a fresh opportunity to forget.
+
+**Pattern:** publish backend events through the `library_events` bus (pattern #1 above), relay them to a `/api/library-events/stream` SSE channel, and let one App-level `useLibraryEventsStream` subscriber own the invalidation map. Mutation handlers do nothing — they trigger the backend operation, the bus event round-trips back, the right cache keys get invalidated.
+
+```typescript
+// frontend/src/hooks/useLibraryEventsStream.ts (excerpt)
+es.addEventListener("AlbumTagsChanged", (ev) => {
+  const { album_id } = JSON.parse(ev.data);
+  qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
+  qc.invalidateQueries({ queryKey: ["tracks", album_id] });
+  qc.invalidateQueries({ queryKey: ["album-resolution", album_id] });
+  // NOTE: findings/checks are intentionally NOT invalidated here —
+  // that responsibility lives on useChecksStream, which wakes at
+  // end-of-rerun (the rerun is a background subscriber so the relay
+  // fires before it completes; invalidating findings here would
+  // refetch stale data).
+});
+```
+
+Wired through `musaic/services/library_events_relay.py` — a bus subscriber at priority 400 (last) that fans every event out to per-connection `asyncio.Queue(maxsize=256)` instances. Cross-thread enqueue uses `loop.call_soon_threadsafe` (guarded by `try/except RuntimeError` so a closed loop doesn't starve healthy queues). Bounded queue drops oldest on overflow — clients reconnect/refetch; they don't need every event, they need an eventually-correct cache. EventSource auto-reconnect on the frontend triggers a broad cache re-invalidation via the `open` listener, so transient drops can't leave caches indefinitely stale.
+
+**Responsibility split**: `useLibraryEventsStream` owns album-state caches (`["albums-snapshot"]`, `["tracks", id]`, `["album-resolution", id]`); `useChecksStream` owns findings/checks caches (`["findings"]`, `["checks"]`, `["check"]`). The split exists because `_post_scan_rerun` is registered `background=True` — the relay's SSE event lands before the rerun finishes, so invalidating findings off the library-events stream would refetch stale data. `useChecksStream` fires when `run_check` calls `notify_changed()` at end-of-rerun, which is reliably *after* the bus event.
+
+**When adding a new mutation endpoint:** publish the relevant bus event (pattern #1). Don't add a frontend `invalidateQueries` call — `useLibraryEventsStream` already handles it. Exceptions: caches the bus doesn't see today (`["jobs"]` via its own SSE channel, `["vocabulary"]` / `["album-tags"]` via `setQueryData`, preview-endpoint caches the dialog manages).
+
+**`staleTime: Infinity` as the default:** caches kept fresh by SSE should use `staleTime: Infinity` so refetch-on-focus doesn't race with the bus. Any non-Infinity stale time in `frontend/src/hooks/` needs an explicit comment explaining why polling/refetch is correct there.
+
+Design doc: `docs/connectivity_design.md` (covers the relay's priority + backpressure reasoning, the per-handler invalidation diff, what's explicitly out of scope).
 
 ## Configuration
 

@@ -289,7 +289,15 @@ def analyze_album_iter(
     # No registered check uses BPM/RG fields today, but skipping
     # would make this path another instance of the stale-findings
     # anti-pattern.
-    if library_dir and analyzed_count > 0:
+    #
+    # Publish unconditionally (not gated on analyzed_count > 0): even
+    # an error-only run touched the album row's scan/mtime and the
+    # frontend's [tracks, id] cache must invalidate so a refetch picks
+    # up whatever partial state landed. The previous
+    # `useAnalyzeStream` invalidated `['tracks', id]` on every `done`
+    # event regardless of count; gating the publish would leave stale
+    # values displayed after a fully-errored run.
+    if library_dir:
         try:
             from .. import library_events
             changed_fields = ("bpm",) if what == "bpm" else ("replaygain",)

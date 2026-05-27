@@ -3,14 +3,16 @@ import { getTracks } from "@/lib/api";
 
 /**
  * Per-album track listing including BPM + ReplayGain values where present.
- * Cached aggressively — only invalidated when the album itself changes
- * (apply flow handles invalidation explicitly via queryClient).
+ *
+ * useLibraryEventsStream invalidates ["tracks", album_id] on
+ * AlbumTagsChanged + TrackFingerprinted; the rename event clears the
+ * old/new ids. SSE keeps it fresh, so staleTime: Infinity is safe.
  */
 export function useTracks(albumId: string | null | undefined) {
   return useQuery({
     queryKey: ["tracks", albumId],
     queryFn: () => getTracks(albumId!),
     enabled: !!albumId,
-    staleTime: 60_000,
+    staleTime: Infinity,
   });
 }
