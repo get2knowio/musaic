@@ -97,29 +97,57 @@ def run_post_scan_checks(
     (`scope_kind="all"`). The runner's auto-resolve honors the scope so
     a per-album rerun doesn't over-resolve unrelated findings.
 
+    Sets `library_events.in_post_scan_rerun` for the duration of the
+    call. This guards every code path that publishes events from
+    inside a runs_during_scan check — without it, the dual-fire from
+    direct callers (scan tail, apply background thread) would spawn
+    follow-on `_post_scan_rerun` subscribers that do duplicate work.
+    Idempotent against the bus subscriber's own check (the subscriber
+    early-exits when the flag is set; this function then sets it
+    again on entry — same result). See
+    `docs/library_events_design.md#second-design-review-pass-on-the-
+    guard` for the full reasoning.
+
     Called from SYNC generator code (the SSE scan + apply endpoints) running
     on a FastAPI worker thread. Drives each check's coroutine on a fresh
     event loop with `asyncio.run`. **Don't call this from async context** —
     asyncio.run() raises inside a running event loop. Use
     `run_post_scan_checks_async` instead from `async def` callers.
     """
+    # Cheap self-guard: if some caller managed to invoke this from
+    # inside another post-scan rerun, return rather than recursing.
+    # Defensive — the subscriber's early-exit already covers the
+    # bus-driven path, but a stray direct call inside a check.run()
+    # would otherwise fall through.
+    from .. import library_events
+    if library_events.in_post_scan_rerun.get():
+        _log.debug(
+            "run_post_scan_checks: skipped (already inside one) "
+            "for library_dir=%s album_ids=%s", library_dir, album_ids,
+        )
+        return
+
     from ..checks import REGISTRY as _check_registry
     library_path = str(Path(library_dir).expanduser().resolve())
     scope_kind = "albums" if album_ids else "all"
-    for cls in _check_registry:
-        if not cls.meta.runs_during_scan:
-            continue
-        try:
-            asyncio.run(checks_runner.run_check(
-                cls.meta.id,
-                library_path=library_path,
-                scope_kind=scope_kind,
-                album_ids=album_ids,
-            ))
-        except Exception:
-            _log.exception(
-                "post-scan check %s failed; continuing", cls.meta.id,
-            )
+    token = library_events.in_post_scan_rerun.set(True)
+    try:
+        for cls in _check_registry:
+            if not cls.meta.runs_during_scan:
+                continue
+            try:
+                asyncio.run(checks_runner.run_check(
+                    cls.meta.id,
+                    library_path=library_path,
+                    scope_kind=scope_kind,
+                    album_ids=album_ids,
+                ))
+            except Exception:
+                _log.exception(
+                    "post-scan check %s failed; continuing", cls.meta.id,
+                )
+    finally:
+        library_events.in_post_scan_rerun.reset(token)
 
 
 async def run_post_scan_checks_async(
@@ -135,21 +163,39 @@ async def run_post_scan_checks_async(
 
     `album_ids` behaves identically to the sync variant — scope to that
     set when supplied, whole library when None.
+
+    Sets `library_events.in_post_scan_rerun` for the duration of the
+    coroutine — same posture as the sync variant. asyncio tasks
+    inherit the parent task's context, so events published inside
+    `await checks_runner.run_check(...)` see the flag and their
+    background subscribers do too (via the bus's copy_context wrap).
     """
+    from .. import library_events
+    if library_events.in_post_scan_rerun.get():
+        _log.debug(
+            "run_post_scan_checks_async: skipped (already inside one) "
+            "for library_dir=%s album_ids=%s", library_dir, album_ids,
+        )
+        return
+
     from ..checks import REGISTRY as _check_registry
     library_path = str(Path(library_dir).expanduser().resolve())
     scope_kind = "albums" if album_ids else "all"
-    for cls in _check_registry:
-        if not cls.meta.runs_during_scan:
-            continue
-        try:
-            await checks_runner.run_check(
-                cls.meta.id,
-                library_path=library_path,
-                scope_kind=scope_kind,
-                album_ids=album_ids,
-            )
-        except Exception:
-            _log.exception(
-                "post-scan check %s failed; continuing", cls.meta.id,
-            )
+    token = library_events.in_post_scan_rerun.set(True)
+    try:
+        for cls in _check_registry:
+            if not cls.meta.runs_during_scan:
+                continue
+            try:
+                await checks_runner.run_check(
+                    cls.meta.id,
+                    library_path=library_path,
+                    scope_kind=scope_kind,
+                    album_ids=album_ids,
+                )
+            except Exception:
+                _log.exception(
+                    "post-scan check %s failed; continuing", cls.meta.id,
+                )
+    finally:
+        library_events.in_post_scan_rerun.reset(token)

@@ -169,6 +169,48 @@ def _dispatch_background(subscriber, ev):
     Thread(target=ctx.run, args=(subscriber, ev), daemon=True).start()
 ```
 
+#### Post-Phase-1 hardening: guard also wraps `run_post_scan_checks`
+
+Initial Phase 1 implementation put the guard only in the
+`_post_scan_rerun` subscriber. Real-world test revealed a gap: the
+**direct** callers of `run_post_scan_checks` (scan tail, apply's
+background thread, sync fix-finding endpoint, etc.) don't go through
+the subscriber — so a check publishing events from inside one of
+their reruns would spawn follow-on `_post_scan_rerun` background
+threads. Idempotent (the spawned reruns see no new findings to act
+on), but wasteful — and ahead of Phase 2 we should not be leaning on
+the dual-fire safety net.
+
+Resolution: `run_post_scan_checks` and `run_post_scan_checks_async`
+both set the same contextvar on entry and reset on exit. The
+subscriber's early-exit stays as an optimization (avoids the
+thread-spawn cost when the answer is already known). Both
+mechanisms target the same `library_events.in_post_scan_rerun`
+contextvar; either one being set covers any nested publish.
+
+```python
+# services/post_scan.py
+def run_post_scan_checks(library_dir, *, album_ids=None):
+    if library_events.in_post_scan_rerun.get():
+        return   # already inside one — defensive against direct callers
+    token = library_events.in_post_scan_rerun.set(True)
+    try:
+        for cls in REGISTRY:
+            if cls.meta.runs_during_scan:
+                asyncio.run(checks_runner.run_check(cls.meta.id, ...))
+    finally:
+        library_events.in_post_scan_rerun.reset(token)
+```
+
+Covered by `tests/test_post_scan_guard.py` — 6 tests including the
+async variant + the publish-from-inside-check scenario that
+validates the bus's `copy_context()` wrap propagates the flag into
+background subscribers spawned during the rerun.
+
+This brings the invariant fully in line with the design-review
+statement: *at most one post-scan rerun is in-flight per dispatch
+chain*, regardless of which entry point started it.
+
 Three tests are load-bearing for Phase 1:
 - `test_in_flight_rerun_short_circuits_nested_publish` — scenario 2 above.
 - `test_background_subscriber_inherits_in_flight_flag` — scenario 3.
