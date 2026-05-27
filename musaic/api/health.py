@@ -22,7 +22,6 @@ from ..scanner import album_to_dict, scan_one_album
 from ..services.albums import cached_album_dict
 from ..services.post_scan import (
     library_path_for_checks,
-    run_post_scan_checks,
     run_post_scan_checks_async,
 )
 from ..services.sse import sse_event
@@ -210,25 +209,13 @@ def fix_finding(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Synchronous deterministic fix attempts may mutate cache state
-    # even when the high-level result reports ok=False — `mb_lookup.
-    # find_release` writes an anchor as a side effect of any confident
-    # MB hit (regardless of whether the fix consumed it), and
-    # `fingerprint.fingerprint_album` writes track_fingerprints rows
-    # regardless of whether the caller could map them. Without the
-    # post_scan rerun, those side-effected mutations leave findings
-    # on OTHER checks (e.g. `unidentified-album`) stale until the
-    # next library scan. Fire unconditionally for any sync deterministic
-    # attempt; AI-job fixes don't need this — the worker reruns
-    # post-scan when it persists results.
-    if result.job_id is None:
-        try:
-            cfg = config_module.load_config()
-            if cfg.library_dir:
-                run_post_scan_checks(cfg.library_dir)
-        except Exception:
-            _log.exception("post-fix check rerun failed (continuing)")
-
+    # No explicit post-scan rerun needed here anymore — every fix
+    # path's underlying mutation publishes a library_events event
+    # (apply_direct → AlbumTagsChanged/AlbumCoverChanged, mb_lookup
+    # → AlbumMbAnchorSet, fingerprint → TrackFingerprinted, resolver
+    # → AlbumMbAnchorSet). The bus's _post_scan_rerun subscriber
+    # handles the scoped rerun for each, even when the high-level
+    # FixResult reports ok=False (Sweep A's stale-finding hole).
     return {
         "ok":      result.ok,
         "message": result.message,
@@ -602,6 +589,13 @@ def delete_duplicate_file(finding_id: int, payload: DeleteDuplicateFilePayload) 
     cache_module.delete_track_fingerprint(album_id, payload.filename)
 
     # Re-scan THIS ONE album so the cache reflects the deleted file.
+    # The delete vs upsert branch drives which event we publish:
+    #   - delete branch: `cache.delete_album` publishes AlbumDeleted
+    #     internally → subscribers handle the rerun + cleanup.
+    #   - upsert branch: nothing publishes by default — issue a
+    #     manual AlbumTagsChanged (track_count effectively changed)
+    #     so the duplicate-tracks + track-gaps findings auto-resolve
+    #     via the bus's _post_scan_rerun subscriber.
     try:
         fresh = scan_one_album(album_path)
         if fresh is None:
@@ -612,17 +606,18 @@ def delete_duplicate_file(finding_id: int, payload: DeleteDuplicateFilePayload) 
                 raise RuntimeError("No library directory configured for post-delete rescan")
             library_dir = str(Path(cfg.library_dir).expanduser().resolve())
             cache_module.upsert_album(library_dir, album_to_dict(fresh))
+            try:
+                from .. import library_events
+                library_events.publish(library_events.AlbumTagsChanged(
+                    album_id=album_id, fields=("track_count",),
+                ))
+            except Exception:
+                _log.exception(
+                    "library_events publish failed for delete-duplicate %s",
+                    album_id,
+                )
     except Exception:
         _log.exception("post-delete rescan failed for %s (continuing)", album_id)
-
-    # Run the post-scan tail so the duplicate-tracks finding (and any
-    # related findings — track-gaps may also clear) auto-resolves.
-    try:
-        cfg = config_module.load_config()
-        if cfg.library_dir:
-            run_post_scan_checks(str(Path(cfg.library_dir).expanduser().resolve()))
-    except Exception:
-        _log.exception("post-delete check rerun failed (continuing)")
 
     if file_already_gone:
         return {
