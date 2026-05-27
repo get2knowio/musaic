@@ -101,6 +101,7 @@ _CREDIT_SUFFIX_RE = re.compile(
       | \s+and\s+(?:his|her)\s+\S+(?:\s+\S+)*             # and His Choir
       | \s+(?:featuring|feat\.|ft\.|with)\s+.+            # Featuring X / feat. X
       | \s+and\s+the\s+\S+(?:\s+\S+)?                     # and the Singers
+      | \s*&\s*the\s+\S+(?:\s+\S+)*                       # & the Shondells / & the Comets
     )
     \s*$
     """
@@ -386,6 +387,19 @@ def _sort_to_primary_token(sort_value: str) -> str:
     s = (sort_value or "").strip()
     if not s:
         return ""
+    # Strip credit suffixes ("& His Orchestra", "Featuring X", "and the
+    # Singers", etc.) BEFORE un-rotation. The MB-convention sort name
+    # for a band like "John Fred & His Playboy Band" is "Fred, John &
+    # His Playboy Band" — and naive un-rotation followed by suffix
+    # stripping leaves just "john" (the suffix regex eats "& His Playboy
+    # Band Fred" wholesale because Fred trails the band words after
+    # rotation). Pre-stripping the suffix here gets us back to
+    # "Fred, John" → un-rotate → "John Fred" → token "john fred".
+    for _ in range(3):
+        new = _CREDIT_SUFFIX_RE.sub("", s).strip()
+        if new == s:
+            break
+        s = new
     # "Surname, The" / "Name, A" / "Name, An" — the comma form of
     # article rotation. Drop the article; the article-stripping in
     # _primary_token would catch it on the forward form too, but

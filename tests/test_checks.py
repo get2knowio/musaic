@@ -17,6 +17,7 @@ import pytest
 
 from musaic import db as db_module
 from musaic.checks import (
+    inconsistent_artist_sort,
     tags_out_of_sync,
     unidentified_album,
 )
@@ -627,3 +628,106 @@ def test_tags_out_of_sync_quick_fix_skips_when_nothing_deterministic(monkeypatch
 
     assert result is not None
     assert result.ok is False
+
+
+# ============================================================
+# inconsistent-artist-sort — _sort_to_primary_token edge cases
+# ============================================================
+
+
+def test_sort_to_primary_token_handles_band_suffix_in_sort_form():
+    """MB-convention sort names for bands include the credit suffix:
+    'Fred, John & His Playboy Band'. Naive un-rotation followed by
+    suffix-stripping would leave just 'john' — making the cluster look
+    untrustworthy forever. Stripping the suffix FIRST gives the correct
+    'john fred' token so the apply round-trips cleanly."""
+    token = inconsistent_artist_sort._sort_to_primary_token(
+        "Fred, John & His Playboy Band"
+    )
+    assert token == "john fred"
+
+
+def test_sort_to_primary_token_basic_last_first():
+    assert inconsistent_artist_sort._sort_to_primary_token("Conniff, Ray") == "ray conniff"
+
+
+def test_sort_to_primary_token_article_form():
+    assert inconsistent_artist_sort._sort_to_primary_token("Beatles, The") == "beatles"
+
+
+def test_sort_to_primary_token_single_name():
+    assert inconsistent_artist_sort._sort_to_primary_token("Madonna") == "madonna"
+
+
+def test_classify_cluster_consistent_with_band_suffix_sort():
+    """End-to-end: a cluster of two tracks credited 'John Fred & His
+    Playboy Band' with identical sort 'Fred, John & His Playboy Band'
+    should classify as `consistent` — same sort, primary tokens match
+    after the suffix-stripping fix."""
+    members = [
+        {
+            "kind": "track",
+            "album_id": "a1",
+            "filenames": ["02 - foo.flac"],
+            "artist": "John Fred & His Playboy Band",
+            "sort": "Fred, John & His Playboy Band",
+        },
+        {
+            "kind": "track",
+            "album_id": "a2",
+            "filenames": ["15 - bar.flac"],
+            "artist": "John Fred & His Playboy Band",
+            "sort": "Fred, John & His Playboy Band",
+        },
+    ]
+    state, value = inconsistent_artist_sort._classify_cluster(
+        members, cluster_token="john fred",
+    )
+    assert state == "consistent"
+    assert value == "Fred, John & His Playboy Band"
+
+
+def test_sort_to_primary_token_handles_amp_the_suffix():
+    """`& the X` (Buddy Holly & the Crickets, Tommy James & the
+    Shondells, Diana Ross & the Supremes) is just as common as the
+    `& His X` form. The regex used to only match `& His/Her X` plus
+    `and the X` — stranding the `&`-form sort values as untrustworthy."""
+    assert (
+        inconsistent_artist_sort._sort_to_primary_token("James, Tommy & the Shondells")
+        == "tommy james"
+    )
+    assert (
+        inconsistent_artist_sort._sort_to_primary_token("Holly, Buddy & the Crickets")
+        == "buddy holly"
+    )
+
+
+def test_classify_cluster_consistent_with_amp_the_suffix():
+    """End-to-end: three tracks on three different compilations credited
+    'Tommy James & the Shondells' with identical sort
+    'James, Tommy & the Shondells' classify as consistent — no finding."""
+    members = [
+        {
+            "kind": "track", "album_id": "a1",
+            "filenames": ["30 - hanky.flac"],
+            "artist": "Tommy James & the Shondells",
+            "sort": "James, Tommy & the Shondells",
+        },
+        {
+            "kind": "track", "album_id": "a2",
+            "filenames": ["04 - hanky.flac"],
+            "artist": "Tommy James & the Shondells",
+            "sort": "James, Tommy & the Shondells",
+        },
+        {
+            "kind": "track", "album_id": "a3",
+            "filenames": ["08 - mony.flac"],
+            "artist": "Tommy James & the Shondells",
+            "sort": "James, Tommy & the Shondells",
+        },
+    ]
+    state, value = inconsistent_artist_sort._classify_cluster(
+        members, cluster_token="tommy james",
+    )
+    assert state == "consistent"
+    assert value == "James, Tommy & the Shondells"
