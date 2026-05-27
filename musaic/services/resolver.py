@@ -472,21 +472,11 @@ def resolve_album(
             _cache[cache_key] = resolution
 
     if prev_anchor is None and resolution.anchor is not None:
-        try:
-            from .post_scan import run_post_scan_checks, library_path_for_checks
-            library_path = library_path_for_checks()
-            if library_path:
-                run_post_scan_checks(library_path)
-        except Exception:
-            _log.exception(
-                "post-resolver check rerun failed for album %s (continuing)",
-                album_id,
-            )
-        # Phase 1 of move E: publish alongside the direct call. The
-        # subscriber-driven post-scan rerun will be a no-op against
-        # the now-already-rerun state, but it carries the resolver
-        # invalidation (next read picks up the new canonical fields)
-        # and findings-stream notify for free.
+        # Tier 0b/0c just wrote a new anchor as a side effect. Publish
+        # AlbumMbAnchorSet; the subscribers handle the scoped post-scan
+        # rerun (so unidentified-album findings clear), the resolver
+        # memo invalidation (so the next read picks up canonical
+        # fields), and the findings-stream notify.
         try:
             from .. import library_events
             library_events.publish(library_events.AlbumMbAnchorSet(

@@ -21,7 +21,6 @@ from .. import config as config_module
 from .. import jobs as jobs_module
 from .. import mb_lookup
 from .albums import cached_album_dict, read_tracks
-from .post_scan import run_post_scan_checks
 from .sse import jobs_changed, notify_jobs_changed
 
 _log = logging.getLogger(__name__)
@@ -119,22 +118,10 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
         album_id, mbid,
     )
 
-    # Kick off a check rerun so the unidentified-album finding clears
-    # immediately rather than waiting for the next library scan.
-    try:
-        cfg = config_module.load_config()
-        if cfg.library_dir:
-            library_path = str(Path(cfg.library_dir).expanduser().resolve())
-            run_post_scan_checks(library_path)
-    except Exception:
-        _log.exception(
-            "post-MBID-persist check rerun failed for album=%s (continuing)",
-            album_id,
-        )
-
-    # Phase 1 of move E: publish the anchor event so resolver caches
-    # invalidate + the post-scan rerun fires (idempotent with the
-    # direct call above).
+    # Publish AlbumMbAnchorSet — the _post_scan_rerun subscriber
+    # picks up the scoped rerun so the unidentified-album finding
+    # clears off-thread, and _resolver_invalidate drops the memo
+    # so the next read sees canonical fields.
     try:
         from .. import library_events
         library_events.publish(

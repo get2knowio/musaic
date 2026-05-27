@@ -283,22 +283,13 @@ def analyze_album_iter(
             cache_module.upsert_album(library_dir, fresh_dict)
         yield "updated_album", fresh_dict
 
-    # Post-scan rerun so any future check that gates on BPM/RG presence
-    # gets a chance to auto-resolve its findings. No registered check
-    # uses these fields today, but skipping the rerun would make this
-    # path another instance of the stale-findings anti-pattern.
+    # Publish AlbumTagsChanged so the _post_scan_rerun subscriber
+    # fires (any future check that gates on BPM/RG presence then
+    # auto-resolves its findings) and the resolver memo is dropped.
+    # No registered check uses BPM/RG fields today, but skipping
+    # would make this path another instance of the stale-findings
+    # anti-pattern.
     if library_dir and analyzed_count > 0:
-        try:
-            from .post_scan import run_post_scan_checks
-            run_post_scan_checks(library_dir)
-        except Exception:
-            _log.exception(
-                "post-analyze check rerun failed for album %s (continuing)",
-                album_id,
-            )
-        # Phase 1 of move E: publish alongside the direct call.
-        # Tag the changed fields with what we actually wrote
-        # (bpm vs replaygain depending on `what`).
         try:
             from .. import library_events
             changed_fields = ("bpm",) if what == "bpm" else ("replaygain",)
