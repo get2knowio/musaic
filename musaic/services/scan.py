@@ -31,7 +31,6 @@ from typing import Any, Iterator
 from .. import cache as cache_module
 from .. import thumbs as thumbs_module
 from ..scanner import incremental_scan
-from .post_scan import run_post_scan_checks_async
 
 _log = logging.getLogger(__name__)
 
@@ -194,19 +193,16 @@ async def _run_scan(library_dir: str, force: bool) -> None:
         _changed.set()
         return
 
-    # Worker finished cleanly. Run the post-scan checks (cheap; on the
-    # event loop) so any findings the scan invalidated auto-resolve.
-    try:
-        await run_post_scan_checks_async(library_dir)
-    except Exception:
-        _log.exception("post-scan checks failed (continuing)")
-
-    # Phase 1 of move E (issue #1): publish the library-wide event
-    # alongside the direct call above. Subscribers also fire a
-    # post-scan rerun (idempotent — the direct call's findings are
-    # already there); the redundancy is intentional during dual-fire.
-    # Phase 2 deletes the direct call once we've verified dual-fire
-    # doesn't surprise anyone.
+    # Worker finished cleanly. Publish LibraryScanCompleted; the
+    # `_post_scan_rerun_library_wide` subscriber handles the rerun
+    # off the FastAPI worker thread so the scan can report 'done'
+    # without waiting on findings to settle. The subscriber's
+    # `_findings_runner_notify` peer wakes any open Health page
+    # tab once the rerun completes.
+    #
+    # Phase 2 of move E (issue #1): the prior dual-fire path
+    # awaited run_post_scan_checks_async here; the bus subscriber
+    # replaces it entirely.
     try:
         from .. import library_events
         library_events.publish(
