@@ -13,17 +13,22 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, FileEdit, FolderInput, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
-import { applyFilenameRename } from "@/lib/api";
+import { applyFilenameRename, fetchFilenameRenamePreview } from "@/lib/api";
 import {
   CHECKS_QUERY_KEY,
   CHECK_DETAIL_KEY,
   FINDINGS_QUERY_KEY,
 } from "@/hooks/useChecks";
-import type { Finding, FilenameMismatchDetail, FilenameRenameEntry } from "@/lib/types";
+import type {
+  Finding,
+  FilenameMismatchDetail,
+  FilenameMismatchPlanPreview,
+  FilenameRenameEntry,
+} from "@/lib/types";
 
 interface Props {
   finding: Finding;
@@ -68,13 +73,39 @@ export default function FilenameMismatchResolveDialog({
   const totalInChain = chainSnapshot.length;
   const hasNext = currentIndex >= 0 && currentIndex < totalInChain - 1;
 
-  const detail = (currentFinding.detail || {}) as unknown as FilenameMismatchDetail;
-  const renames: FilenameRenameEntry[] = detail.renames ?? [];
-  const dirRename = detail.dir_rename ?? null;
-  const dirName = detail.dir_name || currentFinding.album_id || "";
-  const template = detail.template || "";
-  const dirTemplate = detail.dir_template || "";
-  const isCompilation = !!detail.is_compilation;
+  // Always pull the plan fresh from the server on open: the finding's
+  // `detail.renames` is a snapshot from check-run time and may have
+  // gone stale (sibling Resolve already ran, user edited tags manually,
+  // files renamed by hand). The preview re-derives against current
+  // disk + DB + settings so what the user sees is always what would
+  // actually happen.
+  const preview = useQuery<FilenameMismatchPlanPreview>({
+    queryKey: ["filename-mismatch-plan-preview", currentFinding.id],
+    queryFn: () => fetchFilenameRenamePreview(currentFinding.id),
+    enabled: open,
+    // The plan reflects current disk state — don't cache across renders
+    // beyond the dialog's lifetime, and refetch when we re-open.
+    staleTime: 0,
+    gcTime: 0,
+    retry: 1,
+  });
+
+  // Fall back to the finding's stored detail when the preview is still
+  // loading or errored out, so the dialog never renders empty during a
+  // network blip. The fallback is intentionally lossy (it may show
+  // stale rows) but it's strictly better than a blank dialog.
+  const fallbackDetail = (currentFinding.detail || {}) as unknown as FilenameMismatchDetail;
+  const source: FilenameMismatchDetail = preview.data ?? fallbackDetail;
+  const previewIsEmpty = preview.data?.is_empty === true;
+  const albumMissing = preview.data?.album_missing === true;
+  const previewError = preview.data?.error;
+
+  const renames: FilenameRenameEntry[] = source.renames ?? [];
+  const dirRename = source.dir_rename ?? null;
+  const dirName = source.dir_name || currentFinding.album_id || "";
+  const template = source.template || "";
+  const dirTemplate = source.dir_template || "";
+  const isCompilation = !!source.is_compilation;
 
   // Filter out renames that have a name-collision flag — those would
   // overwrite each other and need user attention before applying.
@@ -186,6 +217,51 @@ export default function FilenameMismatchResolveDialog({
               </div>
             </div>
 
+            {preview.isLoading && !preview.data && (
+              <div className="flex items-center gap-2 text-xs text-fg-3 bg-panel-2 border border-line rounded px-3 py-2">
+                <Loader2 className="w-3.5 h-3.5 spin shrink-0" />
+                <span>Re-checking the album against current disk state…</span>
+              </div>
+            )}
+
+            {previewError && (
+              <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium text-fg">Couldn't re-derive plan</div>
+                  <div className="mt-0.5 text-fg-3">{previewError}; showing the
+                  last snapshot from when the check ran.</div>
+                </div>
+              </div>
+            )}
+
+            {albumMissing && (
+              <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium text-fg">Album directory is gone</div>
+                  <div className="mt-0.5 text-fg-3">
+                    The album dir isn't on disk anymore. The finding will
+                    clear on the next library scan; nothing to rename here.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {previewIsEmpty && !albumMissing && (
+              <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-ok/10 border border-ok/30 rounded px-3 py-2">
+                <FileEdit className="w-3.5 h-3.5 text-ok shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-medium text-fg">Already matches the template</div>
+                  <div className="mt-0.5 text-fg-3">
+                    Nothing to rename — the files on disk already match.
+                    This finding was stale; close to clear it on the next
+                    check rerun.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {dirRename && (
               <div className="border border-accent/40 rounded-md bg-accent/5 px-3 py-2.5">
                 <div className="flex items-center gap-1.5 mb-1.5 text-[11px] mono uppercase tracking-[0.06em] text-accent">
@@ -225,14 +301,16 @@ export default function FilenameMismatchResolveDialog({
               </div>
             )}
 
-            <div className="border border-line rounded-md bg-panel-2 divide-y divide-line">
-              <div className="flex items-center px-3 py-1.5 border-b border-line text-[11px] mono uppercase tracking-[0.06em] text-fg-4">
-                <span>{renames.length} file{renames.length === 1 ? "" : "s"} to rename</span>
+            {renames.length > 0 && (
+              <div className="border border-line rounded-md bg-panel-2 divide-y divide-line">
+                <div className="flex items-center px-3 py-1.5 border-b border-line text-[11px] mono uppercase tracking-[0.06em] text-fg-4">
+                  <span>{renames.length} file{renames.length === 1 ? "" : "s"} to rename</span>
+                </div>
+                {renames.map((r) => (
+                  <RenameRow key={r.filename} entry={r} />
+                ))}
               </div>
-              {renames.map((r) => (
-                <RenameRow key={r.filename} entry={r} />
-              ))}
-            </div>
+            )}
 
             <p className="text-xs text-fg-4 leading-relaxed">
               Files are renamed via a two-pass operation (staged to a temp
@@ -263,11 +341,19 @@ export default function FilenameMismatchResolveDialog({
             )}
             <button
               onClick={onApply}
-              disabled={mutation.isPending || (safe.length === 0 && !dirRename)}
+              disabled={
+                mutation.isPending
+                || preview.isLoading
+                || previewIsEmpty
+                || albumMissing
+                || (safe.length === 0 && !dirRename)
+              }
               className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5"
             >
               {mutation.isPending ? (
                 <><Loader2 className="w-3.5 h-3.5 spin" /> Renaming…</>
+              ) : preview.isLoading ? (
+                <><Loader2 className="w-3.5 h-3.5 spin" /> Loading…</>
               ) : (
                 <>{_buildApplyLabel(safe.length, !!dirRename, hasNext)}</>
               )}

@@ -357,6 +357,61 @@ def _normalize_cluster_member(m: dict) -> dict | None:
     }
 
 
+@router.get("/api/checks/filename-mismatch/findings/{finding_id}/plan-preview")
+def filename_mismatch_plan_preview(finding_id: int) -> dict[str, Any]:
+    """Re-derive the rename plan for a filename-mismatch finding against
+    *current* disk + settings state.
+
+    Why: the finding's `detail.renames` is a snapshot from check-run
+    time. If the user edits tags, manually renames files, or already
+    applied a sibling finding, the snapshot grows stale and the Resolve
+    dialog shows ghost rows that either fail to apply or re-do work
+    that's already done. The dialog calls this endpoint on open so it
+    always shows what would actually happen against the current
+    filesystem.
+
+    Response shape mirrors `Finding.detail` (renames, dir_rename,
+    template, dir_template, dir_name, headline, is_compilation) plus:
+      - `album_id`     : convenience (the finding's album_id)
+      - `is_empty`     : True when nothing to do — the dialog should
+                          clear the stale finding and skip to next /
+                          close rather than render an empty plan
+      - `album_missing`: True when the album dir is gone from disk
+      - `error`        : present when plan derivation crashed; in that
+                          case the dialog should surface and fall back
+                          to the finding's stored detail
+    """
+    finding = checks_runner.get_finding(finding_id)
+    if finding is None or finding["check_id"] != "filename-mismatch":
+        raise HTTPException(status_code=404, detail="Finding not found")
+    album_id = finding.get("album_id")
+    if not album_id:
+        raise HTTPException(status_code=400, detail="Finding has no album")
+
+    from ..checks import filename_mismatch
+    plan = filename_mismatch.derive_plan(album_id)
+    if plan is None:
+        # Album dropped out of the cache entirely — treat the finding
+        # as obsolete. UI sees is_empty=True and clears it.
+        return {
+            "album_id":       album_id,
+            "is_empty":       True,
+            "album_missing":  True,
+            "dir_name":       finding.get("detail", {}).get("dir_name") or "",
+            "is_compilation": False,
+            "template":       "",
+            "dir_template":   "",
+            "headline":       finding.get("summary") or album_id,
+            "renames":        [],
+            "dir_rename":     None,
+        }
+    return {
+        "album_id": album_id,
+        "is_empty": (not plan.get("renames")) and (plan.get("dir_rename") is None),
+        **plan,
+    }
+
+
 @router.post("/api/checks/filename-mismatch/findings/{finding_id}/apply")
 def apply_filename_rename(
     finding_id: int,

@@ -455,6 +455,22 @@ export interface FilenameMismatchDetail {
   dir_rename: DirRename | null;
 }
 
+/** Response from GET /api/checks/filename-mismatch/findings/{id}/plan-preview.
+ *  Same shape as `FilenameMismatchDetail` but freshly derived against
+ *  current disk + DB state, plus state-flag fields so the Resolve dialog
+ *  can render the right empty / error / missing-album branch. */
+export interface FilenameMismatchPlanPreview extends FilenameMismatchDetail {
+  album_id: string;
+  /** True when there's nothing to rename — dialog should clear the
+   *  stale finding and skip / close rather than render empty rows. */
+  is_empty: boolean;
+  /** True when the album directory disappeared from disk between
+   *  finding-creation and now. */
+  album_missing?: boolean;
+  /** Present when plan re-derivation crashed server-side. */
+  error?: string;
+}
+
 export interface FilenameRenameResult {
   ok: boolean;
   renamed: number;

@@ -366,7 +366,10 @@ export function getDuplicateFindingCanonical(
 /** Custom action for the filename-mismatch check: rename files
  *  according to the user-confirmed plan. Two-pass rename, track-tag
  *  migration, post-rename rescan all happen server-side. */
-import type { FilenameRenameResult } from "./types";
+import type {
+  FilenameMismatchPlanPreview,
+  FilenameRenameResult,
+} from "./types";
 
 export function applyFilenameRename(
   findingId: number,
@@ -384,6 +387,17 @@ export function applyFilenameRename(
         dir_rename: args.dirRename ?? null,
       }),
     },
+  );
+}
+
+/** Re-derive the rename plan for a finding against current disk + DB
+ *  state. The Resolve dialog calls this on open so it never shows a
+ *  stale snapshot from when the check ran. */
+export function fetchFilenameRenamePreview(
+  findingId: number,
+): Promise<FilenameMismatchPlanPreview> {
+  return request(
+    `/api/checks/filename-mismatch/findings/${findingId}/plan-preview`,
   );
 }
 

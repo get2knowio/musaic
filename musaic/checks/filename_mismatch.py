@@ -361,6 +361,86 @@ def _check_dir(
     return {"old": current, "new": rendered}
 
 
+def derive_plan(album_id: str) -> dict[str, Any] | None:
+    """Re-derive the filename-mismatch plan for a single album against
+    the current state of disk + DB + settings. Returns the same shape
+    that `run()` writes into `Finding.detail`, or None when the album
+    is missing.
+
+    This is the read-side counterpart to `execute_renames`: a Resolve
+    dialog calls it on open so the rename plan it shows reflects right-
+    now reality, not whatever the check happened to capture at
+    finding-creation time. Without this, a finding that was created
+    before the user already half-fixed the album by hand (or before a
+    sibling Resolve click already ran) shows stale rows that either
+    fail to apply or re-do work that was already done.
+
+    Empty plan (no `renames` AND no `dir_rename`) means the album is
+    already conformant — callers should clear the stale finding rather
+    than render an empty dialog. See the `/plan-preview` API endpoint
+    for the wire shape.
+    """
+    single_template = settings_module.filename_template_single_artist()
+    comp_template = settings_module.filename_template_compilation()
+    single_dir_template = settings_module.dir_template_single_artist()
+    comp_dir_template = settings_module.dir_template_compilation()
+
+    with db_module.connect() as conn:
+        row = conn.execute(
+            """
+            SELECT id, path, dir_name, album_artist, artist,
+                   dir_artist, title, year,
+                   is_compilation, disc_number, disc_total
+            FROM albums
+            WHERE id = ?
+            """,
+            (album_id,),
+        ).fetchone()
+    if row is None:
+        return None
+
+    album_path = row["path"]
+    if not album_path or not Path(album_path).is_dir():
+        return {
+            "dir_name":       row["dir_name"],
+            "is_compilation": bool(row["is_compilation"]),
+            "template":       "",
+            "dir_template":   "",
+            "headline":       row["dir_name"] or album_id,
+            "renames":        [],
+            "dir_rename":     None,
+            "album_missing":  True,
+        }
+
+    template = comp_template if row["is_compilation"] else single_template
+    dir_template = comp_dir_template if row["is_compilation"] else single_dir_template
+    try:
+        renames = _check_album(album_path, template, row)
+        dir_rename = _check_dir(album_path, dir_template, row)
+    except Exception:
+        log.exception("filename-mismatch: derive_plan error for %s", album_path)
+        return {
+            "dir_name":       row["dir_name"],
+            "is_compilation": bool(row["is_compilation"]),
+            "template":       template,
+            "dir_template":   dir_template,
+            "headline":       row["dir_name"] or album_id,
+            "renames":        [],
+            "dir_rename":     None,
+            "error":          "Couldn't re-derive plan; see server log",
+        }
+
+    return {
+        "dir_name":       row["dir_name"],
+        "is_compilation": bool(row["is_compilation"]),
+        "template":       template,
+        "dir_template":   dir_template,
+        "headline":       row["dir_name"] or album_id,
+        "renames":        renames,
+        "dir_rename":     dir_rename,
+    }
+
+
 def execute_renames(
     *,
     album_id: str,
