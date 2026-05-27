@@ -646,7 +646,14 @@ def _fetch_tracklist(release_group_mbid: str, *, timeout: int) -> tuple[str, lis
             params={
                 "release-group": release_group_mbid,
                 "fmt": "json",
-                "inc": "media+recordings",
+                # `artist-credits` is REQUIRED for per-recording artist
+                # to appear in the response — without it, the embedded
+                # `recording` object has no `artist-credit` field and
+                # MBTrack.artist comes back None. That's silently fatal
+                # for compilations: tags-out-of-sync gets canonical
+                # titles but no canonical artists, so the apply
+                # corrects titles while leaving wrong artists in place.
+                "inc": "media+recordings+artist-credits",
                 "limit": 25,
             },
             headers={"User-Agent": USER_AGENT},

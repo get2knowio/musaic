@@ -1,5 +1,14 @@
-import { ChevronDown, X } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useSearchParams } from "react-router-dom";
+
+import {
+  DEFAULT_SORT,
+  SORT_OPTIONS,
+  parseSort,
+  shortLabel,
+  type SortKey,
+} from "@/lib/albumSort";
 
 interface FilterBarProps {
   totalCount: number;
@@ -12,12 +21,15 @@ interface FilterBarProps {
 /**
  * Strip above the tile grid: stats on the left, sort/filter chips on the right.
  *
- * Sort dropdown is a placeholder — sortable view comes when we add the list
- * view + TanStack Table.
+ * Sort selection is URL-driven (`?sort=<field>-<dir>`) so it survives reloads
+ * and stays in sync with the rest of the navigation state (`view`, `filter`).
  */
-export default function FilterBar({ totalCount, shownCount, libraryDir, scannedAt, activeFilterLabel }: FilterBarProps) {
+export default function FilterBar({
+  totalCount, shownCount, libraryDir, scannedAt, activeFilterLabel,
+}: FilterBarProps) {
   const filtered = shownCount !== undefined && shownCount !== totalCount;
   const [params, setParams] = useSearchParams();
+  const sortKey = parseSort(params.get("sort"));
 
   // Explicit close affordance for the active filter chip — was previously
   // only reachable by re-clicking the matching sidebar chip (a power-user
@@ -26,6 +38,15 @@ export default function FilterBar({ totalCount, shownCount, libraryDir, scannedA
     const next = new URLSearchParams(params);
     next.delete("filter");
     setParams(next, { replace: true });
+  };
+
+  const setSort = (next: SortKey) => {
+    const p = new URLSearchParams(params);
+    // Drop the param when the user reverts to the default; keeps URLs
+    // clean for the common case.
+    if (next === DEFAULT_SORT) p.delete("sort");
+    else p.set("sort", next);
+    setParams(p, { replace: true });
   };
 
   return (
@@ -75,11 +96,43 @@ export default function FilterBar({ totalCount, shownCount, libraryDir, scannedA
 
       <div className="flex-1" />
 
-      <button className="inline-flex items-center gap-1.5 h-7 px-2.5 border border-line rounded bg-panel text-fg-2 text-xs hover:bg-bg-3 transition" disabled>
-        <span className="text-fg-4">Sort</span>
-        <span>Artist ↑</span>
-        <ChevronDown className="w-3.5 h-3.5 text-fg-3" />
-      </button>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 border border-line rounded bg-panel text-fg-2 text-xs hover:bg-bg-3 transition focus:outline-none focus:ring-2 focus:ring-accent"
+            aria-label={`Sort: ${shortLabel(sortKey)}`}
+          >
+            <span className="text-fg-4">Sort</span>
+            <span>{shortLabel(sortKey)}</span>
+            <ChevronDown className="w-3.5 h-3.5 text-fg-3" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content
+            align="end"
+            sideOffset={4}
+            className="z-50 min-w-[12rem] rounded-md border border-line bg-panel shadow-popup p-1 text-sm"
+          >
+            {SORT_OPTIONS.map((opt) => {
+              const active = opt.key === sortKey;
+              return (
+                <DropdownMenu.Item
+                  key={opt.key}
+                  onSelect={() => setSort(opt.key)}
+                  className={`flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer outline-none data-[highlighted]:bg-bg-3 ${
+                    active ? "text-accent" : "text-fg-2"
+                  }`}
+                >
+                  <span className="w-3 h-3 grid place-items-center shrink-0">
+                    {active && <Check className="w-3 h-3" />}
+                  </span>
+                  <span>{opt.label}</span>
+                </DropdownMenu.Item>
+              );
+            })}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </div>
   );
 }

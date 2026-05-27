@@ -18,6 +18,7 @@ import {
   FILTERS_BY_KEY,
   type FilterKey,
 } from "@/lib/filters";
+import { parseSort, sortAlbums } from "@/lib/albumSort";
 import type { Album } from "@/lib/types";
 
 /**
@@ -67,11 +68,14 @@ export default function LibraryPage() {
   // which albums already have a job queued and avoid double-queuing.
   const activeJobsMap = useActiveJobAlbumMap();
 
-  // Apply filter chip first, then text search. Both can stack.
+  // Apply filter chip first, then text search, then sort. Sort runs
+  // last so it operates on the smallest list.
+  const sortKey = parseSort(params.get("sort"));
   const filtered = useMemo(() => {
     const afterFilter = applyFilter(albums, filterKey, needsAttention);
-    return filterAlbums(afterFilter, query);
-  }, [albums, query, filterKey, needsAttention]);
+    const afterSearch = filterAlbums(afterFilter, query);
+    return sortAlbums(afterSearch, sortKey);
+  }, [albums, query, filterKey, needsAttention, sortKey]);
 
   // Skeletons during a fresh scan: how many slots we expect that haven't arrived.
   const skeletonCount =
