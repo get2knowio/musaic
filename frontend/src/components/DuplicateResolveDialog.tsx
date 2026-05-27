@@ -16,14 +16,16 @@
  */
 import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Database, Files, Loader2, Music, ShieldCheck, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { fetchDuplicateClusterPreview } from "@/lib/api";
 import {
   useDeleteDuplicateFile,
   useDuplicateFindingCanonical,
 } from "@/hooks/useChecks";
-import type { Finding } from "@/lib/types";
+import type { DuplicateClusterPreview, Finding } from "@/lib/types";
 
 interface Props {
   finding: Finding;
@@ -45,17 +47,41 @@ interface DuplicateDetail {
   recommended_reason?: string | null;
 }
 
+const PREVIEW_KEY = (fid: number) => ["duplicate-cluster-preview", fid] as const;
+
 export default function DuplicateResolveDialog({ finding, open, onClose }: Props) {
-  const detail = (finding.detail || {}) as DuplicateDetail;
-  const filenames = detail.filenames ?? [];
-  const durations = detail.durations_s ?? [];
-  const recordingMbid = detail.recording_mbid;
-  // Backend tie-breaker pick: filename to keep based on filesystem
-  // portability (Windows-incompatible chars lose). May be null when the
-  // candidates are equally portable, in which case we don't render any
-  // recommendation badge — there's nothing to break the tie on.
-  const recommendedKeep = detail.recommended_keep ?? null;
-  const recommendedReason = detail.recommended_reason ?? null;
+  const qc = useQueryClient();
+  // Always re-derive the cluster on open against current
+  // track_fingerprints — the finding's detail.filenames is a snapshot
+  // from check-run time and may have grown stale (sibling delete
+  // landed, file re-encoded, name changed). The preview refetches
+  // after each successful delete so the dialog state stays in lockstep
+  // with disk.
+  const preview = useQuery<DuplicateClusterPreview>({
+    queryKey: PREVIEW_KEY(finding.id),
+    queryFn: () => fetchDuplicateClusterPreview(finding.id),
+    enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    retry: 1,
+  });
+
+  // Stored detail is the fallback during the initial fetch and on
+  // network errors. Intentionally lossy — it may show rows the user
+  // already trashed — but better than rendering empty.
+  const storedDetail = (finding.detail || {}) as DuplicateDetail;
+  const filenames = preview.data?.filenames ?? storedDetail.filenames ?? [];
+  const durations = preview.data?.durations_s ?? storedDetail.durations_s ?? [];
+  const recordingMbid =
+    preview.data?.recording_mbid ?? storedDetail.recording_mbid;
+  const recommendedKeep =
+    preview.data?.recommended_keep ?? storedDetail.recommended_keep ?? null;
+  const recommendedReason =
+    preview.data?.recommended_reason
+    ?? storedDetail.recommended_reason
+    ?? null;
+  const previewIsEmpty = preview.data?.is_empty === true;
+  const removedFilenames = preview.data?.removed_filenames ?? [];
 
   // Lazy MB lookup for the cluster's recording_mbid. Only fires when the
   // dialog is open AND we have an MBID to look up. Cached server-side so
@@ -100,6 +126,11 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
             description: "Recoverable from ~/.musaic/trash/ until you empty the folder",
           });
           setPendingDelete(null);
+          // Refetch the cluster so the file list shrinks immediately;
+          // otherwise the row sticks around until the finding refetch
+          // round-trips, and the user can briefly re-target the same
+          // file. The cluster-preview is the authoritative source.
+          qc.invalidateQueries({ queryKey: PREVIEW_KEY(finding.id) });
         },
         onError: (e) => {
           toast.error((e as Error).message || "Couldn't move file to trash");
@@ -145,6 +176,25 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
               </p>
             )}
 
+            {preview.isLoading && !preview.data && (
+              <div className="mb-3 flex items-center gap-2 text-xs text-fg-3 bg-panel border border-line rounded px-3 py-2">
+                <Loader2 className="w-3.5 h-3.5 spin shrink-0" />
+                <span>Re-checking the cluster against current fingerprints…</span>
+              </div>
+            )}
+
+            {removedFilenames.length > 0 && !previewIsEmpty && (
+              <div className="mb-3 flex items-start gap-2 text-xs text-fg-3 leading-relaxed bg-panel border border-line rounded px-3 py-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-fg-4 shrink-0 mt-0.5" />
+                <div>
+                  {removedFilenames.length === 1
+                    ? "1 file from the original cluster"
+                    : `${removedFilenames.length} files from the original cluster`}
+                  {" "}was already trashed or renamed; showing what's still on disk.
+                </div>
+              </div>
+            )}
+
             {/* MusicBrainz canonical info — what MB says this recording
                 actually is. Lazy-fetched on dialog open. The matching
                 filename (if any) gets a "Matches MB" badge below. */}
@@ -162,7 +212,12 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
             )}
 
             <div className="border border-line rounded-md bg-panel-2 divide-y divide-line">
-              {filenames.length === 0 ? (
+              {previewIsEmpty ? (
+                <div className="px-3 py-4 text-sm text-fg-3 text-center italic">
+                  No duplicate cluster remains — the finding will clear on the
+                  next check rerun. You can close this dialog.
+                </div>
+              ) : filenames.length === 0 ? (
                 <div className="px-3 py-4 text-sm text-fg-3 text-center italic">
                   No duplicates left — close this dialog and the finding should clear.
                 </div>

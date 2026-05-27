@@ -478,6 +478,66 @@ def apply_filename_rename(
     return result
 
 
+@router.get("/api/checks/duplicate-tracks/findings/{finding_id}/cluster-preview")
+def duplicate_tracks_cluster_preview(finding_id: int) -> dict[str, Any]:
+    """Re-derive the duplicate cluster for a finding against *current*
+    track_fingerprints + on-disk file state.
+
+    Same architectural shape as the filename-mismatch plan-preview:
+    the finding's `detail.filenames` is a snapshot from check-run
+    time. If the user deleted a copy via another tool, re-encoded
+    one, or already trashed a sibling earlier, the Resolve dialog
+    would show ghost rows or stale tie-breaker recommendations.
+    This endpoint asks the check to recompute the cluster live so
+    the dialog always reflects right-now reality.
+
+    Response shape mirrors `Finding.detail`:
+      recording_mbid, filenames, durations_s, duplicate_count,
+      recommended_keep, recommended_reason. Plus:
+      - `album_id`     : convenience
+      - `is_empty`     : True when no duplicate cluster overlapping
+                         the original finding remains — the dialog
+                         should clear the stale finding
+      - `removed_filenames` : entries the original finding listed but
+                         that are no longer on disk / in the cluster
+                         (useful for UI "X file was already trashed"
+                         hints)
+    """
+    finding = checks_runner.get_finding(finding_id)
+    if finding is None or finding["check_id"] != "duplicate-tracks":
+        raise HTTPException(status_code=404, detail="Finding not found")
+    album_id = finding.get("album_id")
+    if not album_id:
+        raise HTTPException(status_code=400, detail="Finding has no album")
+    stored_detail = finding.get("detail") or {}
+    original_filenames = list(stored_detail.get("filenames") or [])
+
+    from ..checks import duplicate_tracks
+    cluster = duplicate_tracks.derive_cluster(
+        album_id, original_filenames=original_filenames,
+    )
+    if cluster is None:
+        return {
+            "album_id":          album_id,
+            "is_empty":          True,
+            "recording_mbid":    stored_detail.get("recording_mbid"),
+            "filenames":         [],
+            "durations_s":       [],
+            "duplicate_count":   0,
+            "recommended_keep":  None,
+            "recommended_reason": None,
+            "removed_filenames": original_filenames,
+        }
+    current_set = set(cluster["filenames"])
+    removed = [fn for fn in original_filenames if fn not in current_set]
+    return {
+        "album_id": album_id,
+        "is_empty": False,
+        **cluster,
+        "removed_filenames": removed,
+    }
+
+
 @router.post("/api/checks/duplicate-tracks/findings/{finding_id}/delete-file")
 def delete_duplicate_file(finding_id: int, payload: DeleteDuplicateFilePayload) -> dict[str, Any]:
     """Custom action for the duplicate-tracks check: delete one of the

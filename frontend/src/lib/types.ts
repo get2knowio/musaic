@@ -471,6 +471,27 @@ export interface FilenameMismatchPlanPreview extends FilenameMismatchDetail {
   error?: string;
 }
 
+/** Response from GET /api/checks/duplicate-tracks/findings/{id}/cluster-preview.
+ *  Re-derives the cluster live from `track_fingerprints` so the
+ *  Resolve dialog never shows files that have already been trashed,
+ *  renamed, or otherwise dropped from the cluster. */
+export interface DuplicateClusterPreview {
+  album_id: string;
+  /** True when no duplicate cluster overlapping the finding remains —
+   *  the dialog should close and let the finding auto-resolve. */
+  is_empty: boolean;
+  recording_mbid: string | null;
+  filenames: string[];
+  durations_s: number[];
+  duplicate_count: number;
+  recommended_keep: string | null;
+  recommended_reason: string | null;
+  /** Files the finding originally listed but that are no longer in the
+   *  cluster (deleted, renamed, re-encoded). UI may surface a quiet
+   *  "N file was already trashed" hint. */
+  removed_filenames: string[];
+}
+
 export interface FilenameRenameResult {
   ok: boolean;
   renamed: number;

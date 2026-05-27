@@ -401,6 +401,20 @@ export function fetchFilenameRenamePreview(
   );
 }
 
+/** Re-derive the duplicate cluster for a finding against current
+ *  track_fingerprints. Mirrors fetchFilenameRenamePreview — the
+ *  Resolve dialog calls this on open + after every successful delete
+ *  so the file list never lags behind disk state. */
+import type { DuplicateClusterPreview } from "./types";
+
+export function fetchDuplicateClusterPreview(
+  findingId: number,
+): Promise<DuplicateClusterPreview> {
+  return request(
+    `/api/checks/duplicate-tracks/findings/${findingId}/cluster-preview`,
+  );
+}
+
 // --- User-defined track tags (v9) ---
 
 import type { AlbumTagsResponse, TagListResponse } from "./types";

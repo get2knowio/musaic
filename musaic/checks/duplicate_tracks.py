@@ -360,6 +360,104 @@ def _build_finding(album_id: str, cluster: list[dict]) -> Finding:
     )
 
 
+def derive_cluster(
+    album_id: str,
+    *,
+    original_filenames: list[str],
+) -> dict | None:
+    """Re-derive the duplicate cluster for a finding against the *current*
+    state of `track_fingerprints` + on-disk files.
+
+    Read-side counterpart to the bag of `detail.*` fields the check
+    writes in `_build_finding`. A finding stamps the cluster's
+    filenames at run-time; if the user (or another tool) has since
+    deleted, renamed, or re-encoded one of those files, the dialog
+    would show ghost rows or stale tie-breaker picks. This function
+    lets the dialog ask "what does that cluster look like right now?"
+
+    Strategy:
+      1. Re-cluster the album's current fingerprints with the same
+         algorithm the check uses.
+      2. Pick the cluster whose member set overlaps the original
+         finding's filename list the most — that's the survivor of
+         whichever cluster created the finding. Handles partial
+         deletions and re-encodes that produced slightly different
+         filenames.
+      3. Return the cluster in the same shape `_build_finding` writes
+         into `Finding.detail`. None means "no overlapping cluster
+         remains" (the duplicate set was fully resolved).
+    """
+    # Quick exit: no fingerprints for the album at all means nothing
+    # to cluster.
+    with db_module.connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT album_id, filename, duration_s, fingerprint,
+                   acoustid_recording_mbid
+            FROM track_fingerprints
+            WHERE album_id = ? AND fingerprint IS NOT NULL
+            ORDER BY filename
+            """,
+            (album_id,),
+        ).fetchall()
+    if not rows:
+        return None
+    tracks = [{
+        "filename":    r["filename"],
+        "duration_s":  float(r["duration_s"] or 0.0),
+        "fingerprint": r["fingerprint"],
+        "mbid":        r["acoustid_recording_mbid"],
+    } for r in rows]
+
+    clusters = _cluster_duplicates(album_id, tracks)
+    if not clusters:
+        return None
+
+    # Pick the cluster that overlaps the original most. Falls through to
+    # the largest cluster when there's no overlap at all (e.g. every
+    # original file was deleted and replaced by re-encodes with new
+    # names) — better to surface SOMETHING current than to claim the
+    # cluster is gone when the audio is still on disk.
+    original_set = set(original_filenames or [])
+    best_cluster: list[dict] | None = None
+    best_overlap = -1
+    for cluster in clusters:
+        names = {t["filename"] for t in cluster}
+        overlap = len(names & original_set)
+        if overlap > best_overlap or (
+            overlap == best_overlap
+            and (best_cluster is None or len(cluster) > len(best_cluster))
+        ):
+            best_overlap = overlap
+            best_cluster = cluster
+
+    if best_cluster is None or len(best_cluster) < 2:
+        return None
+    # If the original set had any entries but the chosen cluster has
+    # zero overlap, treat it as "no matching cluster" — the new
+    # cluster represents a separate duplicate problem and shouldn't
+    # silently take over this finding's identity.
+    if original_set and best_overlap == 0:
+        return None
+
+    filenames = [t["filename"] for t in best_cluster]
+    durations = [t["duration_s"] for t in best_cluster]
+    mbids = [t["mbid"] for t in best_cluster if t["mbid"]]
+    rep_mbid: str | None = None
+    if mbids:
+        from collections import Counter
+        rep_mbid = Counter(mbids).most_common(1)[0][0]
+    recommended = _recommended_keep(filenames)
+    return {
+        "recording_mbid":     rep_mbid,
+        "filenames":          filenames,
+        "durations_s":        durations,
+        "duplicate_count":    len(best_cluster),
+        "recommended_keep":   recommended["filename"],
+        "recommended_reason": recommended["reason"],
+    }
+
+
 def _readable_label(filename: str) -> str:
     """Strip a leading "01 - " tracknumber and the `.flac` extension to
     produce a human-readable label for the finding summary."""
