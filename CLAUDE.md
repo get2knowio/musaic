@@ -35,14 +35,21 @@ cd frontend && npm run typecheck
 
 ### Tests
 ```bash
-uv run pytest                          # 48 backend tests (hermetic, no FLAC fixtures)
+uv run pytest                          # 141 backend tests (hermetic, no FLAC fixtures)
 ```
 
 Test layout:
 - `tests/test_api_smoke.py` — 18 cases exercising every router slice through TestClient (config, settings, vocab, jobs, health, scan, etc.). End-to-end SSE smoke for `/api/scan/stream` against an empty library.
 - `tests/test_resolver.py` — 12 cases for the tiered resolver internals (cache hit, dir-search, fingerprint vote, alignment, memoization, synthesizer). Mocks `mb_lookup` + `fingerprint`.
-- `tests/test_checks.py` — 15 cases for the resolver-consuming checks (`mb_canonical_mismatch`, `missing_mbid`, `missing_sort_tags`). Inserts album rows directly into the test DB; mocks the resolver to isolate check-level glue.
+- `tests/test_checks.py` — 27 cases for the merged checks (`unidentified-album`, `tags-out-of-sync`, `inconsistent-artist-sort`). Inserts album rows directly into the test DB; mocks the resolver to isolate check-level glue.
 - `tests/test_fingerprint_pool.py` — 3 control-plane cases for the eager fingerprinting pool (unavailable short-circuit, idempotent re-call, no-op stop).
+- `tests/test_library_events.py` — 13 cases for the event-bus contract: dispatch, ordering, isolation, the 3 load-bearing recursion-guard scenarios (in-flight short-circuit, background contextvar inheritance, concurrent unrelated rerun NOT suppressed). New tests for new events go here.
+- `tests/test_event_subscribers.py` — 17 cases pinning each subscriber's invocation contract via stubbed side-effect targets. New subscriber → new test here.
+- `tests/test_post_scan_guard.py` — 6 cases for the recursion guard at the `run_post_scan_checks` level (sync + async variants, nested-call short-circuit, exception resets flag).
+- `tests/test_filename_mismatch_plan_preview.py` — 9 cases for `derive_plan` + the `/plan-preview` endpoint (re-derives instead of echoing stored detail, the load-bearing assertion).
+- `tests/test_duplicate_cluster_preview.py` — 9 cases for `derive_cluster` + the `/cluster-preview` endpoint (partial deletion, fully-resolved, unrelated-cluster refusal).
+- `tests/test_album_fields.py` — 10 cases for the shared `display_artist` + `sort_key` cascades, including the Mancini regression.
+- `tests/test_audio_analysis.py`, `tests/test_cover_upload.py`, `tests/test_failure_excerpt.py` — feature-specific smoke (BPM/ReplayGain, manual cover upload, AI job transcript capture).
 
 Tests redirect `MUSAIC_CONFIG_DIR` to a tmp dir via `tests/conftest.py` so the user's real `~/.musaic` is untouched. The env var is set at the very top of conftest.py, before any `musaic.*` import, because `config.CONFIG_DIR` is captured at module-load time.
 
@@ -80,11 +87,13 @@ Per-track tracks with a confident `recording_mbid` from AcoustID get a small fin
 |---|---|
 | `main.py` | App construction, lifespan, frontend SPA, CLI entry — wires the routers + worker together |
 | `api/` | FastAPI routers: `library` (config/scan/albums/cover/tracks), `tags` (track tags + vocabulary), `jobs` (AI queue REST/SSE), `settings` (settings + DB backup/snapshots), `health` (checks framework REST/SSE), `apply` (album apply SSE) |
-| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `apply` (single album mutation generator used by both the streaming endpoint and the deterministic check-fix path), `resolver` (tiered metadata cascade — cache → MB search → fingerprint vote → AI), `scan` (background library-scan task with replayable event buffer), `fingerprint_pool` (eager fpcalc/AcoustID warmer kicked off after each scan), `post_scan` (run cheap checks after a scan/apply), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
+| `services/` | Cross-router helpers: `albums` (resolve/read/sidecars), `apply` (single album mutation generator used by both the streaming endpoint and the deterministic check-fix path), `resolver` (tiered metadata cascade — cache → MB search → fingerprint vote → AI), `scan` (background library-scan task with replayable event buffer), `fingerprint_pool` (eager fpcalc/AcoustID warmer kicked off after each scan), `post_scan` (low-level worker that runs `runs_during_scan` checks; driven by the bus subscriber — see Architectural patterns below), `event_subscribers` (registers the 5 bus subscribers that fan out cross-cutting concerns), `worker` (AI job dispatcher loop), `sse` (event helpers + `jobs_changed` event) |
+| `library_events.py` | In-process pub/sub for state mutations. Every producer publishes typed events; subscribers handle post-scan reruns, resolver invalidation, thumb drops, and findings-stream notifies. See [Architectural patterns](#architectural-patterns). |
+| `album_fields.py` | Shared accessors for the album-artist + sort cascades. Use `display_artist(album, include_dir_artist=...)` instead of reinventing `album_artist or artist or ""` at every callsite. |
 | `scanner.py` | Filesystem scan + album parsing (directory-name convention) |
 | `db.py` | SQLite schema + migrations |
 | `ai.py` | Claude SDK integration (system prompts, JSON extraction, MCP support) |
-| `checks/` | Health check framework (11 checks; `base.py`, `runner.py`, `__init__.py`) |
+| `checks/` | Health check framework (7 checks; `base.py`, `runner.py`, `__init__.py`) |
 | `jobs.py` | Async AI job queue |
 | `tags.py` | FLAC mutation pipeline (Vorbis tag writes + renames + cover embed) |
 | `mb_lookup.py` | Direct MusicBrainz / Cover Art Archive lookups |
@@ -156,14 +165,17 @@ Skipped silently when fpcalc / AcoustID isn't configured (status flips to `unava
 - **Cost tiers**: `cheap` (post-scan), `medium` (weekly), `heavy` (monthly) — user-overridable in settings
 - **Fix kinds**: `none` (report-only), `ai-job` (enqueue Claude task), `deterministic` (sync mutation)
 - **Runner**: upserts findings by `(check_id, album_id, summary)`; auto-resolves disappearing findings
+- **Scope**: `CheckScope.kind` ∈ `"all"` | `"incremental"` | `"albums"`. The runner's auto-resolve is scope-aware — a per-album rerun only resolves findings for the listed albums, not unrelated ones.
 - **Add a new check**: Create `musaic/checks/your_check.py` inheriting `Check`, set `meta`, implement `run()` (and optionally `fix()`), then register in `checks/__init__.py`
 
-**Resolver-consuming checks** (refactored to read off `services.resolver` instead of doing their own MB calls):
-- `mb_canonical_mismatch` — diffs `current_tags` against `resolution.canonical_*`; the apply path reads canonical values off the same resolution result
-- `missing_mbid` — fix tries the resolver first (now covers Tier 0c fingerprint vote, not just dir-search); falls through to AI only when no anchor found AND no hint supplied
-- `missing_sort_tags` — for `album_artist_sort`, prefers `resolution.canonical_album_artist_sort` when the album is anchored; falls back to article rotation otherwise
-
-Other checks remain MB-independent (`missing_core_tags`, `missing_fingerprints`, `no_cover_art`, `track_gaps`, `duplicate_tracks`, `inconsistent_artist_sort`, `filename_mismatch`).
+**Active checks (7)** after the 10→7 consolidation:
+- `unidentified-album` (cheap, runs during scan) — merged `missing-fingerprints` + `missing-mbid`. Fix cascades through resolver Tier 0c (fingerprint vote) → AI escalation only when no anchor found
+- `tags-out-of-sync` (medium, on-demand) — merged `missing-core-tags` + `missing-sort-tags` + `mb-canonical-mismatch`. Diffs current Vorbis tags against `resolution.canonical_*`; fix applies what the resolver can fill, falls through to AI for the rest
+- `no-cover-art` (cheap, runs during scan) — MB / CAA lookup via apply pipeline; AI escalation otherwise
+- `track-gaps` (cheap, runs during scan) — tracknumber gaps; fix tries title-match then fingerprint-renumber against MB tracklist
+- `duplicate-tracks` (cheap, runs during scan) — Chromaprint similarity clustering on the album's `track_fingerprints` rows; resolve dialog re-derives the cluster live via the plan-preview endpoint (see [Architectural patterns](#architectural-patterns))
+- `inconsistent-artist-sort` (cheap, runs during scan) — clusters albums sharing an artist with conflicting `*_sort` values; bulk-apply via custom endpoint
+- `filename-mismatch` (medium, on-demand) — checks each FLAC's filename + album dir against user-configured templates; resolve dialog re-derives the rename plan live (plan-preview pattern, see [Architectural patterns](#architectural-patterns))
 
 ### Mutation Pipeline
 
@@ -172,12 +184,93 @@ Single generator at `services/apply.py:apply_album_changes_iter` is the only pat
 2. Stream `tags.apply_to_album_iter` per FLAC — Vorbis writes via `mutagen` + optional renames
 3. Migrate `track_tags` rows on filename rename
 4. Save `cover.jpg` sidecar when cover changed
-5. Drop the album thumbnail
-6. Resync the track-tag sidecar JSON
-7. Re-scan + upsert the single album row (don't drop the whole snapshot)
-8. Re-run cheap post-scan health checks so satisfied findings auto-resolve
+5. Resync the track-tag sidecar JSON
+6. Re-scan + upsert the single album row (don't drop the whole snapshot)
+7. Publish `AlbumTagsChanged` (+ optional `AlbumCoverChanged`) on the events bus
+
+Steps that used to live inline here — thumb drop, resolver-memo invalidation, post-scan check rerun — now happen via `library_events` subscribers fanning out from step 7. The generator's only job is mutate + publish; the bus handles the rest. See [Architectural patterns](#architectural-patterns) for why.
 
 Both consumers — the `/api/albums/{id}/apply/stream` endpoint and the deterministic check-fix path (`checks/_apply.py`) — drive this same generator. The streaming endpoint forwards every yielded `(event, payload)` to the SSE socket; the check-fix path drains the iterator and reports a single ok/message outcome.
+
+## Architectural patterns
+
+The patterns below are the load-bearing ones. They came out of a retrospective on recurring whack-a-mole bugs (issue #1) — each one retires a class of bug rather than instances. Reach for them when designing new mutations / endpoints / dialogs; the prior anti-pattern is named alongside so the *why* stays findable.
+
+### 1. Event-driven state propagation (publish, never invoke)
+
+**Anti-pattern (retired):** every state-mutating helper expected its caller to remember a fan-out: fire `run_post_scan_checks`, invalidate the resolver memo, drop the thumb, notify the SSE state stream. Different callers remembered different subsets. Five "satisfied finding lingers" bugs landed before we factored it out.
+
+**Pattern:** producers publish a typed event at the moment of mutation. Subscribers in `musaic/services/event_subscribers.py` handle the cross-cutting concerns.
+
+```python
+# services/apply.py — end of apply_album_changes_iter
+library_events.publish(library_events.AlbumTagsChanged(
+    album_id=album_id, fields=tuple(suggestions.keys()),
+))
+if had_art_change:
+    library_events.publish(library_events.AlbumCoverChanged(album_id=album_id))
+```
+
+Event types live in `musaic/library_events.py`:
+- `AlbumTagsChanged(album_id, fields)` — apply, audio analysis
+- `AlbumCoverChanged(album_id)` — apply (when art was touched)
+- `AlbumMbAnchorSet(album_id, source)` — mb_lookup, worker AI MBID persist, resolver Tier 0b/0c
+- `TrackFingerprinted(album_id, filenames)` — fingerprint.fingerprint_album
+- `AlbumRenamed(old_album_id, new_album_id)` — filename_mismatch.execute_renames (old==new signals file-only rename, different ids signal dir rename)
+- `AlbumDeleted(album_id)` — cache.delete_album
+- `LibraryScanCompleted(album_count)` — services.scan after a full scan
+- `BulkBatchCompleted()` — quick-fix-all dispatcher after its loop exits
+
+**Recursion guard:** `library_events.in_post_scan_rerun: ContextVar[bool]` is set by `run_post_scan_checks` for the duration of any rerun. Subscribers consult it and skip when set — this prevents a check writing data that publishes an event that would route back into the runner. Background subscriber threads inherit the flag via `contextvars.copy_context().run(...)` — load-bearing for the guard. Idempotency is the real safety net (Tier 0a cache hits replace Tier 0b/0c side-effect writes on the second pass; nothing new gets published, recursion terminates).
+
+**Bulk-loop suppression:** `checks/_apply.in_bulk_run: ContextVar[bool]` is set by bulk dispatchers (quick-fix-all, inconsistent-artist-sort bulk apply) for the duration of their loop. The `_post_scan_rerun` subscriber checks it and skips. The dispatcher resets the flag and publishes `BulkBatchCompleted` as its last act — one coalesced library-wide rerun instead of N per-album ones.
+
+**When adding a new mutation:** publish the relevant event. Don't import `run_post_scan_checks` / `resolver.invalidate` / `thumbs.delete_thumb` directly — the subscriber chain handles all of them. The only direct callers of `run_post_scan_checks` live in `event_subscribers.py`; anywhere else is a smell.
+
+Design doc: `docs/library_events_design.md` (covers the recursion-guard reasoning, subscriber priorities, what's intentionally out of scope).
+
+### 2. Findings store references, not payloads (re-derive at dialog open)
+
+**Anti-pattern (retired):** findings stored their full detail (`detail.renames` for filename-mismatch, `detail.filenames` for duplicate-tracks) at check-run time. Resolve dialogs read that payload as truth. If anything changed between detection and dialog-open — sibling Resolve click already ran, user edited tags by hand, file deleted via another tool — the dialog showed ghost rows that either failed to apply or re-did work that was already done.
+
+**Pattern:** findings carry stable references (`album_id`, sometimes `filenames` as identity hints). Resolve dialogs call a `*-preview` endpoint on open that re-derives the plan against current disk + DB state.
+
+Implemented for two checks today:
+- `GET /api/checks/filename-mismatch/findings/{id}/plan-preview` → drives `FilenameMismatchResolveDialog`
+- `GET /api/checks/duplicate-tracks/findings/{id}/cluster-preview` → drives `DuplicateResolveDialog`
+
+Both endpoints return a stable shape including `is_empty: bool` and (for duplicate-tracks) `removed_filenames: list[str]`. The dialog renders loading / empty / error / "X file was already trashed" branches deterministically.
+
+**When adding a new Resolve dialog:** prefer a preview endpoint over reading `finding.detail` for anything load-bearing. Stored detail is fine for display labels / summaries (the data won't change meaningfully); use it as a fallback when the preview fetch is in-flight or errors, never as the authoritative source for what to apply.
+
+### 3. Path identity uses `os.path.samefile`, never `==`
+
+**Anti-pattern (retired):** `Path == Path` compares strings. On case-insensitive APFS, `Path('cover.jpg') != Path('cover.JPG')` even though they're the same inode. On NFC vs NFD Unicode normalization, `Path('café') != Path('café')` even though they're the same dir. Three bugs landed this way (cover.jpg cleanup deleting the cover it just wrote; dir-rename refusing safe renames; cover-upload collision detection).
+
+**Pattern:** when the question is "do these two paths refer to the same file?", use `os.path.samefile(str(a), str(b))`. Wrap in `try/except OSError` because it raises on missing paths.
+
+When the question really is "are these the same string?" (config keys, route params, log identifiers), `==` is correct — but those should be rare in path-handling code. If you find yourself comparing path-shaped values with `==`, ask which question you're actually answering.
+
+### 4. Shared accessors for album-field cascades
+
+**Anti-pattern (retired):** every consumer (file template, dir template, AlbumHero, finding summary, sort key) reinvented its own `album.album_artist or album.artist or ""` cascade. The Mancini bug landed because the dir-template renderer used `album_artist → artist → dir_artist` and the file-template renderer only did `album_artist`; a library carrying only an ARTIST tag (no ALBUMARTIST) silently lost the artist token from the proposed directory name.
+
+**Pattern:** `musaic/album_fields.py` (backend) and `frontend/src/lib/albumFields.ts` (frontend) own the cascades.
+
+```python
+# Backend
+album_fields.display_artist(album)                          # → "Henry Mancini" or ""
+album_fields.display_artist(album, include_dir_artist=True) # for path-rendering callers
+album_fields.sort_key(album)                                # → "mancini, henry"
+```
+
+```typescript
+// Frontend
+displayArtist(album)                       // → "Henry Mancini" or ""
+displayArtist(album, "Unknown artist")     // → "Henry Mancini" or "Unknown artist"
+```
+
+`mb_lookup.find_release` deliberately keeps its own cascade (`dir_artist → album_artist → artist`) because the on-disk name is the search anchor; it's the one documented exception. Otherwise, reach for the shared helper before adding a new fallback chain.
 
 ## Configuration
 
@@ -188,8 +281,9 @@ Both consumers — the `/api/albums/{id}/apply/stream` endpoint and the determin
 
 ### Runtime Files
 - `~/.musaic/config.json` — selected library directory
-- `~/.musaic/library.db` — SQLite cache (schema v12)
+- `~/.musaic/library.db` — SQLite cache (schema version tracked in `musaic/db.py::SCHEMA_VERSION`; migrations run on startup)
 - `~/.musaic/thumbs/` — pre-extracted JPEG thumbnails
+- `~/.musaic/trash/` — soft-deleted files (delete-duplicate uses this; restore by moving back)
 - `.env` at project root or `~/.musaic/.env` — auth (project root wins)
 
 ## Known Issues
