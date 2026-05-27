@@ -118,6 +118,11 @@ def _post_scan_rerun(ev: AlbumScopedEvent) -> None:
     second pass; nothing new gets published. The guard is an
     optimization, not a correctness mechanism.
 
+    Also honors `checks._apply.in_bulk_run`: the bulk quick-fix-all
+    dispatcher sets that flag while it's iterating findings and does
+    one coalesced rerun at the end of the batch — without this check,
+    we'd fire N per-album reruns interleaved with N applies.
+
     Background=True at the bus level (see register()): each rerun
     takes seconds for medium checks and we don't want producers
     blocking on it.
@@ -126,6 +131,15 @@ def _post_scan_rerun(ev: AlbumScopedEvent) -> None:
         _log.debug(
             "_post_scan_rerun: skipped for %s (already inside one)",
             ev.album_id,
+        )
+        return
+    # Defer to the bulk dispatcher's end-of-batch coalesced rerun.
+    # The import is local because checks/_apply imports library_events
+    # transitively; module-load ordering would otherwise be brittle.
+    from ..checks._apply import in_bulk_run
+    if in_bulk_run.get():
+        _log.debug(
+            "_post_scan_rerun: skipped for %s (in bulk run)", ev.album_id,
         )
         return
     cfg = config_module.load_config()
@@ -148,6 +162,9 @@ def _post_scan_rerun_for_rename(ev: AlbumRenamed) -> None:
     findings are auto-resolved by the runner because the scope is
     by-album and the old row is gone."""
     if events.in_post_scan_rerun.get():
+        return
+    from ..checks._apply import in_bulk_run
+    if in_bulk_run.get():
         return
     cfg = config_module.load_config()
     if not cfg.library_dir:
@@ -172,6 +189,9 @@ def _post_scan_rerun_library_wide(ev: LibraryScanCompleted) -> None:
     Same recursion guard so a scan finishing inside another rerun
     doesn't recursively trigger a third."""
     if events.in_post_scan_rerun.get():
+        return
+    from ..checks._apply import in_bulk_run
+    if in_bulk_run.get():
         return
     cfg = config_module.load_config()
     if not cfg.library_dir:

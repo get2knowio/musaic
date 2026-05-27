@@ -687,7 +687,6 @@ def apply_cluster_sort(
                 album_id=aid,
                 suggestions=suggestions or None,
                 track_suggestions=track_suggestions or None,
-                rerun_checks=False,
             )
             if ok:
                 succeeded += 1

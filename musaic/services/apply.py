@@ -38,7 +38,6 @@ from ..tags import (
     normalize_to_jpeg,
     save_cover_to_album_dir,
 )
-from .post_scan import run_post_scan_checks
 
 _log = logging.getLogger(__name__)
 
@@ -53,7 +52,6 @@ def apply_album_changes_iter(
     cover_bytes: bytes | None = None,
     cover_mime: str | None = None,
     dry_run: bool = False,
-    rerun_post_scan_checks: bool = True,
 ) -> Iterator[tuple[str, dict[str, Any]]]:
     """Apply changes to one album, yielding events for every side effect.
 
@@ -67,9 +65,9 @@ def apply_album_changes_iter(
         upload from the UI). Still normalized to JPEG q95.
       - neither: leave existing cover alone.
 
-    `rerun_post_scan_checks` controls whether the cheap post-scan
-    checks run after a successful apply. The bulk quick-fix-all caller
-    sets this False (and does one rerun at the end of the batch).
+    Bulk-run coalescing (one rerun at end-of-batch instead of N per
+    apply) is now handled by the `_post_scan_rerun` subscriber's
+    `in_bulk_run` check — no parameter needed at this layer.
     """
     suggestions = suggestions or {}
     track_suggestions = track_suggestions or {}
@@ -157,9 +155,9 @@ def apply_album_changes_iter(
             if saved is not None:
                 yield "cover_saved", {"path": str(saved), "filename": saved.name}
 
-        # 4. Thumb invalidation.
-        if had_art_change:
-            thumbs_module.delete_thumb(album_id)
+        # 4. Thumb invalidation now handled by the _thumb_drop
+        # subscriber via AlbumCoverChanged (published at the end of
+        # the generator, after every other mutation has landed).
 
         # 5. Track-tags sidecar resync after renames.
         if had_renames:
@@ -195,48 +193,20 @@ def apply_album_changes_iter(
                     fresh_dict = merged
             yield "updated_album", fresh_dict
 
-        # 6b. Invalidate the metadata-resolver cache for this album so the
-        #     next /api/albums/{id}/resolution call re-derives off the
-        #     freshly-written tags. The resolver's content_hash doesn't
-        #     capture tag-only edits (it tracks track_count / total_seconds
-        #     / dir_name / filenames), so this explicit nudge is needed for
-        #     the badge / "Apply MusicBrainz corrections" affordance to
-        #     reflect post-apply state.
-        try:
-            from . import resolver as resolver_service
-            resolver_service.invalidate(album_id)
-        except Exception:
-            _log.exception("Resolver invalidate failed for album %s (continuing)", album_id)
-
-        # 7. Post-scan check rerun so any findings the apply just satisfied
-        #    auto-resolve. Skipped during bulk runs (one batch rerun fires
-        #    at the very end instead).
+        # 6b. Publish the mutation events; subscribers fan out to
+        #     the resolver invalidate + thumb drop + scoped post-scan
+        #     rerun + findings-stream notify. Phase 2 of move E
+        #     replaced the prior explicit direct calls with this
+        #     single publish-driven path.
         #
-        #    Run in a background thread, NOT inline. Some checks
-        #    (tags-out-of-sync) walk every anchored album through the
-        #    resolver, which can hit MusicBrainz at 1 req/sec on a cold
-        #    cache — minutes of work for a moderately-sized library.
-        #    Blocking the apply response on that turned the cover-upload
-        #    + AI-suggestion-apply UIs into "Applying…" forever spinners.
-        #    The check runner notifies SSE on completion, so the
-        #    frontend's findings cache still refreshes when the work
-        #    eventually finishes — just not synchronously with the apply.
-        if rerun_post_scan_checks and library_dir:
-            import threading
-            threading.Thread(
-                target=run_post_scan_checks,
-                args=(library_dir,),
-                daemon=True,
-                name=f"post-apply-checks-{album_id}",
-            ).start()
-
-        # Phase 1 of move E (issue #1): publish events alongside the
-        # direct calls above. AlbumTagsChanged fires for every apply;
-        # AlbumCoverChanged fires only when art was touched.
-        # Subscribers will (idempotently) re-invalidate the resolver,
-        # drop the thumb again, and queue another post-scan rerun.
-        # Phase 2 deletes the explicit calls above once dual-fire
-        # has proven safe.
+        #     Note on bulk runs: the per-apply rerun used to be gated
+        #     on `rerun_post_scan_checks` so the bulk dispatcher could
+        #     suppress N reruns in favor of one end-of-batch rerun.
+        #     That suppression now lives in the `_post_scan_rerun`
+        #     subscriber, which honors `checks._apply.in_bulk_run`.
+        #     The events still publish — invalidation + notify are
+        #     cheap and bulk-mode-safe — only the post-scan rerun
+        #     defers to the bulk dispatcher's end-of-batch call.
         try:
             from .. import library_events
             library_events.publish(library_events.AlbumTagsChanged(

@@ -195,6 +195,26 @@ def test_rerun_subscriber_short_circuits_when_already_running(_isolated_bus):
     assert _isolated_bus["rerun_calls"] == []
 
 
+def test_rerun_subscriber_short_circuits_in_bulk_run(_isolated_bus):
+    """The bulk quick-fix-all dispatcher sets `checks._apply.in_bulk_run`
+    for the duration of its loop and fires ONE coalesced rerun at the
+    end. Without this check the subscriber would fire N per-event
+    reruns interleaved with N applies — exactly the per-apply rerun
+    the bulk dispatcher exists to avoid."""
+    from musaic.checks._apply import in_bulk_run
+    token = in_bulk_run.set(True)
+    try:
+        bus.publish(AlbumTagsChanged(album_id="a1"))
+        bus.publish(AlbumTagsChanged(album_id="a2"))
+        bus.publish(AlbumTagsChanged(album_id="a3"))
+        _wait_for_threads()
+    finally:
+        in_bulk_run.reset(token)
+    # Bulk-run-flag set → subscriber bailed on every event. Bulk
+    # dispatcher does its own end-of-batch rerun separately.
+    assert _isolated_bus["rerun_calls"] == []
+
+
 # ---------- _findings_runner_notify ----------
 
 

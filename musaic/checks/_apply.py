@@ -36,7 +36,6 @@ def apply_direct(
     suggestions: dict[str, str] | None = None,
     track_suggestions: dict[str, dict[str, str]] | None = None,
     cover_url: str | None = None,
-    rerun_checks: bool = True,
 ) -> tuple[bool, str]:
     """Synchronously apply changes to an album. Returns (ok, message).
 
@@ -45,11 +44,11 @@ def apply_direct(
     the AI suggestion shape (tracknumber/title/artist).
     `cover_url` triggers a cover download + embed if non-empty.
 
-    `rerun_checks` controls whether the post-scan check tail fires after
-    the apply. Default True. Set False during bulk runs — re-running ALL
-    checks after EVERY single apply is wasteful (3 checks × N findings =
-    N×O(library) re-scans), and the bulk caller can do one final rerun at
-    the end if desired.
+    Bulk-run coalescing lives in the `_post_scan_rerun` event
+    subscriber which checks `in_bulk_run` directly. The bulk
+    dispatcher still sets the contextvar; this function still
+    inherits it; the subscriber still skips per-apply reruns during
+    the batch.
 
     Failures get logged and surfaced as the message; we never raise to
     the check's fix() — it should always return a clean FixResult.
@@ -72,11 +71,6 @@ def apply_direct(
     if album is None:
         return False, "Album not found in cache"
 
-    # Bulk callers (quick-fix-all) flip the in_bulk_run contextvar so
-    # we skip the per-apply post-scan rerun; the bulk endpoint does one
-    # rerun at the very end after all findings are processed.
-    rerun = rerun_checks and not in_bulk_run.get()
-
     saved_count = 0
     error_detail: str | None = None
     try:
@@ -87,7 +81,6 @@ def apply_direct(
             track_suggestions=track_suggestions or {},
             cover_url=cover_url,
             dry_run=False,
-            rerun_post_scan_checks=rerun,
         ):
             if ev_name == "file_done" and ev_payload.get("saved"):
                 saved_count += 1
