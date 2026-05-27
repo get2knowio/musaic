@@ -104,7 +104,8 @@ class FilenameMismatch(Check):
                 placeholders = ",".join("?" * len(ids))
                 rows = conn.execute(
                     f"""
-                    SELECT id, path, dir_name, album_artist, title, year,
+                    SELECT id, path, dir_name, album_artist, artist,
+                           dir_artist, title, year,
                            is_compilation, disc_number, disc_total
                     FROM albums
                     WHERE library_path = ? AND id IN ({placeholders})
@@ -114,7 +115,8 @@ class FilenameMismatch(Check):
             else:
                 rows = conn.execute(
                     """
-                    SELECT id, path, dir_name, album_artist, title, year,
+                    SELECT id, path, dir_name, album_artist, artist,
+                           dir_artist, title, year,
                            is_compilation, disc_number, disc_total
                     FROM albums
                     WHERE library_path = ?
@@ -310,11 +312,28 @@ def _check_dir(
     title = row["title"] or ""
     if not title.strip():
         return None
+    # Fallback chain for the album-artist token. Many libraries carry
+    # only an ARTIST tag on the FLAC files (no ALBUMARTIST), which
+    # makes the scanner store row["album_artist"]=None even though
+    # row["artist"] is populated. Without the fallback, the dir
+    # template renders `{albumartist}` as empty and the proposed dir
+    # silently drops the artist — e.g. "Henry Mancini - Foo [FLAC]"
+    # becomes "Foo [FLAC]". Falling back to `artist` and finally to
+    # the directory-parsed artist keeps the rename safe.
+    aa = (row["album_artist"] or "").strip()
+    if not aa:
+        aa = (row["artist"] or "").strip()
+    if not aa:
+        # `dir_artist` only set when the scanner recognized the
+        # `Artist - Album [FLAC]` directory convention; using it as a
+        # last resort is correct because it's literally the current
+        # surface form the user already accepted.
+        aa = (row["dir_artist"] or "").strip()
     rendered = ft.render(template, {
         "title":       title,
         "album":       title,                    # alias: many users
-        "artist":      row["album_artist"] or "",
-        "albumartist": row["album_artist"] or "",
+        "artist":      aa,
+        "albumartist": aa,
         "year":        row["year"] or "",
     })
     if not rendered:
