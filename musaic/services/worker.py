@@ -132,6 +132,20 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
             album_id,
         )
 
+    # Phase 1 of move E: publish the anchor event so resolver caches
+    # invalidate + the post-scan rerun fires (idempotent with the
+    # direct call above).
+    try:
+        from .. import library_events
+        library_events.publish(
+            library_events.AlbumMbAnchorSet(album_id=album_id, source="ai"),
+        )
+    except Exception:
+        _log.exception(
+            "library_events publish failed for AI anchor on %s",
+            album_id,
+        )
+
 
 def _format_transcript(buffer: list[str], *, max_bytes: int) -> str | None:
     """Join a transcript buffer into a single string, keeping the

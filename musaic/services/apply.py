@@ -229,6 +229,26 @@ def apply_album_changes_iter(
                 daemon=True,
                 name=f"post-apply-checks-{album_id}",
             ).start()
+
+        # Phase 1 of move E (issue #1): publish events alongside the
+        # direct calls above. AlbumTagsChanged fires for every apply;
+        # AlbumCoverChanged fires only when art was touched.
+        # Subscribers will (idempotently) re-invalidate the resolver,
+        # drop the thumb again, and queue another post-scan rerun.
+        # Phase 2 deletes the explicit calls above once dual-fire
+        # has proven safe.
+        try:
+            from .. import library_events
+            library_events.publish(library_events.AlbumTagsChanged(
+                album_id=album_id,
+                fields=tuple(suggestions.keys()) if suggestions else (),
+            ))
+            if had_art_change:
+                library_events.publish(
+                    library_events.AlbumCoverChanged(album_id=album_id),
+                )
+        except Exception:
+            _log.exception("library_events publish failed for apply %s", album_id)
     except Exception as e:
         _log.exception("apply_album_changes_iter failed for album %s", album_id)
         yield "error", {"detail": str(e)}

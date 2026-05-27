@@ -296,5 +296,19 @@ def analyze_album_iter(
                 "post-analyze check rerun failed for album %s (continuing)",
                 album_id,
             )
+        # Phase 1 of move E: publish alongside the direct call.
+        # Tag the changed fields with what we actually wrote
+        # (bpm vs replaygain depending on `what`).
+        try:
+            from .. import library_events
+            changed_fields = ("bpm",) if what == "bpm" else ("replaygain",)
+            library_events.publish(library_events.AlbumTagsChanged(
+                album_id=album_id, fields=changed_fields,
+            ))
+        except Exception:
+            _log.exception(
+                "library_events publish failed for analyze %s (continuing)",
+                album_id,
+            )
 
     yield "done", {"what": what, "analyzed_count": analyzed_count, "errors": errors}

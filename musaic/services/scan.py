@@ -201,6 +201,20 @@ async def _run_scan(library_dir: str, force: bool) -> None:
     except Exception:
         _log.exception("post-scan checks failed (continuing)")
 
+    # Phase 1 of move E (issue #1): publish the library-wide event
+    # alongside the direct call above. Subscribers also fire a
+    # post-scan rerun (idempotent — the direct call's findings are
+    # already there); the redundancy is intentional during dual-fire.
+    # Phase 2 deletes the direct call once we've verified dual-fire
+    # doesn't surprise anyone.
+    try:
+        from .. import library_events
+        library_events.publish(
+            library_events.LibraryScanCompleted(album_count=_state.scanned),
+        )
+    except Exception:
+        _log.exception("library_events publish failed (continuing)")
+
     # Eager fingerprinting: kick off a background pool that walks the
     # library and computes AcoustID fingerprints for albums lacking
     # them. The pool is fire-and-forget — we don't await it here, so

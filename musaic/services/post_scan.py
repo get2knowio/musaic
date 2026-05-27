@@ -83,10 +83,19 @@ def library_path_for_checks() -> str:
     return str(Path(cfg.library_dir).expanduser().resolve())
 
 
-def run_post_scan_checks(library_dir: str) -> None:
+def run_post_scan_checks(
+    library_dir: str,
+    *,
+    album_ids: list[str] | None = None,
+) -> None:
     """Run every check that opted in via runs_during_scan=True. Errors per
     check are logged but never raise out — a flaky check should never break
     the scan flow.
+
+    `album_ids`, when supplied, scopes every check to those albums
+    (`scope_kind="albums"`). Default `None` runs the whole library
+    (`scope_kind="all"`). The runner's auto-resolve honors the scope so
+    a per-album rerun doesn't over-resolve unrelated findings.
 
     Called from SYNC generator code (the SSE scan + apply endpoints) running
     on a FastAPI worker thread. Drives each check's coroutine on a fresh
@@ -96,6 +105,7 @@ def run_post_scan_checks(library_dir: str) -> None:
     """
     from ..checks import REGISTRY as _check_registry
     library_path = str(Path(library_dir).expanduser().resolve())
+    scope_kind = "albums" if album_ids else "all"
     for cls in _check_registry:
         if not cls.meta.runs_during_scan:
             continue
@@ -103,7 +113,8 @@ def run_post_scan_checks(library_dir: str) -> None:
             asyncio.run(checks_runner.run_check(
                 cls.meta.id,
                 library_path=library_path,
-                scope_kind="all",
+                scope_kind=scope_kind,
+                album_ids=album_ids,
             ))
         except Exception:
             _log.exception(
@@ -111,15 +122,23 @@ def run_post_scan_checks(library_dir: str) -> None:
             )
 
 
-async def run_post_scan_checks_async(library_dir: str) -> None:
+async def run_post_scan_checks_async(
+    library_dir: str,
+    *,
+    album_ids: list[str] | None = None,
+) -> None:
     """Async-context counterpart to `run_post_scan_checks`. Drives each
     runs_during_scan check directly with `await` so it can be called from
     inside an async generator (the bulk quick-fix-all endpoint, in
     particular). Same error-swallowing semantics: per-check failures get
     logged but never propagate.
+
+    `album_ids` behaves identically to the sync variant — scope to that
+    set when supplied, whole library when None.
     """
     from ..checks import REGISTRY as _check_registry
     library_path = str(Path(library_dir).expanduser().resolve())
+    scope_kind = "albums" if album_ids else "all"
     for cls in _check_registry:
         if not cls.meta.runs_during_scan:
             continue
@@ -127,7 +146,8 @@ async def run_post_scan_checks_async(library_dir: str) -> None:
             await checks_runner.run_check(
                 cls.meta.id,
                 library_path=library_path,
-                scope_kind="all",
+                scope_kind=scope_kind,
+                album_ids=album_ids,
             )
         except Exception:
             _log.exception(

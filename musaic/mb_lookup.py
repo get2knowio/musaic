@@ -300,6 +300,24 @@ def find_release(
         except Exception:
             # Cache write failure must never break the user-facing fix flow.
             log.exception("Failed to cache MB anchor for album %s", album_id)
+        else:
+            # Phase 1 of move E (issue #1): publish the anchor write so
+            # subscribers (resolver invalidate, post-scan rerun, SSE
+            # notify) react even when the caller is a read-shaped
+            # function like find_release. Without this, fix paths
+            # whose outer result is `ok=False` leave the anchor
+            # side-effect orphaned — exactly the stale-finding hole
+            # Sweep A papered over with unconditional post-scan reruns.
+            try:
+                from . import library_events
+                library_events.publish(library_events.AlbumMbAnchorSet(
+                    album_id=album_id, source="musicbrainz",
+                ))
+            except Exception:
+                log.exception(
+                    "library_events publish failed for MB anchor on %s",
+                    album_id,
+                )
 
     return match
 
@@ -415,6 +433,23 @@ def find_release_cached(
                         "Failed to backfill release_mbid for album %s",
                         album_id,
                     )
+                else:
+                    # Phase 1 of move E: same publish posture as
+                    # find_release. The backfill is still an anchor
+                    # mutation even though it didn't change the
+                    # release-GROUP id.
+                    try:
+                        from . import library_events
+                        library_events.publish(
+                            library_events.AlbumMbAnchorSet(
+                                album_id=album_id, source="musicbrainz",
+                            ),
+                        )
+                    except Exception:
+                        log.exception(
+                            "library_events publish failed for MB anchor"
+                            " backfill on %s", album_id,
+                        )
         except Exception as e:
             log.warning("MB tracklist fetch (cached path) failed for %s: %s", mbid, e)
             match.notes += f"\nTracklist fetch failed: {type(e).__name__}: {e}"

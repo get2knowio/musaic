@@ -482,6 +482,22 @@ def resolve_album(
                 "post-resolver check rerun failed for album %s (continuing)",
                 album_id,
             )
+        # Phase 1 of move E: publish alongside the direct call. The
+        # subscriber-driven post-scan rerun will be a no-op against
+        # the now-already-rerun state, but it carries the resolver
+        # invalidation (next read picks up the new canonical fields)
+        # and findings-stream notify for free.
+        try:
+            from .. import library_events
+            library_events.publish(library_events.AlbumMbAnchorSet(
+                album_id=album_id,
+                source=resolution.anchor.source if resolution.anchor else "",
+            ))
+        except Exception:
+            _log.exception(
+                "library_events publish failed for resolver anchor on %s",
+                album_id,
+            )
 
     return resolution
 

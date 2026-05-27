@@ -480,6 +480,17 @@ def delete_album(album_id: str) -> None:
     with db_module.connect() as conn:
         with db_module.transaction(conn):
             conn.execute("DELETE FROM albums WHERE id = ?", (album_id,))
+    # Phase 1 of move E (issue #1): publish AlbumDeleted so the thumb
+    # drop + findings-runner notify fire. No direct call to replace
+    # here — delete_album historically left findings to clear on the
+    # next library scan; the bus closes that gap immediately.
+    try:
+        from . import library_events
+        library_events.publish(library_events.AlbumDeleted(album_id=album_id))
+    except Exception:
+        log.exception(
+            "library_events publish failed for delete_album %s", album_id,
+        )
 
 
 def rename_album_directory(

@@ -543,6 +543,21 @@ def execute_renames(
                     "renamed": 0,
                 }
             album_dir = new_dir_path  # subsequent file ops use new path
+            # Phase 1 of move E (issue #1): publish AlbumRenamed so
+            # subscribers (resolver invalidate for both ids, thumb
+            # drop for old id, scoped post-scan rerun against new id)
+            # fire. The /apply endpoint also runs a scoped check
+            # rerun directly — keep both during Phase 1.
+            try:
+                from .. import library_events
+                library_events.publish(library_events.AlbumRenamed(
+                    old_album_id=album_id, new_album_id=new_album_id,
+                ))
+            except Exception:
+                log.exception(
+                    "library_events publish failed for rename %s → %s",
+                    album_id, new_album_id,
+                )
         except OSError as e:
             return {
                 "ok": False,

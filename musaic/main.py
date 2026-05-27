@@ -46,6 +46,16 @@ async def _lifespan(_app: FastAPI):
     except Exception:
         _log.exception("Auto-snapshot on startup failed (continuing)")
 
+    # Register library_events subscribers (Phase 1 of move E from
+    # issue #1). Dual-fire alongside existing direct run_post_scan_checks
+    # calls — idempotency makes that safe; see
+    # docs/library_events_design.md for the migration plan.
+    try:
+        from .services import event_subscribers
+        event_subscribers.register_all()
+    except Exception:
+        _log.exception("library_events subscriber registration failed")
+
     task = asyncio.create_task(worker_loop(), name="ai-job-worker")
     try:
         yield

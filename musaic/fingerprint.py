@@ -208,6 +208,24 @@ def fingerprint_album(
         )
         out.append(tf)
 
+    # Phase 1 of move E (issue #1): publish that fingerprints landed
+    # for this album. Subscribers fire a scoped post-scan rerun + an
+    # SSE notify so duplicate-tracks / unidentified-album / track-gaps
+    # findings re-evaluate against the new rows without the caller
+    # having to remember.
+    if out:
+        try:
+            from . import library_events
+            library_events.publish(library_events.TrackFingerprinted(
+                album_id=album_id,
+                filenames=tuple(tf.filename for tf in out),
+            ))
+        except Exception:
+            log.exception(
+                "library_events publish failed for fingerprint_album %s",
+                album_id,
+            )
+
     return out
 
 
