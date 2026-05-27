@@ -98,13 +98,15 @@ class CheckScope:
     """The set of albums a check should inspect on this run.
 
     `kind` distinguishes:
-      - "all"         : the entire library. The runner WILL auto-resolve
+      - "all"         : the entire library. Runner WILL auto-resolve
                         findings not yielded by this run.
       - "incremental" : a subset chosen by the runner (e.g. only albums
-                        modified since the last scan). The runner WILL NOT
+                        modified since the last scan). Runner will NOT
                         auto-resolve.
-      - "albums"      : an explicit list (per-album rerun from the UI).
-                        WILL NOT auto-resolve.
+      - "albums"      : an explicit list (per-album rerun from a fix
+                        endpoint). Runner WILL auto-resolve findings,
+                        but ONLY for the listed albums — see
+                        `resolve_scope_album_ids` below.
     """
     library_path: str
     kind: Literal["all", "incremental", "albums"]
@@ -112,8 +114,28 @@ class CheckScope:
 
     @property
     def can_resolve(self) -> bool:
-        """True if findings missing from this run should be auto-resolved."""
-        return self.kind == "all"
+        """True if findings missing from this run should be auto-resolved.
+
+        Both "all" and "albums" qualify. The runner consults
+        `resolve_scope_album_ids` to know whether to limit the
+        auto-resolve UPDATE to a subset.
+        """
+        return self.kind in ("all", "albums")
+
+    @property
+    def resolve_scope_album_ids(self) -> list[str] | None:
+        """Returns the list of album_ids to limit auto-resolve to, or
+        None to mean "every album for this check_id."
+
+        "all" → None (resolve everything across the library).
+        "albums" → the explicit list — auto-resolve only findings whose
+            album_id is in the scope. Critical so a per-album rerun
+            after a fix doesn't accidentally resolve findings on
+            unrelated albums that weren't even examined.
+        """
+        if self.kind != "albums":
+            return None
+        return [a["id"] for a in self.albums if a.get("id")]
 
 
 @dataclass

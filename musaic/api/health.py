@@ -385,11 +385,34 @@ def apply_filename_rename(
             status_code=409,
             detail=result.get("message") or "Rename failed",
         )
-    # Post-apply check rerun so the finding clears immediately.
+    # Post-apply check rerun so the finding clears.
+    #
+    # Scope-limited to JUST the album we touched: filename-mismatch
+    # reads FLAC tags per file and a whole-library rerun takes minutes
+    # on slow storage (SMB). A per-album scope reads ~12 files →
+    # sub-second. The runner's scope-aware auto-resolve fires for
+    # findings on the listed album only — perfect for the single-album
+    # post-fix case where unrelated findings shouldn't be touched.
+    #
+    # `effective_id` is the post-dir-rename album_id when the apply
+    # also renamed the directory; otherwise the original. Use the new
+    # id so the rerun's scope hits the now-canonical album row.
+    effective_id = (result.get("new_album_id") or album_id) if result.get("ok") else album_id
     try:
         cfg = config_module.load_config()
         if cfg.library_dir:
-            run_post_scan_checks(cfg.library_dir)
+            library_path = str(Path(cfg.library_dir).expanduser().resolve())
+            try:
+                asyncio.run(checks_runner.run_check(
+                    "filename-mismatch",
+                    library_path=library_path,
+                    scope_kind="albums",
+                    album_ids=[effective_id],
+                ))
+            except Exception:
+                _log.exception(
+                    "post-rename filename-mismatch rerun failed (continuing)",
+                )
     except Exception:
         _log.exception("post-rename check rerun failed (continuing)")
     return result

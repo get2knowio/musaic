@@ -162,11 +162,25 @@ async def run_check(
             fid = _upsert_finding(check_id, finding)
             seen_finding_ids.add(fid)
             issue_count += 1
-            notify_changed()
+            # Don't notify per-finding — a check that yields N findings
+            # would emit N SSE state events, each triggering a fresh
+            # GET /api/checks/findings refetch on the frontend. For a
+            # check like inconsistent-artist-sort yielding 100+ findings
+            # this DDoS-es the user's own UI with a wall of refetches.
+            # The end-of-run notify_changed() below is sufficient — the
+            # SSE consumer reads the latest state on each wake regardless
+            # of how many notifies fired during the run.
 
-        # Auto-resolve only when scope.can_resolve.
+        # Auto-resolve when scope.can_resolve. Scoped reruns
+        # (scope_kind="albums") pass the album_id whitelist so we don't
+        # touch findings on unrelated albums.
         if scope.can_resolve:
-            _resolve_unseen(check_id, seen_ids=seen_finding_ids, since=started_at)
+            _resolve_unseen(
+                check_id,
+                seen_ids=seen_finding_ids,
+                since=started_at,
+                scope_album_ids=scope.resolve_scope_album_ids,
+            )
 
         completed_at = _now_iso()
         duration_ms = int((time.perf_counter() - started_perf) * 1000)
@@ -267,7 +281,13 @@ def _upsert_finding(check_id: str, finding: Finding) -> int:
             return cur.lastrowid
 
 
-def _resolve_unseen(check_id: str, *, seen_ids: set[int], since: str) -> int:
+def _resolve_unseen(
+    check_id: str,
+    *,
+    seen_ids: set[int],
+    since: str,
+    scope_album_ids: list[str] | None = None,
+) -> int:
     """Mark findings for `check_id` not in `seen_ids` (and not previously
     resolved or ignored) as resolved. Returns row count.
 
@@ -277,6 +297,12 @@ def _resolve_unseen(check_id: str, *, seen_ids: set[int], since: str) -> int:
     here is by definition stale.) The previous `last_seen_at < since`
     filter could miss rows that ticked into the same second as the run's
     start timestamp.
+
+    `scope_album_ids`: when non-None, limits the auto-resolve UPDATE to
+    findings whose album_id is in the list. Used for scope="albums"
+    reruns (post-fix on a single album) where we've only examined a
+    subset of the library and shouldn't sweep-resolve findings on
+    untouched albums.
 
     TODO: the "no two concurrent runs" assumption is currently enforced
     only by the dispatcher in `main._run_post_scan_checks` /
@@ -289,23 +315,26 @@ def _resolve_unseen(check_id: str, *, seen_ids: set[int], since: str) -> int:
     """
     del since  # documented above; intentionally unused
     now = _now_iso()
+    where = "check_id=? AND resolved_at IS NULL AND ignored_at IS NULL"
+    args: list[Any] = [check_id]
+    if seen_ids:
+        where += f" AND id NOT IN ({','.join('?' * len(seen_ids))})"
+        args.extend(seen_ids)
+    # Scope-limited auto-resolve: when the run only examined a subset of
+    # albums (scope_kind="albums"), don't resolve findings on unrelated
+    # albums — those weren't even checked this pass.
+    if scope_album_ids is not None:
+        if not scope_album_ids:
+            # Empty scope = nothing examined = nothing to resolve.
+            return 0
+        where += f" AND album_id IN ({','.join('?' * len(scope_album_ids))})"
+        args.extend(scope_album_ids)
     with db_module.connect() as conn:
         with db_module.transaction(conn):
-            if seen_ids:
-                placeholders = ",".join("?" * len(seen_ids))
-                cur = conn.execute(
-                    f"UPDATE check_findings SET resolved_at=? "
-                    f"WHERE check_id=? AND resolved_at IS NULL AND ignored_at IS NULL "
-                    f"AND id NOT IN ({placeholders})",
-                    (now, check_id, *seen_ids),
-                )
-            else:
-                # No findings this run → resolve everything currently open.
-                cur = conn.execute(
-                    "UPDATE check_findings SET resolved_at=? "
-                    "WHERE check_id=? AND resolved_at IS NULL AND ignored_at IS NULL",
-                    (now, check_id),
-                )
+            cur = conn.execute(
+                f"UPDATE check_findings SET resolved_at=? WHERE {where}",
+                (now, *args),
+            )
             return cur.rowcount
 
 

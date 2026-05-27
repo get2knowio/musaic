@@ -92,16 +92,35 @@ class FilenameMismatch(Check):
         comp_template = settings_module.filename_template_compilation()
         single_dir_template = settings_module.dir_template_single_artist()
         comp_dir_template = settings_module.dir_template_compilation()
+        # Scope-limited fetch when the runner asked for a subset (per-
+        # album rerun after a fix). Without this the check would still
+        # read FLAC tags from every album in the library — minutes of
+        # disk I/O on SMB — even though we only care about one album.
         with db_module.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT id, path, dir_name, album_artist, title, year,
-                       is_compilation, disc_number, disc_total
-                FROM albums
-                WHERE library_path = ?
-                """,
-                (scope.library_path,),
-            ).fetchall()
+            if scope.kind == "albums":
+                ids = [a["id"] for a in scope.albums if a.get("id")]
+                if not ids:
+                    return
+                placeholders = ",".join("?" * len(ids))
+                rows = conn.execute(
+                    f"""
+                    SELECT id, path, dir_name, album_artist, title, year,
+                           is_compilation, disc_number, disc_total
+                    FROM albums
+                    WHERE library_path = ? AND id IN ({placeholders})
+                    """,
+                    (scope.library_path, *ids),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT id, path, dir_name, album_artist, title, year,
+                           is_compilation, disc_number, disc_total
+                    FROM albums
+                    WHERE library_path = ?
+                    """,
+                    (scope.library_path,),
+                ).fetchall()
 
         for row in rows:
             album_path = row["path"]
@@ -158,12 +177,21 @@ def _check_album(
     for each, and return a list of rename plan entries for files
     whose actual filename doesn't match. Empty list = album is
     already conformant."""
+    from ..scanner import dedupe_by_inode
     p = Path(album_path)
     flacs = sorted(
         e for e in p.iterdir()
         if e.is_file() and e.suffix.lower() == ".flac"
         and not e.name.startswith("._")
     )
+    # SMB mounts (e.g. Synology DSM) can yield the same physical file
+    # under two directory entries when the filename contains characters
+    # that need encoding translation (`?`, `*`, `:`). Without inode-
+    # dedupe the rename plan ends up with the same source listed twice,
+    # which then surfaces as visible duplicate rows in the Resolve
+    # dialog. Other scan paths already dedupe via scanner.dedupe_by_inode;
+    # mirror that here.
+    flacs = dedupe_by_inode(flacs)
     if not flacs:
         return []
 
@@ -367,7 +395,19 @@ def execute_renames(
                 "renamed": 0,
             }
         new_dir_path = album_dir.parent / new_dir_basename
-        if new_dir_path.exists() and new_dir_path != album_dir:
+        # Same-physical-dir check (handles case-insensitive APFS, NFC vs
+        # NFD unicode normalization, etc.). Path string equality alone
+        # would refuse perfectly safe renames where the source and
+        # target are the same directory under a different surface form
+        # — e.g. an album with `é` (NFD on disk) being renamed to `é`
+        # (NFC from the template render).
+        same_physical = False
+        if new_dir_path.exists():
+            try:
+                same_physical = os.path.samefile(str(new_dir_path), str(album_dir))
+            except OSError:
+                same_physical = False
+        if new_dir_path.exists() and not same_physical:
             return {
                 "ok": False,
                 "message": (
@@ -379,7 +419,11 @@ def execute_renames(
         try:
             # Rename on disk. shutil.move handles cross-device but
             # within a library dir we expect same-fs and a plain
-            # rename suffices.
+            # rename suffices. Even when source and target point at the
+            # same physical dir (case / unicode-form difference), we
+            # still issue the rename — `os.rename(x, y)` will normalize
+            # the on-disk surface form on case-insensitive APFS, which
+            # is the user-visible result they're after.
             album_dir.rename(new_dir_path)
             dir_renamed = True
             # Compute the new id (sha1 of resolved new path) and
@@ -416,7 +460,13 @@ def execute_renames(
 
     # Filter the plan: drop no-ops, drop entries with missing names,
     # drop entries where the source doesn't actually exist on disk.
+    # Track "already done" entries (source missing AND target present)
+    # separately so we can give the user a clearer message than the
+    # generic "Nothing to rename" — typically means a previous Resolve
+    # click already moved the files and the finding's stale plan was
+    # re-submitted.
     cleaned: list[tuple[Path, Path]] = []
+    already_done = 0
     for entry in plan:
         old = (entry.get("old") or "").strip()
         new = (entry.get("new") or "").strip()
@@ -431,11 +481,35 @@ def execute_renames(
         old_p = album_dir / old
         new_p = album_dir / new
         if not old_p.is_file():
-            log.warning("execute_renames: source missing, skipping: %s", old_p)
+            if new_p.is_file():
+                # Looks like this entry already ran successfully on a
+                # previous click — log at info, not warning.
+                log.info("execute_renames: already renamed: %s", new_p.name)
+                already_done += 1
+            else:
+                log.warning("execute_renames: source missing, skipping: %s", old_p)
             continue
         cleaned.append((old_p, new_p))
 
     if not cleaned and not dir_renamed:
+        if already_done and already_done == sum(
+            1 for e in plan
+            if (e.get("old") or "").strip()
+            and (e.get("new") or "").strip()
+            and (e.get("old") or "").strip() != (e.get("new") or "").strip()
+        ):
+            return {
+                "ok":      True,
+                "renamed": 0,
+                # `already_renamed` is the signal the API layer uses to
+                # trigger a check rerun so the now-stale finding clears.
+                "already_renamed": True,
+                "message": (
+                    f"All {already_done} file(s) were already renamed by an "
+                    f"earlier click; nothing to do. Re-running the check to "
+                    f"clear the stale finding."
+                ),
+            }
         return {"ok": True, "message": "Nothing to rename", "renamed": 0}
     if not cleaned and dir_renamed:
         # Dir-only rename — refresh the cache and we're done.
