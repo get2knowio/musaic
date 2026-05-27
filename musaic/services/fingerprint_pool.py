@@ -195,27 +195,21 @@ async def _run_pool(library_dir: str) -> None:
         with _state_lock:
             _state["current_album_id"] = None
             _state["completed_at"] = _utc_iso_now()
-            completed_anything = _state["completed"] > 0
             if _state["status"] == "running":
                 _state["status"] = "done"
                 _log.info(
                     "Eager fingerprinting done: completed=%d errors=%d",
                     _state["completed"], _state["errors"],
                 )
-        # Re-run post-scan checks so any unidentified-album findings
-        # flagging "needs fingerprints" auto-resolve. Without this, the
-        # pool warms the cache silently but the Health page still shows
-        # the old finding count until the next library scan. Only fires
-        # when at least one album was successfully fingerprinted —
-        # nothing to update otherwise.
-        if completed_anything:
-            try:
-                from .post_scan import run_post_scan_checks_async
-                await run_post_scan_checks_async(library_dir)
-            except Exception:
-                _log.exception(
-                    "post-fingerprint-pool check rerun failed (continuing)",
-                )
+        # Per-album reruns now ride the bus: `fingerprint.fingerprint_
+        # album` publishes TrackFingerprinted per album, the
+        # _post_scan_rerun subscriber runs a scoped rerun off-thread,
+        # and the pool's 0.5s inter-album sleep gives those threads
+        # time to complete sequentially. No end-of-batch rerun needed
+        # — the per-album scoped reruns collectively cover the same
+        # ground a library-wide rerun would, at the cost of a bit more
+        # per-album setup overhead (acceptable for a fire-and-forget
+        # warmer).
 
 
 def _utc_iso_now() -> str:
