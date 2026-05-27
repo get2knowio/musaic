@@ -205,6 +205,50 @@ def _post_scan_rerun_library_wide(ev: LibraryScanCompleted) -> None:
         events.in_post_scan_rerun.reset(token)
 
 
+def _filename_mismatch_rerun(ev: AlbumRenamed) -> None:
+    """Run filename-mismatch scoped to the renamed album. This is the
+    one runs_during_scan=False check that the bus drives — it's
+    NOT in the post-scan tail (too expensive: reads every FLAC's
+    tags), but renames are the one mutation where its findings
+    can change. Per-album scoped, the read cost is sub-second.
+
+    Skipped if we're already inside a post-scan rerun (the runner
+    would re-enter itself) or a bulk-fix loop (the dispatcher
+    coalesces). Same guards as _post_scan_rerun.
+
+    AlbumRenamed.old==new signals a file-only rename (no dir-id
+    change); we still want to re-check the album. The check's
+    scope_kind='albums' filters its SQL by the supplied album_id."""
+    if events.in_post_scan_rerun.get():
+        return
+    from ..checks._apply import in_bulk_run
+    if in_bulk_run.get():
+        return
+    cfg = config_module.load_config()
+    if not cfg.library_dir:
+        return
+    library_path = str(cfg.library_dir)
+    # Reuse the in_post_scan_rerun flag so nested publishes from
+    # inside the rerun (if any) short-circuit — same semantics as the
+    # post-scan subscriber.
+    token = events.in_post_scan_rerun.set(True)
+    try:
+        import asyncio
+        asyncio.run(checks_runner.run_check(
+            "filename-mismatch",
+            library_path=library_path,
+            scope_kind="albums",
+            album_ids=[ev.new_album_id],
+        ))
+    except Exception:
+        _log.exception(
+            "_filename_mismatch_rerun failed for %s (continuing)",
+            ev.new_album_id,
+        )
+    finally:
+        events.in_post_scan_rerun.reset(token)
+
+
 def _findings_runner_notify(ev: Event) -> None:
     """Wake any open `/api/checks/stream` socket so connected
     clients refetch the findings list. Fires AFTER post-scan reruns
@@ -262,6 +306,13 @@ def register_all() -> None:
     events.register(
         LibraryScanCompleted, _post_scan_rerun_library_wide,
         priority=200, background=True, name="_post_scan_rerun_library_wide",
+    )
+    # filename-mismatch is the one runs_during_scan=False check the bus
+    # drives — too expensive for the post-scan tail, but per-album
+    # cheap and the only check whose findings can change after a rename.
+    events.register(
+        AlbumRenamed, _filename_mismatch_rerun,
+        priority=200, background=True, name="_filename_mismatch_rerun",
     )
 
     # Notification tier (300) — wake SSE consumers. Last so it sees

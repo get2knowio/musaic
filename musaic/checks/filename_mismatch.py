@@ -710,6 +710,24 @@ def execute_renames(
     except Exception:
         log.exception("execute_renames: post-rename rescan failed (continuing)")
 
+    # Publish AlbumRenamed for the file-only path too (the dir-rename
+    # branch above already published one with a NEW id). Setting
+    # old_album_id == new_album_id signals "files were renamed but
+    # the album identity didn't change." The _filename_mismatch_
+    # rerun subscriber listens on this event and re-evaluates the
+    # check against the album's current filesystem state.
+    if renamed > 0 and not dir_renamed:
+        try:
+            from .. import library_events
+            library_events.publish(library_events.AlbumRenamed(
+                old_album_id=new_album_id, new_album_id=new_album_id,
+            ))
+        except Exception:
+            log.exception(
+                "library_events publish failed for file rename on %s",
+                new_album_id,
+            )
+
     return {
         "ok":          (renamed > 0 or dir_renamed) and not errors,
         "renamed":     renamed,

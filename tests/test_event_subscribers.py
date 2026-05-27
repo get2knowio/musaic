@@ -38,7 +38,13 @@ def _isolated_bus(monkeypatch, tmp_path):
     # Stub run_post_scan_checks so we don't actually run checks during
     # subscriber tests — we only care that it was called with the
     # right args.
-    calls = {"rerun_calls": [], "invalidate_calls": [], "thumb_calls": [], "notify_calls": 0}
+    calls = {
+        "rerun_calls": [],
+        "invalidate_calls": [],
+        "thumb_calls": [],
+        "notify_calls": 0,
+        "run_check_calls": [],
+    }
     def fake_rerun(library_dir, **kw):
         calls["rerun_calls"].append((library_dir, kw))
     def fake_invalidate(album_id):
@@ -47,6 +53,8 @@ def _isolated_bus(monkeypatch, tmp_path):
         calls["thumb_calls"].append(album_id)
     def fake_notify():
         calls["notify_calls"] += 1
+    async def fake_run_check(check_id, **kw):
+        calls["run_check_calls"].append((check_id, kw))
 
     monkeypatch.setattr(event_subscribers, "run_post_scan_checks", fake_rerun)
     monkeypatch.setattr(
@@ -57,6 +65,9 @@ def _isolated_bus(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(
         event_subscribers.checks_runner, "notify_changed", fake_notify,
+    )
+    monkeypatch.setattr(
+        event_subscribers.checks_runner, "run_check", fake_run_check,
     )
     # Stub the library_dir so subscribers don't return early on
     # "no library configured."
@@ -213,6 +224,37 @@ def test_rerun_subscriber_short_circuits_in_bulk_run(_isolated_bus):
     # Bulk-run-flag set → subscriber bailed on every event. Bulk
     # dispatcher does its own end-of-batch rerun separately.
     assert _isolated_bus["rerun_calls"] == []
+
+
+# ---------- _filename_mismatch_rerun ----------
+
+
+def test_album_renamed_runs_filename_mismatch_scoped(_isolated_bus):
+    """AlbumRenamed (whether dir or file-only) should trigger a
+    scoped filename-mismatch rerun against the new album_id —
+    that's the one mutation where the check's findings can
+    actually change."""
+    bus.publish(AlbumRenamed(old_album_id="old", new_album_id="new"))
+    _wait_for_threads()
+    assert ("filename-mismatch", {
+        "library_path": _isolated_bus["run_check_calls"][0][1]["library_path"],
+        "scope_kind": "albums",
+        "album_ids": ["new"],
+    }) in _isolated_bus["run_check_calls"]
+
+
+def test_filename_mismatch_subscriber_short_circuits_in_post_scan(_isolated_bus):
+    """If we're already inside a post-scan rerun (e.g. some other
+    check's run() touched files and published AlbumRenamed), the
+    filename-mismatch subscriber must skip — the runner is already
+    busy."""
+    token = bus.in_post_scan_rerun.set(True)
+    try:
+        bus.publish(AlbumRenamed(old_album_id="a", new_album_id="a"))
+        _wait_for_threads()
+    finally:
+        bus.in_post_scan_rerun.reset(token)
+    assert _isolated_bus["run_check_calls"] == []
 
 
 # ---------- _findings_runner_notify ----------
