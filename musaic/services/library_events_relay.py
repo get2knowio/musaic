@@ -22,9 +22,14 @@ Design notes:
   bus is a "something changed, refresh" signal, not durable state.
 
 - The relay is registered at the lowest priority (400) so it fires
-  AFTER every mutation/notification subscriber. That way the SSE
-  consumer sees "the state has settled" rather than "a mutation is
-  about to happen."
+  after the synchronous invalidation subscribers (priority 100). The
+  priority-200 `_post_scan_rerun` is `background=True`, so publish()
+  only Thread.start()s it before priority 300/400 run — the relay
+  fires BEFORE the rerun finishes. The frontend works around this
+  by NOT invalidating findings/checks off the library-events stream;
+  that responsibility lives on `useChecksStream`, which wakes when
+  `run_check` calls `notify_changed()` at end-of-rerun. See
+  `frontend/src/hooks/useLibraryEventsStream.ts` for the contract.
 
 - Event payload shape: `{album_id?, old_album_id?, new_album_id?,
   fields?, filenames?, source?, album_count?}`. The frontend's
@@ -82,12 +87,28 @@ def _enqueue(ev: events.Event) -> None:
 
     Cross-thread push uses `loop.call_soon_threadsafe` because the
     background subscribers (post-scan rerun) fire from daemon threads
-    and `Queue.put_nowait` is not thread-safe in that context."""
+    and `Queue.put_nowait` is not thread-safe in that context.
+
+    Per-iteration `try/except RuntimeError` is load-bearing: a loop
+    closed between snapshot and dispatch (shutdown race, a test's
+    `asyncio.run` exited, a connection whose loop torn down before
+    `unregister_connection` ran) makes `call_soon_threadsafe` raise.
+    An unguarded raise would break out of the for-loop and starve
+    every healthy connection after the dead one."""
     name, payload = _event_to_payload(ev)
     with _lock:
         snapshot = list(_subscribers)
     for loop, queue in snapshot:
-        loop.call_soon_threadsafe(_safe_put, queue, name, payload)
+        try:
+            loop.call_soon_threadsafe(_safe_put, queue, name, payload)
+        except RuntimeError as e:
+            # Loop closed; the connection's teardown path will (or
+            # already did) unregister it. Skip and keep going.
+            _log.debug(
+                "library-events relay: skipped dead loop for event %s (%s)",
+                name, e,
+            )
+            continue
 
 
 def _safe_put(queue: asyncio.Queue, name: str, payload: dict[str, Any]) -> None:

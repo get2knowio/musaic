@@ -296,12 +296,17 @@ es.addEventListener("AlbumTagsChanged", (ev) => {
   qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
   qc.invalidateQueries({ queryKey: ["tracks", album_id] });
   qc.invalidateQueries({ queryKey: ["album-resolution", album_id] });
-  qc.invalidateQueries({ queryKey: ["findings"] });
-  qc.invalidateQueries({ queryKey: ["checks"] });
+  // NOTE: findings/checks are intentionally NOT invalidated here —
+  // that responsibility lives on useChecksStream, which wakes at
+  // end-of-rerun (the rerun is a background subscriber so the relay
+  // fires before it completes; invalidating findings here would
+  // refetch stale data).
 });
 ```
 
-Wired through `musaic/services/library_events_relay.py` — a bus subscriber at priority 400 (last, so SSE consumers see post-mutation state) that fans every event out to per-connection `asyncio.Queue(maxsize=256)` instances. Cross-thread enqueue uses `loop.call_soon_threadsafe` because background subscribers publish from daemon threads. Bounded queue drops oldest on overflow — clients reconnect/refetch; they don't need every event, they need an eventually-correct cache.
+Wired through `musaic/services/library_events_relay.py` — a bus subscriber at priority 400 (last) that fans every event out to per-connection `asyncio.Queue(maxsize=256)` instances. Cross-thread enqueue uses `loop.call_soon_threadsafe` (guarded by `try/except RuntimeError` so a closed loop doesn't starve healthy queues). Bounded queue drops oldest on overflow — clients reconnect/refetch; they don't need every event, they need an eventually-correct cache. EventSource auto-reconnect on the frontend triggers a broad cache re-invalidation via the `open` listener, so transient drops can't leave caches indefinitely stale.
+
+**Responsibility split**: `useLibraryEventsStream` owns album-state caches (`["albums-snapshot"]`, `["tracks", id]`, `["album-resolution", id]`); `useChecksStream` owns findings/checks caches (`["findings"]`, `["checks"]`, `["check"]`). The split exists because `_post_scan_rerun` is registered `background=True` — the relay's SSE event lands before the rerun finishes, so invalidating findings off the library-events stream would refetch stale data. `useChecksStream` fires when `run_check` calls `notify_changed()` at end-of-rerun, which is reliably *after* the bus event.
 
 **When adding a new mutation endpoint:** publish the relevant bus event (pattern #1). Don't add a frontend `invalidateQueries` call — `useLibraryEventsStream` already handles it. Exceptions: caches the bus doesn't see today (`["jobs"]` via its own SSE channel, `["vocabulary"]` / `["album-tags"]` via `setQueryData`, preview-endpoint caches the dialog manages).
 

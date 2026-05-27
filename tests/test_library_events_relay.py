@@ -210,6 +210,42 @@ def test_publish_from_background_thread_reaches_queue():
     asyncio.run(runner())
 
 
+def test_dead_loop_does_not_starve_healthy_subscribers():
+    """If one connection's loop is closed between the snapshot and
+    dispatch, `call_soon_threadsafe` raises RuntimeError. Without the
+    per-iteration guard in `_enqueue`, that exception would break out
+    of the for-loop and every later subscriber in the snapshot would
+    silently miss the event. With the guard, the dead loop is skipped
+    and healthy queues still receive the event."""
+    relay.register_bus_subscriber()
+
+    # Build a dead-loop sentinel: a real asyncio loop, but closed.
+    dead_loop = asyncio.new_event_loop()
+    dead_loop.close()
+    dead_queue: asyncio.Queue = asyncio.Queue(maxsize=8)
+    # Register the dead-loop entry BEFORE the healthy one so the
+    # for-loop hits it first — proving that an early failure doesn't
+    # starve a later healthy queue.
+    with relay._lock:
+        relay._subscribers.append((dead_loop, dead_queue))
+
+    async def runner():
+        live_loop = asyncio.get_running_loop()
+        live_queue: asyncio.Queue = asyncio.Queue(maxsize=8)
+        relay.register_connection(live_loop, live_queue)
+
+        # Publish — _enqueue iterates [dead, live]. Dead raises
+        # RuntimeError on call_soon_threadsafe; guard catches it and
+        # continues to the live entry.
+        bus.publish(AlbumTagsChanged(album_id="should-still-reach-live"))
+
+        name, payload = await asyncio.wait_for(live_queue.get(), timeout=1.0)
+        assert name == "AlbumTagsChanged"
+        assert payload["album_id"] == "should-still-reach-live"
+
+    asyncio.run(runner())
+
+
 def test_relay_priority_runs_after_other_subscribers():
     """Relay registers at priority 400 so SSE consumers see the post-
     mutation state. Verify the relay subscriber executes AFTER any

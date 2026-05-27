@@ -44,7 +44,14 @@ The SSE handler (`/api/library-events/stream` in `musaic/api/library.py`) create
 
 **Backpressure**: if the queue is full when an event arrives, `_safe_put` drops the oldest entry, logs a warning, and pushes the new one. This is correct because the bus is a "something changed, refresh" signal — clients don't need every event, they need an eventually-correct cache. A client falling behind reconnects and refetches; it doesn't lose data.
 
-**Priority 400**: the relay runs *after* the invalidation tier (100, in-process resolver memo + thumb drop) *and* the mutation tier (200, post-scan rerun). So when an SSE consumer sees an event, the backend state is already settled. This avoids the race where the frontend invalidates, refetches against not-yet-rerun state, gets stale data, and only sees the real state on the next event.
+**Priority 400** + **divided responsibility with `useChecksStream`**: the relay runs after the synchronous invalidation tier (100, in-process resolver memo + thumb drop). But the priority-200 `_post_scan_rerun` subscriber is `background=True` — `publish()` only Thread.start()s it before priorities 300/400 fire, so the relay enqueues the SSE event *before* the rerun finishes. If `useLibraryEventsStream` invalidated `["findings"]` / `["checks"]` directly, the refetch would land against pre-rerun state and the satisfied finding would visibly linger until the rerun's eventual `notify_changed()` triggered a corrective second refetch.
+
+The fix is a clean split of responsibilities:
+
+| Stream | Owns |
+|---|---|
+| `useLibraryEventsStream` | album-state caches: `["albums-snapshot"]`, `["tracks", id]`, `["album-resolution", id]` (these don't depend on the rerun) |
+| `useChecksStream` | findings/checks caches: `["findings"]`, `["checks"]`, `["check"]` (fed by `notify_changed()` which fires at end-of-rerun from inside `run_check`) |
 
 ### Frontend: one subscriber, one invalidation map
 
@@ -52,27 +59,39 @@ The SSE handler (`/api/library-events/stream` in `musaic/api/library.py`) create
 
 ```
 AlbumTagsChanged(album_id)    → ["albums-snapshot"], ["tracks", album_id],
-                                ["album-resolution", album_id], ["findings"],
-                                ["checks"], ["check"]
-AlbumCoverChanged(album_id)   → ["albums-snapshot"], ["findings"], ["checks"]
+                                ["album-resolution", album_id]
+AlbumCoverChanged(album_id)   → ["albums-snapshot"]
                                 (cover URL is mtime-busted client-side via
                                  coverUrl() in lib/api.ts; no separate
                                  cover cache to drop)
-AlbumMbAnchorSet(album_id)    → ["albums-snapshot"], ["album-resolution", id],
-                                ["findings"], ["checks"], ["check"]
-TrackFingerprinted(album_id)  → ["tracks", album_id], ["album-resolution", id],
-                                ["findings"], ["checks"]
-AlbumRenamed(old, new)        → ["albums-snapshot"], ["findings"], ["checks"],
-                                ["check"]; removeQueries for both ids' tracks
-                                + resolution (id changed)
-AlbumDeleted(album_id)        → ["albums-snapshot"], ["findings"], ["checks"],
-                                ["check"]; removeQueries for the id's tracks
-                                + resolution
-LibraryScanCompleted          → broad refresh (snapshot, findings, checks)
-BulkBatchCompleted            → broad refresh (snapshot, findings, checks)
+AlbumMbAnchorSet(album_id)    → ["albums-snapshot"],
+                                ["album-resolution", album_id]
+TrackFingerprinted(album_id)  → ["tracks", album_id],
+                                ["album-resolution", album_id]
+AlbumRenamed(old, new)        → ["albums-snapshot"];
+                                old != new (dir rename, id changed) →
+                                  removeQueries on the OLD id (gone),
+                                  invalidateQueries on the NEW id;
+                                old == new (file-only rename) →
+                                  invalidateQueries on that id only,
+                                  NOT remove (an open album sheet's
+                                  TrackList / ResolutionBadge would
+                                  flicker to skeleton state mid-apply
+                                  during a chained dialog walk)
+AlbumDeleted(album_id)        → ["albums-snapshot"]; removeQueries for
+                                the id's tracks + resolution
+LibraryScanCompleted          → ["albums-snapshot"]; invalidate the
+                                full ["tracks"] and ["album-resolution"]
+                                prefixes — a scan may have touched any
+                                open album, and with staleTime: Infinity
+                                an unrelated open sheet would otherwise
+                                show pre-scan track data forever
+BulkBatchCompleted            → same as LibraryScanCompleted
 ```
 
-The map intentionally invalidates `["findings"]` / `["checks"]` on most events even though `useChecksStream` would push them too — the library-events stream lands one RTT earlier, and TanStack dedupes in-flight refetches so the rare overlap is invisible.
+Findings/checks invalidations are NOT in this map — see the responsibility split above. `useChecksStream` invalidates them when the runner's `notify_changed()` fires at the end of every rerun, which is reliably *after* the bus event.
+
+**Reconnect resync**: the `useLibraryEventsStream` hook attaches an `open` listener that invalidates every bus-driven cache. EventSource auto-reconnects on transient drops, but events published during the gap are lost (relay's per-connection queue is dropped on disconnect; on reconnect we get a fresh empty queue and a `ready` sentinel — no replay buffer). Without the `open` resync, combined with `staleTime: Infinity` on most bus-driven queries, a single network blip would leave caches permanently stale. The `open` invalidations are cheap on initial connect (queries are either in-flight or not yet mounted, both dedupe).
 
 ### Frontend: mutation handlers stop bookkeeping
 
@@ -124,10 +143,11 @@ The remaining non-Infinity caches (`useCheck` 5 s, `useSettings` 30 s, `useDupli
 ## Failure modes + their answers
 
 - **What if a client falls behind?** Queue drops oldest, warns once per overflow burst, client gets the *next* event and refetches. Eventually-correct cache; no lost data, just one window of staleness.
-- **What if the SSE channel disconnects?** `EventSource` auto-reconnects. On reconnect, the relay registers a fresh queue; events published during the gap are missed (acceptable — the user just gets one cache miss on the next mutation).
+- **What if the SSE channel disconnects?** `EventSource` auto-reconnects. The `useLibraryEventsStream` hook attaches an `open` listener that re-invalidates every bus-driven cache, so caches self-heal on reconnect (events published during the gap are still lost from the queue, but the broad invalidation forces a refetch that picks up the post-gap state). Without this, `staleTime: Infinity` would leave caches indefinitely stale after a single blip.
 - **What if a mutation publishes the wrong event?** Frontend invalidates the wrong keys, UI shows stale data. Caught at integration time when the user clicks a button and the panel doesn't update. Tests in `test_library_events_relay.py` pin every event type's serialization shape so it can't silently drift.
 - **What if two consumers process the same event concurrently?** Tan­Stack dedupes in-flight refetches by query key; the worst case is one redundant fetch.
-- **What if the relay subscriber runs *before* the mutation completes?** Can't happen — the relay registers at priority 400 (last). Invalidation tier (100) and mutation tier (200) finish first.
+- **What if one client's event loop closes mid-publish?** The relay's `_enqueue` wraps each `call_soon_threadsafe` in `try/except RuntimeError` and continues to the next subscriber. Without this guard, a closed loop would starve every healthy queue after the dead one in the same publish.
+- **What if the relay subscriber runs *before* a background-thread mutation completes?** It will — `_post_scan_rerun` is `background=True`. The split between `useLibraryEventsStream` (album-state caches, fires immediately) and `useChecksStream` (findings/checks caches, fires at end-of-rerun via `notify_changed()`) avoids the race. See the priority-400 explanation above.
 
 ## Test coverage
 
