@@ -80,6 +80,7 @@ export default function Sidebar() {
       "needs-review": 0,
       "missing-art": 0,
       "compilations": 0,
+      "missing": 0,
     };
     for (const f of FILTERS) {
       out[f.key] = albums.filter((a) => f.matches(a, needsAttention)).length;

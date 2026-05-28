@@ -5,7 +5,7 @@
  */
 import type { Album, Job } from "./types";
 
-export type FilterKey = "missing-art" | "compilations" | "needs-review";
+export type FilterKey = "missing-art" | "compilations" | "needs-review" | "missing";
 
 export interface FilterDef {
   key: FilterKey;
@@ -34,6 +34,16 @@ export const FILTERS: FilterDef[] = [
     label: "Compilations",
     dotColor: "var(--ok)",
     matches: (album) => album.is_compilation,
+  },
+  {
+    // v15 — albums the scanner doesn't see on disk right now. The
+    // row + cached metadata persist; the user can either wait for
+    // the album to return (transient mount issue) or remove the
+    // album from the library explicitly via the detail sheet.
+    key: "missing",
+    label: "Missing",
+    dotColor: "var(--warn)",
+    matches: (album) => !!album.missing_since,
   },
 ];
 

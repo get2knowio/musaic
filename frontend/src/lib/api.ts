@@ -90,6 +90,28 @@ export function getAlbumResolution(
 }
 
 /**
+ * Explicit user-initiated removal of an album from the cache. Drops
+ * the row + cascade-deletes its fingerprints, track tags, and
+ * per-album MB blocklists. The only post-v15 path that reaches
+ * `cache.delete_album` — scans never get here, they mark albums
+ * Missing instead. Intended use is the "Remove from library" button
+ * on Missing albums.
+ *
+ * 404 when the album_id isn't in the cache (already removed,
+ * never cached, or wrong id) — callers should treat this as
+ * "already gone" rather than an error.
+ */
+export function removeAlbumFromLibrary(
+  id: string,
+): Promise<{ ok: boolean; deleted_album_id: string }> {
+  return request(
+    `/api/albums/${encodeURIComponent(id)}`,
+    { method: "DELETE" },
+  );
+}
+
+
+/**
  * Wipe the cached MusicBrainz anchor for an album AND blocklist the
  * rejected release-group so the resolver's fingerprint vote / dir
  * search / AI persist all skip it on the next run. Returns the MBID
