@@ -138,6 +138,23 @@ export function useLibraryEventsStream() {
       qc.invalidateQueries({ queryKey: ["album-resolution"] });
     };
 
+    const onAlbumMarkedMissing = (album_id: string) => {
+      // The album row is preserved (only `missing_since` was set), so
+      // tracks/resolution caches are still valid against the cached
+      // data — but the snapshot now carries the missing_since marker,
+      // which the Library grid uses to grey out the tile and the
+      // DetailSheet uses to swap to the "missing" banner. So we only
+      // need to bust the snapshot.
+      //
+      // We deliberately do NOT removeQueries on ['tracks', id] /
+      // ['album-resolution', id] — keeping the cached data means the
+      // DetailSheet can still display the album's known metadata when
+      // the user opens a Missing tile.
+      qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
+      // No-op album_id reference; consumers read it from the snapshot.
+      void album_id;
+    };
+
     const parse = (ev: MessageEvent): EventPayload | null => {
       try { return JSON.parse(ev.data); } catch { return null; }
     };
@@ -167,6 +184,10 @@ export function useLibraryEventsStream() {
     es.addEventListener("AlbumDeleted", (ev) => {
       const p = parse(ev as MessageEvent);
       if (p?.album_id) onAlbumDeleted(p.album_id);
+    });
+    es.addEventListener("AlbumMarkedMissing", (ev) => {
+      const p = parse(ev as MessageEvent);
+      if (p?.album_id) onAlbumMarkedMissing(p.album_id);
     });
     es.addEventListener("LibraryScanCompleted", () => onLibraryWide());
     es.addEventListener("BulkBatchCompleted", () => onLibraryWide());

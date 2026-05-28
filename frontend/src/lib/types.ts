@@ -48,6 +48,15 @@ export interface Album {
   // the user acted on (applied OR discarded). NULL = the album hasn't
   // been through an AI metadata pass that the user reviewed yet.
   metadata_ai_acted_on_at?: string | null;
+  // v15 — presence marker. NULL when the album's directory is on disk;
+  // ISO-8601 timestamp when the scanner didn't see it (drive unmount,
+  // user moved it, FS hiccup, deleted from another tool). The Library
+  // grid greys the tile, the DetailSheet shows a "Missing since X"
+  // banner with a "Remove from library" button, and mutation
+  // affordances (Apply, AI, cover upload) disable. The album row +
+  // computed children (fingerprints, MB anchor, track tags) survive
+  // until the user explicitly removes it via DELETE /api/albums/{id}.
+  missing_since?: string | null;
   // SSE-stream-only field — populated when Album arrives via /api/scan/stream
   _status?: "fresh" | "cached";
 }
@@ -155,8 +164,13 @@ export type ScanEvent =
   | { type: "start"; library_dir: string; total: number; cached_count: number; force: boolean }
   | { type: "album"; album: Album }
   | { type: "progress"; scanned: number; total: number }
-  | { type: "removed"; id: string; path: string }
-  | { type: "done"; count: number; removed_count: number; scanned_at: string }
+  // v15: scan-observed albums that vanished from disk. The row +
+  // cached metadata persist (with `missing_since` set); only an
+  // explicit user action via DELETE /api/albums/{id} actually drops
+  // the row. The old "removed" event name implied destruction it
+  // never delivered.
+  | { type: "marked_missing"; id: string; path: string }
+  | { type: "done"; count: number; marked_missing_count: number; scanned_at: string }
   | { type: "error"; detail: string };
 
 export type ApiError = { status: number; detail: string };
