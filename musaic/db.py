@@ -116,7 +116,18 @@ SCHEMA_STATEMENTS = [
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_albums_library ON albums(library_path)",
-    "CREATE INDEX IF NOT EXISTS idx_albums_missing ON albums(library_path) WHERE missing_since IS NULL",
+    # NOTE: a partial index on `WHERE missing_since IS NULL` was
+    # tried but removed — `SCHEMA_STATEMENTS` runs BEFORE migrations
+    # in bootstrap(), and on an existing v14 install the
+    # CREATE TABLE IF NOT EXISTS is a no-op (column not yet added by
+    # the v15 migration), so any index referencing missing_since
+    # crashes the bootstrap transaction before the migration can run.
+    # The existing idx_albums_library covers the common
+    # `WHERE library_path = ?` filter; the additional
+    # `AND missing_since IS NULL` scan within that is fast enough for
+    # typical libraries (few thousand albums). Add a partial index
+    # later via a migration if profiling demands it — but the
+    # bootstrap ordering means it can't live in SCHEMA_STATEMENTS.
     """
     CREATE TABLE IF NOT EXISTS ai_jobs (
         id                 TEXT PRIMARY KEY,         -- short hex
@@ -533,9 +544,6 @@ MIGRATIONS: dict[int, list[str]] = {
         # via explicit user action `DELETE /api/albums/{id}`) actually
         # removes data.
         "ALTER TABLE albums ADD COLUMN missing_since TEXT",
-        # Partial index helps the common "list albums that aren't
-        # missing" query (the default Library view, every check's scope).
-        "CREATE INDEX IF NOT EXISTS idx_albums_missing ON albums(library_path) WHERE missing_since IS NULL",
     ],
 }
 
