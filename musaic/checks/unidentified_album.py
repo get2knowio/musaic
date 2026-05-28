@@ -109,6 +109,7 @@ class UnidentifiedAlbum(Check):
                 ) AS needs_anchor
             FROM albums a
             WHERE a.library_path = ?
+              AND a.missing_since IS NULL
               AND a.track_count > 0
               AND (
                 NOT EXISTS (

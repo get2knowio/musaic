@@ -26,7 +26,7 @@ from typing import Iterator
 from .config import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "library.db"
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 log = logging.getLogger(__name__)
 
@@ -103,10 +103,31 @@ SCHEMA_STATEMENTS = [
         -- and (eventually) by Library filters to bucket the unreviewed
         -- backlog.
         metadata_ai_acted_on_at TEXT,
+        -- v15: presence-as-data. ISO-8601 timestamp of the first scan
+        -- that observed the album dir gone from disk; NULL when the
+        -- album is currently Present. Lets us preserve the row (and
+        -- its computed children — fingerprints, MB anchor, track
+        -- tags) across drive outages, reorganizations, and transient
+        -- FS errors. Only `cache.delete_album` actually removes a
+        -- row, and that's only reachable via explicit user action
+        -- (`DELETE /api/albums/{id}`). Scans never delete.
+        missing_since TEXT,
         FOREIGN KEY (library_path) REFERENCES libraries(path) ON DELETE CASCADE
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_albums_library ON albums(library_path)",
+    # NOTE: a partial index on `WHERE missing_since IS NULL` was
+    # tried but removed — `SCHEMA_STATEMENTS` runs BEFORE migrations
+    # in bootstrap(), and on an existing v14 install the
+    # CREATE TABLE IF NOT EXISTS is a no-op (column not yet added by
+    # the v15 migration), so any index referencing missing_since
+    # crashes the bootstrap transaction before the migration can run.
+    # The existing idx_albums_library covers the common
+    # `WHERE library_path = ?` filter; the additional
+    # `AND missing_since IS NULL` scan within that is fast enough for
+    # typical libraries (few thousand albums). Add a partial index
+    # later via a migration if profiling demands it — but the
+    # bootstrap ordering means it can't live in SCHEMA_STATEMENTS.
     """
     CREATE TABLE IF NOT EXISTS ai_jobs (
         id                 TEXT PRIMARY KEY,         -- short hex
@@ -290,6 +311,11 @@ ALBUM_COLUMNS = (
     # acted_on transition (see main.mark_acted_on); not populated by
     # the scanner.
     "metadata_ai_acted_on_at",
+    # v15: presence-as-data. Non-null = album dir is currently absent
+    # from disk; row + computed children (fingerprints, MB anchor,
+    # track tags) preserved as-is until the user explicitly removes
+    # the album. See db.py CREATE TABLE for the full rationale.
+    "missing_since",
 )
 
 
@@ -507,6 +533,17 @@ MIGRATIONS: dict[int, list[str]] = {
             'mb-canonical-mismatch'
           )
         """,
+    ],
+    15: [
+        # Presence-as-data: each album row gets a `missing_since` column
+        # that's NULL when the album's dir is currently on disk and an
+        # ISO timestamp when it isn't. Scans set the timestamp instead
+        # of deleting the row; the row + its computed children (track
+        # fingerprints, MB anchor, track tags) survive drive outages
+        # and reorganizations. Only `cache.delete_album` (reached only
+        # via explicit user action `DELETE /api/albums/{id}`) actually
+        # removes data.
+        "ALTER TABLE albums ADD COLUMN missing_since TEXT",
     ],
 }
 

@@ -119,6 +119,7 @@ class TagsOutOfSync(Check):
                 is_compilation, mb_release_group_mbid, mb_release_mbid
             FROM albums
             WHERE library_path = ?
+              AND missing_since IS NULL
         """
         with db_module.connect() as conn:
             rows = conn.execute(sql, (scope.library_path,)).fetchall()

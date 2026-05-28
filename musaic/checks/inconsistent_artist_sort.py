@@ -186,6 +186,7 @@ class InconsistentArtistSort(Check):
                        track_artists_json
                 FROM albums
                 WHERE library_path = ?
+                  AND missing_since IS NULL
                 """,
                 (scope.library_path,),
             ).fetchall()

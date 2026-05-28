@@ -50,6 +50,7 @@ Test layout:
 - `tests/test_filename_mismatch_plan_preview.py` — 9 cases for `derive_plan` + the `/plan-preview` endpoint (re-derives instead of echoing stored detail, the load-bearing assertion).
 - `tests/test_duplicate_cluster_preview.py` — 9 cases for `derive_cluster` + the `/cluster-preview` endpoint (partial deletion, fully-resolved, unrelated-cluster refusal).
 - `tests/test_album_fields.py` — 10 cases for the shared `display_artist` + `sort_key` cascades, including the Mancini regression.
+- `tests/test_missing_state.py` — 15 cases pinning the v15 Missing-state contract: `save_snapshot` marks vanished albums Missing (preserving fingerprints/tags/anchors) instead of DELETEing, scan-time sanity check aborts on drive-outage scenarios, `mark_album_missing` / `clear_album_missing` helpers are idempotent + publish correctly, `delete_album` is the only path that cascades, check runner + SQL-pure checks filter Missing albums from scope.
 - `tests/test_audio_analysis.py`, `tests/test_cover_upload.py`, `tests/test_failure_excerpt.py` — feature-specific smoke (BPM/ReplayGain, manual cover upload, AI job transcript capture).
 
 Tests redirect `MUSAIC_CONFIG_DIR` to a tmp dir via `tests/conftest.py` so the user's real `~/.musaic` is untouched. The env var is set at the very top of conftest.py, before any `musaic.*` import, because `config.CONFIG_DIR` is captured at module-load time.
@@ -313,6 +314,24 @@ Wired through `musaic/services/library_events_relay.py` — a bus subscriber at 
 **`staleTime: Infinity` as the default:** caches kept fresh by SSE should use `staleTime: Infinity` so refetch-on-focus doesn't race with the bus. Any non-Infinity stale time in `frontend/src/hooks/` needs an explicit comment explaining why polling/refetch is correct there.
 
 Design doc: `docs/connectivity_design.md` (covers the relay's priority + backpressure reasoning, the per-handler invalidation diff, what's explicitly out of scope).
+
+### 6. Presence is data; scans observe, users decide
+
+**Anti-pattern (retired):** scans deleted album rows whose dirs weren't on disk this instant. Conflated four very different conditions into one outcome (`DELETE FROM albums` + FK cascade): genuine user deletion, transient missing (drive unmount, FS hiccup), reorganization/rename (different path = different id = looks like delete-then-create), and inaccessible (permission flicker). A single drive-flap wiped 229 MB anchors + 4843 fingerprints + every per-album blocklist + every track tag row — minutes of recovery work for fingerprints alone, weeks for AI-curated MB anchors.
+
+**Pattern:** the `albums` row carries a `missing_since TEXT` column. NULL = Present, non-null = Missing (recorded as ISO-8601 timestamp). `save_snapshot` never deletes — vanished albums get `missing_since = now()`, returning albums get it cleared. The cascade children (`track_fingerprints`, `track_tags`, per-album blocklists) survive both transitions. A scan-time sanity check (`>30% of cached albums would vanish AND cached_count >= 10`) aborts the whole scan as untrustworthy: drive-outage scenarios change nothing on disk *or* in DB, no spurious AlbumMarkedMissing flood, no greyed-out wall in the UI.
+
+The only path that actually drops a row is `cache.delete_album`, reachable only via `DELETE /api/albums/{id}` — the explicit user-initiated "Remove from library" action. The user's intent is the only signal that justifies discarding accumulated computed data.
+
+**Two new bus events:**
+- `AlbumMarkedMissing(album_id, missing_since)` — fired when an album transitions Present → Missing (via save_snapshot's bulk pass or the `mark_album_missing` helper).
+- `AlbumTagsChanged(album_id, fields=("missing_since",))` — fired when an album returns Missing → Present (reuses the existing event so the established subscriber graph fires: resolver invalidate, checks-stream notify, frontend cache invalidate).
+
+**Check runner integration:** `runner.run_check` filters Missing albums out of `scope.albums` (so per-album-iteration checks like `track-gaps` skip them automatically). SQL-pure checks (`inconsistent-artist-sort`, `tags-out-of-sync`, `unidentified-album`, `no-cover-art`, `filename-mismatch`, `duplicate-tracks`) add `AND missing_since IS NULL` to their library-scope queries. The runner's scope-aware auto-resolve preserves Missing albums' open findings (they're real; they re-evaluate when the album returns).
+
+**When adding a new mutation endpoint or check:** if the operation reads or mutates an album's on-disk files, gate it on `missing_since IS NULL` — the FS read would fail anyway, and you'd just be surfacing errors to the user that the Missing-state model is meant to suppress. The `DELETE /api/albums/{id}` endpoint is the model for explicit user-confirmed destruction: validate the row exists, call `cache.delete_album`, let the AlbumDeleted subscriber chain handle the fan-out.
+
+Design doc: `docs/connectivity_design.md` (the Missing-state model is mentioned in the failure-modes table; the conceptual rationale lives in commit messages and the `_classify_cluster`-style docstring of `cache.save_snapshot`).
 
 ## Configuration
 

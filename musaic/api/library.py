@@ -21,6 +21,7 @@ from ..scanner import (
 )
 from ..services.albums import (
     albums_for,
+    cached_album_dict,
     invalidate_cache,
     resolve_album_dict,
     read_tracks,
@@ -266,6 +267,34 @@ def get_album(album_id: str) -> dict[str, Any]:
     if found is None:
         raise HTTPException(status_code=404, detail="Album not found")
     return album_to_dict(found)
+
+
+@router.delete("/api/albums/{album_id}")
+def remove_album_from_library(album_id: str) -> dict[str, Any]:
+    """Explicit user-initiated removal of an album from the cache.
+
+    This is the ONLY path that triggers `cache.delete_album` (and
+    therefore the FK cascade that drops `track_fingerprints` +
+    `track_tags` + per-album blocklists). Intended use is the "Remove
+    from library" affordance on Missing albums in the UI — the user
+    confirms that this album is gone for good, and we're free to
+    discard the cached computed data along with it.
+
+    Scans never reach this path; they mark albums Missing via
+    `cache.save_snapshot` and preserve everything.
+
+    Returns 404 when the album_id isn't in the cache (already
+    removed, never cached, or wrong id). Returns 200 with the
+    deleted album_id on success.
+    """
+    existing = cached_album_dict(album_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail=f"Album {album_id!r} not in cache")
+    cache_module.delete_album(album_id)
+    # AlbumDeleted publication happens inside cache.delete_album.
+    # Subscribers (thumb drop, post-scan rerun, SSE relay) fan out
+    # from there — no direct calls here.
+    return {"ok": True, "deleted_album_id": album_id}
 
 
 @router.get("/api/albums/{album_id}/cover")

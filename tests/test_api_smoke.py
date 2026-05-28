@@ -227,6 +227,16 @@ def test_scan_stream_against_empty_library(client, empty_library):
     assert names[-1] == "done", f"got events: {names}"
 
 
+def test_delete_album_endpoint_404_for_unknown(client, empty_library):
+    """DELETE /api/albums/{id} returns 404 when the album isn't in the
+    cache (no row to delete). The endpoint is the only post-v15 path
+    that reaches `cache.delete_album` + its FK cascade — 404 is the
+    safe answer for a misspelled / already-removed id."""
+    client.post("/api/config", json={"library_dir": str(empty_library)})
+    r = client.delete("/api/albums/nonexistent-album-id")
+    assert r.status_code == 404
+
+
 def test_fingerprint_pool_status_endpoint(client):
     r = client.get("/api/fingerprint-pool/status")
     assert r.status_code == 200

@@ -87,6 +87,7 @@ class NoCoverArt(Check):
             SELECT id, dir_name, dir_artist, dir_album
             FROM albums
             WHERE library_path = ?
+              AND missing_since IS NULL
               AND has_embedded_cover = 0
               AND cover_file IS NULL
               AND NOT EXISTS (
