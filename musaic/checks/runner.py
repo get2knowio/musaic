@@ -123,9 +123,25 @@ async def run_check(
     # Build scope. We load the album list here so checks don't have to
     # touch the cache themselves (most won't need it; the SQL-pure ones
     # ignore scope.albums entirely).
+    #
+    # Missing albums (missing_since IS NOT NULL) are filtered out: the
+    # check can't act on them anyway (FS reads would fail), and showing
+    # findings for albums the user can't see in the UI is just noise.
+    # Existing findings on Missing albums STAY OPEN — the scope-aware
+    # auto-resolve in `_resolve_unseen` only resolves findings whose
+    # album_id is in this scope, and Missing albums are excluded, so
+    # their findings are preserved until the album returns and the
+    # next scope-aware run re-evaluates them.
+    #
+    # SQL-pure checks that bypass scope.albums (inconsistent-artist-sort,
+    # tags-out-of-sync, etc.) need to add their own `AND missing_since
+    # IS NULL` clause — see those check modules.
     from .. import cache as cache_module
     snapshot = cache_module.load_snapshot(library_path)
-    all_albums = list(snapshot.albums_by_path.values())
+    all_albums = [
+        a for a in snapshot.albums_by_path.values()
+        if not a.get("missing_since")
+    ]
     if scope_kind == "albums":
         if not album_ids:
             raise ValueError("scope_kind='albums' requires non-empty album_ids")

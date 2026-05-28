@@ -281,11 +281,18 @@ def _scan_worker(
                 continue
 
             if status == "removed":
+                # BUFFER, don't emit yet. The sanity check below
+                # may abort the whole scan; we don't want to fire
+                # "removed" events (and bump the frontend's
+                # removed-count toast) until we know the scan is
+                # committing.
+                #
+                # Thumbs likewise: an album going Missing keeps its
+                # thumb so the greyed-out tile in the Library grid
+                # still shows the cover. Only an explicit
+                # `DELETE /api/albums/{id}` drops the thumb (via
+                # the AlbumDeleted subscriber chain).
                 removed.append({"id": payload.get("id"), "path": payload.get("path")})
-                if payload.get("id"):
-                    thumbs_module.delete_thumb(payload["id"])
-                _state.removed_count += 1
-                emit("removed", {"id": payload.get("id"), "path": payload.get("path")})
                 continue
 
             # "cached" or "fresh" → an album dict
@@ -308,13 +315,67 @@ def _scan_worker(
                 "library_dir": library_dir, "total": 0, "cached_count": 0, "force": force,
             })
 
+        # Sanity check: if a "vanished" wave would mark most of our
+        # cached library as Missing in one go, the cause is almost
+        # never that the user deleted hundreds of albums at once —
+        # it's a flaky network drive, a mid-scan unmount, or a
+        # permission flip-flop. Bail out without writing anything so
+        # users don't watch their library quietly turn grey.
+        #
+        # Triggers only when (a) the cache had a meaningful baseline
+        # (avoid false-positives on fresh installs / first scans where
+        # cached_count is tiny) AND (b) the would-be-Missing ratio
+        # crosses the threshold. 30% is generous enough for real
+        # reorganizations and strict enough to catch every realistic
+        # drive-outage scenario.
+        cached_count = len(cached_by_path)
+        vanish_threshold_ratio = 0.30
+        min_cached_for_check = 10
+        vanish_ratio = (
+            len(removed) / cached_count if cached_count > 0 else 0.0
+        )
+        if (
+            cached_count >= min_cached_for_check
+            and vanish_ratio > vanish_threshold_ratio
+        ):
+            msg = (
+                f"Scan aborted: {len(removed)} of {cached_count} cached "
+                f"album(s) ({vanish_ratio * 100:.0f}%) appear to be missing "
+                f"from disk. This looks like a drive outage or a mount "
+                f"problem rather than real deletions. No changes were "
+                f"written. Check that {library_dir} is mounted and "
+                f"readable, then re-run the scan."
+            )
+            _log.warning("Scan sanity check tripped: %s", msg)
+            emit("aborted", {
+                "reason": "vanish_ratio_exceeded",
+                "vanish_ratio": vanish_ratio,
+                "vanish_count": len(removed),
+                "cached_count": cached_count,
+                "threshold": vanish_threshold_ratio,
+                "detail": msg,
+            })
+            # Treat as a controlled completion, not a worker exception
+            # — this is a deliberate refusal, not a crash. Subscribers
+            # see the "aborted" event + state.status=done.
+            return
+
+        # Sanity check passed — emit the buffered "removed" events now
+        # so the frontend's count + the SSE event log are accurate.
+        # The frontend still treats this event as "removed from disk"
+        # for backward compat; PR 2 will rename to "marked missing"
+        # along with the full Missing-state UI treatment.
+        for entry in removed:
+            _state.removed_count += 1
+            emit("removed", entry)
+
         scanned_at = _utc_iso_now()
         new_snap = cache_module.LibrarySnapshot(
             library_dir=library_dir,
             scanned_at=scanned_at,
             albums_by_path={p: {k: v for k, v in a.items() if k != "_status"} for p, a in collected.items()},
         )
-        cache_module.save_snapshot(new_snap)
+        transitions = cache_module.save_snapshot(new_snap)
 
         try:
             imported = cache_module.import_track_tag_sidecars(new_snap)
@@ -326,6 +387,8 @@ def _scan_worker(
         emit("done", {
             "count": len(collected),
             "removed_count": len(removed),
+            "newly_missing_count": len(transitions.get("newly_missing", [])),
+            "returned_count": len(transitions.get("returned", [])),
             "scanned_at": scanned_at,
         })
     except Exception as e:

@@ -110,6 +110,7 @@ class FilenameMismatch(Check):
                            is_compilation, disc_number, disc_total
                     FROM albums
                     WHERE library_path = ? AND id IN ({placeholders})
+                      AND missing_since IS NULL
                     """,
                     (scope.library_path, *ids),
                 ).fetchall()
@@ -121,6 +122,7 @@ class FilenameMismatch(Check):
                            is_compilation, disc_number, disc_total
                     FROM albums
                     WHERE library_path = ?
+                      AND missing_since IS NULL
                     """,
                     (scope.library_path,),
                 ).fetchall()
@@ -386,10 +388,14 @@ def derive_plan(album_id: str) -> dict[str, Any] | None:
                    is_compilation, disc_number, disc_total
             FROM albums
             WHERE id = ?
+              AND missing_since IS NULL
             """,
             (album_id,),
         ).fetchone()
     if row is None:
+        # Either the album was never cached, or it's currently Missing
+        # — in both cases the plan-preview endpoint's None branch
+        # surfaces this as a stale finding the dialog should clear.
         return None
 
     album_path = row["path"]

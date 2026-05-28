@@ -158,12 +158,40 @@ class TrackFingerprinted(AlbumScopedEvent):
 
 @dataclass(frozen=True)
 class AlbumDeleted(AlbumScopedEvent):
-    """Album row was removed from the cache (album dir disappeared
-    from disk, library reconfigured, etc.). Subscribers should drop
-    any state keyed by album_id and let the post-scan rerun
-    auto-resolve any orphan findings.
+    """Album row was removed from the cache (user explicitly
+    requested removal via `DELETE /api/albums/{id}`, or a maintenance
+    operation pruned a tombstone). Cascades drop fingerprints + track
+    tags via FK. Subscribers should drop any state keyed by album_id
+    and let the post-scan rerun auto-resolve any orphan findings.
+
+    Distinction from `AlbumMarkedMissing`: AlbumDeleted is the
+    user-confirmed "this is gone, throw away the computed data"
+    signal. AlbumMarkedMissing is the scanner-observed "we don't see
+    the dir on disk right now" signal that preserves everything.
 
     Producer: cache.delete_album."""
+
+
+@dataclass(frozen=True)
+class AlbumMarkedMissing(AlbumScopedEvent):
+    """Album dir wasn't found on disk during a scan, and the album
+    transitioned from Present → Missing. The row + cascade children
+    (fingerprints, MB anchor, track tags) are preserved as-is — only
+    the `missing_since` timestamp changed. Subscribers should update
+    UI affordances (grey out tiles, disable mutation buttons) but
+    keep cached data around for when the album returns.
+
+    The complement event is `AlbumTagsChanged` — when an album
+    returns from Missing to Present (because the next scan saw the
+    dir again), `save_snapshot` publishes AlbumTagsChanged (the
+    presence-state changed, plus the row may have been re-read from
+    disk). No separate AlbumReturned event today; the bus reuses
+    AlbumTagsChanged for the round-trip.
+
+    Producer: services.scan via cache.save_snapshot's "newly
+    missing" pass, OR cache.mark_album_missing for single-album
+    out-of-band callers."""
+    missing_since: str = ""
 
 
 @dataclass(frozen=True)

@@ -106,6 +106,14 @@ def _row_to_album(row) -> dict[str, Any]:
         "metadata_ai_acted_on_at":
             row["metadata_ai_acted_on_at"]
             if "metadata_ai_acted_on_at" in row.keys() else None,
+        # v15 — presence marker. NULL when the album dir is currently
+        # on disk; ISO-8601 timestamp when it isn't. The Library UI
+        # uses this to grey-out missing tiles; checks filter on it to
+        # skip missing albums; mutation endpoints reject ops against
+        # missing albums (the FS read would fail anyway).
+        "missing_since":
+            row["missing_since"]
+            if "missing_since" in row.keys() else None,
     }
 
 
@@ -206,6 +214,13 @@ def _album_to_row(album: dict[str, Any], library_path: str) -> tuple:
         # The on-conflict-do-update clause in save_snapshot deliberately
         # excludes this column so it survives re-scans.
         album.get("metadata_ai_acted_on_at"),
+        # v15 — presence marker. The scanner doesn't supply this;
+        # save_snapshot mutates it via a separate UPDATE pass (vanished
+        # → set timestamp, returning → clear). For INSERT new rows we
+        # always default to NULL (Present); the upsert's DO UPDATE
+        # clause excludes this column so a re-upsert of a Missing
+        # album doesn't accidentally clear it.
+        album.get("missing_since"),
     )
 
 
@@ -294,7 +309,8 @@ def load_snapshot(library_dir: str) -> LibrarySnapshot:
 
 def save_snapshot(snapshot: LibrarySnapshot) -> None:
     """Persist a snapshot incrementally — INSERT-or-UPDATE every album in
-    the snapshot, then DELETE only albums whose ids dropped out.
+    the snapshot; mark cached-but-not-seen albums as Missing (preserve
+    everything else); clear the Missing marker on albums that returned.
 
     Why incremental matters: track_fingerprints and several scanner-adjacent
     columns on `albums` (mb_release_group_mbid, mb_match_score, …) are
@@ -305,11 +321,23 @@ def save_snapshot(snapshot: LibrarySnapshot) -> None:
     raw scanner columns. Bug surfaced as "I just fingerprinted X albums
     and the check still flags every one."
 
-    The fix: same on-conflict-do-update-only-scanner-columns pattern that
-    upsert_album() uses, scaled to the whole snapshot in one transaction.
-    Albums no longer present in the snapshot still get DELETEd (handles
-    directories that disappeared since the last scan); their fingerprint
-    rows correctly cascade away in that case, which is desired behavior.
+    Why Missing instead of DELETE (v15): conflating "we don't see it on
+    disk this instant" with "this album is gone forever" is exactly the
+    bug that wiped 229 MB anchors + 4843 fingerprints when a network
+    drive flapped. The new contract: scans never delete. They observe.
+    Cached albums absent from the new snapshot get `missing_since` set
+    (preserving the row + cascade children); albums whose `missing_since`
+    was non-null but reappeared get it cleared. The only path to actual
+    DELETE is `cache.delete_album`, called only by explicit user action
+    (`DELETE /api/albums/{id}`). See docs/connectivity_design.md for the
+    tri-state model rationale.
+
+    Returns a dict summarizing what changed for the caller's observability:
+      {
+        "upserted_count": int,    # albums in this snapshot
+        "newly_missing":  list[str],  # album_ids transitioned to Missing
+        "returned":       list[str],  # album_ids transitioned back to Present
+      }
     """
     _maybe_import_legacy_json()
     library_dir = str(Path(snapshot.library_dir).expanduser().resolve())
@@ -322,6 +350,9 @@ def save_snapshot(snapshot: LibrarySnapshot) -> None:
     rows = [_album_to_row(a, library_dir) for a in snapshot.albums_by_path.values()
             if a.get("id") and a.get("path")]
     new_ids = {r[0] for r in rows}  # ALBUM_COLUMNS[0] == "id"
+    now = _now_iso()
+    newly_missing: list[str] = []
+    returned: list[str] = []
 
     with db_module.connect() as conn:
         with db_module.transaction(conn):
@@ -336,21 +367,99 @@ def save_snapshot(snapshot: LibrarySnapshot) -> None:
                     f"ON CONFLICT(id) DO UPDATE SET {update_clause}",
                     rows,
                 )
-            # Drop any albums that used to live under this library_path but
-            # didn't appear in this snapshot. Keeps the cache tidy and
-            # cascades fingerprint cleanup for genuinely-removed albums.
-            existing = {
-                r["id"] for r in conn.execute(
-                    "SELECT id FROM albums WHERE library_path = ?",
-                    (library_dir,),
-                )
-            }
-            stale = existing - new_ids
-            if stale:
+
+            # Returning to Present: any album whose id IS in new_ids but
+            # whose existing row had missing_since set. Clear the marker
+            # so the UI un-greys it. Done BEFORE the missing pass so a
+            # row can't be in both lists.
+            if new_ids:
+                # SQLite has a parameter-count limit (~999). Chunk so a
+                # huge library doesn't trip it.
+                returned = [
+                    r["id"] for r in _chunked_in_query(
+                        conn,
+                        "SELECT id FROM albums WHERE library_path = ? "
+                        "AND missing_since IS NOT NULL AND id IN ({})",
+                        list(new_ids),
+                        prefix_params=(library_dir,),
+                    )
+                ]
+                if returned:
+                    conn.executemany(
+                        "UPDATE albums SET missing_since = NULL WHERE id = ?",
+                        [(aid,) for aid in returned],
+                    )
+
+            # Newly missing: cached under this library_path, NOT in
+            # new_ids, and not ALREADY marked missing (we don't want to
+            # bump the timestamp every scan — `missing_since` records
+            # FIRST observation of absence, like a tombstone).
+            stale_rows = list(conn.execute(
+                "SELECT id FROM albums WHERE library_path = ? "
+                "AND missing_since IS NULL",
+                (library_dir,),
+            ))
+            for r in stale_rows:
+                if r["id"] not in new_ids:
+                    newly_missing.append(r["id"])
+            if newly_missing:
                 conn.executemany(
-                    "DELETE FROM albums WHERE id = ?",
-                    [(aid,) for aid in stale],
+                    "UPDATE albums SET missing_since = ? WHERE id = ?",
+                    [(now, aid) for aid in newly_missing],
                 )
+
+    # Publish transitions on the bus. Done OUTSIDE the SQL
+    # transaction so subscribers see settled state. We use the
+    # specific event types (AlbumMarkedMissing / AlbumTagsChanged)
+    # rather than a synthetic "bulk presence updated" event so the
+    # existing subscriber graph (resolver invalidate, thumb drop,
+    # checks-stream notify) fires correctly for each transition.
+    if newly_missing or returned:
+        try:
+            from . import library_events
+            for aid in newly_missing:
+                library_events.publish(library_events.AlbumMarkedMissing(
+                    album_id=aid, missing_since=now,
+                ))
+            # Returning to Present → AlbumTagsChanged. The row's
+            # scanner-owned columns were just re-read (the album
+            # presumably has fresh tags), and the presence-state
+            # changed. AlbumTagsChanged is the event that triggers
+            # the right invalidations on the frontend + a check
+            # rerun on the bus.
+            for aid in returned:
+                library_events.publish(library_events.AlbumTagsChanged(
+                    album_id=aid, fields=("missing_since",),
+                ))
+        except Exception:
+            log.exception(
+                "library_events publish failed for save_snapshot transitions",
+            )
+
+    return {
+        "upserted_count": len(rows),
+        "newly_missing":  newly_missing,
+        "returned":       returned,
+    }
+
+
+def _chunked_in_query(
+    conn,
+    sql_template: str,
+    values: list[str],
+    *,
+    prefix_params: tuple = (),
+    chunk_size: int = 500,
+):
+    """Run `sql_template` with the {} placeholder filled in chunks so
+    SQLite's parameter limit (~999) isn't exceeded. Yields rows from
+    each chunk in order. `prefix_params` are the params that come
+    BEFORE the IN-list."""
+    for i in range(0, len(values), chunk_size):
+        chunk = values[i:i + chunk_size]
+        placeholders = ",".join("?" for _ in chunk)
+        sql = sql_template.format(placeholders)
+        yield from conn.execute(sql, prefix_params + tuple(chunk))
 
 
 def drop_snapshot(library_dir: str) -> None:
@@ -476,7 +585,12 @@ def get_album_by_id(album_id: str) -> dict[str, Any] | None:
 
 
 def delete_album(album_id: str) -> None:
-    """Remove a single album row by id (e.g. after the directory disappears)."""
+    """Remove a single album row by id. This IS destructive — cascades
+    via FK to drop track_fingerprints + track_tags + per-album
+    blocklists. v15+ scans never call this; the only reachable caller
+    is the user-initiated `DELETE /api/albums/{id}` endpoint. If you
+    want the "the dir is gone, hide it from the UI but keep the
+    computed data" semantics, use `mark_album_missing` instead."""
     with db_module.connect() as conn:
         with db_module.transaction(conn):
             conn.execute("DELETE FROM albums WHERE id = ?", (album_id,))
@@ -491,6 +605,52 @@ def delete_album(album_id: str) -> None:
         log.exception(
             "library_events publish failed for delete_album %s", album_id,
         )
+
+
+def mark_album_missing(album_id: str, since_iso: str | None = None) -> bool:
+    """Flip an album to Missing if it isn't already. Publishes
+    `AlbumMarkedMissing` on transition. Returns True when the row
+    transitioned, False if it was already missing (no-op, no event).
+
+    `save_snapshot` does its own bulk Missing pass — this helper is for
+    callers that observed a single album's absence out-of-band (an
+    apply path noticed the dir is gone, a manual diagnostic command,
+    etc.)."""
+    ts = since_iso or _now_iso()
+    with db_module.connect() as conn:
+        with db_module.transaction(conn):
+            cur = conn.execute(
+                "UPDATE albums SET missing_since = ? "
+                "WHERE id = ? AND missing_since IS NULL",
+                (ts, album_id),
+            )
+            transitioned = cur.rowcount > 0
+    if transitioned:
+        try:
+            from . import library_events
+            library_events.publish(library_events.AlbumMarkedMissing(
+                album_id=album_id, missing_since=ts,
+            ))
+        except Exception:
+            log.exception(
+                "library_events publish failed for mark_album_missing %s", album_id,
+            )
+    return transitioned
+
+
+def clear_album_missing(album_id: str) -> bool:
+    """Flip an album back to Present (NULL missing_since). Returns
+    True when the row transitioned, False if it was already Present.
+    `save_snapshot` does the bulk Returning pass — this helper is for
+    out-of-band callers."""
+    with db_module.connect() as conn:
+        with db_module.transaction(conn):
+            cur = conn.execute(
+                "UPDATE albums SET missing_since = NULL "
+                "WHERE id = ? AND missing_since IS NOT NULL",
+                (album_id,),
+            )
+            return cur.rowcount > 0
 
 
 def rename_album_directory(

@@ -139,11 +139,13 @@ class DuplicateTracks(Check):
         with db_module.connect() as conn:
             rows = conn.execute(
                 """
-                SELECT album_id, filename, duration_s, fingerprint,
-                       acoustid_recording_mbid
-                FROM track_fingerprints
-                WHERE fingerprint IS NOT NULL
-                ORDER BY album_id, filename
+                SELECT tf.album_id, tf.filename, tf.duration_s, tf.fingerprint,
+                       tf.acoustid_recording_mbid
+                FROM track_fingerprints tf
+                JOIN albums a ON a.id = tf.album_id
+                WHERE tf.fingerprint IS NOT NULL
+                  AND a.missing_since IS NULL
+                ORDER BY tf.album_id, tf.filename
                 """
             ).fetchall()
 
