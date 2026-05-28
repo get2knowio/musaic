@@ -26,7 +26,7 @@ export interface ScanState {
   scanned: number;
   cachedCount: number;
   freshCount: number;
-  removedCount: number;
+  markedMissingCount: number;
   message: string | null;       // last status / error
   scannedAt: string | null;     // ISO timestamp from "done"
 }
@@ -37,7 +37,7 @@ const INITIAL: ScanState = {
   scanned: 0,
   cachedCount: 0,
   freshCount: 0,
-  removedCount: 0,
+  markedMissingCount: 0,
   message: null,
   scannedAt: null,
 };
@@ -157,7 +157,7 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
               cachedCount: ev.cached_count,
               scanned: 0,
               freshCount: 0,
-              removedCount: 0,
+              markedMissingCount: 0,
               message: ev.force ? "Rescanning…" : "Scanning library…",
             }));
             break;
@@ -175,14 +175,14 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
             }));
             break;
 
-          case "removed":
-            setAlbumsById((prev) => {
-              if (!prev.has(ev.id)) return prev;
-              const next = new Map(prev);
-              next.delete(ev.id);
-              return next;
-            });
-            setScan((s) => ({ ...s, removedCount: s.removedCount + 1 }));
+          case "marked_missing":
+            // Don't delete from the local map — the row + cached
+            // metadata persists, just with `missing_since` set. The
+            // grid tile picks up the greyed-out treatment on the
+            // next snapshot refresh (useLibraryEventsStream's
+            // AlbumMarkedMissing handler invalidates ['albums-
+            // snapshot'], which is what feeds this hook on reload).
+            setScan((s) => ({ ...s, markedMissingCount: s.markedMissingCount + 1 }));
             break;
 
           case "progress":
@@ -195,9 +195,9 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
               status: "done",
               scannedAt: ev.scanned_at,
               message:
-                s.freshCount === 0 && s.removedCount === 0
+                s.freshCount === 0 && s.markedMissingCount === 0
                   ? "Library up to date"
-                  : `${s.freshCount} new/updated${s.removedCount ? `, ${s.removedCount} removed` : ""}`,
+                  : `${s.freshCount} new/updated${s.markedMissingCount ? `, ${s.markedMissingCount} missing` : ""}`,
             }));
             break;
 

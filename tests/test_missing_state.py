@@ -365,8 +365,11 @@ def test_scan_sanity_check_aborts_when_too_many_albums_vanish(monkeypatch):
     assert len(aborted) == 1
     assert aborted[0][1]["reason"] == "vanish_ratio_exceeded"
     assert aborted[0][1]["vanish_count"] == 20
-    # No "removed" events leaked through (the buffer was discarded).
-    assert not [e for e in emitted if e[0] == "removed"]
+    # No "marked_missing" events leaked through — the buffer was
+    # discarded entirely when the sanity check aborted, so the user
+    # doesn't see a "20 missing" toast on a scan that ultimately
+    # changed nothing.
+    assert not [e for e in emitted if e[0] == "marked_missing"]
 
 
 def test_scan_sanity_check_proceeds_when_below_threshold(monkeypatch):

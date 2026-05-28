@@ -283,8 +283,8 @@ def _scan_worker(
             if status == "removed":
                 # BUFFER, don't emit yet. The sanity check below
                 # may abort the whole scan; we don't want to fire
-                # "removed" events (and bump the frontend's
-                # removed-count toast) until we know the scan is
+                # "marked_missing" events (and bump the frontend's
+                # missing-count toast) until we know the scan is
                 # committing.
                 #
                 # Thumbs likewise: an album going Missing keeps its
@@ -362,12 +362,14 @@ def _scan_worker(
 
         # Sanity check passed — emit the buffered "removed" events now
         # so the frontend's count + the SSE event log are accurate.
-        # The frontend still treats this event as "removed from disk"
-        # for backward compat; PR 2 will rename to "marked missing"
-        # along with the full Missing-state UI treatment.
+        # Event name is "marked_missing" (not "removed") because
+        # save_snapshot below preserves the row + cascade children;
+        # only the `missing_since` marker gets set. Frontend's
+        # useScanStream listens for this name and bumps a missing-
+        # count toast.
         for entry in removed:
             _state.removed_count += 1
-            emit("removed", entry)
+            emit("marked_missing", entry)
 
         scanned_at = _utc_iso_now()
         new_snap = cache_module.LibrarySnapshot(
@@ -386,7 +388,12 @@ def _scan_worker(
 
         emit("done", {
             "count": len(collected),
-            "removed_count": len(removed),
+            # `marked_missing_count` is the number of "marked_missing"
+            # SSE events fired this scan (matches `len(removed)` from
+            # the in-loop buffer); `newly_missing_count` is the DB
+            # transitions that actually committed (could differ from
+            # marked_missing if save_snapshot's dedupe path filtered).
+            "marked_missing_count": len(removed),
             "newly_missing_count": len(transitions.get("newly_missing", [])),
             "returned_count": len(transitions.get("returned", [])),
             "scanned_at": scanned_at,

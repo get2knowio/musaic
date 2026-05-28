@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { AlertTriangle, Image as ImageIcon, Loader2, RotateCcw, Sparkles, X } from "lucide-react";
+import { AlertTriangle, CloudOff, Image as ImageIcon, Loader2, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -29,7 +29,7 @@ import {
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
 import { useApplyStream } from "@/hooks/useApplyStream";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
-import { clearAlbumMbAnchor } from "@/lib/api";
+import { clearAlbumMbAnchor, removeAlbumFromLibrary } from "@/lib/api";
 import type {
   Album,
   CoverSuggestionResponse,
@@ -143,6 +143,8 @@ function SheetBody({
   const tracks = useTracks(album.id);
   const apply = useApplyStream();
   const enqueue = useEnqueueJob();
+  const navigate = useNavigate();
+  const location = useLocation();
   const markActedOn = useMarkJobActedOn();
   const deleteJob = useDeleteJob();
   const retryJob = useRetryJob();
@@ -346,6 +348,44 @@ function SheetBody({
     }
   };
 
+  // v15 Missing-state — when the scanner doesn't see this album's
+  // dir on disk, `missing_since` is set. Sheet swaps in a banner +
+  // "Remove from library" footer; mutation affordances disable
+  // (every read/write would fail at the FS layer).
+  const isMissing = !!displayAlbum.missing_since;
+
+  // Explicit user-initiated removal — the only path that actually
+  // drops the row + cascades fingerprints/tags/blocklists. After
+  // success, navigate back to /library (sheet closes naturally
+  // because the album is no longer in the snapshot).
+  const [removing, setRemoving] = useState(false);
+  const onRemoveFromLibrary = async () => {
+    if (removing) return;
+    const ok = window.confirm(
+      `Remove "${displayAlbum.title || displayAlbum.dir_name}" from the library?\n\n` +
+      `This drops the cached metadata, MusicBrainz match, AcoustID fingerprints, ` +
+      `and any per-album blocklist entries. The FLAC files (if they ever return ` +
+      `to disk) will be re-scanned from scratch.\n\n` +
+      `If this is a transient disk issue, click Cancel and re-mount the drive ` +
+      `instead — the album will return automatically on the next scan.`,
+    );
+    if (!ok) return;
+    setRemoving(true);
+    try {
+      await removeAlbumFromLibrary(album.id);
+      toast.success("Removed from library", { duration: 3000 });
+      // The album_id is gone from the snapshot now; useLibraryEvents-
+      // Stream's AlbumDeleted handler already invalidates ['albums-
+      // snapshot'], so navigating back to /library lands on the
+      // refreshed list with this album absent.
+      navigate(`/library${location.search}`);
+    } catch (err) {
+      toast.error((err as Error).message || "Couldn't remove album");
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   // "Wrong match" escape hatch: clears the cached MB anchor so the
   // synthesizer stops returning the same wrong cover/title from a
   // stale release-group. Discards the current suggestions in the same
@@ -395,6 +435,37 @@ function SheetBody({
       {/* Sheet body — scrolls */}
       <div className="flex-1 overflow-y-auto">
         <AlbumHero album={displayAlbum} />
+
+        {/* Missing-state banner — shown when the scanner didn't see
+            this album's dir on disk. The row + cached metadata are
+            still here (so the user can review what we knew); the
+            footer swaps to a single Remove button. If this is a
+            transient mount issue, the album will come back on its
+            own at the next scan. */}
+        {isMissing && (
+          <div className="mx-4 my-3 rounded-md border border-warn/40 bg-warn-soft p-3 text-sm flex items-start gap-2.5">
+            <CloudOff className="w-4 h-4 text-warn shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-fg">
+                Missing from disk
+                {displayAlbum.missing_since && (
+                  <span className="text-fg-3 font-normal ml-1">
+                    (since {formatMissingDate(displayAlbum.missing_since)})
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-fg-3 mt-1 leading-relaxed">
+                The album directory isn't on disk right now. The
+                cached metadata below is what we knew the last time
+                we saw it. If you moved the file, unmounted the
+                drive, or had a network blip, the album will come
+                back automatically on the next scan — no action
+                needed. If it's gone for good, "Remove from library"
+                drops the cached metadata.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* In-flight job banner — shown while a job for THIS album is queued
             or running. Source of truth: the live jobs cache via SSE. Survives
@@ -487,41 +558,58 @@ function SheetBody({
                 Embeds the MB-preview deterministic apply UI at the
                 top — those corrections are themselves a kind of
                 finding (mb_canonical_mismatch produces them as
-                findings rows too). */}
-            <FindingsSection
-              album={displayAlbum}
-              hasActiveJob={!!activeJob}
-              applying={isApplying}
-              onApply={async (suggestions, trackSuggestions) => {
-                await apply.start(album.id, {
-                  suggestions,
-                  track_suggestions: trackSuggestions,
-                  cover_url: null,
-                });
-              }}
-            />
+                findings rows too).
+
+                Hidden on Missing albums: their open findings persist
+                (PR 1 design choice — findings stay real across the
+                Present → Missing transition), but every Fix path
+                would fail at the FS layer. Findings will reappear
+                when the album returns. */}
+            {!isMissing && (
+              <FindingsSection
+                album={displayAlbum}
+                hasActiveJob={!!activeJob}
+                applying={isApplying}
+                onApply={async (suggestions, trackSuggestions) => {
+                  await apply.start(album.id, {
+                    suggestions,
+                    track_suggestions: trackSuggestions,
+                    cover_url: null,
+                  });
+                }}
+              />
+            )}
 
             {/* My Tags — user's own taxonomy ("Cocktail Hour", "Christmas",
                 "Instrumental"…) for shuffling and playlist construction.
                 Distinct from FLAC GENRE; stored per-track in the cache + a
-                hidden sidecar JSON in the album dir. */}
-            <MyTagsSection albumId={album.id} tracks={tracks.data?.tracks ?? []} />
+                hidden sidecar JSON in the album dir.
 
-            <Section
-              id="audio-analysis"
-              title="Audio analysis"
-              meta={
-                tracks.data
-                  ? <AnalysisMeta tracks={tracks.data.tracks} />
-                  : null
-              }
-            >
-              {tracks.data ? (
-                <AudioAnalysis albumId={album.id} tracks={tracks.data.tracks} />
-              ) : (
-                <div className="px-4 py-3 text-xs text-fg-4">Loading…</div>
-              )}
-            </Section>
+                Hidden on Missing albums: tag mutations write the
+                sidecar JSON into the album dir, which doesn't exist. */}
+            {!isMissing && (
+              <MyTagsSection albumId={album.id} tracks={tracks.data?.tracks ?? []} />
+            )}
+
+            {/* Audio analysis — hidden on Missing albums (analysis
+                reads the FLAC files, which aren't accessible). */}
+            {!isMissing && (
+              <Section
+                id="audio-analysis"
+                title="Audio analysis"
+                meta={
+                  tracks.data
+                    ? <AnalysisMeta tracks={tracks.data.tracks} />
+                    : null
+                }
+              >
+                {tracks.data ? (
+                  <AudioAnalysis albumId={album.id} tracks={tracks.data.tracks} />
+                ) : (
+                  <div className="px-4 py-3 text-xs text-fg-4">Loading…</div>
+                )}
+              </Section>
+            )}
 
             <Section
               id="tracks"
@@ -568,6 +656,29 @@ function SheetBody({
       <div className="flex items-center gap-2 h-12 px-3 border-t border-line bg-panel-2 shrink-0">
         {isApplying ? (
           <span className="text-xs text-fg-3 mono">Writing — keep this panel open</span>
+        ) : isMissing ? (
+          // Missing albums get a single destructive affordance + a
+          // hint about the no-op recovery path. Apply / AI / cover
+          // upload would all fail at the FS layer for an album whose
+          // dir isn't on disk, so we don't even surface them.
+          <>
+            <span className="text-xs text-fg-3 mono truncate">
+              Re-mount the drive to bring it back, or remove it for good.
+            </span>
+            <div className="flex-1" />
+            <button
+              onClick={onRemoveFromLibrary}
+              disabled={removing}
+              className="h-8 px-3 rounded border border-err/40 bg-err-soft text-err text-sm font-medium hover:bg-err/15 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+              title="Drop this album from the cache. Cascades to its fingerprints + track tags + per-album blocklists."
+            >
+              {removing ? (
+                <><Loader2 className="w-3.5 h-3.5 spin" /> Removing…</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Remove from library</>
+              )}
+            </button>
+          </>
         ) : (
           <>
             {/* Buttons disabled while a job exists for this album (queued,
@@ -645,4 +756,13 @@ function Pill({ children, done }: { children: React.ReactNode; done: boolean }) 
       {children}
     </span>
   );
+}
+
+function formatMissingDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString();
+  } catch {
+    return iso;
+  }
 }
