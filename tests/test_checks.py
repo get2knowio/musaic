@@ -631,103 +631,127 @@ def test_tags_out_of_sync_quick_fix_skips_when_nothing_deterministic(monkeypatch
 
 
 # ============================================================
-# inconsistent-artist-sort — _sort_to_primary_token edge cases
+# inconsistent-artist-sort — _classify_cluster
 # ============================================================
+#
+# The classifier asks one question: do all members agree on a non-
+# empty sort? Empty vs non-empty is the only filter. See the function
+# docstring in `inconsistent_artist_sort.py` for the design note —
+# tl;dr the older trustworthy-token rubric had blind spots like
+# "Spike Jones New Band" + "Jones, Spike" that re-flagged forever,
+# and the cost of those false positives outweighed the rare false
+# acceptance of a truly bad imported sort tag.
 
 
-def test_sort_to_primary_token_handles_band_suffix_in_sort_form():
-    """MB-convention sort names for bands include the credit suffix:
-    'Fred, John & His Playboy Band'. Naive un-rotation followed by
-    suffix-stripping would leave just 'john' — making the cluster look
-    untrustworthy forever. Stripping the suffix FIRST gives the correct
-    'john fred' token so the apply round-trips cleanly."""
-    token = inconsistent_artist_sort._sort_to_primary_token(
-        "Fred, John & His Playboy Band"
-    )
-    assert token == "john fred"
+def _track(album_id: str, artist: str, sort: str, filename: str = "01.flac") -> dict:
+    return {
+        "kind": "track",
+        "album_id": album_id,
+        "filenames": [filename],
+        "artist": artist,
+        "sort": sort,
+    }
 
 
-def test_sort_to_primary_token_basic_last_first():
-    assert inconsistent_artist_sort._sort_to_primary_token("Conniff, Ray") == "ray conniff"
-
-
-def test_sort_to_primary_token_article_form():
-    assert inconsistent_artist_sort._sort_to_primary_token("Beatles, The") == "beatles"
-
-
-def test_sort_to_primary_token_single_name():
-    assert inconsistent_artist_sort._sort_to_primary_token("Madonna") == "madonna"
-
-
-def test_classify_cluster_consistent_with_band_suffix_sort():
-    """End-to-end: a cluster of two tracks credited 'John Fred & His
-    Playboy Band' with identical sort 'Fred, John & His Playboy Band'
-    should classify as `consistent` — same sort, primary tokens match
-    after the suffix-stripping fix."""
+def test_classify_cluster_consistent_same_nonempty_sort():
+    """Baseline: two members agree on a non-empty sort → consistent,
+    no finding. Same shape as the previous regression tests for
+    'John Fred & His Playboy Band' and 'Tommy James & the Shondells'
+    — those cases still work, they just no longer need
+    suffix-stripping-token gymnastics to do so."""
     members = [
-        {
-            "kind": "track",
-            "album_id": "a1",
-            "filenames": ["02 - foo.flac"],
-            "artist": "John Fred & His Playboy Band",
-            "sort": "Fred, John & His Playboy Band",
-        },
-        {
-            "kind": "track",
-            "album_id": "a2",
-            "filenames": ["15 - bar.flac"],
-            "artist": "John Fred & His Playboy Band",
-            "sort": "Fred, John & His Playboy Band",
-        },
+        _track("a1", "John Fred & His Playboy Band", "Fred, John & His Playboy Band"),
+        _track("a2", "John Fred & His Playboy Band", "Fred, John & His Playboy Band"),
     ]
-    state, value = inconsistent_artist_sort._classify_cluster(
-        members, cluster_token="john fred",
-    )
+    state, value = inconsistent_artist_sort._classify_cluster(members)
     assert state == "consistent"
     assert value == "Fred, John & His Playboy Band"
 
 
-def test_sort_to_primary_token_handles_amp_the_suffix():
-    """`& the X` (Buddy Holly & the Crickets, Tommy James & the
-    Shondells, Diana Ross & the Supremes) is just as common as the
-    `& His X` form. The regex used to only match `& His/Her X` plus
-    `and the X` — stranding the `&`-form sort values as untrustworthy."""
-    assert (
-        inconsistent_artist_sort._sort_to_primary_token("James, Tommy & the Shondells")
-        == "tommy james"
-    )
-    assert (
-        inconsistent_artist_sort._sort_to_primary_token("Holly, Buddy & the Crickets")
-        == "buddy holly"
-    )
-
-
-def test_classify_cluster_consistent_with_amp_the_suffix():
-    """End-to-end: three tracks on three different compilations credited
-    'Tommy James & the Shondells' with identical sort
-    'James, Tommy & the Shondells' classify as consistent — no finding."""
+def test_classify_cluster_consistent_for_ensemble_qualifier_credits():
+    """The Spike Jones regression — was the user-visible bug that
+    motivated this rewrite. Cluster credit 'Spike Jones New Band'
+    produces primary token 'spike jones new band' (the suffix regex
+    doesn't match 'New Band'). The correct sort 'Jones, Spike'
+    un-rotates to 'spike jones' — different token. The previous
+    rubric rejected the sort as 'stale' and emitted an unsorted
+    finding on every check run, even though both tracks were
+    correctly tagged. New rubric: both have the same non-empty
+    sort, so consistent. No finding."""
     members = [
-        {
-            "kind": "track", "album_id": "a1",
-            "filenames": ["30 - hanky.flac"],
-            "artist": "Tommy James & the Shondells",
-            "sort": "James, Tommy & the Shondells",
-        },
-        {
-            "kind": "track", "album_id": "a2",
-            "filenames": ["04 - hanky.flac"],
-            "artist": "Tommy James & the Shondells",
-            "sort": "James, Tommy & the Shondells",
-        },
-        {
-            "kind": "track", "album_id": "a3",
-            "filenames": ["08 - mony.flac"],
-            "artist": "Tommy James & the Shondells",
-            "sort": "James, Tommy & the Shondells",
-        },
+        _track("a1", "Spike Jones New Band", "Jones, Spike",
+               filename="16 - shangri-la.flac"),
+        _track("a2", "Spike Jones New Band", "Jones, Spike",
+               filename="10 - harlem-nocturne.flac"),
     ]
-    state, value = inconsistent_artist_sort._classify_cluster(
-        members, cluster_token="tommy james",
-    )
+    state, value = inconsistent_artist_sort._classify_cluster(members)
     assert state == "consistent"
-    assert value == "James, Tommy & the Shondells"
+    assert value == "Jones, Spike"
+
+
+def test_classify_cluster_consistent_for_single_name_artist():
+    """'Madonna' / 'Madonna' is correct as-is for a single-name artist
+    — non-empty, all members agree."""
+    members = [
+        _track("a1", "Madonna", "Madonna"),
+        _track("a2", "Madonna", "Madonna"),
+    ]
+    state, value = inconsistent_artist_sort._classify_cluster(members)
+    assert state == "consistent"
+    assert value == "Madonna"
+
+
+def test_classify_cluster_unsorted_when_all_empty():
+    members = [
+        _track("a1", "Ray Conniff", ""),
+        _track("a2", "Ray Conniff", ""),
+    ]
+    state, value = inconsistent_artist_sort._classify_cluster(members)
+    assert state == "unsorted"
+    assert value is None
+
+
+def test_classify_cluster_propagatable_when_one_set_others_empty():
+    """One member sorted, two empty → propagate the one value."""
+    members = [
+        _track("a1", "Ray Conniff", "Conniff, Ray"),
+        _track("a2", "Ray Conniff", ""),
+        _track("a3", "Ray Conniff & His Orchestra", ""),
+    ]
+    state, value = inconsistent_artist_sort._classify_cluster(members)
+    assert state == "propagatable"
+    assert value == "Conniff, Ray"
+
+
+def test_classify_cluster_conflicting_when_multiple_distinct_values():
+    """Two distinct non-empty values → user picks which wins."""
+    members = [
+        _track("a1", "Ray Conniff", "Conniff, Ray"),
+        _track("a2", "Ray Conniff", "Conniff, Raymond"),
+    ]
+    state, value = inconsistent_artist_sort._classify_cluster(members)
+    assert state == "conflicting"
+    assert value is None
+
+
+def test_classify_cluster_accepts_imported_sort_as_consistent():
+    """Documents the explicit design tradeoff: a sort value imported
+    from a different source (here, an unusual hand-written sort with
+    no comma rotation) is still accepted as 'addressed' as long as
+    all members agree. Under the previous rubric this would have
+    been classified as unsorted (token cross-check fails). Under the
+    new rubric: all non-empty + all same → consistent. The user is
+    trusted to have curated this; the system doesn't re-validate.
+
+    The trade-off is that a genuinely bad import (an upstream tool
+    wrote the wrong sort, and all cluster members got the same bad
+    value) would also pass — but those cases are rare relative to
+    the everyday friction of the false-flag loop the strict rubric
+    produced."""
+    members = [
+        _track("a1", "Buddy Holly", "Holly Buddy"),  # no comma — unusual but deliberate
+        _track("a2", "Buddy Holly", "Holly Buddy"),
+    ]
+    state, value = inconsistent_artist_sort._classify_cluster(members)
+    assert state == "consistent"
+    assert value == "Holly Buddy"

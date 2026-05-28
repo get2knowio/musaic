@@ -24,25 +24,33 @@ Track-level relevance (v11+): compilations are the obvious case —
 on the same value as the album-level entries on Conniff's solo
 albums, so Plex's track-level "Ray Conniff" view shows everything.
 
-Detection: strip a defined set of credit suffixes ("& His Orchestra",
-"and Her Singers", ", his ... and ...", "Featuring X", "feat. X",
-"with X") and articles, lowercase + collapse whitespace, group BOTH
-album-level credits AND distinct track-level credits by the resulting
-"primary token". Any cluster with >=2 members where the sort tags
-don't already agree is a finding.
+Detection — clustering: strip a defined set of credit suffixes
+("& His Orchestra", "and Her Singers", ", his ... and ...",
+"Featuring X", "feat. X", "with X") and articles, lowercase + collapse
+whitespace, group BOTH album-level credits AND distinct track-level
+credits by the resulting "primary token".
+
+Detection — classification: within each cluster of ≥2 members, the
+ONLY question we ask is "do all members agree on a non-empty sort
+value?" — empty vs non-empty, exact match across members. We do NOT
+re-validate the *content* of sort values against the cluster's
+credits; presence of a deliberate sort value is treated as the user
+having addressed the field. See `_classify_cluster` for the design
+note on why — the earlier rubric had blind spots ("Spike Jones New
+Band" + "Jones, Spike") that created an inescapable re-flag loop.
 
 Three cluster states the finding tracks:
 
-  - PROPAGATABLE: at least one cluster member has its sort tag
-    set; some others don't (or are empty). Tier-1 deterministic fix:
-    propagate the canonical value to all members.
+  - PROPAGATABLE: at least one cluster member has its sort tag set;
+    some others are empty. Tier-1 deterministic fix: propagate the
+    one non-empty value to all empty members.
 
-  - UNSORTED: no cluster member has any sort tag set. The user needs
-    to choose / type a canonical form. Custom Resolve dialog lets
-    them type once and we bulk-apply.
+  - UNSORTED: every member is empty. The user needs to choose /
+    type a canonical form. Custom Resolve dialog lets them type
+    once and we bulk-apply.
 
-  - CONFLICTING: multiple distinct sort values across the cluster.
-    User picks which one wins; same dialog flow.
+  - CONFLICTING: multiple distinct non-empty sort values across the
+    cluster. User picks which one wins; same dialog flow.
 
 Fix path is custom — fix() is a stub (like duplicate-tracks), the
 real action goes through a dedicated endpoint that takes the user's
@@ -141,19 +149,6 @@ def _is_never_normalize(album_artist: str | None) -> bool:
     if not album_artist:
         return False
     return album_artist.strip().lower() in _NEVER_NORMALIZE
-
-# Pattern that catches "Last, First" / "X, The" — the most common
-# canonical sort shape. Used as a soft signal in logging only; we do
-# NOT gate "is the cluster consistent?" on it. Many valid sort forms
-# don't have a comma:
-#   - Single-name artists: "Zamfir", "Madonna", "Cher", "Sting"
-#   - Ensemble names that are already canonical: "London Symphony Orchestra"
-#   - User-typed values that happen to be display-form (Bob Dylan with
-#     no rotation requested) — still a deliberate user choice
-# So we accept any non-empty trimmed value as "set". The pattern stays
-# around in case future logic wants a "looks polished" signal.
-_CANONICAL_SORT_RE = re.compile(r"^[^,]+,\s+\S+")
-
 
 ClusterState = Literal["propagatable", "unsorted", "conflicting"]
 
@@ -269,12 +264,7 @@ class InconsistentArtistSort(Check):
         for token, members in clusters.items():
             if len(members) < 2:
                 continue  # single member — nothing to normalize against
-            # Pass the cluster's primary token so the classifier can
-            # filter out sort values that point at a different artist
-            # entirely (the "Drifters, The" on a Skyliners track
-            # case). Without this, a single mis-tagged value would
-            # be propagated across the whole cluster.
-            state, canonical = _classify_cluster(members, cluster_token=token)
+            state, canonical = _classify_cluster(members)
             # already-consistent clusters yield no finding; nothing to fix
             if state == "consistent":
                 continue
@@ -360,139 +350,67 @@ def _primary_token(album_artist: str | None) -> str:
     return s.lower()
 
 
-def _looks_canonical(sort_value: str | None) -> bool:
-    """True when a sort value is well-formed enough to propagate.
-    "Conniff, Ray" passes; "Beatles, The" passes; "ray conniff" doesn't
-    (no comma); empty string doesn't."""
-    if not sort_value:
-        return False
-    return bool(_CANONICAL_SORT_RE.match(sort_value.strip()))
-
-
-def _sort_to_primary_token(sort_value: str) -> str:
-    """Compute the primary token of a sort-form string so we can
-    cross-check whether it actually corresponds to the cluster's
-    artist or comes from a stale / wrong tag.
-
-    Reverses the conventional sort transforms before tokenizing:
-      "Drifters, The"   → "drifters"
-      "Conniff, Ray"    → "ray conniff"
-      "Beatles, The"    → "beatles"
-      "Madonna"         → "madonna"
-      "London Symphony Orchestra" → "london symphony orchestra"
-
-    Then runs the same suffix / article / case normalization
-    `_primary_token` does, so the token domains compare cleanly.
-    """
-    s = (sort_value or "").strip()
-    if not s:
-        return ""
-    # Strip credit suffixes ("& His Orchestra", "Featuring X", "and the
-    # Singers", etc.) BEFORE un-rotation. The MB-convention sort name
-    # for a band like "John Fred & His Playboy Band" is "Fred, John &
-    # His Playboy Band" — and naive un-rotation followed by suffix
-    # stripping leaves just "john" (the suffix regex eats "& His Playboy
-    # Band Fred" wholesale because Fred trails the band words after
-    # rotation). Pre-stripping the suffix here gets us back to
-    # "Fred, John" → un-rotate → "John Fred" → token "john fred".
-    for _ in range(3):
-        new = _CREDIT_SUFFIX_RE.sub("", s).strip()
-        if new == s:
-            break
-        s = new
-    # "Surname, The" / "Name, A" / "Name, An" — the comma form of
-    # article rotation. Drop the article; the article-stripping in
-    # _primary_token would catch it on the forward form too, but
-    # avoiding the rotation keeps this deterministic.
-    article_match = re.match(r"^(.+),\s+(the|a|an)$", s, re.IGNORECASE)
-    if article_match:
-        return _primary_token(article_match.group(1))
-    # "Last, First" — un-rotate so the token computation sees the
-    # natural-language form. We split only on the FIRST comma; some
-    # corner-case credits ("Smith, Jr., John") survive that.
-    if "," in s:
-        head, tail = s.split(",", 1)
-        s = f"{tail.strip()} {head.strip()}".strip()
-    return _primary_token(s)
-
-
 def _classify_cluster(
     members: list[dict],
-    cluster_token: str | None = None,
 ) -> tuple[Literal["consistent", "propagatable", "unsorted", "conflicting"], str | None]:
     """Inspect a cluster's existing sort tags. Returns (state, value)
     where `value` is the sort string the bulk action should apply
-    when state == "propagatable" (None for the others).
+    when state == "propagatable" or "consistent" (None for the others).
 
-    Decision rules:
+    Decision rules — empty vs non-empty is the only filter:
 
-      consistent   — every member has the SAME non-empty value AND
-                     that value's primary token matches the cluster's.
-                     Nothing to do. No finding emitted.
-      propagatable — exactly one trustworthy non-empty value exists;
-                     some other members are empty or carry stale
-                     values. Bulk action spreads that value across
-                     the cluster.
-      unsorted     — every member is empty, OR every non-empty value
-                     is stale (its primary token doesn't match the
-                     cluster — usually a leftover wrong tag from
-                     earlier mis-tagging upstream). User must type
-                     a fresh canonical value.
-      conflicting  — two or more distinct trustworthy values. User
-                     picks which wins.
+      consistent   — every member has the SAME non-empty value. The
+                     user has addressed this cluster; nothing to do,
+                     no finding emitted.
+      propagatable — exactly one distinct non-empty value exists and
+                     some members are empty. Bulk action spreads that
+                     value across the cluster.
+      unsorted     — every member is empty. User must type a fresh
+                     canonical value.
+      conflicting  — two or more distinct non-empty values. User
+                     picks which one wins.
 
-    The cross-check against `cluster_token` is what stops the dialog
-    from helpfully propagating a wrong sort across a cluster — e.g.
-    a Skyliners-credited track whose ARTISTSORT was mis-set to
-    "Drifters, The". Without the cross-check we'd auto-suggest
-    "Drifters, The" as canonical and overwrite every other
-    Skyliners track with it. With it, the stale value is visibly
-    ignored for canonical-selection purposes (the row still shows
-    it, but it doesn't drive the suggestion).
+    Design note — we deliberately do NOT re-validate the *content* of
+    sort values against the cluster's display credits. The previous
+    implementation cross-checked each sort value's primary token
+    against the cluster's primary token, trying to detect stale /
+    mis-tagged carryovers ("Drifters, The" on a Skyliners track
+    cluster). That rubric had blind spots — credits like "Spike Jones
+    New Band" produce cluster token "spike jones new band" while the
+    correct sort "Jones, Spike" produces token "spike jones". They
+    don't match, so the cluster was perpetually re-flagged even
+    though every track was correctly sorted. The fix loop was
+    inescapable for any credit with an ensemble qualifier the suffix
+    regex didn't recognize ("Quartet", "Quintet", "New Band", "Trio").
 
-    We deliberately do NOT require sort values to match a particular
-    "Last, First" shape. Single-name artists ("Zamfir", "Madonna"),
-    canonical ensembles ("London Symphony Orchestra"), and any other
-    valid sort string the user has chosen all count as "set" so long
-    as the primary token aligns with the cluster.
+    Trading off: under the new rule, the rare "stale tag from a bad
+    upstream import" case would silently survive a re-run. The user
+    has to spot and correct it (or its presence would surface as a
+    cluster-wide conflict if another member has the *correct* sort).
+    In practice, deliberate user-set values vastly outnumber bad
+    imports, and the constant-friction failure mode is far worse than
+    the rare false-acceptance one.
+
+    Single-name artists ("Madonna", "U2"), canonical ensembles
+    ("London Symphony Orchestra"), and "Last, First" rotations all
+    pass naturally — they're all just non-empty values that agree
+    across the cluster.
     """
     sort_values = [(m.get("sort") or "").strip() for m in members]
     distinct_non_empty: set[str] = {v for v in sort_values if v}
     has_empty = any(not v for v in sort_values)
 
-    # Filter out sort values that don't match the cluster's primary
-    # token — those are stale / mis-tagged carryovers from upstream
-    # libraries and we must not propagate them. When the caller
-    # didn't pass a cluster_token (legacy callers / direct tests
-    # for non-stale data), accept all values as before.
-    if cluster_token:
-        trustworthy: set[str] = {
-            v for v in distinct_non_empty
-            if _sort_to_primary_token(v) == cluster_token
-        }
-    else:
-        trustworthy = set(distinct_non_empty)
-
-    # All members empty OR every non-empty value is stale → cluster
-    # needs user input. We classify as "unsorted" rather than
-    # "conflicting" because the user has nothing they could
-    # reasonably "pick" — none of the existing values is correct.
-    if not trustworthy:
+    if not distinct_non_empty:
+        # Every member is empty.
         return "unsorted", None
 
-    if len(trustworthy) == 1:
-        value = next(iter(trustworthy))
-        # All members had this exact value AND it's trustworthy →
-        # cluster is genuinely consistent, no finding needed. If
-        # there were stale values mixed in (so trustworthy != all
-        # distinct), or some members were empty → propagate.
-        all_have_same_trusted = (
-            not has_empty
-            and trustworthy == distinct_non_empty
-        )
-        return ("consistent" if all_have_same_trusted else "propagatable"), value
+    if len(distinct_non_empty) == 1:
+        value = next(iter(distinct_non_empty))
+        # All non-empty AND all the same → already consistent. Mixed
+        # empty + same-value → propagate.
+        return ("consistent" if not has_empty else "propagatable"), value
 
-    # Multiple trustworthy values → user picks which wins.
+    # Multiple distinct non-empty values → user picks which wins.
     return "conflicting", None
 
 
