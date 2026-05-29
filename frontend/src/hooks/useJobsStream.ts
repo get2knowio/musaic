@@ -92,6 +92,25 @@ export function useJobsStream() {
             },
             duration: 6000,
           });
+        } else if (
+          j.status === "acted_on"
+          && j.acted_on_action === "applied"
+          && prev.status === "running"
+        ) {
+          // Server-side auto-acknowledged a no-op confirmation: MB
+          // identified the album, nothing to apply. Distinguishable
+          // from the user-driven "completed → Apply → acted_on"
+          // path by prev.status (auto-ack jumps straight from
+          // running). Quiet success toast — there's nothing for the
+          // user to decide, just a heads-up that the album's now
+          // identified.
+          toast.success(`${shortAlbum(j)}: identified on MusicBrainz`, {
+            action: {
+              label: "View",
+              onClick: goTo(`/library/${encodeURIComponent(j.album_id)}`),
+            },
+            duration: 4000,
+          });
         }
       }
       previousById.current = nextMap;

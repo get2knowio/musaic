@@ -134,6 +134,52 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
         )
 
 
+def _is_no_op_confirmation(result: dict[str, Any]) -> bool:
+    """True when an AI job result represents a verified no-op the user
+    doesn't need to review: the album was identified on MusicBrainz
+    AND there are no album/track/cover changes to apply.
+
+    Used to auto-acknowledge such jobs server-side so they never enter
+    the frontend's "needs review" queue. The user just sees the toast
+    + the IDENTIFIED badge on the album.
+
+    Gating on `mb_release_group_mbid` is intentional: a no-op result
+    WITHOUT identification ("Claude couldn't find this on MB either")
+    still warrants user attention — they may want to retry with a hint
+    or fix the directory name. Only the IDENTIFIED + nothing-to-apply
+    intersection is the no-decision case.
+
+    Tied to the synthesizer's emit shape (only emits suggestions that
+    actually differ from current values): for AI-generated results
+    that may include same-as-current values, this check will conserva-
+    tively NOT auto-ack (suggestions dict is non-empty even when the
+    diff would render as "no change"), so the user still gets the
+    review UI. That's the safer failure mode.
+    """
+    meta = result.get("metadata") or {}
+    cover = result.get("cover") or {}
+
+    mbid = (meta.get("mb_release_group_mbid") or "").strip()
+    if not mbid:
+        return False  # Not identified — user still needs to decide.
+
+    album_suggestions = meta.get("suggestions") or {}
+    if album_suggestions:
+        return False  # Has album-level fields to apply.
+
+    for track in meta.get("tracks") or []:
+        if track.get("suggestions"):
+            return False  # Has at least one track-level change.
+
+    # Cover-included jobs: a proposed cover URL = something to apply.
+    # Metadata-only jobs: cover dict is absent, so this check is a
+    # no-op for them.
+    if cover.get("cover_url"):
+        return False
+
+    return True
+
+
 def _format_transcript(buffer: list[str], *, max_bytes: int) -> str | None:
     """Join a transcript buffer into a single string, keeping the
     tail when the joined size exceeds `max_bytes`. The tail is more
@@ -286,6 +332,29 @@ async def run_one_job(job: jobs_module.Job) -> None:
 
         jobs_module.mark_completed(job.id, result)
         _log.info("job %s (%s, album=%s) completed", job.id, job.job_type, job.album_id)
+
+        # Auto-acknowledge no-op results so they never enter the
+        # "needs review" queue. A job whose result is genuinely a
+        # confirmation ("MB identified the album; no tag changes
+        # needed; no cover change") gives the user nothing to decide
+        # — surfacing it in the review pile just adds noise the user
+        # has to dismiss manually. The frontend now sees a job that
+        # went straight from `running` → `acted_on(applied)`, and
+        # the toast wording can reflect "verified" rather than
+        # "ready to review."
+        #
+        # Narrow gate: ONLY auto-ack when (a) the album was
+        # identified AND (b) there's nothing in the result that
+        # would require user action. The non-identified no-op case
+        # ("no high-confidence corrections AND no MB match either")
+        # still needs the user — they might want to try a hint or
+        # fix the dir name.
+        if _is_no_op_confirmation(result):
+            jobs_module.mark_acted_on(job.id, "applied")
+            _log.info(
+                "job %s auto-acknowledged: no-op confirmation (album=%s)",
+                job.id, job.album_id,
+            )
     except Exception as e:
         # Most failures are the known opaque CLI exit-1 pattern — the
         # downstream message is already informative; full traceback adds
