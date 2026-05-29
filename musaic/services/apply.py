@@ -173,6 +173,25 @@ def apply_album_changes_iter(
                 )
 
         # 6. Targeted re-scan + upsert (don't drop the whole snapshot).
+        #
+        # The `library_events.publish(...)` calls below MUST happen
+        # BEFORE the final yield. The frontend's useApplyStream marks
+        # apply state="done" on the "updated_album" event and may
+        # then stop reading the SSE stream; the StreamingResponse
+        # cancels the generator with `GeneratorExit` raised at the
+        # suspended yield. Anything below the yield (originally the
+        # publish block) never executes — the bug we hit on the
+        # Clayderman / "Ballad Pour Adeline" album: apply wrote 2
+        # files, "updated_album" reached the client, but the
+        # AlbumTagsChanged publish never ran, so the post-scan rerun
+        # never fired and the "Not yet identified" finding stayed
+        # open even though the MBID was set.
+        #
+        # Fix: publish first (load-bearing side effect with bus
+        # subscribers downstream), THEN yield. Order doesn't matter
+        # for correctness — the SSE event and the bus event are
+        # independent — but generator-close semantics make the
+        # publish reliable only when it precedes the yield.
         fresh = scan_one_album(album_path)
         if fresh is None:
             # The album dir vanished between writing the FLAC tags and
@@ -191,9 +210,10 @@ def apply_album_changes_iter(
             # to retire — apply paths should be no more aggressive
             # than scan paths.
             #
-            # The Missing transition publishes AlbumMarkedMissing via
-            # the bus, so the frontend greys out the tile and the
-            # post-scan rerun subscribes correctly.
+            # mark_album_missing publishes AlbumMarkedMissing
+            # internally as a function-call side effect (not via a
+            # yield), so it's unaffected by the generator-close
+            # issue described above.
             cache_module.mark_album_missing(album_id)
             yield "removed_album", {"id": album_id, "path": album_path}
         else:
@@ -210,31 +230,16 @@ def apply_album_changes_iter(
                 merged = cache_module.get_album_by_id(album_id)
                 if merged is not None:
                     fresh_dict = merged
-            yield "updated_album", fresh_dict
 
-        # 6b. Publish the mutation events; subscribers fan out to
-        #     the resolver invalidate + thumb drop + scoped post-scan
-        #     rerun + findings-stream notify. Phase 2 of move E
-        #     replaced the prior explicit direct calls with this
-        #     single publish-driven path.
-        #
-        #     Skipped when the album dir vanished mid-apply (fresh is
-        #     None) — `cache.mark_album_missing` already published
-        #     `AlbumMarkedMissing`, which is the right signal for the
-        #     "we don't see it right now" state. Firing
-        #     `AlbumTagsChanged` for an album we just lost sight of
-        #     would only spawn a redundant post-scan rerun against
-        #     stale state.
-        #
-        #     Note on bulk runs: the per-apply rerun used to be gated
-        #     on `rerun_post_scan_checks` so the bulk dispatcher could
-        #     suppress N reruns in favor of one end-of-batch rerun.
-        #     That suppression now lives in the `_post_scan_rerun`
-        #     subscriber, which honors `checks._apply.in_bulk_run`.
-        #     The events still publish — invalidation + notify are
-        #     cheap and bulk-mode-safe — only the post-scan rerun
-        #     defers to the bulk dispatcher's end-of-batch call.
-        if fresh is not None:
+            # Publish the mutation events BEFORE the final yield (see
+            # the long comment at the top of step 6 for why). The
+            # _post_scan_rerun subscriber will pick up AlbumTagsChanged
+            # and re-evaluate findings scoped to this album; the
+            # _findings_runner_notify subscriber wakes the checks
+            # stream. The relay subscribers also fan out to the SSE
+            # consumers. Bulk-loop suppression lives in the
+            # `_post_scan_rerun` subscriber (honors
+            # `checks._apply.in_bulk_run`), not here.
             try:
                 from .. import library_events
                 library_events.publish(library_events.AlbumTagsChanged(
@@ -247,6 +252,8 @@ def apply_album_changes_iter(
                     )
             except Exception:
                 _log.exception("library_events publish failed for apply %s", album_id)
+
+            yield "updated_album", fresh_dict
     except Exception as e:
         _log.exception("apply_album_changes_iter failed for album %s", album_id)
         yield "error", {"detail": str(e)}

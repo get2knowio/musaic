@@ -376,6 +376,93 @@ def test_apply_pipeline_marks_missing_when_dir_vanishes_mid_apply(monkeypatch, t
         "removed_album event must still fire so the SSE stream surfaces the transition"
 
 
+def test_apply_publishes_tags_changed_even_if_consumer_closes_early(
+    monkeypatch, tmp_path,
+):
+    """Regression: the AlbumTagsChanged publish must fire even when
+    the SSE consumer stops reading after `updated_album`.
+
+    The bug we hit on the Clayderman album: apply wrote 2 files,
+    "updated_album" reached the frontend, frontend marked status=done
+    and stopped reading the SSE stream. Server-side, the generator
+    got GeneratorExit raised at the suspended yield, and the
+    publish call that lived AFTER the yield never executed. No
+    AlbumTagsChanged event published → no post-scan rerun fired →
+    the "Not yet identified" finding stayed open even though the
+    MBID was set.
+
+    Fix: publish before the final yield. This test exercises the
+    early-close path by iterating only until "updated_album", then
+    calling `close()` on the generator (which raises GeneratorExit
+    at the yield, exactly as StreamingResponse would on client
+    disconnect).
+    """
+    from musaic.services import apply as apply_service
+    from musaic import library_events as bus
+
+    album_dir = tmp_path / "Test Album [FLAC]"
+    album_dir.mkdir()
+
+    cache_module.save_snapshot(_snapshot([
+        _album_dict(id="early-close-test", path=str(album_dir)),
+    ]))
+
+    # No-op the tag writer.
+    def _empty_apply_iter(*_args, **_kwargs):
+        yield "start", {"file_count": 0}
+        yield "done", {"saved_count": 0, "errors": 0, "art_changed_count": 0}
+
+    monkeypatch.setattr(apply_service, "apply_to_album_iter", _empty_apply_iter)
+    # Stub the post-write rescan to a believable fresh dict so the
+    # "updated_album" branch executes.
+    monkeypatch.setattr(
+        apply_service, "scan_one_album",
+        lambda _p: _FakeScanResult(
+            id="early-close-test", path=str(album_dir),
+        ),
+    )
+    monkeypatch.setattr(
+        apply_service, "album_to_dict",
+        lambda r: {"id": r.id, "path": r.path, "title": "x"},
+    )
+
+    seen_events: list[bus.AlbumTagsChanged] = []
+    bus.register(bus.AlbumTagsChanged, lambda ev: seen_events.append(ev))
+
+    gen = apply_service.apply_album_changes_iter(
+        album={"id": "early-close-test", "path": str(album_dir)},
+        library_dir=str(tmp_path),
+        suggestions={"title": "x"},
+    )
+
+    # Pull events until we hit "updated_album" — same shape as a
+    # client that processes "updated_album" then disconnects.
+    for name, _payload in gen:
+        if name == "updated_album":
+            break
+
+    # Close the generator — simulates StreamingResponse cancellation
+    # on client disconnect (raises GeneratorExit at the yield).
+    gen.close()
+
+    # The publish must have fired BEFORE the yield reached us, so
+    # the bus event is recorded even though we never drained past
+    # "updated_album".
+    assert len(seen_events) == 1, \
+        "AlbumTagsChanged must publish before the final yield so " \
+        "client disconnect doesn't strand the post-scan rerun"
+    assert seen_events[0].album_id == "early-close-test"
+
+
+class _FakeScanResult:
+    """Minimal stand-in for a scanner.Album dataclass so the
+    `album_to_dict` monkeypatch above has something to read from."""
+
+    def __init__(self, id: str, path: str):
+        self.id = id
+        self.path = path
+
+
 # ============================================================
 # Scan sanity check
 # ============================================================
