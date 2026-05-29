@@ -969,6 +969,7 @@ async def suggest_metadata(
     tracks: list[dict[str, Any]],
     user_hint: str = "",
     resolution: Any = None,
+    attach_cover: bool = True,
 ) -> MetadataSuggestion:
     """Ask Claude for high-confidence metadata corrections.
 
@@ -983,6 +984,14 @@ async def suggest_metadata(
     list of unresolved filenames; the system prompt knows how to use
     them. The worker should run the resolver first and only call this
     when AI is actually needed (anchor missing or per-track gaps remain).
+
+    `attach_cover` (default True) controls whether the album's cover
+    art is sent as an image content block with the prompt. The
+    cover-attach pattern usually boosts identification quality for
+    compilations / soundtracks / foreign-language releases, but
+    multimodal calls have higher per-turn latency. Setting False
+    forces the text-only path; useful for A/B testing or when
+    debugging job-reliability issues.
     """
     payload = _album_payload(album_dict, tracks, resolution=resolution)
     user_message = _format_user_message(payload, user_hint=user_hint)
@@ -1003,17 +1012,18 @@ async def suggest_metadata(
         # prompt hint on top when the user has configured a FireCrawl key.
         sys_prompt, allowed_tools, mcp_servers = _build_sdk_extras(_SYSTEM_PROMPT_METADATA)
 
-        # Attach the album's cover art when we have one. Cover often
-        # carries the canonical identity (artist + title rendered in
-        # human-readable form) when tags have drifted or the dir name
-        # is unhelpful — particularly valuable for compilations,
-        # soundtracks, foreign-language releases, and box sets.
+        # Attach the album's cover art when we have one AND the
+        # caller didn't opt out. Cover often carries the canonical
+        # identity (artist + title rendered in human-readable form)
+        # when tags have drifted or the dir name is unhelpful —
+        # particularly valuable for compilations, soundtracks,
+        # foreign-language releases, and box sets.
         # `_album_cover_for_prompt` uses the pre-extracted 384px thumb
         # when available (no extra IO), falls back to resizing the
         # source image. Returns None for coverless albums; in that
-        # case we pass the bare text prompt as before (no behavior
-        # change for the no-cover path).
-        cover = _album_cover_for_prompt(album_dict)
+        # case (or when attach_cover=False) we pass the bare text
+        # prompt — no behavior change vs the pre-cover-attach path.
+        cover = _album_cover_for_prompt(album_dict) if attach_cover else None
         if cover is not None:
             b64, mime = cover
             sdk_prompt: "str | list[dict[str, Any]]" = [

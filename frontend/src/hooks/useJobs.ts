@@ -138,7 +138,15 @@ export function useInFlightJobCounts(): { running: number; queued: number } {
 export function useEnqueueJob() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (args: { albumId: string; jobType: JobType; hint?: string }) => enqueueJob(args),
+    mutationFn: (args: {
+      albumId: string;
+      jobType: JobType;
+      hint?: string;
+      // v16: opt-out from cover-attach. Passed through to
+      // `enqueueJob` (api.ts) which serializes to the backend's
+      // `attach_cover` field. Defaults true backend-side.
+      attachCover?: boolean;
+    }) => enqueueJob(args),
     onSuccess: () => {
       // The SSE stream will push the updated list shortly, but invalidate
       // here so the UI updates instantly without waiting for the round trip.

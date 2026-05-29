@@ -261,6 +261,11 @@ export interface Job {
   started_at: string | null;
   completed_at: string | null;
   acted_on_at: string | null;
+  // v16: per-job toggle for whether the album cover art is sent
+  // with the suggest_metadata prompt. User-set via the hint
+  // dialog checkbox (default on). Optional in the client type
+  // for backward-compat with any cached jobs from before v16.
+  attach_cover?: boolean;
 }
 
 // 409 detail when an album already has an active job.

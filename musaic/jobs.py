@@ -63,6 +63,13 @@ class Job:
     started_at: str | None = None
     completed_at: str | None = None
     acted_on_at: str | None = None
+    # v16: whether the album's cover art is attached to the
+    # suggest_metadata prompt. Defaults True (current behavior); user
+    # can uncheck the hint-dialog checkbox to A/B test against the
+    # text-only path. Reading: worker reads it; ai.suggest_metadata
+    # honors it. Persisted on the job so retries reuse the same
+    # setting (consistent A/B comparison across retries).
+    attach_cover: bool = True
 
 
 # ---------- Helpers ----------
@@ -76,6 +83,14 @@ def _new_id() -> str:
 
 
 def _row_to_job(row) -> Job:
+    # `attach_cover` defaults True on pre-v16 rows that didn't have
+    # the column. The migration sets the column-default to 1, so
+    # post-migration rows always have a value, but the .keys() check
+    # is defensive against test DBs / partial migrations.
+    if "attach_cover" in row.keys():
+        attach_cover = bool(row["attach_cover"])
+    else:
+        attach_cover = True
     return Job(
         id=row["id"],
         album_id=row["album_id"],
@@ -91,6 +106,7 @@ def _row_to_job(row) -> Job:
         started_at=row["started_at"],
         completed_at=row["completed_at"],
         acted_on_at=row["acted_on_at"],
+        attach_cover=attach_cover,
     )
 
 
@@ -110,6 +126,7 @@ def job_to_dict(job: Job) -> dict[str, Any]:
         "started_at": job.started_at,
         "completed_at": job.completed_at,
         "acted_on_at": job.acted_on_at,
+        "attach_cover": job.attach_cover,
     }
     if job.result_json:
         try:
@@ -124,9 +141,15 @@ def job_to_dict(job: Job) -> dict[str, Any]:
 # ---------- Public API ----------
 
 def enqueue(*, album_id: str, album_path: str, album_title: str,
-            job_type: str, hint: str = "") -> Job:
+            job_type: str, hint: str = "", attach_cover: bool = True) -> Job:
     """Create a new queued job. Raises JobConflictError if an active job
-    already exists for `album_id`."""
+    already exists for `album_id`.
+
+    `attach_cover` (default True) controls whether the album's cover
+    art is sent with the suggest_metadata prompt. The user can toggle
+    this via the hint-dialog checkbox to A/B test the cover-attach
+    feature. Persisted on the job so retries reuse the same setting.
+    """
     if job_type not in JOB_TYPES:
         raise ValueError(f"Unknown job_type {job_type!r}; expected one of {JOB_TYPES}")
 
@@ -148,16 +171,18 @@ def enqueue(*, album_id: str, album_path: str, album_title: str,
             hint=hint or "",
             status="queued",
             created_at=_now_iso(),
+            attach_cover=attach_cover,
         )
         with db_module.transaction(conn):
             conn.execute(
                 """
                 INSERT INTO ai_jobs (id, album_id, album_path, album_title, job_type,
-                                     hint, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'queued', ?)
+                                     hint, status, created_at, attach_cover)
+                VALUES (?, ?, ?, ?, ?, ?, 'queued', ?, ?)
                 """,
                 (job.id, job.album_id, job.album_path, job.album_title,
-                 job.job_type, job.hint, job.created_at),
+                 job.job_type, job.hint, job.created_at,
+                 1 if job.attach_cover else 0),
             )
         return job
 

@@ -302,12 +302,14 @@ function SheetBody({
   };
   const onSuggestCover = () => setPendingType("cover");
 
-  const onHintSubmit = async (hint: string) => {
+  const onHintSubmit = async (hint: string, attachCover: boolean) => {
     const which = pendingType;
     setPendingType(null);
     if (!which) return;
     try {
-      await enqueue.mutateAsync({ albumId: album.id, jobType: which, hint });
+      await enqueue.mutateAsync({
+        albumId: album.id, jobType: which, hint, attachCover,
+      });
       const label =
         which === "metadata" ? "Metadata"
         : which === "cover" ? "Cover art"
@@ -648,6 +650,10 @@ function SheetBody({
             ? priorCoverAttempts
             : []
         }
+        // Drives whether the "Include album cover" checkbox renders
+        // in the dialog. Toggle is meaningful only for metadata jobs
+        // on albums that actually have a cover to attach.
+        hasCover={albumHasCover}
         onSubmit={onHintSubmit}
         onCancel={onHintCancel}
       />

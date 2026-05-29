@@ -1,5 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
-import { AlertTriangle, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Image as ImageIcon, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { Job } from "@/lib/types";
@@ -24,8 +24,15 @@ interface HintDialogProps {
    *  unidentified-album tries MB first for free before falling through to
    *  AI). Omitted when the dialog is opened from the DetailSheet footer. */
   checkId?: string | null;
-  /** Called with the trimmed hint (possibly empty) when the user submits. */
-  onSubmit: (hint: string) => void;
+  /** Whether this album has a cover at all. When false, the
+   *  "Include album cover" checkbox is hidden — there's nothing to
+   *  toggle. */
+  hasCover?: boolean;
+  /** Called with the trimmed hint AND the `attachCover` state.
+   *  `attachCover` is True by default (matching the launch
+   *  behavior); user toggles via the checkbox to A/B-test the
+   *  cover's effect on identification quality / latency. */
+  onSubmit: (hint: string, attachCover: boolean) => void;
   onCancel: () => void;
 }
 
@@ -88,10 +95,16 @@ export default function HintDialog({
   initialHint = "",
   priorCoverAttempts = [],
   checkId = null,
+  hasCover = false,
   onSubmit,
   onCancel,
 }: HintDialogProps) {
   const [hint, setHint] = useState(initialHint);
+  // Default the cover-attach checkbox to checked (current launched
+  // behavior). User can uncheck to A/B-test the text-only path.
+  // Only meaningful when mode includes a metadata pass AND the
+  // album actually has a cover to attach.
+  const [attachCover, setAttachCover] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Only show prior-attempts context when the upcoming call will actually do
@@ -109,9 +122,12 @@ export default function HintDialog({
   const hasMbDirect = checkId !== null && HAS_MB_DIRECT_PATH.has(checkId);
 
   // Reset / pre-fill hint when the dialog opens; auto-focus textarea.
+  // Also reset attachCover to the default (true) on every open so a
+  // one-off "uncheck" doesn't silently leak into the next click.
   useEffect(() => {
     if (open) {
       setHint(initialHint);
+      setAttachCover(true);
       // Defer focus until after Radix's portal mount + animation.
       setTimeout(() => {
         textareaRef.current?.focus();
@@ -120,7 +136,12 @@ export default function HintDialog({
     }
   }, [open, mode, initialHint]);
 
-  const handleSubmit = () => onSubmit(hint.trim());
+  // The cover-attach toggle only matters when (a) this run includes a
+  // metadata pass (cover-only jobs don't use the cover-attach path)
+  // AND (b) the album actually has a cover to attach.
+  const showCoverToggle = (mode === "metadata" || mode === "metadata+cover") && hasCover;
+
+  const handleSubmit = () => onSubmit(hint.trim(), attachCover);
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
@@ -197,6 +218,36 @@ export default function HintDialog({
                 <kbd className="mono text-[10.5px] border border-line bg-bg-2 px-1 rounded-sm">⌘ ↵</kbd> to submit
               </span>
             </div>
+
+            {showCoverToggle && (
+              // A/B-test affordance for the cover-attach path.
+              // Default-checked (matches launched behavior); user can
+              // uncheck to force the text-only prompt. Useful when
+              // debugging job-reliability issues that may correlate
+              // with multimodal calls.
+              <label className="mt-3 flex items-start gap-2.5 text-xs text-fg-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={attachCover}
+                  onChange={(e) => setAttachCover(e.target.checked)}
+                  className="mt-0.5 shrink-0 accent-accent cursor-pointer"
+                />
+                <span>
+                  <span className="inline-flex items-center gap-1.5 text-fg font-medium">
+                    <ImageIcon className="w-3 h-3" />
+                    Include album cover with the prompt
+                  </span>
+                  <span className="block text-fg-4 leading-relaxed mt-0.5">
+                    Sends the 384px thumbnail as an image. Usually
+                    boosts identification (the cover often shows
+                    the artist/title rendered clearly) but adds ~1k
+                    input tokens and ~1–3s of per-turn latency.
+                    Uncheck to force the text-only path for
+                    comparison.
+                  </span>
+                </span>
+              </label>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 h-12 border-t border-line bg-panel-2">

@@ -25,6 +25,13 @@ class JobEnqueuePayload(BaseModel):
     album_id: str
     job_type: str  # "metadata" | "cover" | "metadata+cover"
     hint: str = ""
+    # v16: per-job opt-out from the cover-attach path on
+    # suggest_metadata. Defaults True (current behavior); the
+    # frontend's hint dialog exposes this as a checkbox so the
+    # user can A/B-test cover-on vs cover-off when debugging job
+    # reliability / latency. Applies only to metadata jobs;
+    # cover-only jobs ignore it.
+    attach_cover: bool = True
 
 
 class ActedOnPayload(BaseModel):
@@ -51,6 +58,7 @@ def enqueue_job(payload: JobEnqueuePayload) -> dict[str, Any]:
             album_title=album.get("title") or album.get("dir_name") or "",
             job_type=payload.job_type,
             hint=payload.hint,
+            attach_cover=payload.attach_cover,
         )
     except jobs_module.JobConflictError as e:
         # 409 with the existing job id, so the frontend can offer "view it"

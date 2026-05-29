@@ -305,7 +305,12 @@ async def run_one_job(job: jobs_module.Job) -> None:
                 # improve.
                 meta = await asyncio.wait_for(
                     ai.suggest_metadata(
-                        album, tracks, user_hint=job.hint, resolution=resolution,
+                        album, tracks, user_hint=job.hint,
+                        resolution=resolution,
+                        # v16: per-job opt-out from the cover-attach
+                        # path. User-controlled via the hint-dialog
+                        # checkbox; defaults True (current behavior).
+                        attach_cover=job.attach_cover,
                     ),
                     timeout=_AI_CALL_WALL_CLOCK_TIMEOUT_S,
                 )

@@ -153,13 +153,24 @@ export function getFingerprintPoolStatus(): Promise<FingerprintPoolStatus> {
 // / CoverSuggestionResponse types are still exported from `types.ts`
 // because the worker emits the same shapes inside JobResult.
 
-export function enqueueJob(args: { albumId: string; jobType: JobType; hint?: string }): Promise<Job> {
+export function enqueueJob(
+  args: {
+    albumId: string;
+    jobType: JobType;
+    hint?: string;
+    // v16: opt-out from the cover-attach path on suggest_metadata.
+    // Defaults true on the backend; pass false from the hint
+    // dialog's "Include cover art" unchecked state.
+    attachCover?: boolean;
+  },
+): Promise<Job> {
   return request("/api/ai/jobs", {
     method: "POST",
     body: JSON.stringify({
       album_id: args.albumId,
       job_type: args.jobType,
       hint: args.hint ?? "",
+      attach_cover: args.attachCover ?? true,
     }),
   });
 }

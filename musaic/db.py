@@ -26,7 +26,7 @@ from typing import Iterator
 from .config import CONFIG_DIR
 
 DB_PATH = CONFIG_DIR / "library.db"
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 log = logging.getLogger(__name__)
 
@@ -143,7 +143,13 @@ SCHEMA_STATEMENTS = [
         created_at         TEXT NOT NULL,
         started_at         TEXT,
         completed_at       TEXT,
-        acted_on_at        TEXT
+        acted_on_at        TEXT,
+        -- v16: per-job toggle for whether the album cover art is sent
+        -- with the suggest_metadata prompt. Default 1 (on) matches
+        -- the post-cover-attach launch behavior. User can uncheck
+        -- via the hint dialog when they want to A/B-test the
+        -- cover's effect on identification quality / latency.
+        attach_cover       INTEGER NOT NULL DEFAULT 1
     )
     """,
     "CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status)",
@@ -544,6 +550,14 @@ MIGRATIONS: dict[int, list[str]] = {
         # via explicit user action `DELETE /api/albums/{id}`) actually
         # removes data.
         "ALTER TABLE albums ADD COLUMN missing_since TEXT",
+    ],
+    16: [
+        # Per-job toggle for whether the album cover art is sent with
+        # the suggest_metadata prompt. Default 1 (on) preserves the
+        # post-cover-attach launch behavior. User can uncheck via the
+        # hint dialog to A/B-test whether attaching the cover hurts
+        # job reliability / latency.
+        "ALTER TABLE ai_jobs ADD COLUMN attach_cover INTEGER NOT NULL DEFAULT 1",
     ],
 }
 

@@ -323,7 +323,16 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
           albumTitle={albumTitle}
           checkId={finding.check_id}
           priorCoverAttempts={hintMode === "cover" ? priorCoverAttempts : []}
-          onSubmit={(hint) => {
+          // No `hasCover` passed → checkbox stays hidden in this
+          // flow. The fix-finding endpoint doesn't expose
+          // attach_cover today (would need plumbing through
+          // checks_runner.fix_finding → Check.fix() → each check's
+          // enqueue call). The DetailSheet's footer "Suggest
+          // fixes" flow already lets the user A/B test; that's
+          // where they should toggle. If we want toggle support
+          // here too, plumb attach_cover through the fix-finding
+          // path in a follow-up.
+          onSubmit={(hint, _attachCover) => {
             setHintOpen(false);
             submitFix(hint);
           }}
