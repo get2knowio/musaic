@@ -34,6 +34,18 @@ _worker_running = False
 # directly so a future threshold bump in mb_lookup auto-updates this path.
 _AI_MBID_CONFIDENCE = mb_lookup.HIGH_CONFIDENCE_SCORE
 
+# Wall-clock cap for any single AI SDK call (suggest_metadata or
+# suggest_cover). max_turns=20 inside the SDK isn't sufficient —
+# observed in production: the Claude subprocess goes to 0% CPU
+# blocked on a WebFetch/WebSearch tool call that never returns,
+# job sits `running` indefinitely until the user manually kills
+# the subprocess. 4 minutes is generous (healthy compilation
+# identification with vision input runs ~1-2 min); this cap fires
+# only on genuine wedges. On timeout we surface the same
+# "subprocess exited" failure that other SDK errors produce, with
+# the queue auto-pausing on the first failure (existing behavior).
+_AI_CALL_WALL_CLOCK_TIMEOUT_S = 240.0
+
 
 def queue_state_dict() -> dict[str, Any]:
     """Snapshot of worker / queue settings + counts. Bundled into the
@@ -259,8 +271,27 @@ async def run_one_job(job: jobs_module.Job) -> None:
                     job.id, job.job_type, job.album_id,
                 )
             else:
-                meta = await ai.suggest_metadata(
-                    album, tracks, user_hint=job.hint, resolution=resolution,
+                # Wall-clock cap on the SDK call. `max_turns=20` alone
+                # isn't enough: the SDK can sit blocked on a single
+                # WebFetch / WebSearch tool call that never returns
+                # (seen with MB outages — the Claude subprocess goes
+                # to 0% CPU waiting on a network read that's already
+                # hung). Without a wall-clock timer, the job stays
+                # `running` indefinitely until the user manually
+                # kills the subprocess.
+                #
+                # 4 minutes is generous: healthy compilation
+                # identification takes ~1-2 min with cover attached;
+                # this cap fires only on genuine wedges. Hitting the
+                # cap surfaces the same "subprocess exited" failure
+                # message the user already sees on other SDK errors;
+                # they can Retry from the AI Jobs page when conditions
+                # improve.
+                meta = await asyncio.wait_for(
+                    ai.suggest_metadata(
+                        album, tracks, user_hint=job.hint, resolution=resolution,
+                    ),
+                    timeout=_AI_CALL_WALL_CLOCK_TIMEOUT_S,
                 )
             result["metadata"] = {
                 "suggestions": meta.suggestions,
@@ -320,8 +351,11 @@ async def run_one_job(job: jobs_module.Job) -> None:
                     job.id, job.job_type, job.album_id,
                 )
             else:
-                cover = await ai.suggest_cover(
-                    album, tracks, user_hint=job.hint, resolution=resolution,
+                cover = await asyncio.wait_for(
+                    ai.suggest_cover(
+                        album, tracks, user_hint=job.hint, resolution=resolution,
+                    ),
+                    timeout=_AI_CALL_WALL_CLOCK_TIMEOUT_S,
                 )
             result["cover"] = {
                 "cover_url": cover.cover_url,
@@ -355,6 +389,37 @@ async def run_one_job(job: jobs_module.Job) -> None:
                 "job %s auto-acknowledged: no-op confirmation (album=%s)",
                 job.id, job.album_id,
             )
+    except asyncio.TimeoutError:
+        # Wall-clock cap tripped — the SDK call ran longer than
+        # _AI_CALL_WALL_CLOCK_TIMEOUT_S. Almost always indicates the
+        # Claude subprocess is wedged on a tool call (WebFetch /
+        # WebSearch / FireCrawl) that's not coming back. Surface a
+        # specific message so the user can distinguish this from a
+        # rate-limit failure (different recovery: rate-limits self-
+        # resolve after the window; timeouts mean retry once the
+        # upstream tool is responsive again).
+        mins = int(_AI_CALL_WALL_CLOCK_TIMEOUT_S // 60)
+        msg = (
+            f"AI call exceeded the {mins}-minute wall-clock cap and was "
+            f"cancelled. Almost always means an upstream tool (MusicBrainz "
+            f"/ Cover Art Archive / FireCrawl) is slow or down — the Claude "
+            f"subprocess sits idle waiting for a tool response that never "
+            f"returns. Hit Retry once the affected service is responsive, "
+            f"or skip this album and come back to it later."
+        )
+        _log.warning(
+            "job %s (%s, album=%s) wall-clock timeout (%ds); marking failed",
+            job.id, job.job_type, job.album_id, int(_AI_CALL_WALL_CLOCK_TIMEOUT_S),
+        )
+        excerpt = _format_transcript(transcript_buffer, max_bytes=16_000)
+        jobs_module.mark_failed(job.id, msg, failure_excerpt=excerpt)
+        try:
+            settings_module.set_ai_queue_paused(True)
+            _log.warning("AI queue paused due to job timeout; user must resume manually")
+        except Exception:
+            _log.exception("Failed to set ai_queue_paused after job timeout")
+        notify_jobs_changed()
+        return
     except Exception as e:
         # Most failures are the known opaque CLI exit-1 pattern — the
         # downstream message is already informative; full traceback adds
