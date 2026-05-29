@@ -35,12 +35,40 @@ export default function TrackList({ album, tracks, applyState, resolution }: Tra
   const showBpm = tracks.some((t) => t.bpm !== null);
   const showRg = tracks.some((t) => t.replaygain_track_gain);
   const showStatus = applyState !== undefined && Object.keys(applyState).length > 0;
-  // filename → recording_mbid for the fingerprint chip. Empty when no
-  // resolution loaded yet, or no fingerprints matched (legitimate misses).
-  const recordingMbids = new Map<string, string>(
+  // filename → fingerprint state for the per-track chip. Three
+  // visual states:
+  //   - matched   : Chromaprint computed AND AcoustID returned a
+  //                 confident recording_mbid. Green icon, links to
+  //                 the MB recording page.
+  //   - unmatched : Chromaprint computed BUT AcoustID had no match
+  //                 (common for obscure / album-original tracks
+  //                 that few people have submitted). Yellow icon,
+  //                 not a link — the icon's only purpose is to
+  //                 communicate "we tried; nothing confident came
+  //                 back". Distinguishes a "really not fingerprinted"
+  //                 from "fingerprinted, AcoustID just doesn't know
+  //                 this recording."
+  //   - missing   : no Chromaprint row at all. No icon. The eager
+  //                 fingerprint pool usually covers every track
+  //                 post-scan, so this is rare (fpcalc not
+  //                 installed, or scan not yet complete).
+  type FpState = { kind: "matched"; mbid: string } | { kind: "unmatched" };
+  const fingerprintByFilename = new Map<string, FpState>(
     (resolution?.tracks ?? [])
-      .filter((t) => t.recording_mbid)
-      .map((t) => [t.filename, t.recording_mbid!]),
+      .map((t): [string, FpState | null] => {
+        if (t.recording_mbid) {
+          return [t.filename, { kind: "matched", mbid: t.recording_mbid }];
+        }
+        if (t.fingerprint_score !== null && t.fingerprint_score !== undefined) {
+          // Score present (even 0.0) means the AcoustID lookup ran
+          // against a computed Chromaprint hash. No mbid + score
+          // present = lookup miss.
+          return [t.filename, { kind: "unmatched" }];
+        }
+        return [t.filename, null];
+      })
+      .filter((entry): entry is [string, FpState] => entry[1] !== null)
+      .map(([fn, state]) => [fn, state]),
   );
 
   // Build a CSS grid template for the row.
@@ -105,18 +133,37 @@ export default function TrackList({ album, tracks, applyState, resolution }: Tra
                 }
               >
                 <span className="truncate">{t.title || t.filename}</span>
-                {recordingMbids.has(t.filename) && (
-                  <a
-                    href={`https://musicbrainz.org/recording/${recordingMbids.get(t.filename)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Identified via AcoustID fingerprint — click to view on MusicBrainz"
-                    className="text-emerald-400 hover:text-emerald-300 shrink-0"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Fingerprint className="w-3 h-3" />
-                  </a>
-                )}
+                {(() => {
+                  const fp = fingerprintByFilename.get(t.filename);
+                  if (!fp) return null;
+                  if (fp.kind === "matched") {
+                    return (
+                      <a
+                        href={`https://musicbrainz.org/recording/${fp.mbid}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Identified via AcoustID fingerprint — click to view on MusicBrainz"
+                        className="text-emerald-400 hover:text-emerald-300 shrink-0"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Fingerprint className="w-3 h-3" />
+                      </a>
+                    );
+                  }
+                  // kind === "unmatched": rendered as a non-link span.
+                  // Yellow signals "we tried but AcoustID didn't
+                  // recognize this recording" — distinguishable at a
+                  // glance from "fully identified" (green) and from
+                  // "never fingerprinted" (no icon at all).
+                  return (
+                    <span
+                      title="Fingerprinted, but AcoustID had no confident match for this recording. Common for obscure / album-original tracks."
+                      className="text-amber-400 shrink-0"
+                    >
+                      <Fingerprint className="w-3 h-3" />
+                    </span>
+                  );
+                })()}
               </span>
               {showArtist && (
                 <span
