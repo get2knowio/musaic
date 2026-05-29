@@ -350,3 +350,62 @@ def test_worker_no_excerpt_when_buffer_empty(monkeypatch):
         return
     parsed = json.loads(saved.result_json)
     assert parsed.get("failure_excerpt") is None or parsed.get("failure_excerpt") == ""
+
+
+def test_worker_timeout_writes_fallback_excerpt_when_buffer_empty(monkeypatch):
+    """When the wall-clock cap fires AND the buffer is empty (SDK
+    streamed nothing — subprocess wedged before any output), the
+    worker writes a fallback "(no SDK messages received)" excerpt
+    so the chevron in the Jobs UI always appears on timeouts. The
+    user can then see "nothing back" IS the diagnostic, rather
+    than wondering if the UI is broken.
+
+    Distinct from `test_worker_no_excerpt_when_buffer_empty`: that
+    covers a Claude SDK exception path (subprocess exited with an
+    error); this covers the wall-clock TimeoutError path
+    specifically, where empty buffer means "subprocess didn't
+    even produce an error — it just sat there." Different
+    failure modes, different user-facing messages."""
+    _stub_album_lookup(monkeypatch, "alb-timeout-silent")
+    ai._transcript_buffer.set(None)
+    job = jobs_module.enqueue(
+        album_id="alb-timeout-silent",
+        album_path="/fake/library/alb-timeout-silent",
+        album_title="Silent Timeout",
+        job_type="metadata",
+    )
+
+    from musaic.services import resolver as resolver_service
+    from musaic.services.resolver import AlbumResolution
+
+    monkeypatch.setattr(
+        resolver_service, "resolve_album",
+        lambda *_a, **_kw: AlbumResolution(album_id="alb-timeout-silent"),
+    )
+
+    # Stub suggest_metadata to raise TimeoutError directly (simulates
+    # the wall-clock cap firing on an SDK call that never streamed).
+    async def fake_suggest_metadata(*_a, **_kw):
+        raise asyncio.TimeoutError()
+
+    monkeypatch.setattr(ai, "suggest_metadata", fake_suggest_metadata)
+
+    from musaic import settings as settings_module
+    monkeypatch.setattr(settings_module, "set_ai_queue_paused", lambda _v: None)
+
+    asyncio.run(worker.run_one_job(job))
+
+    saved = jobs_module.get_job(job.id)
+    assert saved is not None
+    assert saved.status == "failed"
+    # Top-level error message reflects the timeout.
+    assert "wall-clock cap" in (saved.error or "")
+    # And failure_excerpt is populated with the fallback even though
+    # the SDK streamed nothing — the chevron must appear.
+    assert saved.result_json is not None, \
+        "timeout failure must persist a failure_excerpt so the chevron renders"
+    parsed = json.loads(saved.result_json)
+    excerpt = parsed.get("failure_excerpt")
+    assert excerpt, \
+        "empty transcript on timeout must fall back to a diagnostic placeholder"
+    assert "no SDK messages" in excerpt

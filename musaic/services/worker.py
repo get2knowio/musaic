@@ -428,6 +428,24 @@ async def run_one_job(job: jobs_module.Job) -> None:
             job.id, job.job_type, job.album_id, int(_AI_CALL_WALL_CLOCK_TIMEOUT_S),
         )
         excerpt = _format_transcript(transcript_buffer, max_bytes=16_000)
+        if not excerpt:
+            # Buffer is empty → the SDK never streamed a single
+            # message in the full window. That's diagnostic in
+            # itself: subprocess wedged BEFORE producing any output
+            # (initial handshake, Anthropic API not responding, MCP
+            # server connect hang, etc.). Surface this explicitly
+            # so the chevron in the Jobs UI always appears on
+            # timeouts and the user knows "no breadcrumbs" IS the
+            # answer — rather than thinking the UI is broken.
+            excerpt = (
+                f"(no SDK messages received in {mins} minutes — the Claude "
+                f"subprocess was completely silent until the wall-clock cap "
+                f"fired. Usually this means the subprocess was wedged before "
+                f"the first model response: Anthropic API not reachable, "
+                f"FireCrawl MCP server failing to connect, or the subprocess "
+                f"itself failed to initialize. Check ~/.musaic/server.log "
+                f"for any related warnings around the job's start time.)"
+            )
         jobs_module.mark_failed(job.id, msg, failure_excerpt=excerpt)
         try:
             settings_module.set_ai_queue_paused(True)
