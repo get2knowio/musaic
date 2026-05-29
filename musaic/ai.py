@@ -20,6 +20,7 @@ shapes documented below.
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextvars
 import json
 import logging
@@ -256,6 +257,30 @@ ground truth supplied by the user. If you see strong evidence the hint is wrong
 (e.g. the tracklist clearly identifies a different album), call that out in
 `notes` rather than silently overriding it.
 
+COVER ART (when present)
+========================
+
+The user message may include the album's cover art as an attached image.
+When present, treat it as a HIGH-CONFIDENCE signal for identification —
+album/artist text rendered on a cover is almost always the canonical
+form, which beats drifted Vorbis tags and cryptic directory names. Use
+it especially for:
+
+  - Compilations / soundtracks where text metadata is sparse but the
+    cover shows the series/film/era clearly.
+  - Box sets and re-issues where multiple releases share text metadata
+    but differ visually (edition, year, label).
+  - Foreign-language releases where text transliteration breaks matching
+    but the cover often shows a Latin-alphabet form.
+  - Confirming an existing anchor: if the anchor's release-group looks
+    visually consistent with the attached cover, you can return high
+    confidence with no album-level changes.
+
+When the cover and the tags disagree, the cover is usually right. When
+the cover and an explicit user `<hint>` disagree, the hint wins (the
+user may have moved files into a placeholder cover and is asking you
+to retag).
+
 PRIOR DETERMINISTIC RESOLUTION
 ==============================
 
@@ -491,6 +516,55 @@ OUTPUT SCHEMA — STRICT JSON, NO PROSE, NO MARKDOWN
 }"""
 
 
+def _album_cover_for_prompt(album_dict: dict[str, Any]) -> tuple[str, str] | None:
+    """Return `(base64_data, media_type)` for the album's cover, or None
+    when no cover is available.
+
+    Strategy (cheapest first):
+      1. Pre-extracted 384px thumb at `~/.musaic/thumbs/{id}.jpg` —
+         already JPEG, already sized for low token cost. Free.
+      2. Source image (on-disk cover_file OR embedded FLAC picture)
+         resized to 384px via the existing `make_thumbnail` helper.
+
+    The 384px size is intentional — Claude's vision API tokenizes by
+    image area, and 384×384 ≈ 850 input tokens is a reasonable tax
+    for the identification lift. Album covers are predominantly text +
+    a recognizable image; resolution beyond 384 doesn't materially
+    help identification while doubling/tripling token cost.
+
+    Returns None silently when no cover exists; callers should fall
+    back to the text-only prompt shape.
+    """
+    from . import thumbs as thumbs_module
+
+    album_id = album_dict.get("id")
+    if not album_id:
+        return None
+
+    # Path 1: pre-extracted thumb (most common — the scan service
+    # populates these for every album with cover art).
+    thumb_p = thumbs_module.thumb_path(album_id)
+    if thumb_p.is_file():
+        try:
+            data = thumb_p.read_bytes()
+            return base64.standard_b64encode(data).decode("ascii"), "image/jpeg"
+        except OSError as e:
+            log.warning("ai cover-attach: thumb read failed for %s: %s", album_id, e)
+
+    # Path 2: source image (on-disk cover_file OR embedded picture)
+    # resized down. Doing this on demand only when the thumb is missing —
+    # which is rare in practice (the scan service warms thumbs for every
+    # album with cover art).
+    source = thumbs_module.get_source_image(album_dict)
+    if source is None:
+        return None
+    raw_bytes, _src_mime = source
+    resized = thumbs_module.make_thumbnail(raw_bytes)
+    if resized is None:
+        return None
+    return base64.standard_b64encode(resized).decode("ascii"), "image/jpeg"
+
+
 def _format_user_message(album_payload: dict[str, Any], user_hint: str = "") -> str:
     """Build the per-call (uncached) user message: just the dynamic inputs.
 
@@ -634,7 +708,7 @@ def _looks_like_rate_limit(message: str) -> bool:
 
 
 async def _run_sdk(
-    prompt: str,
+    prompt: "str | list[dict[str, Any]]",
     *,
     allowed_tools: list[str],
     model: str,
@@ -709,11 +783,19 @@ async def _run_sdk(
     raise last_error
 
 
-async def _query_async(*, prompt: str, allowed_tools: list[str], model: str,
+async def _query_async(*, prompt: "str | list[dict[str, Any]]",
+                        allowed_tools: list[str], model: str,
                         max_turns: int, system_prompt: str,
                         mcp_servers: dict[str, Any]) -> str:
     """The actual SDK iteration. Lives in its own coroutine so we can pass
-    it to `asyncio.run()` cleanly inside the worker thread."""
+    it to `asyncio.run()` cleanly inside the worker thread.
+
+    `prompt` accepts either a string (text-only) or a list of content
+    blocks (mixed text + image), matching the underlying Anthropic
+    API's content shape. The SDK's `query(prompt=...)` passes either
+    form through unchanged. Used by `suggest_metadata` to attach the
+    album's cover art when one is available — see
+    `_album_cover_for_prompt`."""
     from claude_agent_sdk import (
         AssistantMessage,
         ClaudeAgentOptions,
@@ -803,8 +885,36 @@ async def suggest_metadata(
         # _build_sdk_extras layers FireCrawl tools + the "last resort"
         # prompt hint on top when the user has configured a FireCrawl key.
         sys_prompt, allowed_tools, mcp_servers = _build_sdk_extras(_SYSTEM_PROMPT_METADATA)
+
+        # Attach the album's cover art when we have one. Cover often
+        # carries the canonical identity (artist + title rendered in
+        # human-readable form) when tags have drifted or the dir name
+        # is unhelpful — particularly valuable for compilations,
+        # soundtracks, foreign-language releases, and box sets.
+        # `_album_cover_for_prompt` uses the pre-extracted 384px thumb
+        # when available (no extra IO), falls back to resizing the
+        # source image. Returns None for coverless albums; in that
+        # case we pass the bare text prompt as before (no behavior
+        # change for the no-cover path).
+        cover = _album_cover_for_prompt(album_dict)
+        if cover is not None:
+            b64, mime = cover
+            sdk_prompt: "str | list[dict[str, Any]]" = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime,
+                        "data": b64,
+                    },
+                },
+                {"type": "text", "text": user_message},
+            ]
+        else:
+            sdk_prompt = user_message
+
         raw = await _run_sdk(
-            prompt=user_message,
+            prompt=sdk_prompt,
             allowed_tools=allowed_tools,
             model="claude-sonnet-4-6",
             max_turns=20,
