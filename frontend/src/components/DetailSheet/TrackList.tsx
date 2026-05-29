@@ -45,13 +45,17 @@ export default function TrackList({ album, tracks, applyState, resolution }: Tra
   //                 that few people have submitted). Yellow icon,
   //                 not a link — the icon's only purpose is to
   //                 communicate "we tried; nothing confident came
-  //                 back". Distinguishes a "really not fingerprinted"
-  //                 from "fingerprinted, AcoustID just doesn't know
-  //                 this recording."
+  //                 back."
   //   - missing   : no Chromaprint row at all. No icon. The eager
   //                 fingerprint pool usually covers every track
   //                 post-scan, so this is rare (fpcalc not
   //                 installed, or scan not yet complete).
+  //
+  // The signal for "Chromaprint computed" is `t.fingerprinted` (a
+  // boolean from the backend that's True iff a track_fingerprints
+  // row exists). We can NOT use `fingerprint_score` for this: it
+  // gets NULLed both for "lookup never ran" and for "lookup ran
+  // and returned no confident match" — same value for both states.
   type FpState = { kind: "matched"; mbid: string } | { kind: "unmatched" };
   const fingerprintByFilename = new Map<string, FpState>(
     (resolution?.tracks ?? [])
@@ -59,10 +63,7 @@ export default function TrackList({ album, tracks, applyState, resolution }: Tra
         if (t.recording_mbid) {
           return [t.filename, { kind: "matched", mbid: t.recording_mbid }];
         }
-        if (t.fingerprint_score !== null && t.fingerprint_score !== undefined) {
-          // Score present (even 0.0) means the AcoustID lookup ran
-          // against a computed Chromaprint hash. No mbid + score
-          // present = lookup miss.
+        if (t.fingerprinted) {
           return [t.filename, { kind: "unmatched" }];
         }
         return [t.filename, null];

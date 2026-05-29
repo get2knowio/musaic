@@ -137,6 +137,13 @@ export interface TrackResolution {
   filename: string;
   recording_mbid: string | null;
   fingerprint_score: number | null;
+  // True when a track_fingerprints row exists for this filename —
+  // i.e. Chromaprint was computed. Independent from recording_mbid
+  // (AcoustID match) and from fingerprint_score (AcoustID's
+  // confidence value — NULL means either "service failed" OR "no
+  // confident match" so it can't distinguish those from "never
+  // fingerprinted"). Use THIS field for the per-track UI chip.
+  fingerprinted: boolean;
   canonical_title: FieldFact | null;
   canonical_artist: FieldFact | null;
   canonical_tracknumber: FieldFact | null;

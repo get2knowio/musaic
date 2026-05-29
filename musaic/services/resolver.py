@@ -77,6 +77,16 @@ class TrackResolution:
     filename: str
     recording_mbid: str | None = None
     fingerprint_score: float | None = None
+    # True when a `track_fingerprints` row exists for this filename
+    # — i.e. we computed a Chromaprint hash. Distinguishes "we
+    # fingerprinted this track" from "we never fingerprinted it"
+    # in a way that `fingerprint_score` can't: the AcoustID
+    # lookup path sets score=NULL for both "service failed"
+    # AND "no confident match", so NULL doesn't tell us whether
+    # the row exists. The frontend uses this to render a yellow
+    # "fingerprinted but no AcoustID match" chip vs. a green
+    # "AcoustID-identified" chip vs. no chip at all.
+    fingerprinted: bool = False
     canonical_title: FieldFact | None = None
     canonical_artist: FieldFact | None = None
     canonical_tracknumber: FieldFact | None = None
@@ -125,6 +135,7 @@ class AlbumResolution:
                     "filename": t.filename,
                     "recording_mbid": t.recording_mbid,
                     "fingerprint_score": t.fingerprint_score,
+                    "fingerprinted": t.fingerprinted,
                     "canonical_title": fact(t.canonical_title),
                     "canonical_artist": fact(t.canonical_artist),
                     "canonical_tracknumber": fact(t.canonical_tracknumber),
@@ -391,6 +402,11 @@ def _refine_from_anchor(
             filename=filename,
             recording_mbid=rec_mbid,
             fingerprint_score=fp_score,
+            # Presence in fingerprint_map = a track_fingerprints row
+            # exists = Chromaprint was computed. AcoustID outcome
+            # (matched / unmatched) is a separate signal carried by
+            # recording_mbid + fingerprint_score.
+            fingerprinted=filename in fingerprint_map,
         )
 
         mb_track = _match_by_position(ft.get("tracknumber"), ft.get("duration"))
@@ -583,6 +599,7 @@ def _resolve_uncached(album: dict[str, Any], *, user_hint: str) -> AlbumResoluti
                 filename=filename,
                 recording_mbid=rec_mbid,
                 fingerprint_score=fp_score,
+                fingerprinted=filename in fingerprint_map,
             ))
         resolution.unresolved_track_count = len(flac_tracks)
         resolution.notes.append("No anchor found via Tiers 0a-0c; AI escalation may be required")
