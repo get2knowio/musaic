@@ -32,7 +32,12 @@ def test_format_transcript_joins_pieces():
     out = worker._format_transcript(["first", "second", "third"], max_bytes=1000)
     assert out is not None
     assert "first" in out and "second" in out and "third" in out
-    assert "---" in out  # the separator we use
+    # Per-entry newline separator. The structured `_record_message`
+    # capture in ai.py emits one short line per block (text, tool
+    # call, tool result), so the transcript reads like a chrono
+    # log — no need for the `---` block separator the old text-only
+    # capture used.
+    assert out == "first\nsecond\nthird"
 
 
 def test_format_transcript_truncates_to_max_bytes():
@@ -49,6 +54,160 @@ def test_record_transcript_appends_to_active_buffer():
     ai._record_transcript("world")
     ai._record_transcript("")  # empty pieces dropped
     assert buf == ["hello", "world"]
+
+
+# ============================================================
+# _record_message — structured per-block transcript capture
+# ============================================================
+#
+# The load-bearing diagnostic for failed / timed-out jobs: when a
+# job hangs on a stuck WebFetch, the transcript shown in the Jobs
+# UI must include WHICH tool call / URL was last in flight.
+# Without this, the failure expand surfaces "subprocess exited"
+# with zero breadcrumbs.
+
+
+def test_record_message_captures_text_block():
+    from claude_agent_sdk import AssistantMessage, TextBlock
+    buf = ai.install_transcript_buffer()
+    ai._record_message(AssistantMessage(
+        content=[TextBlock(text="Searching MusicBrainz for the album")],
+        model="claude-sonnet-4-6",
+    ))
+    assert buf == ["Searching MusicBrainz for the album"]
+
+
+def test_record_message_captures_tool_use_with_url():
+    """WebFetch is the most diagnostically-valuable tool call to
+    record — when a job hangs, the last → WebFetch entry tells us
+    which upstream is wedged."""
+    from claude_agent_sdk import AssistantMessage, ToolUseBlock
+    buf = ai.install_transcript_buffer()
+    ai._record_message(AssistantMessage(
+        content=[ToolUseBlock(
+            id="t1", name="WebFetch",
+            input={"url": "https://musicbrainz.org/release-group/abc-123"},
+        )],
+        model="claude-sonnet-4-6",
+    ))
+    assert len(buf) == 1
+    line = buf[0]
+    assert line.startswith("→ WebFetch")
+    assert "musicbrainz.org/release-group/abc-123" in line
+
+
+def test_record_message_captures_tool_use_with_query():
+    from claude_agent_sdk import AssistantMessage, ToolUseBlock
+    buf = ai.install_transcript_buffer()
+    ai._record_message(AssistantMessage(
+        content=[ToolUseBlock(
+            id="t1", name="WebSearch",
+            input={"query": "101 Strings Country Greats"},
+        )],
+        model="claude-sonnet-4-6",
+    ))
+    assert "→ WebSearch" in buf[0]
+    assert "101 Strings Country Greats" in buf[0]
+
+
+def test_record_message_captures_tool_result_string():
+    from claude_agent_sdk import ToolResultBlock, UserMessage
+    buf = ai.install_transcript_buffer()
+    ai._record_message(UserMessage(
+        content=[ToolResultBlock(
+            tool_use_id="t1",
+            content="Found 4 candidate release-groups",
+            is_error=False,
+        )],
+    ))
+    assert buf == ["←  Found 4 candidate release-groups"]
+
+
+def test_record_message_marks_tool_result_errors_distinctly():
+    """Errors get '← ERROR' so they jump out visually when scanning
+    a long transcript looking for what went wrong."""
+    from claude_agent_sdk import ToolResultBlock, UserMessage
+    buf = ai.install_transcript_buffer()
+    ai._record_message(UserMessage(
+        content=[ToolResultBlock(
+            tool_use_id="t1",
+            content="HTTP 503 Service Unavailable",
+            is_error=True,
+        )],
+    ))
+    assert buf[0].startswith("← ERROR")
+    assert "503" in buf[0]
+
+
+def test_record_message_truncates_long_tool_results():
+    """Tool results can be entire HTML pages. The per-entry cap
+    keeps the transcript scannable and the overall buffer bounded."""
+    from claude_agent_sdk import ToolResultBlock, UserMessage
+    buf = ai.install_transcript_buffer()
+    huge = "x" * 5000
+    ai._record_message(UserMessage(
+        content=[ToolResultBlock(
+            tool_use_id="t1",
+            content=huge,
+            is_error=False,
+        )],
+    ))
+    assert len(buf) == 1
+    # Per-block cap is 600 chars (with ellipsis marker around it).
+    assert len(buf[0]) < 700
+    assert "[" in buf[0] and "ch]" in buf[0]  # truncation marker
+
+
+def test_record_message_ignores_unknown_message_types():
+    """Forward compat: SDK adds new message types over time. We
+    shouldn't raise on ones we don't recognize."""
+    buf = ai.install_transcript_buffer()
+    # Pass something that isn't a known message type.
+    ai._record_message(object())  # asserts: doesn't raise
+    assert buf == []
+
+
+def test_full_transcript_pipeline_for_a_failed_call():
+    """End-to-end shape: a sequence of messages that looks like a
+    real (failed) identification attempt. Confirms the transcript
+    that lands in `failure_excerpt` would actually be diagnostic."""
+    from claude_agent_sdk import (
+        AssistantMessage, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage,
+    )
+    buf = ai.install_transcript_buffer()
+
+    # 1. Model thinks out loud
+    ai._record_message(AssistantMessage(
+        content=[TextBlock(text="Let me search MusicBrainz")],
+        model="claude-sonnet-4-6",
+    ))
+    # 2. Model calls WebFetch
+    ai._record_message(AssistantMessage(
+        content=[ToolUseBlock(
+            id="t1", name="WebFetch",
+            input={"url": "https://musicbrainz.org/release-group/abc"},
+        )],
+        model="claude-sonnet-4-6",
+    ))
+    # 3. Tool result comes back as an error
+    ai._record_message(UserMessage(
+        content=[ToolResultBlock(
+            tool_use_id="t1",
+            content="HTTP 503 Service Unavailable",
+            is_error=True,
+        )],
+    ))
+
+    out = worker._format_transcript(buf, max_bytes=10_000)
+    assert out is not None
+    # Must contain all three steps in chronological order.
+    assert "Let me search MusicBrainz" in out
+    assert "→ WebFetch" in out
+    assert "musicbrainz.org/release-group/abc" in out
+    assert "← ERROR" in out
+    assert "503" in out
+    # And in the right order.
+    assert out.index("Let me search") < out.index("→ WebFetch") < out.index("← ERROR")
 
 
 def test_record_transcript_no_op_when_no_buffer():

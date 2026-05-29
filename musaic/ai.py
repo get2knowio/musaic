@@ -63,6 +63,116 @@ def _record_transcript(piece: str) -> None:
     if buf is not None and piece:
         buf.append(piece)
 
+
+# How much of a single tool-call input or tool-result body to keep in
+# the transcript. Tool results can be entire HTML pages (10s of KB);
+# transcripts of failed jobs are surfaced in the Jobs UI, so we cap
+# per-entry size so the buffer stays scannable. The whole buffer is
+# also tail-capped by `services.worker._format_transcript`.
+_TRANSCRIPT_BLOCK_MAX_CHARS = 600
+
+
+def _summarize_tool_input(tool_input: Any) -> str:
+    """One-line digest of a tool-use's input args. Examples:
+        WebFetch  → 'url=https://musicbrainz.org/release-group/abc'
+        WebSearch → 'query="101 Strings Country Greats"'
+        mcp__firecrawl__firecrawl_search → 'query="..."'
+    Falls back to a JSON dump (truncated) for unknown shapes."""
+    if not isinstance(tool_input, dict):
+        return _truncate(str(tool_input))
+    # Most common shapes — surface the load-bearing arg first.
+    for key in ("url", "query", "q", "command", "file_path", "path"):
+        if key in tool_input:
+            return f'{key}={_truncate(repr(tool_input[key]))}'
+    # Generic fallback.
+    try:
+        return _truncate(json.dumps(tool_input, ensure_ascii=False))
+    except Exception:
+        return _truncate(str(tool_input))
+
+
+def _summarize_tool_result(content: Any) -> str:
+    """One-line digest of a tool-result's content. SDK content can be
+    a string OR a list of content blocks (rich response shape). For
+    rich shape we concatenate text-bearing entries."""
+    if isinstance(content, str):
+        return _truncate(content)
+    if isinstance(content, list):
+        parts: list[str] = []
+        for entry in content:
+            if isinstance(entry, dict):
+                if entry.get("type") == "text":
+                    parts.append(str(entry.get("text") or ""))
+                else:
+                    parts.append(f"<{entry.get('type', 'block')}>")
+            else:
+                parts.append(str(entry))
+        return _truncate(" ".join(parts).strip()) or "(empty)"
+    return _truncate(str(content))
+
+
+def _truncate(s: str, *, limit: int = _TRANSCRIPT_BLOCK_MAX_CHARS) -> str:
+    """Truncate to `limit` chars with a single-line marker; preserves
+    leading and trailing context (the diagnostic value of a tool
+    result usually lives in either the request shape OR the failure
+    message at the end)."""
+    s = (s or "").strip().replace("\n", " ")
+    if len(s) <= limit:
+        return s
+    head = limit // 2 - 10
+    tail = limit - head - 10
+    return f"{s[:head]} … [{len(s) - limit} ch] … {s[-tail:]}"
+
+
+def _record_message(message: Any) -> None:
+    """Walk an SDK message and append a per-block line to the
+    transcript. Distinguishes:
+      - text:        assistant prose / reasoning
+      - thinking:    the model's extended-thinking block
+      - tool_use:    `→ {name} {args}` — model calling a tool
+      - tool_result: `← {name} {summary}` — response from the tool
+      - result:      the SDK's final aggregated text
+
+    This is the load-bearing diagnostic surface for failed / timed-
+    out jobs: when a job hangs on a stuck WebFetch, the transcript
+    captured up to that point should make it obvious WHICH URL
+    Claude was last waiting on. Without this, the failure UI just
+    shows "subprocess exited" with no breadcrumbs."""
+    # Local imports so this module doesn't pay the SDK import cost
+    # when tests bypass it via _sdk_override.
+    from claude_agent_sdk import (
+        AssistantMessage,
+        ResultMessage,
+        TextBlock,
+        ThinkingBlock,
+        ToolResultBlock,
+        ToolUseBlock,
+        UserMessage,
+    )
+
+    if isinstance(message, AssistantMessage):
+        for block in message.content:
+            if isinstance(block, TextBlock) and block.text:
+                _record_transcript(_truncate(block.text))
+            elif isinstance(block, ThinkingBlock) and getattr(block, "thinking", None):
+                _record_transcript(f"💭 {_truncate(block.thinking)}")
+            elif isinstance(block, ToolUseBlock):
+                summary = _summarize_tool_input(block.input)
+                _record_transcript(f"→ {block.name}  {summary}")
+    elif isinstance(message, UserMessage):
+        # Tool results come back inside UserMessages.
+        content = getattr(message, "content", None)
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, ToolResultBlock):
+                    is_error = bool(getattr(block, "is_error", False))
+                    arrow = "← ERROR" if is_error else "←"
+                    summary = _summarize_tool_result(block.content)
+                    _record_transcript(f"{arrow}  {summary}")
+    elif isinstance(message, ResultMessage):
+        if message.result:
+            _record_transcript(f"[final] {_truncate(message.result)}")
+
 # User-Agent used when verifying AI-returned cover URLs (HEAD/GET probes).
 # Matches the user-agent the actual download path sends so any host-side
 # UA-based filtering treats verification and download identically.
@@ -822,15 +932,22 @@ async def _query_async(*, prompt: "str | list[dict[str, Any]]",
         prompt=prompt,
         options=ClaudeAgentOptions(**options_kwargs),
     ):
+        # Structured per-block transcript recording — captures
+        # text, thinking, tool_use, tool_result, and the final
+        # result message. Critical for diagnosing failed / timed-
+        # out jobs (without it, the failure UI just shows
+        # "subprocess exited" with no breadcrumbs about WHICH
+        # tool call or URL was the last thing in flight).
+        _record_message(message)
+        # Track the most recent prose AssistantMessage text so we
+        # can return it when no terminal ResultMessage came back
+        # (rare but possible on early subprocess exit).
         if isinstance(message, AssistantMessage):
             for block in message.content:
                 if hasattr(block, "text") and block.text:
                     last_text = block.text
-                    _record_transcript(block.text)
-        if isinstance(message, ResultMessage):
-            if message.result:
-                final_text = message.result
-                _record_transcript(message.result)
+        if isinstance(message, ResultMessage) and message.result:
+            final_text = message.result
     return final_text or last_text
 
 

@@ -199,10 +199,26 @@ def _format_transcript(buffer: list[str], *, max_bytes: int) -> str | None:
 
     Returns None for an empty buffer so `mark_failed` skips writing
     `result_json` entirely.
+
+    Format: one entry per line. The structured `_record_message`
+    capture in ai.py already truncates per-block content, so entries
+    are short enough that a plain newline is the right separator —
+    the transcript reads like a chronological log of text / tool
+    calls / tool results, e.g.:
+
+        Searching MusicBrainz for "101 Strings Country Greats"
+        → WebSearch  query="'101 Strings Country Greats'"
+        ← (4 results: musicbrainz.org/release-group/...)
+        → WebFetch  url='https://musicbrainz.org/release-group/...'
+        ← ERROR  HTTP 503 Service Unavailable
+
+    This is the load-bearing diagnostic for the Jobs page's failure
+    expand — it should make WHICH tool call / URL was last in flight
+    immediately obvious.
     """
     if not buffer:
         return None
-    joined = "\n\n---\n\n".join(piece.strip() for piece in buffer if piece.strip())
+    joined = "\n".join(piece.strip() for piece in buffer if piece.strip())
     if not joined:
         return None
     encoded = joined.encode("utf-8")

@@ -355,8 +355,15 @@ function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) 
               }}
               className="mt-1 mono text-[11px] text-fg-3 hover:text-accent transition inline-flex items-center gap-1"
               aria-expanded={transcriptOpen}
+              // Now includes the full structured transcript: text
+              // blocks, tool calls (→ name args), tool results
+              // (← summary), and the final result message. Useful
+              // for diagnosing WHERE a stuck/failed job got
+              // wedged — e.g. "→ WebFetch musicbrainz.org/..." with
+              // no following ← entry means MB never responded.
+              title={transcriptOpen ? "Hide transcript" : "Show what Claude said + which tools it called"}
             >
-              {transcriptOpen ? "▾" : "▸"} {transcriptOpen ? "Hide" : "Show"} Claude's response
+              {transcriptOpen ? "▾" : "▸"} {transcriptOpen ? "Hide" : "Show"} Claude's transcript
             </button>
           )}
         </div>
