@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Clock, Loader2, Pause, Play, RotateCcw, Sparkles, Trash2, XCircle } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ArrowUpRight, CheckCircle2, Clock, Loader2, Pause, Play, RotateCcw, Sparkles, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -313,8 +313,28 @@ function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) 
       >
         <StatusPill status={job.status} actedOnAction={job.acted_on_action} />
         <div className="min-w-0">
-          <div className="font-medium truncate" title={job.album_title || job.album_path}>
-            {job.album_title || job.album_id}
+          {/* Title row: album name + a small icon-link that jumps to
+              the album detail sheet on the Library page. Works for
+              ALL job statuses (the row's onClick already opens the
+              album for completed jobs only; this link is the path
+              for running / queued / failed rows too). stopPropagation
+              so clicking the icon doesn't ALSO fire the row onClick. */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span
+              className="font-medium truncate"
+              title={job.album_title || job.album_path}
+            >
+              {job.album_title || job.album_id}
+            </span>
+            <Link
+              to={`/library/${encodeURIComponent(job.album_id)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-fg-4 hover:text-accent hover:bg-bg-3 transition"
+              title="View album detail"
+              aria-label="View album detail"
+            >
+              <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
           {job.error && job.status === "failed" && (
             <div className="text-xs text-err truncate mt-0.5" title={job.error}>
