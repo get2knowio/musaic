@@ -175,7 +175,26 @@ def apply_album_changes_iter(
         # 6. Targeted re-scan + upsert (don't drop the whole snapshot).
         fresh = scan_one_album(album_path)
         if fresh is None:
-            cache_module.delete_album(album_id)
+            # The album dir vanished between writing the FLAC tags and
+            # the post-write rescan — typically a drive flap mid-apply
+            # (network drive momentarily unmounted) but could also be
+            # the user moving the dir in another tool concurrently.
+            #
+            # v15: mark Missing instead of delete. The FLAC writes
+            # earlier in this generator MAY have succeeded (or failed —
+            # we can't tell from here); the album_id is deterministic
+            # from the path, so when the dir comes back the rescan
+            # will re-attach to the same row with all its cached
+            # fingerprints + MB anchor + track tags intact. Calling
+            # `delete_album` here would cascade-nuke those, which is
+            # exactly the data-loss-on-disk-blip pattern v15 was meant
+            # to retire — apply paths should be no more aggressive
+            # than scan paths.
+            #
+            # The Missing transition publishes AlbumMarkedMissing via
+            # the bus, so the frontend greys out the tile and the
+            # post-scan rerun subscribes correctly.
+            cache_module.mark_album_missing(album_id)
             yield "removed_album", {"id": album_id, "path": album_path}
         else:
             fresh_dict = album_to_dict(fresh)
@@ -200,11 +219,12 @@ def apply_album_changes_iter(
         #     single publish-driven path.
         #
         #     Skipped when the album dir vanished mid-apply (fresh is
-        #     None) — `cache.delete_album` already published
-        #     `AlbumDeleted`, which is the right signal. Firing
-        #     `AlbumTagsChanged` for a deleted album_id on top would
-        #     spawn a duplicate post-scan rerun against a row that no
-        #     longer exists.
+        #     None) — `cache.mark_album_missing` already published
+        #     `AlbumMarkedMissing`, which is the right signal for the
+        #     "we don't see it right now" state. Firing
+        #     `AlbumTagsChanged` for an album we just lost sight of
+        #     would only spawn a redundant post-scan rerun against
+        #     stale state.
         #
         #     Note on bulk runs: the per-apply rerun used to be gated
         #     on `rerun_post_scan_checks` so the bulk dispatcher could

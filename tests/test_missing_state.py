@@ -321,6 +321,61 @@ def test_delete_album_cascades_to_children():
     assert fp_count == 0, "delete_album cascade should drop fingerprints"
 
 
+def test_apply_pipeline_marks_missing_when_dir_vanishes_mid_apply(monkeypatch, tmp_path):
+    """The apply pipeline's `removed_album` branch (fires when
+    `scan_one_album` returns None after the FLAC writes) must mark
+    the album Missing — NOT delete it. The historical bug: a drive
+    flap mid-apply would cascade-nuke that one album's fingerprints
+    + MB anchor + track tags. v15 demands apply paths use the same
+    preservation semantics as scan paths."""
+    from musaic.services import apply as apply_service
+
+    # Seed an album in the cache with a fingerprint.
+    cache_module.save_snapshot(_snapshot([
+        _album_dict(id="a-dropped", path=str(tmp_path / "Album [FLAC]")),
+    ]))
+    _insert_fingerprint("a-dropped")
+    assert _album_exists("a-dropped")
+    assert _missing_since("a-dropped") is None
+
+    # No-op the tag-writer (no FLAC fixture available; we only need
+    # the post-write rescan path to fire).
+    def _empty_apply_iter(*_args, **_kwargs):
+        yield "start", {"file_count": 0}
+        yield "done", {"saved_count": 0, "errors": 0, "art_changed_count": 0}
+
+    monkeypatch.setattr(apply_service, "apply_to_album_iter", _empty_apply_iter)
+    # Simulate the dir vanishing between writes and rescan.
+    monkeypatch.setattr(apply_service, "scan_one_album", lambda _path: None)
+
+    events: list[tuple[str, Any]] = []
+    for ev_name, ev_payload in apply_service.apply_album_changes_iter(
+        album={"id": "a-dropped", "path": str(tmp_path / "Album [FLAC]")},
+        library_dir=str(tmp_path),
+        suggestions={"title": "Whatever"},
+    ):
+        events.append((ev_name, ev_payload))
+
+    # Album row + fingerprint preserved — Missing, not deleted.
+    assert _album_exists("a-dropped"), \
+        "apply path must NOT delete the album when the dir vanishes"
+    assert _missing_since("a-dropped") is not None, \
+        "apply path must mark Missing instead"
+    with db_module.connect() as conn:
+        fp_count = conn.execute(
+            "SELECT COUNT(*) AS n FROM track_fingerprints WHERE album_id = ?",
+            ("a-dropped",),
+        ).fetchone()["n"]
+    assert fp_count == 1, \
+        "apply path must preserve fingerprints on disk-vanish — the load-bearing v15 promise"
+
+    # Generator still yields removed_album so the SSE consumer sees
+    # the signal; the event name is historical but the underlying
+    # action (mark Missing) is what's load-bearing.
+    assert any(name == "removed_album" for name, _ in events), \
+        "removed_album event must still fire so the SSE stream surfaces the transition"
+
+
 # ============================================================
 # Scan sanity check
 # ============================================================
