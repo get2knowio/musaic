@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowLeft,
+  ArrowUpRight,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -607,17 +608,30 @@ function FindingRow({
     <div className={`px-3 py-2 flex items-start gap-3 ${finding.ignored_at ? "opacity-55" : ""}`}>
       <SevIcon className={`w-4 h-4 shrink-0 mt-0.5 ${sevClass}`} />
       <div className="flex-1 min-w-0">
-        <div className="text-sm">
-          {finding.album_id ? (
+        {/* Title row + jump-to-album icon. Same pattern as the Jobs
+            page: the title itself isn't a link (keeping the visual
+            consistent with non-clickable text), an inline
+            ArrowUpRight icon jumps to /library/{album_id}. The route
+            mounts LibraryPage with the album detail sheet open. */}
+        <div className="text-sm flex items-center gap-1.5 min-w-0">
+          <span
+            className={
+              "font-medium truncate "
+              + (finding.album_id ? "" : "text-fg-3")
+            }
+            title={album?.path || finding.album_id || undefined}
+          >
+            {albumLine}
+          </span>
+          {finding.album_id && (
             <Link
               to={`/library/${encodeURIComponent(finding.album_id)}`}
-              className="font-medium hover:underline truncate"
-              title={album?.path || finding.album_id}
+              className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-fg-4 hover:text-accent hover:bg-bg-3 transition"
+              title="View album detail"
+              aria-label="View album detail"
             >
-              {albumLine}
+              <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
-          ) : (
-            <span className="font-medium text-fg-3">{albumLine}</span>
           )}
         </div>
         <div className="mono text-[11px] text-fg-4 mt-0.5 flex items-center gap-2 flex-wrap">
