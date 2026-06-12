@@ -2,13 +2,19 @@
 name = "musaic"
 version = "0.1.0"
 description = "Web UI for browsing and managing a local music collection"
-requires-python = ">=3.10"
+# airframe (the agent runtime) requires Python 3.11+, so musaic does too.
+requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "mutagen>=1.47",
     "pydantic>=2.0",
-    "claude-agent-sdk",
+    # Vendor-neutral agent runtime. The [claude] extra pulls claude-agent-sdk;
+    # install additional adapters (e.g. airframe-agents[bedrock]) to let the
+    # AI worker target other providers via settings.ai_provider_id. Sourced
+    # from the local checkout while the two projects co-evolve (see
+    # [tool.uv.sources]); pin to the PyPI release once it stabilises.
+    "airframe-agents[claude]",
     "anyio>=4.0",
     "Pillow",
     "requests",
@@ -27,6 +33,11 @@ dependencies = [
     "pyloudnorm>=0.1.1",
     "soundfile>=0.12",
 ]
+
+[tool.uv.sources]
+# Local editable checkout while airframe + musaic co-evolve. Swap for a
+# pinned PyPI version (drop this block) once airframe stabilises.
+airframe-agents = { path = "../airframe", editable = true }
 
 [build-system]
 requires = ["hatchling"]

@@ -1,17 +1,23 @@
-"""Claude-powered metadata + cover-art suggestions.
+"""AI-powered metadata + cover-art suggestions.
 
-Mirrors flac-jacket's `claude_agent_sdk.query(...)` pattern. Authentication
-follows the SDK's defaults (typically `ANTHROPIC_API_KEY` from env, or an
-existing Claude Code session).
+Runs through **airframe** (the vendor-neutral agent runtime) rather than
+talking to any one vendor SDK directly, so the user can pick whichever agent
+framework they have access to via `settings.ai_provider_id` / `ai_model_id`
+(defaults: Claude Sonnet). Authentication follows the selected airframe
+adapter's own chain (for Claude: `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY`
+/ the Claude Code credential file).
 
 Two operations are exposed:
 
-  - `suggest_metadata(album, tracks)` — Claude inspects the directory name,
-    current Vorbis tags, and per-track titles, optionally using WebSearch +
-    WebFetch (e.g. against MusicBrainz / Discogs / Wikipedia), and returns a
-    structured JSON proposal of corrections.
+  - `suggest_metadata(album, tracks)` — the model inspects the directory name,
+    current Vorbis tags, and per-track titles, optionally using the provider's
+    hosted web tools (WebSearch + WebFetch on Claude, negotiated via airframe's
+    `supported_native_tools`) against MusicBrainz / Discogs / Wikipedia, and
+    returns a structured JSON proposal of corrections. Providers that don't
+    serve hosted web tools degrade gracefully to the deterministic resolver
+    payload already embedded in the prompt.
 
-  - `suggest_cover(album)` — Claude proposes a cover-art URL (typically from
+  - `suggest_cover(album)` — the model proposes a cover-art URL (typically from
     the Cover Art Archive) given the album identity, with rationale.
 
 Each returns a dict matching the `MetadataSuggestion` / `CoverSuggestion`
@@ -32,8 +38,8 @@ log = logging.getLogger(__name__)
 
 
 # Per-call transcript buffer. The worker installs a fresh list before
-# running an AI suggestion call; `_query_async` appends every assistant
-# text block + result message to it as they stream. On failure the
+# running an AI suggestion call; the agent runner appends every assistant
+# text block + tool call/result to it as they stream. On failure the
 # worker reads the buffer back so the user can see whatever Claude said
 # before the call blew up — otherwise that context is lost to the void.
 #
@@ -124,54 +130,85 @@ def _truncate(s: str, *, limit: int = _TRANSCRIPT_BLOCK_MAX_CHARS) -> str:
     return f"{s[:head]} … [{len(s) - limit} ch] … {s[-tail:]}"
 
 
-def _record_message(message: Any) -> None:
-    """Walk an SDK message and append a per-block line to the
-    transcript. Distinguishes:
-      - text:        assistant prose / reasoning
-      - thinking:    the model's extended-thinking block
-      - tool_use:    `→ {name} {args}` — model calling a tool
-      - tool_result: `← {name} {summary}` — response from the tool
-      - result:      the SDK's final aggregated text
+def _summarize_tool_args(preview: Any) -> str:
+    """Digest an airframe `ToolCallStart.arguments_preview` (a partial JSON
+    string) the same way `_summarize_tool_input` digests a dict — surface the
+    load-bearing arg (url=/query=…). Falls back to a truncated raw string when
+    the preview isn't parseable (it can be incomplete mid-stream)."""
+    if isinstance(preview, str):
+        try:
+            parsed = json.loads(preview)
+        except Exception:
+            return _truncate(preview)
+        return _summarize_tool_input(parsed)
+    return _summarize_tool_input(preview)
 
-    This is the load-bearing diagnostic surface for failed / timed-
-    out jobs: when a job hangs on a stuck WebFetch, the transcript
-    captured up to that point should make it obvious WHICH URL
-    Claude was last waiting on. Without this, the failure UI just
-    shows "subprocess exited" with no breadcrumbs."""
-    # Local imports so this module doesn't pay the SDK import cost
-    # when tests bypass it via _sdk_override.
-    from claude_agent_sdk import (
-        AssistantMessage,
-        ResultMessage,
-        TextBlock,
-        ThinkingBlock,
-        ToolResultBlock,
-        ToolUseBlock,
-        UserMessage,
-    )
 
-    if isinstance(message, AssistantMessage):
-        for block in message.content:
-            if isinstance(block, TextBlock) and block.text:
-                _record_transcript(_truncate(block.text))
-            elif isinstance(block, ThinkingBlock) and getattr(block, "thinking", None):
-                _record_transcript(f"💭 {_truncate(block.thinking)}")
-            elif isinstance(block, ToolUseBlock):
-                summary = _summarize_tool_input(block.input)
-                _record_transcript(f"→ {block.name}  {summary}")
-    elif isinstance(message, UserMessage):
-        # Tool results come back inside UserMessages.
-        content = getattr(message, "content", None)
-        if isinstance(content, list):
-            for block in content:
-                if isinstance(block, ToolResultBlock):
-                    is_error = bool(getattr(block, "is_error", False))
-                    arrow = "← ERROR" if is_error else "←"
-                    summary = _summarize_tool_result(block.content)
-                    _record_transcript(f"{arrow}  {summary}")
-    elif isinstance(message, ResultMessage):
-        if message.result:
-            _record_transcript(f"[final] {_truncate(message.result)}")
+class _TranscriptRecorder:
+    """Accumulate airframe stream events into transcript lines.
+
+    Same diagnostic surface the old per-SDK-message recorder produced, adapted
+    to airframe's `RuntimeEvent` stream. Distinguishes:
+      - text:        assistant prose (streamed as `TextDelta`s, flushed as one
+                     line per contiguous run)
+      - reasoning:   the model's extended-thinking trace (`ReasoningDelta`)
+      - tool call:   `→ {name} {args}` — `ToolCallStart`
+      - tool result: `← {summary}` / `← ERROR …` — `ToolCallResult`
+      - result:      `[final] …` — the trailing `TurnComplete`
+
+    This is the load-bearing diagnostic for failed / timed-out jobs: when a job
+    hangs on a stuck WebFetch, the tool-call line recorded the instant the call
+    started makes it obvious WHICH URL the model was last waiting on — even
+    though no `TurnComplete` ever arrives. Text / reasoning deltas are buffered
+    and flushed at each tool-call boundary (and at the end) so the transcript
+    reads like a chrono log instead of token confetti.
+    """
+
+    def __init__(self) -> None:
+        self._text: list[str] = []
+        self._reasoning: list[str] = []
+
+    def feed(self, event: Any) -> None:
+        from airframe import (
+            ReasoningDelta,
+            TextDelta,
+            ToolCallResult,
+            ToolCallStart,
+            TurnComplete,
+        )
+
+        if isinstance(event, TextDelta):
+            self._text.append(event.text)
+        elif isinstance(event, ReasoningDelta):
+            self._reasoning.append(event.text)
+        elif isinstance(event, ToolCallStart):
+            self._flush()
+            _record_transcript(f"→ {event.tool_name}  {_summarize_tool_args(event.arguments_preview)}")
+        elif isinstance(event, ToolCallResult):
+            self._flush()
+            arrow = "← ERROR" if event.is_error else "←"
+            _record_transcript(f"{arrow}  {_summarize_tool_result(event.output)}")
+        elif isinstance(event, TurnComplete):
+            self._flush()
+            if event.result.text:
+                _record_transcript(f"[final] {_truncate(event.result.text)}")
+
+    def _flush(self) -> None:
+        if self._reasoning:
+            txt = "".join(self._reasoning).strip()
+            if txt:
+                _record_transcript(f"💭 {_truncate(txt)}")
+            self._reasoning.clear()
+        if self._text:
+            txt = "".join(self._text).strip()
+            if txt:
+                _record_transcript(_truncate(txt))
+            self._text.clear()
+
+    def finish(self) -> None:
+        """Flush any buffered text/reasoning that didn't precede a tool call
+        or turn-complete (e.g. a stream cut short by cancellation)."""
+        self._flush()
 
 # User-Agent used when verifying AI-returned cover URLs (HEAD/GET probes).
 # Matches the user-agent the actual download path sends so any host-side
@@ -227,27 +264,22 @@ TRACK_SUGGESTABLE_FIELDS = ("title", "artist", "tracknumber")
 #
 # FireCrawl is OPT-IN. When the user has stored an API key under
 # settings.firecrawl_api_key, we mount the FireCrawl MCP server into the
-# claude-agent-sdk call and expose its tools to Claude. The system prompt
-# tells Claude to treat FireCrawl as a last resort — try built-in
-# WebSearch / WebFetch first, only reach for FireCrawl when those can't
-# get past JS-rendered pages, paywalls, or anti-bot blocks. Each FireCrawl
-# call burns paid quota.
+# agent call and expose its tools to the model. The system prompt tells the
+# model to treat FireCrawl as a last resort — try the provider's hosted
+# WebSearch / WebFetch first, only reach for FireCrawl when those can't get
+# past JS-rendered pages, paywalls, or anti-bot blocks. Each FireCrawl call
+# burns paid quota.
 #
-# Subset of FireCrawl tools we expose. We don't enable `firecrawl_crawl`
-# (multi-page recursive crawl, expensive) or `firecrawl_map` (sitemap
-# discovery, rarely useful for a single album lookup) — `scrape`, `search`,
-# and `extract` cover everything we want for "fetch one specific page" or
-# "search for this album".
-_FIRECRAWL_ALLOWED_TOOLS = (
-    "mcp__firecrawl__firecrawl_search",
-    "mcp__firecrawl__firecrawl_scrape",
-    "mcp__firecrawl__firecrawl_extract",
-)
+# airframe auto-allows every tool an attached MCP server exposes
+# (`mcp__firecrawl__*`), so we no longer enumerate the FireCrawl tool names
+# for an allowlist — we just attach the server. We still don't want the model
+# leaning on FireCrawl's expensive multi-page crawl, so the prompt hint names
+# the `search` / `scrape` / `extract` tools as the intended ones.
 
 # Hosted FireCrawl MCP. The API key is part of the URL path (FireCrawl's
 # convention as of 2026 — no auth headers, no env vars). Using the hosted
 # endpoint means we don't have to manage an `npx firecrawl-mcp` subprocess
-# or its node_modules — claude-agent-sdk just opens an SSE connection.
+# or its node_modules — airframe just opens an SSE MCP connection.
 _FIRECRAWL_MCP_URL_TMPL = "https://mcp.firecrawl.dev/{api_key}/v2/mcp"
 
 # Appended to the system prompts when FireCrawl is enabled. Kept short so
@@ -270,40 +302,43 @@ fishing and should stop and return your best-guess answer with low
 confidence."""
 
 
-def _build_sdk_extras(system_prompt: str) -> tuple[str, list[str], dict[str, Any]]:
-    """Return (system_prompt, allowed_tools, mcp_servers) for an SDK call.
+def _build_agent_extras(system_prompt: str) -> tuple[str, list[Any]]:
+    """Return (system_prompt, mcp_servers) for an airframe agent call.
 
     When FireCrawl is configured, this:
       - appends the "WEB ACCESS LADDER" guidance to the system prompt,
-      - adds the FireCrawl MCP tools to allowed_tools,
-      - returns a one-server mcp_servers dict pointing at the hosted SSE
-        endpoint with the user's API key in the URL.
+      - returns a one-element list holding an airframe `McpServerRef` pointing
+        at the hosted SSE endpoint with the user's API key in the URL.
 
-    When FireCrawl is NOT configured, returns the unmodified system prompt,
-    just `["WebSearch", "WebFetch"]` for tools, and an empty mcp_servers
-    dict — the SDK call is identical to the pre-FireCrawl behavior, so
-    nothing changes for users who never set the key.
+    When FireCrawl is NOT configured, returns the unmodified system prompt and
+    an empty list — nothing changes for users who never set the key.
 
-    The settings lookup happens once per call (it's a single SQLite SELECT)
-    rather than at module import, so toggling the key in Settings takes
-    effect on the next AI call without a server restart.
+    The provider's own hosted web tools (Claude's WebSearch / WebFetch) aren't
+    decided here: the runner negotiates them against
+    `runtime.supported_native_tools()` so a non-Claude provider that doesn't
+    serve them degrades cleanly instead of erroring.
+
+    The settings lookup happens once per call (a single SQLite SELECT) so
+    toggling the key in Settings takes effect on the next AI call without a
+    server restart.
     """
+    from airframe import McpServerRef
+
     from . import settings as settings_module
 
-    base_tools = ["WebSearch", "WebFetch"]
     fc_key = settings_module.firecrawl_api_key()
     if not fc_key:
-        return system_prompt, base_tools, {}
+        return system_prompt, []
 
     return (
         system_prompt + _FIRECRAWL_PROMPT_HINT,
-        base_tools + list(_FIRECRAWL_ALLOWED_TOOLS),
-        {
-            "firecrawl": {
-                "type": "sse",
-                "url": _FIRECRAWL_MCP_URL_TMPL.format(api_key=fc_key),
-            },
-        },
+        [
+            McpServerRef(
+                name="firecrawl",
+                transport="sse",
+                url=_FIRECRAWL_MCP_URL_TMPL.format(api_key=fc_key),
+            ),
+        ],
     )
 
 
@@ -807,148 +842,160 @@ def _extract_json(text: str) -> dict[str, Any] | None:
         return None
 
 
-# ---------- SDK runner ----------
+# ---------- Agent runner (airframe) ----------
 
-# If the SDK's exception message matches this pattern, we treat it as a
-# transient failure (almost always a Claude Code subscription rate-limit
-# hit) and retry once after a backoff. Any other failure is surfaced
-# immediately.
-def _looks_like_rate_limit(message: str) -> bool:
-    return ("exit code 1" in message) and ("Check stderr output" in message)
+# Default max model sub-turns per call. With the async job queue the user
+# isn't blocked on us, so we give hard-to-identify albums generous headroom;
+# the model terminates as soon as it has an answer, so this is a safety net
+# for pathological cases, not a budget.
+_AGENT_MAX_TURNS = 20
 
 
-async def _run_sdk(
-    prompt: "str | list[dict[str, Any]]",
+async def _run_agent(
+    prompt: Any,
     *,
-    allowed_tools: list[str],
-    model: str,
-    max_turns: int,
     system_prompt: str,
-    mcp_servers: dict[str, Any] | None = None,
+    mcp_servers: list[Any],
 ) -> str:
-    """Run a single claude-agent-sdk query and return the assistant's final text.
+    """Run one airframe agent turn and return the assistant's final text.
 
-    Runs the actual SDK call in a separate thread with a fresh asyncio event
-    loop. This isolates the SDK's subprocess management from uvicorn's
-    long-running event loop — a direct `await query(...)` inside the FastAPI
-    handler causes the `claude` CLI subprocess to exit 1 partway through long
-    multi-turn calls (signal/pipe-handling interaction). The same call path
-    from a fresh `asyncio.run(...)` works fine, hence the isolation.
+    Runs the actual call in a separate thread with a fresh asyncio event loop.
+    This isolates the agent's subprocess management (the Claude adapter spawns
+    the `claude` CLI) from uvicorn's long-running event loop — a direct
+    `await` inside the FastAPI handler can make the CLI subprocess exit 1
+    partway through long multi-turn calls (signal/pipe-handling interaction).
+    A fresh `asyncio.run(...)` works fine, hence the isolation. The cost is one
+    OS thread per AI call — a non-issue at the per-album request rate.
 
-    Failure policy: any SDK exception is surfaced immediately to the caller.
-    There used to be an in-band 30s auto-retry on the opaque "exit code 1"
-    error, but it created a long stretch of frozen "in progress" UI state
-    with no feedback, AND now the job-queue layer auto-pauses on failure
-    + offers a manual Retry button, so retrying is fully under user control.
-    Letting the SDK error bubble up immediately gets the user back to a
-    state they can act on within seconds, not a minute later.
-
-    The cost is one OS thread per AI call. For the per-album rate of these
-    requests, that's a non-issue.
+    Failure policy: any agent exception is surfaced to the caller. airframe
+    classifies failures into typed errors (`RuntimeTransientError`,
+    `RuntimeAuthError`, …) so we can give an actionable message; the job-queue
+    layer auto-pauses on failure and offers a manual Retry.
     """
-    import asyncio
 
     def _run_in_thread() -> str:
-        return asyncio.run(_query_async(
-            prompt=prompt,
-            allowed_tools=allowed_tools,
-            model=model,
-            max_turns=max_turns,
-            system_prompt=system_prompt,
-            mcp_servers=mcp_servers or {},
-        ))
+        return asyncio.run(
+            _agent_async(prompt, system_prompt=system_prompt, mcp_servers=mcp_servers)
+        )
 
     try:
         return await asyncio.to_thread(_run_in_thread)
-    except Exception as e:
-        last_error = e
-    message = str(last_error)
-    # Quieter logging for the known opaque "exit code 1" pattern — the
-    # message itself is informative and the full traceback adds no signal.
-    # Truly unexpected failures still get the full exception trace at ERROR.
-    if _looks_like_rate_limit(message):
-        log.warning(
-            "claude-agent-sdk call failed (model=%s, tools=%s, max_turns=%s) "
-            "— marking job failed; user can retry from the AI Jobs page",
-            model, allowed_tools, max_turns,
+    except Exception as exc:  # noqa: BLE001 — re-raised below with context
+        raise _friendly_agent_error(exc) from exc
+
+
+def _friendly_agent_error(exc: Exception) -> Exception:
+    """Map an airframe error to an actionable exception for the Jobs UI.
+
+    Returns the exception to raise (caller does `raise … from exc`). Transient
+    failures (rate-limit / brief outage) and auth failures get specific
+    guidance; everything else is surfaced verbatim with its cause appended.
+    """
+    from airframe import RuntimeAuthError, RuntimeTransientError
+
+    from . import settings as settings_module
+
+    provider = settings_module.ai_provider_id()
+
+    if isinstance(exc, RuntimeTransientError):
+        log.warning("agent call transient failure (provider=%s): %s", provider, exc)
+        log.debug("full traceback for transient agent failure", exc_info=exc)
+        return RuntimeTransientError(
+            "The agent backend reported a transient failure — most often a "
+            "rate-limit hit (subscriptions have shared rolling windows), a "
+            "brief upstream outage, or a model/tool incompatibility. Hit Retry "
+            "on the AI Jobs page after a moment. To triage, run "
+            "`.venv/bin/python diagnose_claude.py <album_id>`."
         )
-        log.debug("full traceback for SDK failure", exc_info=last_error)
-        friendly = (
-            "Claude Code subprocess exited with no detail. Most often this is "
-            "a rate-limit hit (subscriptions have shared 5-hour and weekly "
-            "windows); it can also be a transient CLI/network issue or an "
-            "incompatibility between the chosen model and the tools requested. "
-            "Hit Retry on the AI Jobs page after a moment, or run "
-            "`.venv/bin/python diagnose_claude.py <album_id>` to triage — if "
-            "test 5 (cover) also fails, the bug is model/tool-side, not quota."
+    if isinstance(exc, RuntimeAuthError):
+        log.warning("agent call auth failure (provider=%s): %s", provider, exc)
+        return RuntimeAuthError(
+            f"The agent backend ({provider!r}) rejected the credentials. Check "
+            f"the auth for your selected provider (for Claude: "
+            f"CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY, or the Claude Code "
+            f"credential file)."
         )
-        raise type(last_error)(friendly) from last_error
-    log.exception(
-        "claude-agent-sdk call failed (model=%s, tools=%s, max_turns=%s)",
-        model, allowed_tools, max_turns,
-    )
-    cause = getattr(last_error, "__cause__", None)
+
+    log.exception("agent call failed (provider=%s)", provider)
+    cause = getattr(exc, "__cause__", None)
     if cause:
-        raise type(last_error)(f"{last_error} (caused by {type(cause).__name__}: {cause})") from cause
-    raise last_error
+        return type(exc)(f"{exc} (caused by {type(cause).__name__}: {cause})")
+    return exc
 
 
-async def _query_async(*, prompt: "str | list[dict[str, Any]]",
-                        allowed_tools: list[str], model: str,
-                        max_turns: int, system_prompt: str,
-                        mcp_servers: dict[str, Any]) -> str:
-    """The actual SDK iteration. Lives in its own coroutine so we can pass
+async def _agent_async(
+    prompt: Any,
+    *,
+    system_prompt: str,
+    mcp_servers: list[Any],
+) -> str:
+    """The actual airframe iteration. Lives in its own coroutine so we can pass
     it to `asyncio.run()` cleanly inside the worker thread.
 
-    `prompt` accepts either a string (text-only) or a list of content
-    blocks (mixed text + image), matching the underlying Anthropic
-    API's content shape. The SDK's `query(prompt=...)` passes either
-    form through unchanged. Used by `suggest_metadata` to attach the
-    album's cover art when one is available — see
-    `_album_cover_for_prompt`."""
-    from claude_agent_sdk import (
-        AssistantMessage,
-        ClaudeAgentOptions,
-        ResultMessage,
-        query,
+    `prompt` accepts either a string (text-only) or an airframe `Prompt` list
+    (interleaved text + `ImageInput`), used by `suggest_metadata` to attach the
+    album's cover art when available — see `_album_cover_for_prompt`.
+
+    The provider/model come from settings; hosted web tools are negotiated
+    against the runtime (`supported_native_tools`) so a provider without them
+    degrades to the resolver payload already embedded in the prompt rather than
+    erroring. Streamed events feed `_TranscriptRecorder` for the failure-
+    excerpt breadcrumbs, and the trailing `TurnComplete` carries the final
+    text.
+    """
+    from airframe import (
+        NativeCapability,
+        NativeTool,
+        ProviderModel,
+        TextDelta,
+        TurnComplete,
+        runtime_for,
     )
 
-    # Only pass mcp_servers when there's at least one server configured —
-    # passing an empty dict would still flip the SDK into "MCP mode" and
-    # could affect cache keys / tool advertisements. Keep the call shape
-    # identical to pre-FireCrawl when no MCP is wired up.
-    options_kwargs: dict[str, Any] = dict(
-        allowed_tools=allowed_tools,
-        model=model,
-        max_turns=max_turns,
-        system_prompt=system_prompt,
-    )
-    if mcp_servers:
-        options_kwargs["mcp_servers"] = mcp_servers
+    from . import settings as settings_module
 
-    last_text = ""
+    provider_id = settings_module.ai_provider_id()
+    model_id = settings_module.ai_model_id()
+    runtime = runtime_for(provider_id)()
+    model = ProviderModel(provider_id, model_id)
+
+    # Negotiate the provider's hosted web tools. Claude serves WEB_SEARCH +
+    # WEB_FETCH; providers that don't get an empty list (resolver-only).
+    served = runtime.supported_native_tools(model)
+    native_tools = [
+        tool
+        for tool, cap in (
+            (NativeTool.web_search(), NativeCapability.WEB_SEARCH),
+            (NativeTool.web_fetch(), NativeCapability.WEB_FETCH),
+        )
+        if cap in served
+    ]
+
+    recorder = _TranscriptRecorder()
+    text_acc: list[str] = []
     final_text = ""
-    async for message in query(
-        prompt=prompt,
-        options=ClaudeAgentOptions(**options_kwargs),
-    ):
-        # Structured per-block transcript recording — captures
-        # text, thinking, tool_use, tool_result, and the final
-        # result message. Critical for diagnosing failed / timed-
-        # out jobs (without it, the failure UI just shows
-        # "subprocess exited" with no breadcrumbs about WHICH
-        # tool call or URL was the last thing in flight).
-        _record_message(message)
-        # Track the most recent prose AssistantMessage text so we
-        # can return it when no terminal ResultMessage came back
-        # (rare but possible on early subprocess exit).
-        if isinstance(message, AssistantMessage):
-            for block in message.content:
-                if hasattr(block, "text") and block.text:
-                    last_text = block.text
-        if isinstance(message, ResultMessage) and message.result:
-            final_text = message.result
-    return final_text or last_text
+
+    session = runtime.session(
+        system=system_prompt,
+        model=model,
+        native_tools=native_tools or None,
+        mcp_servers=mcp_servers or None,
+    )
+    try:
+        async for event in session.stream(prompt, max_turns=_AGENT_MAX_TURNS):
+            recorder.feed(event)
+            if isinstance(event, TextDelta):
+                text_acc.append(event.text)
+            elif isinstance(event, TurnComplete):
+                final_text = event.result.text or final_text
+    finally:
+        recorder.finish()
+        await session.close()
+        await runtime.close()
+
+    # Prefer the canonical final text; fall back to accumulated deltas when no
+    # TurnComplete arrived (rare — early subprocess exit / cancellation).
+    return final_text or "".join(text_acc)
 
 
 # ---------- Public API ----------
@@ -999,18 +1046,13 @@ async def suggest_metadata(
     if _sdk_override:
         raw = await _sdk_override("metadata", user_message, payload)
     else:
-        # max_turns=20: with the async job queue the user isn't waiting on
-        # us, so erring on the side of more headroom is free for hard-to-
-        # identify albums. Sonnet terminates as soon as it has an answer;
-        # the cap is a safety net for pathological cases, not a budget.
-        #
-        # The bulky instruction template lives in _SYSTEM_PROMPT_METADATA,
-        # which the SDK auto-caches. The per-call user message is just the
-        # tagged album payload (+ optional hint), so we pay full input rate
-        # only on the dynamic ~150 tokens, not the ~1.2k-token template.
-        # _build_sdk_extras layers FireCrawl tools + the "last resort"
-        # prompt hint on top when the user has configured a FireCrawl key.
-        sys_prompt, allowed_tools, mcp_servers = _build_sdk_extras(_SYSTEM_PROMPT_METADATA)
+        # The bulky instruction template lives in _SYSTEM_PROMPT_METADATA;
+        # airframe's adapter auto-caches the system prompt + tool definitions,
+        # so we pay full input rate only on the dynamic per-call user message
+        # (~150 tokens), not the ~1.2k-token template. _build_agent_extras
+        # layers the FireCrawl MCP server + the "last resort" prompt hint on
+        # top when the user has configured a FireCrawl key.
+        sys_prompt, mcp_servers = _build_agent_extras(_SYSTEM_PROMPT_METADATA)
 
         # Attach the album's cover art when we have one AND the
         # caller didn't opt out. Cover often carries the canonical
@@ -1025,26 +1067,18 @@ async def suggest_metadata(
         # prompt — no behavior change vs the pre-cover-attach path.
         cover = _album_cover_for_prompt(album_dict) if attach_cover else None
         if cover is not None:
+            from airframe import ImageInput
+
             b64, mime = cover
-            sdk_prompt: "str | list[dict[str, Any]]" = [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": mime,
-                        "data": b64,
-                    },
-                },
-                {"type": "text", "text": user_message},
+            agent_prompt: Any = [
+                ImageInput(bytes_=base64.b64decode(b64), media_type=mime),
+                user_message,
             ]
         else:
-            sdk_prompt = user_message
+            agent_prompt = user_message
 
-        raw = await _run_sdk(
-            prompt=sdk_prompt,
-            allowed_tools=allowed_tools,
-            model="claude-sonnet-4-6",
-            max_turns=20,
+        raw = await _run_agent(
+            agent_prompt,
             system_prompt=sys_prompt,
             mcp_servers=mcp_servers,
         )
@@ -1223,31 +1257,21 @@ async def suggest_cover(
         if _sdk_override:
             raw = await _sdk_override("cover", user_message, payload)
         else:
-            # Use Sonnet (not Haiku) for tool-using calls. We discovered via
-            # diagnose_claude.py test 5 that Haiku + WebSearch/WebFetch fails
-            # consistently with "Command failed with exit code 1" inside the
-            # claude-agent-sdk agent loop — appears to be a Claude Code-side
-            # incompatibility between Haiku and the tool-calling protocol in
-            # multi-turn calls. Sonnet is proven to work in the same combo.
-            #
-            # max_turns=20 (matched to suggest_metadata): with the async job
-            # queue we're not blocking the user, and Sonnet terminates when it
-            # has an answer. The cap is a safety net for pathological cases,
-            # not a budget. Earlier 6-turn cap was choking on hard-to-find
-            # albums that needed extra MB query refinement.
+            # Model choice matters for tool-using calls: diagnose_claude.py
+            # test 5 showed Haiku + WebSearch/WebFetch fails consistently with
+            # "exit code 1" inside the Claude agent loop (a Claude Code-side
+            # Haiku/tool-calling incompatibility in multi-turn calls); the
+            # default model id is Sonnet, which is proven in the same combo.
             #
             # Caching note (matches suggest_metadata): the bulky lookup-strategy
-            # template lives in _SYSTEM_PROMPT_COVER (auto-cached by SDK); the
-            # per-call user message is just the tagged album payload + optional
-            # hint, so the dynamic portion stays minimal.
-            # _build_sdk_extras layers FireCrawl tools + the "last resort"
+            # template lives in _SYSTEM_PROMPT_COVER (auto-cached by the
+            # adapter); the per-call user message is just the tagged album
+            # payload + optional hint, so the dynamic portion stays minimal.
+            # _build_agent_extras layers the FireCrawl MCP + "last resort"
             # prompt hint on top when the user has configured a FireCrawl key.
-            sys_prompt, allowed_tools, mcp_servers = _build_sdk_extras(_SYSTEM_PROMPT_COVER)
-            raw = await _run_sdk(
-                prompt=user_message,
-                allowed_tools=allowed_tools,
-                model="claude-sonnet-4-6",
-                max_turns=20,
+            sys_prompt, mcp_servers = _build_agent_extras(_SYSTEM_PROMPT_COVER)
+            raw = await _run_agent(
+                user_message,
                 system_prompt=sys_prompt,
                 mcp_servers=mcp_servers,
             )

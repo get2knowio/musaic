@@ -17,7 +17,7 @@ visually. These tests pin the plumbing:
     cover exists, preserving the pre-feature behavior
 
 We don't exercise the actual SDK round-trip — that requires
-network + credentials. Instead we monkeypatch `_run_sdk` to
+network + credentials. Instead we monkeypatch `_run_agent` to
 capture its `prompt` argument and assert on the shape.
 """
 from __future__ import annotations
@@ -108,33 +108,33 @@ def test_album_cover_for_prompt_reads_pre_extracted_thumb(write_thumb_for):
 
 
 def _capture_prompt() -> tuple[list, callable]:
-    """Build a list + async monkeypatch fn. The fn replaces _run_sdk
-    so we can intercept the SDK prompt without making a real call."""
+    """Build a list + async monkeypatch fn. The fn replaces _run_agent
+    so we can intercept the agent prompt without making a real call."""
     captured: list = []
 
-    async def fake_run_sdk(prompt, **_kwargs):
+    async def fake_run_agent(prompt, **_kwargs):
         captured.append(prompt)
         # Return a minimal valid suggestion JSON so _extract_json
         # succeeds and suggest_metadata returns a MetadataSuggestion
         # rather than blowing up.
         return '{"suggestions": {}, "tracks": [], "notes": "", "confidence": "low"}'
 
-    return captured, fake_run_sdk
+    return captured, fake_run_agent
 
 
 def test_suggest_metadata_attaches_cover_when_available(
     monkeypatch, write_thumb_for,
 ):
     """When the album has a cover (thumb present), suggest_metadata
-    passes a list-of-content-blocks prompt to the SDK: image block
-    first, then the text user message. This is the structured form
-    the Anthropic API expects for multimodal calls."""
+    passes an airframe Prompt list: an ImageInput first, then the text
+    user message. This is the multimodal shape airframe routes to the
+    provider's vision API."""
     album_id = "test-album-cover-attach-001"
     write_thumb_for(album_id)
 
     captured, fake = _capture_prompt()
-    monkeypatch.setattr(ai, "_run_sdk", fake)
-    # Disable the override path so the SDK path runs.
+    monkeypatch.setattr(ai, "_run_agent", fake)
+    # Disable the override path so the agent path runs.
     monkeypatch.setattr(ai, "_sdk_override", None)
 
     asyncio.run(ai.suggest_metadata(
@@ -156,20 +156,21 @@ def test_suggest_metadata_attaches_cover_when_available(
         tracks=[],
     ))
 
+    from airframe import ImageInput
+
     assert len(captured) == 1
     prompt = captured[0]
     assert isinstance(prompt, list), \
-        "cover-attached prompt must be a content-block list, not a bare string"
-    assert len(prompt) == 2, "expected exactly 2 blocks: image + text"
+        "cover-attached prompt must be an airframe Prompt list, not a bare string"
+    assert len(prompt) == 2, "expected exactly 2 parts: image + text"
 
-    img_block, text_block = prompt
-    assert img_block["type"] == "image"
-    assert img_block["source"]["type"] == "base64"
-    assert img_block["source"]["media_type"] == "image/jpeg"
-    assert img_block["source"]["data"]  # non-empty base64
-    assert text_block["type"] == "text"
-    assert "<album>" in text_block["text"], \
-        "text block should carry the existing XML-tagged payload"
+    img_part, text_part = prompt
+    assert isinstance(img_part, ImageInput)
+    assert img_part.media_type == "image/jpeg"
+    assert img_part.bytes_  # non-empty image bytes
+    assert isinstance(text_part, str)
+    assert "<album>" in text_part, \
+        "text part should carry the existing XML-tagged payload"
 
 
 def test_suggest_metadata_uses_bare_string_when_no_cover(monkeypatch):
@@ -177,7 +178,7 @@ def test_suggest_metadata_uses_bare_string_when_no_cover(monkeypatch):
     behavior for coverless albums so we don't accidentally regress
     the text-only path."""
     captured, fake = _capture_prompt()
-    monkeypatch.setattr(ai, "_run_sdk", fake)
+    monkeypatch.setattr(ai, "_run_agent", fake)
     monkeypatch.setattr(ai, "_sdk_override", None)
 
     asyncio.run(ai.suggest_metadata(

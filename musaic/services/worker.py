@@ -65,7 +65,7 @@ def persist_ai_mbid(*, album_id: str, mbid: str) -> None:
     """Verify an AI-supplied MBID against MusicBrainz and persist the
     anchor on success. Synchronous (called via asyncio.to_thread).
 
-    The verification step is critical: claude-agent-sdk responses can
+    The verification step is critical: AI responses can
     contain hallucinated UUIDs, and a well-formed-but-fake one would
     poison the cache and cause every downstream MB call for this album
     to point at nonexistent data. We GET the release-group detail
@@ -200,7 +200,7 @@ def _format_transcript(buffer: list[str], *, max_bytes: int) -> str | None:
     Returns None for an empty buffer so `mark_failed` skips writing
     `result_json` entirely.
 
-    Format: one entry per line. The structured `_record_message`
+    Format: one entry per line. The structured `_TranscriptRecorder`
     capture in ai.py already truncates per-block content, so entries
     are short enough that a plain newline is the right separator —
     the transcript reads like a chronological log of text / tool

@@ -32,7 +32,7 @@ def test_format_transcript_joins_pieces():
     out = worker._format_transcript(["first", "second", "third"], max_bytes=1000)
     assert out is not None
     assert "first" in out and "second" in out and "third" in out
-    # Per-entry newline separator. The structured `_record_message`
+    # Per-entry newline separator. The structured `_TranscriptRecorder`
     # capture in ai.py emits one short line per block (text, tool
     # call, tool result), so the transcript reads like a chrono
     # log — no need for the `---` block separator the old text-only
@@ -57,38 +57,54 @@ def test_record_transcript_appends_to_active_buffer():
 
 
 # ============================================================
-# _record_message — structured per-block transcript capture
+# _TranscriptRecorder — structured stream-event transcript capture
 # ============================================================
 #
 # The load-bearing diagnostic for failed / timed-out jobs: when a
 # job hangs on a stuck WebFetch, the transcript shown in the Jobs
 # UI must include WHICH tool call / URL was last in flight.
 # Without this, the failure expand surfaces "subprocess exited"
-# with zero breadcrumbs.
+# with zero breadcrumbs. The recorder consumes airframe RuntimeEvents
+# (TextDelta / ReasoningDelta / ToolCallStart / ToolCallResult /
+# TurnComplete) — the same stream the agent runner feeds it live.
 
 
-def test_record_message_captures_text_block():
-    from claude_agent_sdk import AssistantMessage, TextBlock
+def _turn_complete(text: str = ""):
+    """Build a TurnComplete carrying a minimal RuntimeResult."""
+    from airframe import RuntimeResult, TurnComplete
+    from airframe.cost import CostRecord
+
+    cost = CostRecord(
+        provider_id="claude", model_id="m", cost_usd=0.0,
+        input_tokens=0, output_tokens=0,
+        cache_read_tokens=0, cache_write_tokens=0, finish="end_turn",
+    )
+    return TurnComplete(
+        result=RuntimeResult(text=text, structured=None, cost=cost, finish="end_turn"),
+    )
+
+
+def test_record_captures_text_block():
+    from airframe import TextDelta
     buf = ai.install_transcript_buffer()
-    ai._record_message(AssistantMessage(
-        content=[TextBlock(text="Searching MusicBrainz for the album")],
-        model="claude-sonnet-4-6",
-    ))
+    r = ai._TranscriptRecorder()
+    # Text arrives as deltas; the recorder flushes a contiguous run as one line.
+    r.feed(TextDelta(text="Searching MusicBrainz "))
+    r.feed(TextDelta(text="for the album"))
+    r.finish()
     assert buf == ["Searching MusicBrainz for the album"]
 
 
-def test_record_message_captures_tool_use_with_url():
+def test_record_captures_tool_use_with_url():
     """WebFetch is the most diagnostically-valuable tool call to
     record — when a job hangs, the last → WebFetch entry tells us
     which upstream is wedged."""
-    from claude_agent_sdk import AssistantMessage, ToolUseBlock
+    from airframe import ToolCallStart
     buf = ai.install_transcript_buffer()
-    ai._record_message(AssistantMessage(
-        content=[ToolUseBlock(
-            id="t1", name="WebFetch",
-            input={"url": "https://musicbrainz.org/release-group/abc-123"},
-        )],
-        model="claude-sonnet-4-6",
+    r = ai._TranscriptRecorder()
+    r.feed(ToolCallStart(
+        tool_name="WebFetch", tool_call_id="t1",
+        arguments_preview='{"url": "https://musicbrainz.org/release-group/abc-123"}',
     ))
     assert len(buf) == 1
     line = buf[0]
@@ -96,107 +112,87 @@ def test_record_message_captures_tool_use_with_url():
     assert "musicbrainz.org/release-group/abc-123" in line
 
 
-def test_record_message_captures_tool_use_with_query():
-    from claude_agent_sdk import AssistantMessage, ToolUseBlock
+def test_record_captures_tool_use_with_query():
+    from airframe import ToolCallStart
     buf = ai.install_transcript_buffer()
-    ai._record_message(AssistantMessage(
-        content=[ToolUseBlock(
-            id="t1", name="WebSearch",
-            input={"query": "101 Strings Country Greats"},
-        )],
-        model="claude-sonnet-4-6",
+    r = ai._TranscriptRecorder()
+    r.feed(ToolCallStart(
+        tool_name="WebSearch", tool_call_id="t1",
+        arguments_preview='{"query": "101 Strings Country Greats"}',
     ))
     assert "→ WebSearch" in buf[0]
     assert "101 Strings Country Greats" in buf[0]
 
 
-def test_record_message_captures_tool_result_string():
-    from claude_agent_sdk import ToolResultBlock, UserMessage
+def test_record_captures_tool_result_string():
+    from airframe import ToolCallResult
     buf = ai.install_transcript_buffer()
-    ai._record_message(UserMessage(
-        content=[ToolResultBlock(
-            tool_use_id="t1",
-            content="Found 4 candidate release-groups",
-            is_error=False,
-        )],
-    ))
+    r = ai._TranscriptRecorder()
+    r.feed(ToolCallResult(tool_call_id="t1", output="Found 4 candidate release-groups", is_error=False))
     assert buf == ["←  Found 4 candidate release-groups"]
 
 
-def test_record_message_marks_tool_result_errors_distinctly():
+def test_record_marks_tool_result_errors_distinctly():
     """Errors get '← ERROR' so they jump out visually when scanning
     a long transcript looking for what went wrong."""
-    from claude_agent_sdk import ToolResultBlock, UserMessage
+    from airframe import ToolCallResult
     buf = ai.install_transcript_buffer()
-    ai._record_message(UserMessage(
-        content=[ToolResultBlock(
-            tool_use_id="t1",
-            content="HTTP 503 Service Unavailable",
-            is_error=True,
-        )],
-    ))
+    r = ai._TranscriptRecorder()
+    r.feed(ToolCallResult(tool_call_id="t1", output="HTTP 503 Service Unavailable", is_error=True))
     assert buf[0].startswith("← ERROR")
     assert "503" in buf[0]
 
 
-def test_record_message_truncates_long_tool_results():
+def test_record_truncates_long_tool_results():
     """Tool results can be entire HTML pages. The per-entry cap
     keeps the transcript scannable and the overall buffer bounded."""
-    from claude_agent_sdk import ToolResultBlock, UserMessage
+    from airframe import ToolCallResult
     buf = ai.install_transcript_buffer()
-    huge = "x" * 5000
-    ai._record_message(UserMessage(
-        content=[ToolResultBlock(
-            tool_use_id="t1",
-            content=huge,
-            is_error=False,
-        )],
-    ))
+    r = ai._TranscriptRecorder()
+    r.feed(ToolCallResult(tool_call_id="t1", output="x" * 5000, is_error=False))
     assert len(buf) == 1
     # Per-block cap is 600 chars (with ellipsis marker around it).
     assert len(buf[0]) < 700
     assert "[" in buf[0] and "ch]" in buf[0]  # truncation marker
 
 
-def test_record_message_ignores_unknown_message_types():
-    """Forward compat: SDK adds new message types over time. We
+def test_record_ignores_unknown_event_types():
+    """Forward compat: airframe adds new event types over time. We
     shouldn't raise on ones we don't recognize."""
     buf = ai.install_transcript_buffer()
-    # Pass something that isn't a known message type.
-    ai._record_message(object())  # asserts: doesn't raise
+    r = ai._TranscriptRecorder()
+    r.feed(object())  # asserts: doesn't raise
+    r.finish()
     assert buf == []
 
 
+def test_record_captures_final_text_from_turn_complete():
+    """The trailing TurnComplete carries the canonical final answer,
+    recorded as a `[final]` line."""
+    buf = ai.install_transcript_buffer()
+    r = ai._TranscriptRecorder()
+    r.feed(_turn_complete("the album is the 1979 release"))
+    assert buf == ["[final] the album is the 1979 release"]
+
+
 def test_full_transcript_pipeline_for_a_failed_call():
-    """End-to-end shape: a sequence of messages that looks like a
+    """End-to-end shape: a sequence of events that looks like a
     real (failed) identification attempt. Confirms the transcript
     that lands in `failure_excerpt` would actually be diagnostic."""
-    from claude_agent_sdk import (
-        AssistantMessage, TextBlock, ToolResultBlock, ToolUseBlock, UserMessage,
-    )
+    from airframe import TextDelta, ToolCallResult, ToolCallStart
     buf = ai.install_transcript_buffer()
+    r = ai._TranscriptRecorder()
 
     # 1. Model thinks out loud
-    ai._record_message(AssistantMessage(
-        content=[TextBlock(text="Let me search MusicBrainz")],
-        model="claude-sonnet-4-6",
-    ))
+    r.feed(TextDelta(text="Let me search MusicBrainz"))
     # 2. Model calls WebFetch
-    ai._record_message(AssistantMessage(
-        content=[ToolUseBlock(
-            id="t1", name="WebFetch",
-            input={"url": "https://musicbrainz.org/release-group/abc"},
-        )],
-        model="claude-sonnet-4-6",
+    r.feed(ToolCallStart(
+        tool_name="WebFetch", tool_call_id="t1",
+        arguments_preview='{"url": "https://musicbrainz.org/release-group/abc"}',
     ))
     # 3. Tool result comes back as an error
-    ai._record_message(UserMessage(
-        content=[ToolResultBlock(
-            tool_use_id="t1",
-            content="HTTP 503 Service Unavailable",
-            is_error=True,
-        )],
-    ))
+    r.feed(ToolCallResult(tool_call_id="t1", output="HTTP 503 Service Unavailable", is_error=True))
+    r.finish()
 
     out = worker._format_transcript(buf, max_bytes=10_000)
     assert out is not None
@@ -278,9 +274,10 @@ def test_worker_persists_failure_excerpt_on_ai_failure(monkeypatch):
     )
 
     # Replace suggest_metadata with a stub that records two transcript
-    # pieces (mimicking Claude streaming) and then raises. Real call
-    # path uses _record_transcript inside _query_async; we mirror that
-    # contract here so the worker's buffer captures the same shape.
+    # pieces (mimicking the agent streaming) and then raises. Real call
+    # path feeds events through _TranscriptRecorder in the agent runner;
+    # we mirror that contract here so the worker's buffer captures the
+    # same shape.
     async def fake_suggest_metadata(*_a, **_kw):
         ai._record_transcript("Looking up the album on MusicBrainz...")
         ai._record_transcript("Based on my search I think this is the 1979 release.")

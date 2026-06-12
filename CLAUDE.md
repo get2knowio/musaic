@@ -138,11 +138,12 @@ Various Artists - Album [FLAC]
 
 ### AI Integration
 
-- System prompt is static and cached (5-min ephemeral TTL; 1-hour with `ENABLE_PROMPT_CACHING_1H=true`)
-- Per-call user messages contain only the album payload + optional hint (`<album>`, `<hint>` XML tags)
-- Tools: WebSearch + WebFetch (built-in); optional FireCrawl MCP (opt-in, requires `settings.firecrawl_api_key`)
-- Opaque "exit code 1" errors are treated as rate-limits; job queue auto-pauses, user resumes manually
-- Model: Claude Sonnet 4.6 (more reliable tool use than Haiku)
+- Runs through **airframe** (`airframe-agents`, the vendor-neutral agent runtime), NOT a vendor SDK directly. `ai.py`'s `_run_agent` / `_agent_async` open an `airframe` session and stream `RuntimeEvent`s. The user picks the backend via `settings.ai_provider_id` / `ai_model_id` (defaults: `claude` / `claude-sonnet-4-6`). airframe is sourced from the local `../airframe` checkout (`[tool.uv.sources]`) while the two projects co-evolve.
+- System prompt is static and cached (the adapter auto-caches system prompt + tool definitions)
+- Per-call user messages contain only the album payload + optional hint (`<album>`, `<hint>` XML tags); cover art rides along as an `airframe.ImageInput` part on the prompt
+- Web research uses the provider's **hosted** tools, negotiated via `runtime.supported_native_tools()` (Claude serves `WEB_SEARCH` + `WEB_FETCH`). Providers without them degrade to the deterministic resolver payload embedded in the prompt — no error. Optional FireCrawl MCP (opt-in, `settings.firecrawl_api_key`) attaches as an `airframe.McpServerRef(transport="sse")`.
+- Failures are airframe's typed errors (`RuntimeTransientError` → friendly "retry" message; `RuntimeAuthError` → auth guidance); the job queue auto-pauses, user resumes manually
+- `_TranscriptRecorder` turns the event stream into the failure-excerpt breadcrumbs (`→ WebFetch …` / `← …` / `[final] …`)
 
 ### Metadata Resolver (`services/resolver.py`)
 

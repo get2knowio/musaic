@@ -24,6 +24,19 @@ from . import db as db_module
 
 KEY_AI_MAX_PARALLEL = "ai_max_parallel"
 KEY_AI_QUEUE_PAUSED = "ai_queue_paused"
+# Agent backend selection. Musaic runs AI suggestions through airframe
+# (the vendor-neutral agent runtime), so the user can pick whichever
+# agent framework they have access to instead of being locked to Claude.
+# `ai_provider_id` is an airframe provider id ("claude", "github-copilot",
+# "bedrock", …); `ai_model_id` is the vendor model id for that provider.
+# Defaults preserve the historical behaviour (Claude Sonnet) with zero
+# config. Web research (album / cover lookup) uses the provider's hosted
+# web tools when airframe reports it serves them (Claude does); providers
+# without them degrade to the deterministic resolver + reasoning.
+KEY_AI_PROVIDER_ID = "ai_provider_id"
+KEY_AI_MODEL_ID = "ai_model_id"
+DEFAULT_AI_PROVIDER_ID = "claude"
+DEFAULT_AI_MODEL_ID = "claude-sonnet-4-6"
 # AcoustID API key for the per-track fingerprinting cascade (see
 # fingerprint.py and the track-gaps fix path). Free key with registration
 # at https://acoustid.org/new-application — we only ever read user-rated
@@ -149,6 +162,27 @@ def ai_queue_paused() -> bool:
 
 def set_ai_queue_paused(paused: bool) -> None:
     set_bool(KEY_AI_QUEUE_PAUSED, paused)
+
+
+def ai_provider_id() -> str:
+    """The airframe provider id the AI worker dispatches through. Defaults
+    to "claude" so existing installs behave exactly as before with no
+    config. Empty/unset falls back to the default rather than erroring."""
+    return (get_raw(KEY_AI_PROVIDER_ID) or "").strip() or DEFAULT_AI_PROVIDER_ID
+
+
+def set_ai_provider_id(value: str) -> None:
+    set_raw(KEY_AI_PROVIDER_ID, (value or "").strip())
+
+
+def ai_model_id() -> str:
+    """The vendor model id passed to the selected provider. Defaults to
+    Claude Sonnet (the model the suggestion prompts were tuned against)."""
+    return (get_raw(KEY_AI_MODEL_ID) or "").strip() or DEFAULT_AI_MODEL_ID
+
+
+def set_ai_model_id(value: str) -> None:
+    set_raw(KEY_AI_MODEL_ID, (value or "").strip())
 
 
 def acoustid_api_key() -> str:
