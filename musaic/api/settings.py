@@ -25,6 +25,15 @@ router = APIRouter()
 class SettingsPatchPayload(BaseModel):
     ai_max_parallel: int | None = None
     ai_queue_paused: bool | None = None
+    # Agent backend selection. ai_provider_id is an airframe provider id; it's
+    # validated against the *installed* providers in the handler. ai_model_id
+    # is the vendor model id (free-form). ai_api_key is write-only (same
+    # semantics as the other keys) — injected into the adapter constructor
+    # only when that provider accepts one. Empty string clears each; None
+    # leaves it alone.
+    ai_provider_id: str | None = None
+    ai_model_id: str | None = None
+    ai_api_key: str | None = None
     # AcoustID API key (write-only — never echoed back). Empty string clears
     # the key. None means "leave it alone" (as with all PATCH fields).
     acoustid_api_key: str | None = None
@@ -67,6 +76,28 @@ def patch_settings(payload: SettingsPatchPayload) -> dict[str, Any]:
         settings_module.set_ai_max_parallel(payload.ai_max_parallel)
     if payload.ai_queue_paused is not None:
         settings_module.set_ai_queue_paused(payload.ai_queue_paused)
+    if payload.ai_provider_id is not None:
+        pid = payload.ai_provider_id.strip()
+        # Empty clears back to the default ("claude"); a non-empty value must
+        # name a provider whose airframe adapter is actually installed,
+        # otherwise the worker would fail at dispatch with an opaque error.
+        if pid:
+            from airframe import list_providers
+
+            installed = list_providers(installed_only=True)
+            if pid not in installed:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Unknown or not-installed provider {pid!r}. Installed: "
+                        f"{', '.join(installed)}. Install its airframe extra to add more."
+                    ),
+                )
+        settings_module.set_ai_provider_id(pid)
+    if payload.ai_model_id is not None:
+        settings_module.set_ai_model_id(payload.ai_model_id.strip())
+    if payload.ai_api_key is not None:
+        settings_module.set_ai_api_key(payload.ai_api_key)
     if payload.acoustid_api_key is not None:
         settings_module.set_acoustid_api_key(payload.acoustid_api_key)
     if payload.firecrawl_api_key is not None:
@@ -104,6 +135,65 @@ def patch_settings(payload: SettingsPatchPayload) -> dict[str, Any]:
     # Wake the worker so a max_parallel bump (or unpause) takes effect now.
     notify_jobs_changed()
     return settings_module.all_settings()
+
+
+# ---------- AI provider discovery ----------
+
+# Human-readable auth instructions for the providers that DON'T take a pasted
+# api_key (they resolve credentials from their own env / CLI chain). Keyed by
+# airframe provider id; a generic fallback covers anything not listed. The
+# key-based providers don't need an entry — the UI shows a key field for them.
+_AUTH_HINTS: dict[str, str] = {
+    "github-copilot": "Authenticate with the GitHub CLI (`gh auth login`) or set GITHUB_TOKEN — no key needed here.",
+    "bedrock": "Uses the AWS credential chain (env vars / AWS_PROFILE / IAM role) plus AWS_REGION — no key needed here.",
+    "opencode": "Talks to a local OpenCode server over loopback (or set OPENCODE_SERVER_PASSWORD for a remote one) — no key needed here.",
+}
+_AUTH_HINT_FALLBACK = "This provider resolves credentials from its own environment / CLI chain — see its airframe adapter docs."
+
+
+@router.get("/api/ai/providers")
+def ai_providers() -> dict[str, Any]:
+    """Discoverable airframe providers for the settings UI.
+
+    `providers` are the *installed* adapters — the selectable set. Each is
+    fully introspected: whether it takes a pasted API key (vs an env/CLI auth
+    chain) and, for the chain-based ones, a short auth hint. `uninstalled` is
+    the names of providers airframe knows about but whose extra isn't installed
+    here — informational, the user adds them with `pip install
+    airframe-agents[<extra>]`. (airframe guards `runtime_for` on uninstalled
+    adapters, so we can't introspect those without importing their SDK.) Plus
+    the current selection.
+    """
+    from airframe import list_providers
+
+    from .. import ai as ai_module
+    from .. import settings as settings_module
+
+    installed = list_providers(installed_only=True)
+    known = list_providers(installed_only=False)
+
+    providers: list[dict[str, Any]] = []
+    for pid in installed:
+        accepts_key = ai_module.runtime_accepts_api_key(pid)
+        providers.append(
+            {
+                "id": pid,
+                "accepts_api_key": accepts_key,
+                # Key-based providers get no hint — the UI renders a key field
+                # instead. Chain-based ones get an actionable instruction.
+                "auth_hint": None if accepts_key else _AUTH_HINTS.get(pid, _AUTH_HINT_FALLBACK),
+            }
+        )
+
+    return {
+        "selected": {
+            "provider_id": settings_module.ai_provider_id(),
+            "model_id": settings_module.ai_model_id(),
+            "api_key_set": bool(settings_module.ai_api_key()),
+        },
+        "providers": providers,
+        "uninstalled": [pid for pid in known if pid not in set(installed)],
+    }
 
 
 # ---------- DB backup / restore + snapshots ----------

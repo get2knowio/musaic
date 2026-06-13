@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextvars
+import inspect
 import json
 import logging
 import re
@@ -844,6 +845,39 @@ def _extract_json(text: str) -> dict[str, Any] | None:
 
 # ---------- Agent runner (airframe) ----------
 
+def runtime_accepts_api_key(provider_id: str) -> bool:
+    """Whether the airframe adapter for `provider_id` takes an `api_key=`
+    constructor arg. True for key-based providers (Claude / Kimi / the
+    OpenAI-compatible gateways); False for ones that authenticate via their
+    own environment / CLI chain (Copilot via `gh`, Bedrock via the AWS chain,
+    the OpenCode server via loopback). Drives whether the settings UI offers a
+    key field or an auth hint. Returns False if the provider id is unknown."""
+    from airframe import runtime_for
+
+    try:
+        cls = runtime_for(provider_id)
+    except Exception:
+        return False
+    try:
+        return "api_key" in inspect.signature(cls).parameters
+    except (TypeError, ValueError):  # pragma: no cover — builtin/uninspectable
+        return False
+
+
+def _build_runtime(provider_id: str, api_key: str) -> Any:
+    """Construct the airframe runtime for `provider_id`, injecting the user's
+    `api_key` only when the adapter accepts one. Adapters with env/CLI auth
+    chains are constructed bare and resolve their own credentials — so a
+    stored key never gets force-fed to an adapter that wouldn't understand it.
+    """
+    from airframe import runtime_for
+
+    cls = runtime_for(provider_id)
+    if api_key and runtime_accepts_api_key(provider_id):
+        return cls(api_key=api_key)
+    return cls()
+
+
 # Default max model sub-turns per call. With the async job queue the user
 # isn't blocked on us, so we give hard-to-identify albums generous headroom;
 # the model terminates as soon as it has an answer, so this is a safety net
@@ -949,14 +983,13 @@ async def _agent_async(
         ProviderModel,
         TextDelta,
         TurnComplete,
-        runtime_for,
     )
 
     from . import settings as settings_module
 
     provider_id = settings_module.ai_provider_id()
     model_id = settings_module.ai_model_id()
-    runtime = runtime_for(provider_id)()
+    runtime = _build_runtime(provider_id, settings_module.ai_api_key())
     model = ProviderModel(provider_id, model_id)
 
     # Negotiate the provider's hosted web tools. Claude serves WEB_SEARCH +

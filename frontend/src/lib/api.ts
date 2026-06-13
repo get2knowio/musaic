@@ -212,6 +212,13 @@ export function resumeQueue(): Promise<{ queue_state: QueueState }> {
 export interface AppSettings {
   ai_max_parallel: number;
   ai_queue_paused: boolean;
+  /** Selected airframe provider id (e.g. "claude"). Defaults to "claude". */
+  ai_provider_id: string;
+  /** Vendor model id passed to the selected provider. */
+  ai_model_id: string;
+  /** Whether a provider API key is configured. Write-only, like the other
+   *  keys — the value itself is never returned by GET /api/settings. */
+  ai_api_key_set: boolean;
   /** Whether the AcoustID API key is configured. The actual key is
    *  write-only — never returned by GET /api/settings. */
   acoustid_api_key_set: boolean;
@@ -239,6 +246,12 @@ export interface AppSettings {
 export interface AppSettingsPatch {
   ai_max_parallel?: number;
   ai_queue_paused?: boolean;
+  /** airframe provider id. Empty string resets to the default ("claude");
+   *  a non-empty value must be an installed provider or the API 400s. */
+  ai_provider_id?: string;
+  ai_model_id?: string;
+  /** Provider API key (write-only). Empty string clears it. */
+  ai_api_key?: string;
   acoustid_api_key?: string;
   firecrawl_api_key?: string;
   snapshot_retention_count?: number;
@@ -258,6 +271,28 @@ export interface QueueState {
 
 export function getSettings(): Promise<AppSettings> {
   return request("/api/settings");
+}
+
+/** One installed, selectable airframe provider. */
+export interface AiProvider {
+  id: string;
+  /** True if the provider takes a pasted API key; false if it authenticates
+   *  via its own env / CLI chain (in which case `auth_hint` explains how). */
+  accepts_api_key: boolean;
+  auth_hint: string | null;
+}
+
+export interface AiProvidersResponse {
+  selected: { provider_id: string; model_id: string; api_key_set: boolean };
+  /** Installed (selectable) providers. */
+  providers: AiProvider[];
+  /** Known-but-not-installed provider ids (add via `pip install
+   *  airframe-agents[<extra>]`). Informational only. */
+  uninstalled: string[];
+}
+
+export function getAiProviders(): Promise<AiProvidersResponse> {
+  return request("/api/ai/providers");
 }
 
 export function patchSettings(patch: AppSettingsPatch): Promise<AppSettings> {

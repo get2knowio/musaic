@@ -37,6 +37,13 @@ KEY_AI_PROVIDER_ID = "ai_provider_id"
 KEY_AI_MODEL_ID = "ai_model_id"
 DEFAULT_AI_PROVIDER_ID = "claude"
 DEFAULT_AI_MODEL_ID = "claude-sonnet-4-6"
+# Single API key for the selected provider. Treated generically: musaic
+# injects it into the airframe adapter constructor when that adapter accepts
+# an `api_key=` (Claude / Kimi / OpenAI-compatible gateways do). Adapters with
+# their own auth chains (Copilot via gh, Bedrock via the AWS chain, the
+# OpenCode server via loopback) ignore it and read their environment as usual.
+# Write-only on the API surface, same as the FireCrawl / AcoustID keys.
+KEY_AI_API_KEY = "ai_api_key"
 # AcoustID API key for the per-track fingerprinting cascade (see
 # fingerprint.py and the track-gaps fix path). Free key with registration
 # at https://acoustid.org/new-application — we only ever read user-rated
@@ -185,6 +192,17 @@ def set_ai_model_id(value: str) -> None:
     set_raw(KEY_AI_MODEL_ID, (value or "").strip())
 
 
+def ai_api_key() -> str:
+    """The API key for the selected provider, or '' if not configured.
+    Injected into the airframe adapter constructor when it accepts `api_key=`;
+    empty means "rely on the adapter's own env-based auth chain"."""
+    return (get_raw(KEY_AI_API_KEY) or "").strip()
+
+
+def set_ai_api_key(value: str) -> None:
+    set_raw(KEY_AI_API_KEY, (value or "").strip())
+
+
 def acoustid_api_key() -> str:
     """The user's AcoustID API key, or '' if not configured. The
     fingerprint module treats empty as "feature disabled" rather than
@@ -298,9 +316,12 @@ def all_settings() -> dict[str, Any]:
     return {
         KEY_AI_MAX_PARALLEL: ai_max_parallel(),
         KEY_AI_QUEUE_PAUSED: ai_queue_paused(),
+        KEY_AI_PROVIDER_ID: ai_provider_id(),
+        KEY_AI_MODEL_ID: ai_model_id(),
         # Don't return the actual key value to the client — it's a low-stakes
         # secret, but the API surface still treats it write-only. Frontend
         # only needs to know whether one is set.
+        KEY_AI_API_KEY + "_set": bool(ai_api_key()),
         KEY_ACOUSTID_API_KEY + "_set": bool(acoustid_api_key()),
         KEY_FIRECRAWL_API_KEY + "_set": bool(firecrawl_api_key()),
         KEY_SNAPSHOT_RETENTION: snapshot_retention(),
