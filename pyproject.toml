@@ -11,10 +11,10 @@ dependencies = [
     "pydantic>=2.0",
     # Vendor-neutral agent runtime. The [claude] extra pulls claude-agent-sdk;
     # install additional adapters (e.g. airframe-agents[bedrock]) to let the
-    # AI worker target other providers via settings.ai_provider_id. Sourced
-    # from the local checkout while the two projects co-evolve (see
-    # [tool.uv.sources]); pin to the PyPI release once it stabilises.
-    "airframe-agents[claude]",
+    # AI worker target other providers via settings.ai_provider_id. Pinned to
+    # the 0.9.0rc2 pre-release (first version carrying the native-tools surface
+    # this migration negotiates against); bump as airframe releases.
+    "airframe-agents[claude]==0.9.0rc2",
     "anyio>=4.0",
     "Pillow",
     "requests",
@@ -33,11 +33,6 @@ dependencies = [
     "pyloudnorm>=0.1.1",
     "soundfile>=0.12",
 ]
-
-[tool.uv.sources]
-# Local editable checkout while airframe + musaic co-evolve. Swap for a
-# pinned PyPI version (drop this block) once airframe stabilises.
-airframe-agents = { path = "../airframe", editable = true }
 
 [build-system]
 requires = ["hatchling"]

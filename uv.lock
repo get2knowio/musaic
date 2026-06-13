@@ -8,75 +8,21 @@ resolution-markers = [
 
 [[package]]
 name = "airframe-agents"
-version = "0.9.0rc1"
-source = { editable = "../airframe" }
+version = "0.9.0rc2"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/d4/c2/7ee082bcb04cf0ec7b8083242b71c0320e2fa71bb9076ad90d684980c060/airframe_agents-0.9.0rc2.tar.gz", hash = "sha256:9e8ce29e342263889f9f40c2f34a19bd683ac8f14ba1524432cb87fb3a95d0aa", size = 765134, upload-time = "2026-06-13T13:32:31.845Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/85/86/1c61b3d8dbd9b299a1177cfdf3f4cb78c87366e3a69ec8f5037e56a4cb5e/airframe_agents-0.9.0rc2-py3-none-any.whl", hash = "sha256:f1964ba7f101109b87e40f900256026c38c733d5f4024d29ec7c7ec79dd980f2", size = 239799, upload-time = "2026-06-13T13:32:30.283Z" },
 ]
 
 [package.optional-dependencies]
 claude = [
     { name = "anthropic" },
     { name = "claude-agent-sdk" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aioboto3", marker = "extra == 'all'", specifier = ">=13" },
-    { name = "aioboto3", marker = "extra == 'bedrock'", specifier = ">=13" },
-    { name = "anthropic", marker = "extra == 'all'", specifier = ">=0.40,<1" },
-    { name = "anthropic", marker = "extra == 'claude'", specifier = ">=0.40,<1" },
-    { name = "claude-agent-sdk", marker = "extra == 'all'", specifier = ">=0.2.0,<1" },
-    { name = "claude-agent-sdk", marker = "extra == 'claude'", specifier = ">=0.2.0,<1" },
-    { name = "github-copilot-sdk", marker = "extra == 'all'", specifier = ">=0.3.0" },
-    { name = "github-copilot-sdk", marker = "extra == 'copilot'", specifier = ">=0.3.0" },
-    { name = "httpx", specifier = ">=0.27,<1" },
-    { name = "kimi-agent-sdk", marker = "python_full_version >= '3.12' and extra == 'kimi'", specifier = ">=0.0.5,<0.1" },
-    { name = "openai", marker = "extra == 'all'", specifier = ">=1.50,<3" },
-    { name = "openai", marker = "extra == 'openai-compat'", specifier = ">=1.50,<3" },
-    { name = "opencode-ai", marker = "extra == 'all'", specifier = ">=0.1.0a36,<0.2" },
-    { name = "opencode-ai", marker = "extra == 'opencode'", specifier = ">=0.1.0a36,<0.2" },
-    { name = "pydantic", specifier = ">=2.0,<3" },
-    { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.2.0,<9" },
-    { name = "pytest-asyncio", marker = "extra == 'testing'", specifier = ">=0.24.0,<1" },
-    { name = "tiktoken", marker = "extra == 'all'", specifier = ">=0.7,<1" },
-    { name = "tiktoken", marker = "extra == 'openai-compat'", specifier = ">=0.7,<1" },
-]
-provides-extras = ["claude", "copilot", "openai-compat", "bedrock", "kimi", "opencode", "testing", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "aioboto3", specifier = ">=13" },
-    { name = "anthropic", specifier = ">=0.40,<1" },
-    { name = "claude-agent-sdk", specifier = ">=0.2.0,<1" },
-    { name = "github-copilot-sdk", specifier = ">=0.3.0" },
-    { name = "mypy", specifier = ">=1.0.0,<2" },
-    { name = "openai", specifier = ">=1.50,<3" },
-    { name = "opencode-ai", specifier = ">=0.1.0a36,<0.2" },
-    { name = "pytest", specifier = ">=8.2.0,<9" },
-    { name = "pytest-asyncio", specifier = ">=0.24.0,<1" },
-    { name = "pytest-cov", specifier = ">=4.0.0,<6" },
-    { name = "pytest-timeout", specifier = ">=2.0.0,<3" },
-    { name = "ruff", specifier = ">=0.1.0,<1" },
-    { name = "tiktoken", specifier = ">=0.7,<1" },
-]
-lint = [
-    { name = "mypy", specifier = ">=1.0.0,<2" },
-    { name = "ruff", specifier = ">=0.1.0,<1" },
-]
-test = [
-    { name = "aioboto3", specifier = ">=13" },
-    { name = "anthropic", specifier = ">=0.40,<1" },
-    { name = "claude-agent-sdk", specifier = ">=0.2.0,<1" },
-    { name = "github-copilot-sdk", specifier = ">=0.3.0" },
-    { name = "openai", specifier = ">=1.50,<3" },
-    { name = "opencode-ai", specifier = ">=0.1.0a36,<0.2" },
-    { name = "pytest", specifier = ">=8.2.0,<9" },
-    { name = "pytest-asyncio", specifier = ">=0.24.0,<1" },
-    { name = "pytest-cov", specifier = ">=4.0.0,<6" },
-    { name = "pytest-timeout", specifier = ">=2.0.0,<3" },
-    { name = "tiktoken", specifier = ">=0.7,<1" },
 ]
 
 [[package]]
@@ -913,7 +859,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "airframe-agents", extras = ["claude"], editable = "../airframe" },
+    { name = "airframe-agents", extras = ["claude"], specifier = "==0.9.0rc2" },
     { name = "anyio", specifier = ">=4.0" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "librosa", specifier = ">=0.10" },
