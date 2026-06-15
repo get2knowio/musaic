@@ -2,19 +2,20 @@
 name = "musaic"
 version = "0.1.0"
 description = "Web UI for browsing and managing a local music collection"
-# airframe (the agent runtime) requires Python 3.11+, so musaic does too.
-requires-python = ">=3.11"
+# airframe (the agent runtime) requires Python 3.12+, so musaic does too.
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "mutagen>=1.47",
     "pydantic>=2.0",
-    # Vendor-neutral agent runtime. The [claude] extra pulls claude-agent-sdk;
-    # install additional adapters (e.g. airframe-agents[bedrock]) to let the
-    # AI worker target other providers via settings.ai_provider_id. Pinned to
-    # the 0.9.0rc2 pre-release (first version carrying the native-tools surface
-    # this migration negotiates against); bump as airframe releases.
-    "airframe-agents[claude]==0.9.0rc2",
+    # Vendor-neutral agent runtime. The [claude] / [copilot] / [opencode]
+    # extras pull the respective adapter SDKs so the AI worker can target those
+    # providers via settings.ai_provider_id (Copilot + OpenCode serve native
+    # web tools). Install more adapters (e.g. airframe-agents[bedrock]) as
+    # needed. Pinned to 0.9.0rc4; bump as airframe releases.
+    # NB: [kimi] is excluded — disabled upstream pending an mcp co-install fix.
+    "airframe-agents[claude,copilot,opencode]==0.9.0rc4",
     "anyio>=4.0",
     "Pillow",
     "requests",
