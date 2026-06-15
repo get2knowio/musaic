@@ -4,10 +4,10 @@ version = "0.1.0"
 description = "Web UI for browsing and managing a local music collection"
 requires-python = ">=3.10"
 dependencies = [
-    "fastapi>=0.110",
+    "fastapi>=0.137.0",
     "uvicorn[standard]>=0.27",
     "mutagen>=1.47",
-    "pydantic>=2.0",
+    "pydantic>=2.13.4",
     "claude-agent-sdk",
     "anyio>=4.0",
     "Pillow",
@@ -25,7 +25,7 @@ dependencies = [
     # error instead of crashing when missing.
     "librosa>=0.10",
     "pyloudnorm>=0.1.1",
-    "soundfile>=0.12",
+    "soundfile>=0.14.0",
 ]
 
 [build-system]
@@ -38,7 +38,7 @@ packages = ["musaic"]
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
 ]
 
 [project.scripts]
