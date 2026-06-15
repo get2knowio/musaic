@@ -8,6 +8,19 @@ scope — they need binary fixtures and live separately.
 from __future__ import annotations
 
 
+def _all_route_paths(routes) -> set[str]:
+    """Collect route paths, including nested FastAPI _IncludedRouter wrappers."""
+    paths: set[str] = set()
+    for route in routes:
+        path = getattr(route, "path", None)
+        if path:
+            paths.add(path)
+        nested = getattr(route, "original_router", None)
+        if nested is not None:
+            paths.update(_all_route_paths(getattr(nested, "routes", [])))
+    return paths
+
+
 def test_config_roundtrip(client, empty_library):
     # Pre-state varies (config dir is session-shared); just verify the
     # endpoint responds. Then point it at a known good directory.
@@ -253,7 +266,7 @@ def test_library_events_stream_endpoint_registered(client):
     in pytest when there's no terminal event the server can send to
     cleanly close, so we keep this layer to wire-presence only."""
     from musaic.main import app
-    paths = {r.path for r in app.routes if hasattr(r, "path")}
+    paths = _all_route_paths(app.routes)
     assert "/api/library-events/stream" in paths
 
 
@@ -262,5 +275,5 @@ def test_fingerprint_pool_stream_endpoint_registered(client):
     state-change semantics are pinned in the fingerprint_pool unit
     tests; this guards against router de-registration."""
     from musaic.main import app
-    paths = {r.path for r in app.routes if hasattr(r, "path")}
+    paths = _all_route_paths(app.routes)
     assert "/api/fingerprint-pool/stream" in paths
