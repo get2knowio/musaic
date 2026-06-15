@@ -78,3 +78,9 @@ ignore = ["E501", "E731", "E741"]
 "scripts/*" = ["E402"]              # sys.path / env setup precedes imports
 "musaic/fingerprint.py" = ["E402"]  # ctypes imports grouped with the dylib-loading block
 "musaic/mb_lookup.py" = ["E402"]    # lru_cache import grouped with its cached helper
+
+[tool.uv]
+# Supply-chain cooldown: ignore distributions uploaded in the last 7 days so a
+# malicious release has time to be detected/yanked before it can be resolved.
+# Relative (rolling) window; relies on PyPI's PEP 700 upload-time metadata.
+exclude-newer = "7 days"
