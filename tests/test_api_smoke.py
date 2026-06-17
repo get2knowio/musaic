@@ -54,6 +54,61 @@ def test_settings_patch_roundtrip(client):
     client.patch("/api/settings", json={"ai_max_parallel": initial["ai_max_parallel"]})
 
 
+def test_settings_exposes_ai_provider_model_defaults(client):
+    body = client.get("/api/settings").json()
+    # Provider/model surface with their defaults; key is write-only (flag only).
+    assert body["ai_provider_id"] == "claude"
+    assert body["ai_model_id"] == "claude-sonnet-4-6"
+    assert body["ai_api_key_set"] is False
+    assert "ai_api_key" not in body  # never echo the secret itself
+
+
+def test_settings_patch_model_and_key(client):
+    initial = client.get("/api/settings").json()
+
+    r = client.patch("/api/settings", json={"ai_model_id": "claude-haiku-4-5"})
+    assert r.status_code == 200
+    assert r.json()["ai_model_id"] == "claude-haiku-4-5"
+
+    # Setting a key flips the _set flag but never returns the value.
+    r = client.patch("/api/settings", json={"ai_api_key": "sk-test-123"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["ai_api_key_set"] is True
+    assert "sk-test-123" not in str(body)
+
+    # Clearing it flips the flag back.
+    r = client.patch("/api/settings", json={"ai_api_key": ""})
+    assert r.json()["ai_api_key_set"] is False
+
+    # Restore model.
+    client.patch("/api/settings", json={"ai_model_id": initial["ai_model_id"]})
+
+
+def test_settings_patch_rejects_uninstalled_provider(client):
+    # Only the claude adapter is installed in the test env; bedrock isn't.
+    r = client.patch("/api/settings", json={"ai_provider_id": "bedrock"})
+    assert r.status_code == 400
+    assert "bedrock" in r.json()["detail"]
+
+    # The installed provider is accepted; empty string resets to default.
+    assert client.patch("/api/settings", json={"ai_provider_id": "claude"}).status_code == 200
+    assert client.patch("/api/settings", json={"ai_provider_id": ""}).json()["ai_provider_id"] == "claude"
+
+
+def test_ai_providers_endpoint(client):
+    body = client.get("/api/ai/providers").json()
+    assert body["selected"]["provider_id"] == "claude"
+    ids = {p["id"] for p in body["providers"]}
+    assert "claude" in ids  # installed → selectable
+    claude = next(p for p in body["providers"] if p["id"] == "claude")
+    assert claude["accepts_api_key"] is True
+    assert claude["auth_hint"] is None  # key-based → no hint, UI shows a key field
+    # Known-but-not-installed providers are listed separately, not selectable.
+    assert "bedrock" in body["uninstalled"]
+    assert "bedrock" not in ids
+
+
 def test_vocabulary_crud(client):
     tag = "smoke-test-tag-vocab-crud"
 

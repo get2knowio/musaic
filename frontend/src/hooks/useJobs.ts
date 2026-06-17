@@ -12,6 +12,7 @@ import {
   bulkDeleteJobs,
   deleteJob as deleteJobApi,
   enqueueJob,
+  getAiProviders,
   getSettings,
   listJobs,
   markJobActedOn,
@@ -243,12 +244,25 @@ export function useSettings() {
   });
 }
 
+/** Installed airframe providers + current selection. Static-ish; the list
+ *  only changes when an extra is pip-installed (a restart), so no SSE. */
+export function useAiProviders() {
+  return useQuery({
+    queryKey: ["ai-providers"],
+    queryFn: getAiProviders,
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: AppSettingsPatch) => patchSettings(patch),
     onSuccess: (data) => {
       qc.setQueryData(SETTINGS_QUERY_KEY, data);
+      // Provider/model/key live in the providers endpoint's "selected" too;
+      // refetch so its view stays in sync after an edit here.
+      qc.invalidateQueries({ queryKey: ["ai-providers"] });
       // Reflect in queue state immediately too — the next SSE will overwrite
       // with the authoritative counts but this avoids any UI lag.
       qc.setQueryData(QUEUE_STATE_QUERY_KEY, (prev: QueueState | undefined) =>

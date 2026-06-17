@@ -6,10 +6,11 @@ Run from the project directory:
     uv run python scripts/diagnose_claude.py
     uv run python scripts/diagnose_claude.py <album_id>
 
-Prints the resolved environment, locates the `claude` CLI, then makes a
-minimal SDK call against Haiku. Surfaces the real exception (with
-traceback) so we can see what claude-agent-sdk is actually choking on
-before it gets wrapped by our /api/ai endpoint.
+Prints the resolved environment, locates the `claude` CLI, reports the
+airframe provider/model musaic dispatches through (and which hosted web
+tools it serves), then makes a minimal SDK call against Haiku. Surfaces
+the real exception (with traceback) so we can see what the underlying SDK
+is actually choking on before it gets wrapped by our /api/ai endpoint.
 """
 from __future__ import annotations
 
@@ -69,6 +70,31 @@ def main() -> None:
     except ImportError as e:
         print(f"  IMPORT FAILED: {e}")
         sys.exit(1)
+
+    print("\n" + "=" * 60)
+    print("airframe (agent runtime musaic dispatches through)")
+    print("=" * 60)
+    try:
+        from airframe import Feature, list_providers, runtime_for
+
+        from musaic import settings as settings_module
+
+        provider_id = settings_module.ai_provider_id()
+        model_id = settings_module.ai_model_id()
+        print(f"  configured provider/model: {provider_id} / {model_id}")
+        installed = list_providers(installed_only=True)
+        print(f"  installed adapters: {installed}")
+        if provider_id not in installed:
+            print(f"  WARNING: provider {provider_id!r} is not installed — "
+                  f"install its airframe extra (e.g. airframe-agents[{provider_id}]).")
+        else:
+            runtime = runtime_for(provider_id)()
+            served = sorted(runtime.supported_native_tools())
+            print(f"  supports(TOOLS_NATIVE): {runtime.supports(Feature.TOOLS_NATIVE)}")
+            print(f"  hosted web tools served: {served or '(none — web research degrades to resolver)'}")
+    except Exception as e:
+        print(f"  airframe probe FAILED: {e}")
+        traceback.print_exc()
 
     # Allow `python scripts/diagnose_claude.py <album_id>` to test the exact
     # failing album from the user's real library, instead of the synthetic
