@@ -1,0 +1,63 @@
+/**
+ * Shared helpers for the Phase 1 sidecar-bundling scripts (issue #8).
+ *
+ * The three scripts (fetch-python, build-sidecar, validate-sidecar) all agree
+ * on where the bundled runtime lives and how to address its interpreter across
+ * platforms. Keep that knowledge here so the paths can't drift apart.
+ */
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** desktop/ — parent of build/. */
+export const DESKTOP_DIR = path.resolve(__dirname, "..");
+/** repo root — parent of desktop/. */
+export const REPO_ROOT = path.resolve(DESKTOP_DIR, "..");
+/** Assembled-at-build resource tree (gitignored). Mirrors what electron-builder
+ *  will drop into the packaged app's `resources/` in Phase 3. */
+export const RESOURCES_DIR = path.join(DESKTOP_DIR, "resources");
+/** The relocatable standalone CPython tree. */
+export const PYTHON_DIR = path.join(RESOURCES_DIR, "python");
+/** Where the built SPA is staged so the packaged sidecar can find it via
+ *  MUSAIC_FRONTEND_DIR (its own package isn't a sibling of frontend/dist). */
+export const FRONTEND_DEST = path.join(RESOURCES_DIR, "frontend", "dist");
+
+/**
+ * Python series to bundle. airframe (and therefore musaic) floors at 3.12;
+ * we pin the minor and let uv resolve the latest patch from
+ * python-build-standalone. Bump deliberately — a patch bump re-downloads the
+ * interpreter and re-installs the whole dep stack.
+ */
+export const PYTHON_VERSION = "3.12";
+
+/** Path to the bundled interpreter, addressed the way each OS lays it out. */
+export function pythonBin(pythonRoot = PYTHON_DIR) {
+  return process.platform === "win32"
+    ? path.join(pythonRoot, "python.exe")
+    : path.join(pythonRoot, "bin", "python3");
+}
+
+export function log(msg) {
+  console.log(`\x1b[36m[sidecar-build]\x1b[0m ${msg}`);
+}
+
+/** Run a command, inheriting stdio, throwing on non-zero exit. */
+export function run(cmd, args, opts = {}) {
+  log(`$ ${cmd} ${args.join(" ")}`);
+  execFileSync(cmd, args, { stdio: "inherit", ...opts });
+}
+
+/** Fail fast with a clear message if the bundled python isn't there yet. */
+export function assertPythonBundled() {
+  const bin = pythonBin();
+  if (!existsSync(bin)) {
+    throw new Error(
+      `No bundled python at ${bin}.\n` +
+        `Run \`npm run build:python\` first (it downloads python-build-standalone).`,
+    );
+  }
+  return bin;
+}

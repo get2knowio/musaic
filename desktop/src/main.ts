@@ -16,6 +16,7 @@ import { app, BrowserWindow } from "electron";
 import { spawn, ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { get as httpGet } from "node:http";
+import { existsSync } from "node:fs";
 import * as path from "node:path";
 
 const HOST = "127.0.0.1";
@@ -44,17 +45,74 @@ function pickFreePort(): Promise<number> {
 }
 
 /**
- * Spawn the backend. Phase 0: dev mode via `uv run musaic`, cwd = repo root
- * (parent of this `desktop/` dir). MUSAIC_PORT/MUSAIC_HOST tell run() where
- * to bind without a CLI flag; process.env is passed through so auth tokens
- * in the launching env still reach the AI worker.
+ * Locate the assembled resource tree (Phase 1: `desktop/build/*` stages a
+ * relocatable CPython + the built SPA under it). Packaged builds (Phase 3)
+ * put it at `process.resourcesPath`; running `electron .` from source finds
+ * it next to the app code.
+ */
+function resourcesRoot(): string {
+  return app.isPackaged
+    ? process.resourcesPath
+    : path.join(app.getAppPath(), "resources");
+}
+
+/** Path to the bundled interpreter, per-OS layout. Empty string if absent. */
+function bundledPython(): string {
+  const root = resourcesRoot();
+  const bin =
+    process.platform === "win32"
+      ? path.join(root, "python", "python.exe")
+      : path.join(root, "python", "bin", "python3");
+  return existsSync(bin) ? bin : "";
+}
+
+/**
+ * Resolve how to launch the backend. Prefer the bundled standalone CPython
+ * (`python -m musaic.main`, which routes through `run()` and honors
+ * MUSAIC_PORT/HOST) when the Phase 1 resources are assembled; otherwise fall
+ * back to the dev loop (`uv run musaic` from the repo root) so the spike still
+ * works against a synced dev env with no bundle built.
+ */
+function resolveSidecarCommand(): {
+  command: string;
+  args: string[];
+  cwd: string;
+  extraEnv: NodeJS.ProcessEnv;
+} {
+  const py = bundledPython();
+  if (py) {
+    const root = resourcesRoot();
+    return {
+      command: py,
+      args: ["-m", "musaic.main"],
+      cwd: root,
+      // The bundled musaic package isn't a sibling of frontend/dist, so point
+      // FastAPI at the staged SPA explicitly.
+      extraEnv: { MUSAIC_FRONTEND_DIR: path.join(root, "frontend", "dist") },
+    };
+  }
+  return {
+    command: "uv",
+    args: ["run", "musaic"],
+    cwd: path.resolve(app.getAppPath(), ".."),
+    extraEnv: {},
+  };
+}
+
+/**
+ * Spawn the backend. Uses the bundled interpreter when present (Phase 1+),
+ * else the dev `uv run musaic` loop (Phase 0). MUSAIC_PORT/MUSAIC_HOST tell
+ * run() where to bind without a CLI flag; process.env is passed through so
+ * auth tokens in the launching env still reach the AI worker.
  */
 function spawnSidecar(port: number): ChildProcess {
-  const repoRoot = path.resolve(app.getAppPath(), "..");
-  const child = spawn("uv", ["run", "musaic"], {
-    cwd: repoRoot,
+  const { command, args, cwd, extraEnv } = resolveSidecarCommand();
+  console.log(`[musaic] sidecar: ${command} ${args.join(" ")} (cwd=${cwd})`);
+  const child = spawn(command, args, {
+    cwd,
     env: {
       ...process.env,
+      ...extraEnv,
       MUSAIC_HOST: HOST,
       MUSAIC_PORT: String(port),
     },

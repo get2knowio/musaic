@@ -7,7 +7,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:python": "node build/fetch-python.mjs",
+    "build:sidecar": "node build/build-sidecar.mjs",
+    "build:resources": "npm run build:python && npm run build:sidecar",
+    "validate:sidecar": "node build/validate-sidecar.mjs"
   },
   "devDependencies": {
     "electron": "^33.0.0",
