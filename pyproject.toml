@@ -5,10 +5,13 @@ description = "Web UI for browsing and managing a local music collection"
 # airframe (the agent runtime) requires Python 3.12+, so musaic does too.
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.110",
+    # Cap below 0.137: fastapi 0.137.x regressed include_router (routes
+    # silently dropped on include), which breaks every /api route. 0.136.1
+    # is the last working line. Revisit when upstream fixes it.
+    "fastapi>=0.136.1,<0.137",
     "uvicorn[standard]>=0.27",
     "mutagen>=1.47",
-    "pydantic>=2.0",
+    "pydantic>=2.13.4",
     # Vendor-neutral agent runtime. The [claude] / [copilot] / [opencode]
     # extras pull the respective adapter SDKs so the AI worker can target those
     # providers via settings.ai_provider_id (Copilot + OpenCode serve native
@@ -32,7 +35,7 @@ dependencies = [
     # error instead of crashing when missing.
     "librosa>=0.10",
     "pyloudnorm>=0.1.1",
-    "soundfile>=0.12",
+    "soundfile>=0.14.0",
 ]
 
 [build-system]
@@ -45,7 +48,7 @@ packages = ["musaic"]
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
-    "pytest>=9.0.3",
+    "pytest>=9.1.0",
 ]
 
 [project.scripts]
