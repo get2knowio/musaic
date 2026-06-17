@@ -1,0 +1,5 @@
+node_modules/
+dist/
+# Assembled at build time (Phase 1+): bundled python, frontend, native bins.
+resources/
+out/

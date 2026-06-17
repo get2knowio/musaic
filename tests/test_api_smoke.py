@@ -319,3 +319,12 @@ def test_fingerprint_pool_stream_endpoint_registered(client):
     from musaic.main import app
     paths = {r.path for r in app.routes if hasattr(r, "path")}
     assert "/api/fingerprint-pool/stream" in paths
+
+
+def test_health_probe(client):
+    """The cheap readiness probe the Electron sidecar polls (issue #8).
+    Must be 200 + {"status": "ok"} with no DB/scan/checks dependency —
+    distinct from the heavy /api/checks framework."""
+    r = client.get("/api/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok"}

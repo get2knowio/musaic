@@ -1,0 +1,17 @@
+{
+  "name": "musaic-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron desktop shell for Musaic (issue #8). Phase 0 spike: spawns the FastAPI backend as a localhost sidecar and points a window at it.",
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "npm run build && electron .",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0"
+  }
+}
