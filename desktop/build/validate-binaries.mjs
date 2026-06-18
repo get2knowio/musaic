@@ -49,6 +49,10 @@ const env = {
   MUSAIC_FPCALC: fpcalc,
   FPCALC: fpcalc,
   ...(libchromaprint ? { MUSAIC_LIBCHROMAPRINT: libchromaprint } : {}),
+  // Force UTF-8 stdout so the gate's non-ASCII output (→, —, …) doesn't crash
+  // under Windows' default cp1252 console encoding.
+  PYTHONUTF8: "1",
+  PYTHONIOENCODING: "utf-8",
   // Throwaway config dir so the real ~/.musaic is untouched.
   MUSAIC_CONFIG_DIR: configDir,
 };

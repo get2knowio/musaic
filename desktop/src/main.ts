@@ -175,6 +175,11 @@ function spawnSidecar(port: number): ChildProcess {
       ...process.env,
       ...extraEnv,
       PATH: augmentedPath(),
+      // Force UTF-8 in the bundled interpreter so non-ASCII in stdout (accented
+      // album names, the AI transcript's → arrows) doesn't crash or mojibake
+      // under Windows' default cp1252 console encoding.
+      PYTHONUTF8: "1",
+      PYTHONIOENCODING: "utf-8",
       MUSAIC_HOST: HOST,
       MUSAIC_PORT: String(port),
     },

@@ -1,6 +1,6 @@
 {
   "name": "musaic-desktop",
-  "version": "0.1.0-rc.3",
+  "version": "0.1.0-rc.4",
   "private": true,
   "description": "Electron desktop shell for Musaic (issue #8): spawns the FastAPI backend as a localhost sidecar and points a window at it.",
   "author": "Musaic contributors",
