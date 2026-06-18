@@ -64,7 +64,14 @@ export function log(msg) {
 /** Run a command, inheriting stdio, throwing on non-zero exit. */
 export function run(cmd, args, opts = {}) {
   log(`$ ${cmd} ${args.join(" ")}`);
-  execFileSync(cmd, args, { stdio: "inherit", ...opts });
+  // On Windows, npm/npx/yarn/pnpm are `.cmd` shims that Node refuses to exec
+  // directly (the .cmd spawn restriction), so route those — and only those —
+  // through the shell. Binaries addressed by name or absolute path (uv, curl,
+  // tar, the bundled python) run without a shell so their args (e.g. a
+  // multi-line `python -c` script) aren't re-parsed by cmd.exe.
+  const needsShell =
+    process.platform === "win32" && /^(npm|npx|yarn|pnpm)$/.test(cmd);
+  execFileSync(cmd, args, { stdio: "inherit", shell: needsShell, ...opts });
 }
 
 /** Fail fast with a clear message if the bundled python isn't there yet. */
