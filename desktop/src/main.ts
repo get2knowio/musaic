@@ -67,6 +67,34 @@ function bundledPython(): string {
 }
 
 /**
+ * Env pointing the backend at the bundled native binaries (Phase 2). Only
+ * sets a var when the corresponding file is actually present, so a partial
+ * bundle (e.g. fpcalc but no libchromaprint, which is optional) degrades the
+ * same way the backend's own resolution does. `FPCALC` mirrors `MUSAIC_FPCALC`
+ * because pyacoustid reads `FPCALC` at invocation time while the backend's
+ * availability check reads `MUSAIC_FPCALC`.
+ */
+function bundledNativeEnv(): NodeJS.ProcessEnv {
+  const root = resourcesRoot();
+  const env: NodeJS.ProcessEnv = {};
+  const fpcalc = path.join(
+    root,
+    "bin",
+    process.platform === "win32" ? "fpcalc.exe" : "fpcalc",
+  );
+  if (existsSync(fpcalc)) {
+    env.MUSAIC_FPCALC = fpcalc;
+    env.FPCALC = fpcalc;
+  }
+  const ext = process.platform === "darwin" ? "dylib" : "so";
+  const lib = path.join(root, "lib", `libchromaprint.${ext}`);
+  if (existsSync(lib)) {
+    env.MUSAIC_LIBCHROMAPRINT = lib;
+  }
+  return env;
+}
+
+/**
  * Resolve how to launch the backend. Prefer the bundled standalone CPython
  * (`python -m musaic.main`, which routes through `run()` and honors
  * MUSAIC_PORT/HOST) when the Phase 1 resources are assembled; otherwise fall
@@ -86,9 +114,14 @@ function resolveSidecarCommand(): {
       command: py,
       args: ["-m", "musaic.main"],
       cwd: root,
-      // The bundled musaic package isn't a sibling of frontend/dist, so point
-      // FastAPI at the staged SPA explicitly.
-      extraEnv: { MUSAIC_FRONTEND_DIR: path.join(root, "frontend", "dist") },
+      extraEnv: {
+        // The bundled musaic package isn't a sibling of frontend/dist, so
+        // point FastAPI at the staged SPA explicitly.
+        MUSAIC_FRONTEND_DIR: path.join(root, "frontend", "dist"),
+        // Point fingerprinting at the bundled fpcalc / libchromaprint (Phase
+        // 2) so it works with no Homebrew/distro chromaprint install.
+        ...bundledNativeEnv(),
+      },
     };
   }
   return {

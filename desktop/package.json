@@ -10,8 +10,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:python": "node build/fetch-python.mjs",
     "build:sidecar": "node build/build-sidecar.mjs",
-    "build:resources": "npm run build:python && npm run build:sidecar",
-    "validate:sidecar": "node build/validate-sidecar.mjs"
+    "build:binaries": "node build/fetch-binaries.mjs",
+    "build:resources": "npm run build:python && npm run build:sidecar && npm run build:binaries",
+    "validate:sidecar": "node build/validate-sidecar.mjs",
+    "validate:binaries": "node build/validate-binaries.mjs"
   },
   "devDependencies": {
     "electron": "^33.0.0",

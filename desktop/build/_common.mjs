@@ -24,6 +24,23 @@ export const PYTHON_DIR = path.join(RESOURCES_DIR, "python");
 /** Where the built SPA is staged so the packaged sidecar can find it via
  *  MUSAIC_FRONTEND_DIR (its own package isn't a sibling of frontend/dist). */
 export const FRONTEND_DEST = path.join(RESOURCES_DIR, "frontend", "dist");
+/** Bundled native binaries (Phase 2): the static fpcalc lives in bin/, the
+ *  optional libchromaprint dylib/so in lib/. The shell points the backend at
+ *  these via MUSAIC_FPCALC / FPCALC / MUSAIC_LIBCHROMAPRINT. */
+export const BIN_DIR = path.join(RESOURCES_DIR, "bin");
+export const LIB_DIR = path.join(RESOURCES_DIR, "lib");
+
+/**
+ * Upstream Chromaprint release whose *static* fpcalc we bundle (ffmpeg +
+ * chromaprint linked in — a single self-contained file, unlike Homebrew's
+ * fpcalc which drags in the ffmpeg dylib chain). Bump deliberately.
+ */
+export const CHROMAPRINT_VERSION = "1.6.0";
+
+/** Path to the bundled fpcalc, per-OS layout. */
+export function fpcalcBin(binRoot = BIN_DIR) {
+  return path.join(binRoot, process.platform === "win32" ? "fpcalc.exe" : "fpcalc");
+}
 
 /**
  * Python series to bundle. airframe (and therefore musaic) floors at 3.12;
