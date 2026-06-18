@@ -11,6 +11,7 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -22,7 +23,14 @@ from .services.worker import worker_loop
 
 _log = logging.getLogger(__name__)
 
-FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+# Built SPA location. Defaults to the repo-relative `frontend/dist` (dev +
+# `uv run musaic`), but the Electron desktop build (issue #8) assembles the
+# frontend into an app resource that isn't a sibling of the `musaic` package,
+# so honor MUSAIC_FRONTEND_DIR when the packager points us elsewhere.
+FRONTEND_DIR = Path(
+    os.environ.get("MUSAIC_FRONTEND_DIR")
+    or Path(__file__).resolve().parent.parent / "frontend" / "dist"
+)
 
 
 @contextlib.asynccontextmanager
@@ -79,6 +87,7 @@ app = FastAPI(title="Musaic", version="0.1.0", lifespan=_lifespan)
 # Wire up the routers. Order matters only for overlapping path patterns
 # (e.g. `/api/checks/stream` must register before `/api/checks/{check_id}`,
 # which is enforced inside health.py via in-file ordering).
+app.include_router(api.system.router)
 app.include_router(api.library.router)
 app.include_router(api.tags.router)
 app.include_router(api.jobs.router)
@@ -184,14 +193,17 @@ def _configure_logging() -> None:
 def run() -> None:
     """`musaic` console-script entry point."""
     parser = argparse.ArgumentParser(description="Musaic web UI")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8765)
+    # MUSAIC_PORT lets the Electron desktop shell (issue #8) inject the free
+    # port it picked for the sidecar without constructing a CLI flag. An
+    # explicit --port still wins (argparse default is only used when the flag
+    # is absent).
+    parser.add_argument("--host", default=os.environ.get("MUSAIC_HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.environ.get("MUSAIC_PORT", "8765")))
     parser.add_argument("--reload", action="store_true", help="Enable hot reload (development)")
     args = parser.parse_args()
 
     _configure_logging()
 
-    import os
     auth = "CLAUDE_CODE_OAUTH_TOKEN" if os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") else (
         "ANTHROPIC_API_KEY" if os.environ.get("ANTHROPIC_API_KEY") else None
     )

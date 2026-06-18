@@ -25,6 +25,7 @@ us well under any per-user limit.
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -71,10 +72,29 @@ class TrackFingerprint:
     acoustid_score: float | None
 
 
+def _resolve_fpcalc() -> str | None:
+    """Locate the `fpcalc` binary, honoring bundled-runtime overrides.
+
+    Precedence:
+      1. ``MUSAIC_FPCALC`` — explicit path the desktop shell injects at its
+         bundled binary (issue #8, Phase 2).
+      2. ``FPCALC`` — the same env var pyacoustid itself honors at invocation
+         time, so the availability check and the actual run can't disagree.
+      3. ``PATH`` (``shutil.which``) — the dev / Homebrew / distro install.
+
+    Returns the resolved path, or ``None`` when nothing usable is found.
+    """
+    for env_name in ("MUSAIC_FPCALC", "FPCALC"):
+        candidate = os.environ.get(env_name)
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return shutil.which("fpcalc")
+
+
 def is_available() -> tuple[bool, str]:
     """Quick precondition check used by the UI / health checks. Returns
     (ok, reason). No network calls — just looks for the binary and key."""
-    if shutil.which("fpcalc") is None:
+    if _resolve_fpcalc() is None:
         return False, "fpcalc binary not found (install with `brew install chromaprint`)"
     if not settings_module.acoustid_api_key():
         return False, "AcoustID API key not set (configure in Settings)"
@@ -135,6 +155,16 @@ def fingerprint_album(
             "pyacoustid-missing",
             f"pyacoustid library not installed: {e}",
         ) from e
+
+    # pyacoustid resolves fpcalc via the FPCALC env var at call time. If a
+    # caller injected MUSAIC_FPCALC but not FPCALC (the desktop shell sets
+    # both; a CLI/test may set only the former), mirror it so the invocation
+    # uses exactly the binary the availability check accepted — the two can't
+    # silently disagree and fall back to a PATH lookup that may be empty in a
+    # bundle.
+    resolved_fpcalc = _resolve_fpcalc()
+    if resolved_fpcalc and not os.environ.get("FPCALC"):
+        os.environ["FPCALC"] = resolved_fpcalc
 
     per_file: list[tuple[Path, float, str]] = []  # (path, duration, fingerprint)
     for flac_path in flacs:
@@ -278,7 +308,6 @@ SIMILARITY_DUPLICATE_THRESHOLD = 0.95
 
 import ctypes
 import ctypes.util
-import os
 from functools import lru_cache
 
 # Common locations to look for the dylib. Order matters — first match wins.
@@ -291,6 +320,30 @@ _LIBCHROMAPRINT_CANDIDATES: tuple[str, ...] = (
 )
 
 
+def _libchromaprint_candidates() -> tuple[list[str], str | None]:
+    """Build the ordered list of dylib paths to try, and return it alongside
+    the soname `ctypes.util.find_library` resolved (which dlopen can load by
+    loader path even when it isn't a file on disk).
+
+    Precedence:
+      1. ``MUSAIC_LIBCHROMAPRINT`` — explicit path the desktop shell injects
+         at its bundled dylib (issue #8, Phase 2). The bundle has no
+         Homebrew/distro install, so this is the only way the slow-path
+         decoder finds the lib.
+      2. the platform's own lookup (find_library).
+      3. the hardcoded Homebrew/distro locations.
+    """
+    name = ctypes.util.find_library("chromaprint")
+    candidates: list[str] = []
+    bundled = os.environ.get("MUSAIC_LIBCHROMAPRINT")
+    if bundled:
+        candidates.append(bundled)
+    if name:
+        candidates.append(name)
+    candidates.extend(_LIBCHROMAPRINT_CANDIDATES)
+    return candidates, name
+
+
 @lru_cache(maxsize=1)
 def _load_libchromaprint() -> ctypes.CDLL | None:
     """Locate and load libchromaprint. Returns None and logs a one-time
@@ -299,10 +352,7 @@ def _load_libchromaprint() -> ctypes.CDLL | None:
     # First try the platform's library lookup; on Linux this usually
     # works, on macOS it usually doesn't if Homebrew's lib path isn't
     # exported.
-    name = ctypes.util.find_library("chromaprint")
-    candidates = list(_LIBCHROMAPRINT_CANDIDATES)
-    if name:
-        candidates.insert(0, name)
+    candidates, name = _libchromaprint_candidates()
 
     for path in candidates:
         try:

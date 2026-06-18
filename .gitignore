@@ -8,6 +8,9 @@ __pycache__/
 .ruff_cache/
 dist/
 build/
+# …but the Electron desktop build scripts (issue #8) live in desktop/build/
+# and are source, not a Python artifact dir.
+!desktop/build/
 
 # uv / virtualenv
 .venv/

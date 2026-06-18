@@ -280,6 +280,15 @@ export interface AiProvider {
    *  via its own env / CLI chain (in which case `auth_hint` explains how). */
   accepts_api_key: boolean;
   auth_hint: string | null;
+  /** Whether the provider's external prerequisite (a CLI it shells out to,
+   *  e.g. `claude` / `gh`) is present. False → AI calls will fail until the
+   *  user installs it or switches providers; deterministic matching still
+   *  works. Key/SDK-chain providers are always `true` here. */
+  ready: boolean;
+  /** What's required, e.g. "the `claude` CLI". Null when ready. */
+  requirement: string | null;
+  /** Actionable fix when not ready. Null when ready. */
+  remedy: string | null;
 }
 
 export interface AiProvidersResponse {

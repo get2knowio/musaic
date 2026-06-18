@@ -1,0 +1,104 @@
+# Phase 3 (issue #8): build the Electron desktop installers on each OS's own
+# runner (no cross-compile — python-build-standalone + native fpcalc are
+# per-OS, and electron-builder targets are host-native).
+#
+# Heavy job (downloads a standalone CPython + the full dep stack + electron),
+# so it runs on demand and on version tags, not on every push. Artifacts are
+# uploaded, not published — signing/notarization (Phase 4) and auto-update
+# releases (Phase 6) come later.
+name: desktop
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14 # Apple Silicon → arm64 dmg + zip
+            artifact: musaic-macos-arm64
+          - os: windows-latest # → nsis installer
+            artifact: musaic-windows-x64
+          - os: ubuntu-22.04 # 22.04 baseline glibc for broad AppImage compat
+            artifact: musaic-linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install uv (fetches standalone CPython + installs deps)
+        uses: astral-sh/setup-uv@v6
+
+      # libchromaprint for the duplicate-tracks slow path. Best-effort: the
+      # build's fetch-binaries copies it when present, otherwise the bundle
+      # degrades to exact-match-only similarity. Windows has no easy source,
+      # so it's intentionally omitted there.
+      - name: Install chromaprint (macOS)
+        if: runner.os == 'macOS'
+        run: brew install chromaprint
+      - name: Install chromaprint (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libchromaprint1
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install desktop deps
+        working-directory: desktop
+        run: npm ci
+
+      - name: Assemble sidecar resources (python + deps + SPA + native bins)
+        working-directory: desktop
+        run: npm run build:resources
+
+      - name: Validate sidecar boots headless
+        working-directory: desktop
+        run: npm run validate:sidecar
+
+      - name: Validate fingerprinting via bundled binaries
+        working-directory: desktop
+        run: npm run validate:binaries
+
+      # Build the installer. Signing/notarization (Phase 4) activate only when
+      # the corresponding secrets are configured — electron-builder reads them
+      # from env; absent, the build is unsigned (the config gates on them).
+      # Publishing (Phase 6) happens only on a version tag, and only if a
+      # GH token + (for macOS) signing are present, since unsigned mac updates
+      # can't be applied.
+      - name: Build installer
+        working-directory: desktop
+        run: npm run dist -- --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing + notarization (no-op when unset)
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows Authenticode (no-op when unset)
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          retention-days: 14
+          path: |
+            desktop/release/*.dmg
+            desktop/release/*.zip
+            desktop/release/*.exe
+            desktop/release/*.AppImage
+            desktop/release/*.yml
+            desktop/release/*.blockmap
