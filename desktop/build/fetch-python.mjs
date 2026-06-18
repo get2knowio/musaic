@@ -45,14 +45,30 @@ function stripExternallyManaged(pythonRoot) {
   // python-build-standalone ships PEP-668 EXTERNALLY-MANAGED. This tree is a
   // private app runtime we fully own, so installing musaic into it is exactly
   // what it's for — drop the marker so `uv pip install` / pip don't refuse.
-  const libDir = path.join(pythonRoot, "lib");
-  if (!existsSync(libDir)) return;
-  for (const name of readdirSync(libDir)) {
-    const marker = path.join(libDir, name, "EXTERNALLY-MANAGED");
+  //
+  // The marker lives in the stdlib dir, whose layout differs by OS:
+  //   Unix:    <root>/lib/python3.X/EXTERNALLY-MANAGED
+  //   Windows: <root>/Lib/EXTERNALLY-MANAGED   (no per-version subdir)
+  // Cover both: the marker directly under lib/Lib, and one level down.
+  const markers = [];
+  for (const libName of ["lib", "Lib"]) {
+    const libDir = path.join(pythonRoot, libName);
+    if (!existsSync(libDir)) continue;
+    markers.push(path.join(libDir, "EXTERNALLY-MANAGED")); // Windows layout
+    for (const name of readdirSync(libDir)) {
+      markers.push(path.join(libDir, name, "EXTERNALLY-MANAGED")); // Unix layout
+    }
+  }
+  let removed = 0;
+  for (const marker of markers) {
     if (existsSync(marker)) {
       rmSync(marker);
+      removed++;
       log(`removed ${path.relative(pythonRoot, marker)}`);
     }
+  }
+  if (removed === 0) {
+    log("no EXTERNALLY-MANAGED marker found (nothing to strip)");
   }
 }
 

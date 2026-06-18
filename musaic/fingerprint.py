@@ -172,6 +172,15 @@ def fingerprint_album(
             duration, fingerprint = acoustid.fingerprint_file(
                 str(flac_path),
                 maxlength=120,  # 2 min is plenty for matching
+                # Force the fpcalc/Chromaprint path. Without this, pyacoustid
+                # prefers its `audioread` fallback when that module is installed
+                # (it is, transitively) — which decodes via a *system* backend
+                # (CoreAudio on macOS, an external ffmpeg/gstreamer binary on
+                # Linux). In the bundled app there's no such system decoder, so
+                # audioread raises NoBackendError and our bundled fpcalc (pointed
+                # to via FPCALC) never runs. force_fpcalc keeps fingerprinting
+                # deterministic and self-contained across platforms.
+                force_fpcalc=True,
             )
             # pyacoustid returns the fingerprint as bytes in some versions
             if isinstance(fingerprint, bytes):

@@ -73,7 +73,7 @@ const py = [
   "t = np.arange(int(sr * 5)) / sr",
   "y = (0.4 * np.sin(2*np.pi*440*t)).astype('float32')",
   "sf.write(wav, y, sr, format='FLAC')",
-  "duration, fpstr = acoustid.fingerprint_file(wav, maxlength=120)",
+  "duration, fpstr = acoustid.fingerprint_file(wav, maxlength=120, force_fpcalc=True)",
   "if isinstance(fpstr, bytes): fpstr = fpstr.decode('ascii')",
   "assert fpstr, 'empty fingerprint'",
   "print('  fingerprinted FLAC: duration', round(float(duration),1), 'fp_len', len(fpstr))",
