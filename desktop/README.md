@@ -1,17 +1,19 @@
-# Musaic desktop (Electron) — Phases 0–2
+# Musaic desktop (Electron) — Phases 0–3
 
 Tracks issue #8 ("Package musaic as a cross-platform Electron desktop app").
 This directory is the Electron shell that wraps the existing FastAPI + React
 app as a double-clickable desktop application.
 
-**Status: Phase 2 (native binaries) done.** The `build/` scripts assemble a
+**Status: Phase 3 (packaging) done.** The `build/` scripts assemble a
 relocatable standalone CPython with musaic + its full dep stack installed, the
 built SPA, **and the native `fpcalc` / `libchromaprint` binaries** under
-`resources/`. The shell prefers that bundled interpreter (`python -m
-musaic.main`) and points fingerprinting at the bundled binaries; it falls back
-to the dev loop (`uv run musaic`) when no bundle is present.
-electron-builder packaging/signing (Phases 3–4), AI gating (Phase 5), and
-auto-update (Phase 6) are not done yet.
+`resources/`; **electron-builder then packages that into per-OS installers**
+(macOS dmg/zip, Windows nsis, Linux AppImage) via a GitHub Actions matrix. The
+shell prefers the bundled interpreter (`python -m musaic.main`) and points
+fingerprinting at the bundled binaries; it falls back to the dev loop (`uv run
+musaic`) when no bundle is present. Signing/notarization (Phase 4), AI gating
+(Phase 5), and auto-update (Phase 6) are not done yet — current installers are
+**unsigned**.
 
 ## Phase 1 — bundled sidecar (`build/`)
 
@@ -70,6 +72,40 @@ the optional BPM/analyze endpoints. Dropping them (BPM as opt-in) is the biggest
 bundle-size win but is a product call — Phase 1 deliberately bundles the full
 stack so we've proven it works before deciding to cut it.
 
+## Phase 3 — packaging (electron-builder)
+
+`electron-builder.yml` packages the compiled main process (into `app.asar`)
+plus the assembled `resources/` tree (as `extraResources`, unpacked alongside
+the asar so the sidecar can exec/dlopen real files) into per-OS installers.
+
+```bash
+cd desktop
+npm install
+npm run build:resources    # assemble resources/ (Phases 1–2), once
+npm run pack               # → release/<os>/  unpacked app dir (fast smoke)
+npm run dist               # → release/  installers (dmg+zip / nsis / AppImage)
+```
+
+Key config decisions:
+- **`directories.output: release`** — not `dist/`, which is tsc's outDir for the
+  main process.
+- **`files: [dist, package.json]`** — only the main process enters the asar; the
+  ~760MB runtime ships as `extraResources`, so it isn't double-bundled. The app
+  has no production npm deps (main.ts uses only node builtins + electron).
+- **`extraResources: resources → .`** lands the tree at `process.resourcesPath`,
+  which `main.ts`'s `resourcesRoot()` reads when `app.isPackaged`. The python
+  tree's **relative symlinks survive** the copy (verified), so it still relocates.
+- **`mac.identity: null`** explicitly skips code signing so unsigned local + CI
+  builds succeed; Phase 4 adds Developer ID + notarization (and will need to sign
+  the bundled `fpcalc` + `libchromaprint` and the python tree's nested dylibs).
+
+**CI** (`.github/workflows/desktop.yml`): a matrix of macos-14 (arm64),
+windows-latest, ubuntu-22.04 — each builds on its own OS (no cross-compile,
+since the standalone CPython + native fpcalc are per-OS). It assembles
+resources, runs both validation gates, builds the installer, and uploads it as
+an artifact. Triggered on `workflow_dispatch` + `v*` tags (the job is heavy).
+Not published — releases/auto-update are Phase 6.
+
 ## Architecture (why HTTP sidecar, not IPC)
 
 The frontend uses only **relative** `/api` paths + `EventSource` SSE, and
@@ -109,15 +145,18 @@ a synced `uv sync` env and `uv` on PATH.
 ## Files
 
 - `src/main.ts` — main process: single-instance lock, free-port pick,
-  sidecar resolution (bundled python → dev fallback), health gate, window,
-  teardown (SIGTERM → SIGKILL).
+  sidecar resolution (bundled python → dev fallback), native-binary env
+  injection, health gate, window, teardown (SIGTERM → SIGKILL).
 - `src/preload.ts` — intentionally empty (renderer needs no IPC bridge).
-- `build/*.mjs` — Phase 1 bundling scripts (see above).
+- `build/*.mjs` — Phase 1–2 bundling scripts (see above).
+- `electron-builder.yml` — Phase 3 packaging config.
+- `../.github/workflows/desktop.yml` — Phase 3 CI matrix.
 - `package.json`, `tsconfig.json` — build config.
 
 ## Not yet present (later phases)
 
-`electron-builder.yml`, `entitlements.mac.plist`, and the per-OS
-packaging/signing pipeline (Phases 3–4). macOS notarization will need to sign
-the bundled `fpcalc` + `libchromaprint` (and re-point the dylib's install name)
-alongside the python tree's nested dylibs.
+`entitlements.mac.plist` + the signing/notarization pipeline (Phase 4): macOS
+notarization will need to sign the bundled `fpcalc` + `libchromaprint` (and
+re-point the dylib's install name) alongside the python tree's nested dylibs;
+Windows needs Authenticode. A custom app icon is also still TODO — builds
+currently use the default Electron icon.

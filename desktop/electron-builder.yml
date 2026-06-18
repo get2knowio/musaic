@@ -1,0 +1,58 @@
+# electron-builder config (issue #8, Phase 3): package the Electron shell +
+# the assembled `resources/` sidecar (standalone CPython, SPA, native binaries)
+# into per-OS installers.
+#
+# Run order: `npm run build:resources` (assemble resources/) → `npm run dist`
+# (tsc the main process, then electron-builder reads this file).
+appId: io.get2know.musaic
+productName: Musaic
+copyright: Copyright © Musaic contributors
+
+directories:
+  # NOT `dist/` — that's tsc's outDir for the compiled main process.
+  output: release
+  buildResources: build/installer
+
+# Only the compiled main-process code goes into the asar. The heavy runtime
+# (python, frontend, fpcalc, libchromaprint) ships as extraResources below,
+# unpacked alongside app.asar so the sidecar can exec/dlopen real files. The
+# app has no production node deps — main.ts uses only node builtins + electron.
+files:
+  - dist/**/*
+  - package.json
+
+# Assembled-at-build sidecar tree → Contents/Resources/ (== process.resourcesPath).
+# main.ts's resourcesRoot() reads it from there when app.isPackaged.
+extraResources:
+  - from: resources
+    to: .
+    filter:
+      - "**/*"
+
+# Don't rebuild native node modules — there are none.
+npmRebuild: false
+
+mac:
+  category: public.app-category.music
+  target:
+    - dmg
+    - zip
+  # Signing/notarization is Phase 4. Explicitly skip it so unsigned local +
+  # CI builds succeed instead of failing on a missing Developer ID.
+  identity: null
+  # numba/llvmlite JIT needs these once we DO sign (Phase 4); harmless now.
+  hardenedRuntime: false
+
+win:
+  target:
+    - nsis
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+
+linux:
+  category: AudioVideo
+  target:
+    - AppImage

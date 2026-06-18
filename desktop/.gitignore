@@ -3,3 +3,5 @@ dist/
 # Assembled at build time (Phase 1+): bundled python, frontend, native bins.
 resources/
 out/
+# electron-builder output (Phase 3).
+release/
