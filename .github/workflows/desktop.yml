@@ -14,6 +14,11 @@ on:
     tags:
       - "v*"
 
+# electron-builder publishes GitHub releases on tag builds (Phase 6), which
+# needs write access to repo contents. No-op for workflow_dispatch artifact runs.
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
