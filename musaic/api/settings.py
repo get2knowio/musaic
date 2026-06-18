@@ -175,6 +175,11 @@ def ai_providers() -> dict[str, Any]:
     providers: list[dict[str, Any]] = []
     for pid in installed:
         accepts_key = ai_module.runtime_accepts_api_key(pid)
+        # Phase 5 (issue #8): whether the provider's external prerequisite (a
+        # CLI it shells out to, e.g. `claude` / `gh`) is present. Drives the
+        # Settings "AI unavailable" banner; key/SDK-chain providers report
+        # ready=True (their auth is verified at call time).
+        status = ai_module.provider_runtime_status(pid)
         providers.append(
             {
                 "id": pid,
@@ -182,6 +187,9 @@ def ai_providers() -> dict[str, Any]:
                 # Key-based providers get no hint — the UI renders a key field
                 # instead. Chain-based ones get an actionable instruction.
                 "auth_hint": None if accepts_key else _AUTH_HINTS.get(pid, _AUTH_HINT_FALLBACK),
+                "ready": status["ready"],
+                "requirement": status["requirement"],
+                "remedy": status["remedy"],
             }
         )
 

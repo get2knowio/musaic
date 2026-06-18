@@ -10,6 +10,9 @@
     "url": "https://github.com/get2knowio/musaic.git"
   },
   "main": "dist/main.js",
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "npm run build && electron .",
@@ -20,8 +23,8 @@
     "build:resources": "npm run build:python && npm run build:sidecar && npm run build:binaries",
     "validate:sidecar": "node build/validate-sidecar.mjs",
     "validate:binaries": "node build/validate-binaries.mjs",
-    "pack": "npm run build && electron-builder --dir",
-    "dist": "npm run build && electron-builder"
+    "pack": "npm run build && electron-builder --dir --config electron-builder.config.js",
+    "dist": "npm run build && electron-builder --config electron-builder.config.js"
   },
   "devDependencies": {
     "electron": "^33.0.0",

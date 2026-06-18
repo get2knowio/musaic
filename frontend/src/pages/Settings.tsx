@@ -327,6 +327,21 @@ function AIBackendSection() {
           </select>
         </Row>
 
+        {/* Readiness — the selected provider's adapter shells out to a CLI
+            (claude / gh) that may be absent (esp. in the packaged desktop
+            app). When it's missing, AI calls fail; say so + how to fix, and
+            reassure that deterministic matching still works. */}
+        {selected && selected.ready === false && (
+          <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
+            <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+            <span>
+              AI suggestions are unavailable: {selectedId} needs{" "}
+              {selected.requirement ?? "an external CLI"}, which isn't installed.{" "}
+              {selected.remedy}
+            </span>
+          </div>
+        )}
+
         <Row
           label="Model"
           help="Vendor model id for the selected provider (e.g. claude-sonnet-4-6). Commit with Enter or by leaving the field."

@@ -68,9 +68,26 @@ jobs:
         working-directory: desktop
         run: npm run validate:binaries
 
+      # Build the installer. Signing/notarization (Phase 4) activate only when
+      # the corresponding secrets are configured — electron-builder reads them
+      # from env; absent, the build is unsigned (the config gates on them).
+      # Publishing (Phase 6) happens only on a version tag, and only if a
+      # GH token + (for macOS) signing are present, since unsigned mac updates
+      # can't be applied.
       - name: Build installer
         working-directory: desktop
-        run: npm run dist -- --publish never
+        run: npm run dist -- --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS signing + notarization (no-op when unset)
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows Authenticode (no-op when unset)
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
@@ -83,4 +100,5 @@ jobs:
             desktop/release/*.zip
             desktop/release/*.exe
             desktop/release/*.AppImage
+            desktop/release/*.yml
             desktop/release/*.blockmap

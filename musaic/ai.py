@@ -31,7 +31,9 @@ import contextvars
 import inspect
 import json
 import logging
+import os
 import re
+import shutil
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -864,6 +866,66 @@ def runtime_accepts_api_key(provider_id: str) -> bool:
         return False
 
 
+# ---------- Provider runtime readiness (issue #8, Phase 5) ----------
+#
+# Some airframe adapters shell out to an external CLI: the Claude adapter
+# (claude-agent-sdk) spawns the `claude` Node CLI; github-copilot's uses `gh`.
+# In a packaged desktop app that CLI may simply not be installed — and a
+# GUI-launched macOS app doesn't inherit the shell PATH, so even an installed
+# one can be invisible (the Electron shell augments PATH to mitigate that).
+# Rather than let the worker crash opaquely, we detect the prerequisite up
+# front and surface an actionable message; the deterministic MusicBrainz
+# resolver keeps working regardless, so AI being unavailable degrades the app
+# instead of breaking it.
+
+_PROVIDER_CLI: dict[str, str] = {
+    "claude": "claude",
+    "github-copilot": "gh",
+}
+
+_CLI_REMEDY: dict[str, str] = {
+    "claude": (
+        "Install the Claude CLI (`npm i -g @anthropic-ai/claude-code`) and make "
+        "sure it's on PATH, or switch to an API-key provider in Settings. "
+        "Deterministic MusicBrainz matching keeps working without it."
+    ),
+    "gh": (
+        "Install the GitHub CLI and run `gh auth login`, or switch providers. "
+        "Deterministic MusicBrainz matching keeps working without it."
+    ),
+}
+
+
+def _resolve_cli(cmd: str) -> str | None:
+    """Find an external CLI the way the desktop bundle will: an explicit
+    ``MUSAIC_<CMD>_CLI`` override first (so a future bundled CLI can be pinned),
+    then ``PATH``."""
+    override = os.environ.get(f"MUSAIC_{cmd.upper()}_CLI")
+    if override and os.path.isfile(override) and os.access(override, os.X_OK):
+        return override
+    return shutil.which(cmd)
+
+
+def provider_runtime_status(provider_id: str) -> dict[str, Any]:
+    """Whether the selected provider's external prerequisites are satisfiable.
+
+    Returns ``{ready, requirement, remedy}``. ``requirement``/``remedy`` are
+    ``None`` when ready. Only the CLI-backed providers are probed; key- and
+    SDK-chain providers report ``ready=True`` because their actual auth is
+    verified at call time (a missing key surfaces as a ``RuntimeAuthError`` with
+    its own guidance)."""
+    cli = _PROVIDER_CLI.get(provider_id)
+    if cli is None:
+        return {"ready": True, "requirement": None, "remedy": None}
+    if _resolve_cli(cli) is not None:
+        return {"ready": True, "requirement": f"the `{cli}` CLI", "remedy": None}
+    return {
+        "ready": False,
+        "requirement": f"the `{cli}` CLI",
+        "remedy": _CLI_REMEDY.get(cli, f"Install the `{cli}` CLI or switch providers."),
+    }
+
+
 def _build_runtime(provider_id: str, api_key: str) -> Any:
     """Construct the airframe runtime for `provider_id`, injecting the user's
     `api_key` only when the adapter accepts one. Adapters with env/CLI auth
@@ -988,6 +1050,18 @@ async def _agent_async(
     from . import settings as settings_module
 
     provider_id = settings_module.ai_provider_id()
+
+    # Preflight: if the provider needs an external CLI that isn't present, fail
+    # with the remedy instead of letting the adapter crash opaquely partway
+    # through. The resolver-first worker only reaches here when AI is actually
+    # needed, so this never fires for albums the deterministic tier covered.
+    status = provider_runtime_status(provider_id)
+    if not status["ready"]:
+        raise RuntimeError(
+            f"AI provider {provider_id!r} isn't ready — it needs {status['requirement']}. "
+            f"{status['remedy']}"
+        )
+
     model_id = settings_module.ai_model_id()
     runtime = _build_runtime(provider_id, settings_module.ai_api_key())
     model = ProviderModel(provider_id, model_id)

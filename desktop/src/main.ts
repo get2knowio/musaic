@@ -17,6 +17,7 @@ import { spawn, ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import { get as httpGet } from "node:http";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import * as path from "node:path";
 
 const HOST = "127.0.0.1";
@@ -133,6 +134,33 @@ function resolveSidecarCommand(): {
 }
 
 /**
+ * A GUI-launched macOS app inherits only a minimal PATH (`/usr/bin:/bin:…`),
+ * so user-installed CLIs the sidecar relies on — `uv` (the dev fallback) and
+ * the `claude` / `gh` CLIs the AI adapters shell out to (Phase 5) — are
+ * invisible even when installed. Prepend the common user/Homebrew bin dirs
+ * that actually exist so the backend's `shutil.which()` and the adapter
+ * subprocess spawns can find them. On Windows the unix dirs don't exist and
+ * are filtered out, so PATH is unchanged (GUI apps inherit the user PATH there).
+ */
+function augmentedPath(): string {
+  const home = homedir();
+  const extra = [
+    "/opt/homebrew/bin",
+    "/opt/homebrew/sbin",
+    "/usr/local/bin",
+    path.join(home, ".local", "bin"),
+    path.join(home, ".npm-global", "bin"),
+    path.join(home, "bin"),
+    path.join(home, ".bun", "bin"),
+    path.join(home, ".cargo", "bin"),
+  ].filter((d) => existsSync(d));
+  const current = process.env.PATH ?? "";
+  const seen = new Set(current.split(path.delimiter).filter(Boolean));
+  const prepend = extra.filter((d) => !seen.has(d));
+  return [...prepend, current].filter(Boolean).join(path.delimiter);
+}
+
+/**
  * Spawn the backend. Uses the bundled interpreter when present (Phase 1+),
  * else the dev `uv run musaic` loop (Phase 0). MUSAIC_PORT/MUSAIC_HOST tell
  * run() where to bind without a CLI flag; process.env is passed through so
@@ -146,6 +174,7 @@ function spawnSidecar(port: number): ChildProcess {
     env: {
       ...process.env,
       ...extraEnv,
+      PATH: augmentedPath(),
       MUSAIC_HOST: HOST,
       MUSAIC_PORT: String(port),
     },
@@ -215,6 +244,7 @@ async function boot(): Promise<void> {
   try {
     await waitForHealth(port);
     await mainWindow.loadURL(`http://${HOST}:${port}`);
+    void maybeCheckForUpdates();
   } catch (err) {
     console.error("[musaic] failed to start backend:", err);
     // Minimal failure surface for the spike; a real splash/error window
@@ -225,6 +255,25 @@ async function boot(): Promise<void> {
           `<h1>Musaic failed to start</h1><pre>${String(err)}</pre>`,
         ),
     );
+  }
+}
+
+/**
+ * Best-effort auto-update (Phase 6). Only runs in a packaged build (dev has no
+ * `app-update.yml`), and is fully guarded: a missing feed, no published
+ * release, an offline machine, or an unsigned build (macOS won't apply an
+ * unsigned update — that's gated on Phase 4 signing) all degrade to a quiet
+ * no-op rather than disrupting startup. electron-updater is loaded lazily so
+ * the dev path never touches it.
+ */
+async function maybeCheckForUpdates(): Promise<void> {
+  if (!app.isPackaged) return;
+  try {
+    const { autoUpdater } = await import("electron-updater");
+    autoUpdater.on("error", (e) => console.warn("[musaic] updater error:", e));
+    await autoUpdater.checkForUpdatesAndNotify();
+  } catch (err) {
+    console.warn("[musaic] update check skipped:", err);
   }
 }
 

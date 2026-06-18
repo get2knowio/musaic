@@ -1,19 +1,24 @@
-# Musaic desktop (Electron) — Phases 0–3
+# Musaic desktop (Electron) — Phases 0–6
 
 Tracks issue #8 ("Package musaic as a cross-platform Electron desktop app").
 This directory is the Electron shell that wraps the existing FastAPI + React
 app as a double-clickable desktop application.
 
-**Status: Phase 3 (packaging) done.** The `build/` scripts assemble a
-relocatable standalone CPython with musaic + its full dep stack installed, the
-built SPA, **and the native `fpcalc` / `libchromaprint` binaries** under
-`resources/`; **electron-builder then packages that into per-OS installers**
-(macOS dmg/zip, Windows nsis, Linux AppImage) via a GitHub Actions matrix. The
-shell prefers the bundled interpreter (`python -m musaic.main`) and points
-fingerprinting at the bundled binaries; it falls back to the dev loop (`uv run
-musaic`) when no bundle is present. Signing/notarization (Phase 4), AI gating
-(Phase 5), and auto-update (Phase 6) are not done yet — current installers are
-**unsigned**.
+**Status: all phases (0–6) implemented.** The `build/` scripts assemble a
+relocatable standalone CPython with musaic + its full dep stack, the built SPA,
+**and the native `fpcalc` / `libchromaprint` binaries** under `resources/`;
+**electron-builder packages that into per-OS installers** (macOS dmg/zip,
+Windows nsis, Linux AppImage) via a GitHub Actions matrix, **signs +
+notarizes** them when certs are configured, and ships an **electron-updater**
+feed. The shell prefers the bundled interpreter (`python -m musaic.main`),
+points fingerprinting at the bundled binaries, augments PATH so user CLIs are
+visible to a GUI-launched app, and falls back to the dev loop (`uv run
+musaic`) when no bundle is present.
+
+> **Activation note:** signing/notarization (Phase 4) and published auto-update
+> releases (Phase 6) are *gated on credentials* — with no certs/token in the
+> environment, builds are **unsigned** and nothing is published, but everything
+> works locally. Supplying the secrets (below) flips both on with no code change.
 
 ## Phase 1 — bundled sidecar (`build/`)
 
@@ -149,14 +154,63 @@ a synced `uv sync` env and `uv` on PATH.
   injection, health gate, window, teardown (SIGTERM → SIGKILL).
 - `src/preload.ts` — intentionally empty (renderer needs no IPC bridge).
 - `build/*.mjs` — Phase 1–2 bundling scripts (see above).
-- `electron-builder.yml` — Phase 3 packaging config.
-- `../.github/workflows/desktop.yml` — Phase 3 CI matrix.
+- `build/entitlements.mac.plist` — Phase 4 hardened-runtime entitlements.
+- `electron-builder.config.js` — Phase 3/4/6 packaging config (signing + publish gated on env).
+- `../.github/workflows/desktop.yml` — CI matrix (build, sign, publish).
 - `package.json`, `tsconfig.json` — build config.
 
-## Not yet present (later phases)
+## Phase 4 — signing & notarization (gated on certs)
 
-`entitlements.mac.plist` + the signing/notarization pipeline (Phase 4): macOS
-notarization will need to sign the bundled `fpcalc` + `libchromaprint` (and
-re-point the dylib's install name) alongside the python tree's nested dylibs;
-Windows needs Authenticode. A custom app icon is also still TODO — builds
-currently use the default Electron icon.
+`electron-builder.config.js` is a JS config (not static yml) precisely so
+signing can be conditional: `mac.identity` is `null` (skip) until a cert env
+var appears, then it signs, turns on the hardened runtime with
+`build/entitlements.mac.plist`, and notarizes when Apple creds are present.
+electron-builder's deep-sign pass covers the bundled `fpcalc`,
+`libchromaprint`, and the python tree's nested dylibs under the same identity.
+
+The entitlements grant what the bundled stack needs under the hardened runtime:
+`allow-jit` + `allow-unsigned-executable-memory` (numba/llvmlite JIT),
+`disable-library-validation` (load dylibs not signed by our Team ID), and
+`allow-dyld-environment-variables`.
+
+To activate, set these in the CI environment (GitHub repo secrets, consumed by
+`.github/workflows/desktop.yml`):
+
+| Secret | Purpose |
+|---|---|
+| `MAC_CSC_LINK` / `MAC_CSC_KEY_PASSWORD` | Developer ID cert (.p12, base64) + password |
+| `APPLE_ID` / `APPLE_APP_SPECIFIC_PASSWORD` / `APPLE_TEAM_ID` | notarization |
+| `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` | Windows Authenticode cert |
+
+## Phase 5 — AI availability gating
+
+AI runs through airframe; the Claude adapter shells out to the `claude` CLI
+(github-copilot to `gh`). In a packaged app that CLI may be absent — and a
+GUI-launched macOS app doesn't even inherit the shell PATH. Two mitigations:
+
+- **PATH augmentation** (`main.ts`): the shell prepends the common
+  user/Homebrew bin dirs that exist, so `claude` / `gh` / `uv` resolve for a
+  double-clicked app.
+- **Readiness probe** (`musaic/ai.py` `provider_runtime_status`): the
+  `/api/ai/providers` endpoint reports whether the selected provider's CLI is
+  present; Settings shows an actionable banner when it isn't, and the worker
+  fails with that remedy instead of an opaque crash. Either way the
+  **deterministic MusicBrainz resolver keeps working** — AI being unavailable
+  degrades the app rather than breaking it. Bundling the `claude` CLI is a
+  deliberate non-goal for v1; steer users to an API-key provider instead.
+
+## Phase 6 — auto-update (gated on a published feed)
+
+`electron-updater` (a bundled production dep) checks for updates on launch —
+guarded to packaged builds, and to a quiet no-op when there's no feed / no
+release / offline / unsigned (macOS won't apply an unsigned update). The
+`publish: github` config embeds `app-update.yml` into the app and emits the
+`latest-*.yml` update manifests. CI publishes to GitHub releases **only on a
+`v*` tag** (and only with a token + signing). Note: a full-bundle update is a
+large download (~370 MB) — delta/partial updates are a future refinement.
+
+## Still TODO
+
+A custom app icon (builds use the default Electron icon); the librosa-drop
+size lever; in-app "an update is ready" UX (currently `checkForUpdatesAndNotify`
+uses the OS notification + installs on quit).
