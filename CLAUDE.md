@@ -55,6 +55,19 @@ Test layout:
 
 Tests redirect `MUSAIC_CONFIG_DIR` to a tmp dir via `tests/conftest.py` so the user's real `~/.musaic` is untouched. The env var is set at the very top of conftest.py, before any `musaic.*` import, because `config.CONFIG_DIR` is captured at module-load time.
 
+#### Frontend (Vitest)
+```bash
+cd frontend && npm test          # vitest run (jsdom)
+cd frontend && npm run test:watch # watch mode
+cd frontend && npm run typecheck:test  # type-check the tests (tsconfig.vitest.json)
+```
+
+Config: `vitest.config.ts` (separate from `vite.config.ts` — no dev-proxy noise; mirrors only the `@` alias + the React plugin). Setup: `src/test/setup.ts` wires jest-dom matchers, DOM cleanup, and a controllable `MockEventSource` (jsdom ships no `EventSource`, which every App-level SSE hook constructs). Fixtures: `src/test/fixtures.ts` (`makeAlbum` / `makeJob`).
+
+Test files live next to their target (`*.test.ts(x)`) and are **excluded from the production build** (`tsconfig.app.json` `exclude`), so `npm run build` / `npm run typecheck` never compile them; `npm run typecheck:test` covers them via `tsconfig.vitest.json`.
+
+Current coverage is the load-bearing client logic — the SSE→cache-invalidation map (`useLibraryEventsStream`, pattern #5) and the pure helpers (`albumFields`, `albumSort`, `filters`). It exists chiefly to catch behavioural regressions under major dependency bumps (React, react-router, vite) that type-checking alone wouldn't surface.
+
 ### Diagnostics
 ```bash
 python diagnose_claude.py [album_id]   # Test Claude AI integration
