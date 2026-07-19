@@ -8,7 +8,7 @@ dependencies = [
     # Cap below 0.137: fastapi 0.137.x regressed include_router (routes
     # silently dropped on include), which breaks every /api route. 0.136.1
     # is the last working line. Revisit when upstream fixes it.
-    "fastapi>=0.136.1,<0.137",
+    "fastapi>=0.139.2,<0.140",
     "uvicorn[standard]>=0.49.0",
     "mutagen>=1.48.1",
     "pydantic>=2.13.4",
@@ -18,8 +18,8 @@ dependencies = [
     # web tools). Install more adapters (e.g. airframe-agents[bedrock]) as
     # needed. Pinned to 0.9.0rc6; bump as airframe releases.
     # NB: [kimi] is excluded — disabled upstream pending an mcp co-install fix.
-    "airframe-agents[claude,copilot,opencode]==0.9.0rc6",
-    "anyio>=4.14.1",
+    "airframe-agents[claude,copilot,opencode]==0.9.1",
+    "anyio>=4.14.2",
     "Pillow",
     "requests",
     # Per-track audio fingerprinting via Chromaprint + AcoustID. Wraps the
