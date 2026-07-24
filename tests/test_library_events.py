@@ -15,10 +15,8 @@ producers can rely on the contract.
 """
 from __future__ import annotations
 
-import contextvars
 import threading
 import time
-from dataclasses import dataclass
 
 import pytest
 

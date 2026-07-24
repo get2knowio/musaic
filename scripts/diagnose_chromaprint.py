@@ -34,6 +34,7 @@ except Exception:
 
 # ---- 2. Pull one fingerprint string ----
 from musaic.db import _connect_raw  # type: ignore
+
 conn = _connect_raw()
 row = conn.execute(
     "SELECT album_id, filename, fingerprint FROM track_fingerprints "
@@ -43,7 +44,7 @@ if row is None:
     print("\n[2] No fingerprint rows in DB — fingerprint a few albums first")
     sys.exit(0)
 fp = row["fingerprint"]
-print(f"\n[2] Sample fingerprint:")
+print("\n[2] Sample fingerprint:")
 print(f"    album_id: {row['album_id']}")
 print(f"    filename: {row['filename']!r}")
 print(f"    type:     {type(fp).__name__}")
@@ -76,6 +77,7 @@ for label, fn in attempts:
 # ---- 4. Self-similarity sanity ----
 print("\n[4] chromaprint_similarity(fp, fp) — should be 1.0:")
 from musaic.fingerprint import chromaprint_similarity  # type: ignore
+
 sim = chromaprint_similarity(fp, fp)
 print(f"    similarity: {sim}")
 if sim != 1.0:

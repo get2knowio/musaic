@@ -29,7 +29,6 @@ from musaic.services.resolver import (
     TrackResolution,
 )
 
-
 # ---------- Fixtures + helpers ----------
 
 

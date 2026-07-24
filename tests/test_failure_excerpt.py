@@ -16,9 +16,10 @@ import json
 
 import pytest
 
-from musaic import ai, db as db_module, jobs as jobs_module
+from musaic import ai
+from musaic import db as db_module
+from musaic import jobs as jobs_module
 from musaic.services import worker
-
 
 # ---------- Pure helpers ----------
 

@@ -42,11 +42,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from dataclasses import asdict, fields
+from dataclasses import fields
 from typing import Any
 
 from .. import library_events as events
-
 
 _log = logging.getLogger(__name__)
 

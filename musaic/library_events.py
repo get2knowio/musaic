@@ -55,7 +55,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Type, TypeVar
 
-
 _log = logging.getLogger(__name__)
 
 

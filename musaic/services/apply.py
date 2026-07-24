@@ -30,7 +30,6 @@ import logging
 from typing import Any, Iterator
 
 from .. import cache as cache_module
-from .. import thumbs as thumbs_module
 from ..scanner import album_to_dict, scan_one_album
 from ..tags import (
     apply_to_album_iter,

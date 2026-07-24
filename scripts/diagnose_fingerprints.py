@@ -12,16 +12,14 @@ Now extended to actively reproduce the persistence path:
 """
 from __future__ import annotations
 
-import os
-import sqlite3
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
-from musaic.db import DB_PATH, _connect_raw  # type: ignore
 from musaic import cache as cache_module  # type: ignore
+from musaic.db import DB_PATH, _connect_raw  # type: ignore
 
 print(f"DB:   {DB_PATH}")
 print(f"size: {DB_PATH.stat().st_size:,} bytes")

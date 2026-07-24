@@ -14,7 +14,7 @@ fixture and consuming the iterator.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, ClassVar, Iterable, Literal, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar, Iterable, Literal
 
 if TYPE_CHECKING:
     # Ambient type for what a check sees; concretely a list of dicts loaded

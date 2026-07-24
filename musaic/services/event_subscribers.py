@@ -36,14 +36,11 @@ from ..checks import runner as checks_runner
 from ..library_events import (
     AlbumCoverChanged,
     AlbumDeleted,
-    AlbumMbAnchorSet,
     AlbumRenamed,
     AlbumScopedEvent,
-    AlbumTagsChanged,
     BulkBatchCompleted,
     Event,
     LibraryScanCompleted,
-    TrackFingerprinted,
 )
 from . import resolver as resolver_service
 from .post_scan import run_post_scan_checks

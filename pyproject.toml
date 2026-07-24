@@ -49,6 +49,7 @@ packages = ["musaic"]
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.1.1",
+    "ruff>=0.9",
 ]
 
 [project.scripts]
@@ -56,3 +57,24 @@ musaic = "musaic.main:run"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+# Lean starter ruleset — high-signal correctness (pyflakes) + import hygiene +
+# whitespace. E501 (line length) is intentionally off: the AI system prompts and
+# some docstrings are long single strings not worth wrapping. Tighten over time
+# (add UP/B/SIM) once the baseline is green in CI.
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "I"]
+# E501 long AI-prompt strings/docstrings; E731/E741 deliberate local lambdas +
+# short math var names (l = LUFS in the loudness aggregation).
+ignore = ["E501", "E731", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# E402: imports intentionally placed after top-of-file setup, not a mistake.
+"tests/conftest.py" = ["E402"]      # sets MUSAIC_CONFIG_DIR before importing musaic.*
+"scripts/*" = ["E402"]              # sys.path / env setup precedes imports
+"musaic/fingerprint.py" = ["E402"]  # ctypes imports grouped with the dylib-loading block
+"musaic/mb_lookup.py" = ["E402"]    # lru_cache import grouped with its cached helper

@@ -20,7 +20,6 @@ import pytest
 from musaic import mb_lookup
 from musaic.services import resolver
 
-
 # ---------- Fixtures ----------
 
 

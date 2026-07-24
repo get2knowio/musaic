@@ -268,7 +268,8 @@ def list_snapshots() -> dict[str, Any]:
 def create_snapshot() -> dict[str, Any]:
     """Take a manual snapshot now, bypassing the interval gate. Retention
     is still enforced (older snapshots may get pruned)."""
-    from .. import db_backup, settings as settings_module
+    from .. import db_backup
+    from .. import settings as settings_module
     retention = settings_module.snapshot_retention()
     if retention <= 0:
         raise HTTPException(

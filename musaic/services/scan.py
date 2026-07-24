@@ -25,7 +25,6 @@ import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Iterator
 
 from .. import cache as cache_module

@@ -40,7 +40,8 @@ async def _lifespan(_app: FastAPI):
     elapsed since the last one."""
     # Snapshot first, before the worker can start mutating state.
     try:
-        from . import db_backup, settings as settings_module
+        from . import db_backup
+        from . import settings as settings_module
         retention = settings_module.snapshot_retention()
         interval = settings_module.snapshot_min_interval_hours()
         snap = db_backup.maybe_auto_snapshot(
