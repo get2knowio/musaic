@@ -23,3 +23,24 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # Desktop / Electron packaging (npm — desktop/package.json + package-lock.json).
+  # Previously unwatched, which is why the fast-uri / js-yaml / brace-expansion
+  # transitive alerts in the electron-builder toolchain had no update PRs.
+  - package-ecosystem: "npm"
+    directory: "/desktop"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # GitHub Actions used by ci.yml + desktop.yml (keeps action versions current).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10

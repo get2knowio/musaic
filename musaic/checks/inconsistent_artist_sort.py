@@ -635,12 +635,13 @@ def apply_cluster_sort(
         log.info("apply_cluster_sort: starting post-apply check rerun")
         try:
             import asyncio
-            from .. import config as config_module
             from pathlib import Path
+
+            from .. import config as config_module
             cfg = config_module.load_config()
             if cfg.library_dir:
-                from .runner import run_check
                 from . import REGISTRY as CHECK_REGISTRY
+                from .runner import run_check
                 lib_path = str(Path(cfg.library_dir).expanduser().resolve())
                 for cls in CHECK_REGISTRY:
                     if not cls.meta.runs_during_scan:

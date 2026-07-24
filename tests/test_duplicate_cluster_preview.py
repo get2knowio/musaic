@@ -21,7 +21,6 @@ import pytest
 from musaic import db as db_module
 from musaic.checks import duplicate_tracks
 
-
 LIBRARY_PATH = "/fake/library"
 
 

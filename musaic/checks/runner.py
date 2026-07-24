@@ -28,13 +28,13 @@ import asyncio
 import json
 import logging
 import time
-from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any
 
-from . import REGISTRY, get as _get_check_class
-from .base import Check, CheckScope, Finding, FixResult
 from .. import db as db_module
+from . import REGISTRY
+from . import get as _get_check_class
+from .base import Check, CheckScope, Finding, FixResult
 
 log = logging.getLogger(__name__)
 

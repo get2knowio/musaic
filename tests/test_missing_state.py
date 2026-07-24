@@ -24,7 +24,6 @@ These tests cover:
 """
 from __future__ import annotations
 
-import asyncio
 from typing import Any
 
 import pytest
@@ -34,11 +33,9 @@ from musaic import db as db_module
 from musaic import library_events as bus
 from musaic.checks import (
     inconsistent_artist_sort,
-    track_gaps,
 )
 from musaic.checks.base import CheckScope
 from musaic.services import scan as scan_service
-
 
 LIBRARY_PATH = "/fake/library"
 
@@ -397,8 +394,8 @@ def test_apply_publishes_tags_changed_even_if_consumer_closes_early(
     at the yield, exactly as StreamingResponse would on client
     disconnect).
     """
-    from musaic.services import apply as apply_service
     from musaic import library_events as bus
+    from musaic.services import apply as apply_service
 
     album_dir = tmp_path / "Test Album [FLAC]"
     album_dir.mkdir()
@@ -612,7 +609,6 @@ def test_run_check_filters_missing_albums_from_scope(monkeypatch):
     # Inject track_numbers with gaps so the check WOULD yield findings
     # for both if both were in scope. Track-gaps reads from
     # scope.albums[i]["track_numbers"].
-    from musaic.checks.runner import run_check
     # We can't easily monkeypatch the track_numbers since they come
     # from snapshot.albums_by_path; check the SCOPE directly via the
     # runner's load path.

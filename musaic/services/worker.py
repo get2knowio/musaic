@@ -13,11 +13,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from pathlib import Path
 from typing import Any
 
 from .. import cache as cache_module
-from .. import config as config_module
 from .. import jobs as jobs_module
 from .. import mb_lookup
 from .albums import cached_album_dict, read_tracks

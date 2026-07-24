@@ -19,16 +19,16 @@ from ..scanner import (
     find_album_by_id,
     get_embedded_cover,
 )
+from ..services import resolver as resolver_service
+from ..services import scan as scan_service
 from ..services.albums import (
     albums_for,
     cached_album_dict,
     invalidate_cache,
-    resolve_album_dict,
     read_tracks,
+    resolve_album_dict,
     sort_albums,
 )
-from ..services import resolver as resolver_service
-from ..services import scan as scan_service
 from ..services.sse import sse_event
 
 _log = logging.getLogger(__name__)

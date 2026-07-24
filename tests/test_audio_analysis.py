@@ -17,7 +17,6 @@ import pytest
 import soundfile as sf
 from mutagen.flac import FLAC
 
-from musaic import config as config_module
 from musaic.services import audio_analysis
 
 

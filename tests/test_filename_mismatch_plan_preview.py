@@ -22,7 +22,6 @@ import pytest
 from musaic import db as db_module
 from musaic.checks import filename_mismatch
 
-
 LIBRARY_PATH = "/fake/library"
 
 

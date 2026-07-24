@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from musaic import album_fields
 
-
 # ---------- display_artist ----------
 
 

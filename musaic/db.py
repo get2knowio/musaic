@@ -20,7 +20,6 @@ from __future__ import annotations
 import logging
 import sqlite3
 from contextlib import contextmanager
-from pathlib import Path
 from typing import Iterator
 
 from .config import CONFIG_DIR

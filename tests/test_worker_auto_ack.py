@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from musaic.services.worker import _is_no_op_confirmation
 
-
 MBID = "9b03c15f-f0ac-3205-8327-8b7e91a923cf"
 
 

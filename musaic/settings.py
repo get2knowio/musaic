@@ -19,7 +19,6 @@ from typing import Any
 
 from . import db as db_module
 
-
 # ---------- Keys + defaults ----------
 
 KEY_AI_MAX_PARALLEL = "ai_max_parallel"

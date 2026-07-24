@@ -466,7 +466,7 @@ def _is_stale(last_checked_at: str | None) -> bool:
     if not last_checked_at:
         return True
     try:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
         ts = datetime.fromisoformat(last_checked_at.replace("Z", "+00:00"))
         return datetime.now(timezone.utc) - ts > timedelta(days=CACHE_REFRESH_DAYS)
     except Exception:

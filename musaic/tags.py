@@ -12,7 +12,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from mutagen.flac import FLAC, Picture
 
@@ -286,7 +286,7 @@ def apply_to_album_iter(
                     "old_filename": orig.name,
                     "new_filename": final.name,
                 }
-        except Exception as e:
+        except Exception:
             log.exception("rename batch failed; attempting rollback")
             errors += 1
             for orig, tmp, _final in staged:

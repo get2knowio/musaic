@@ -141,7 +141,10 @@ async def _run_diagnostics() -> None:
 
 async def _call(label: str, *, model: str, allowed_tools: list[str], max_turns: int) -> None:
     from claude_agent_sdk import (
-        AssistantMessage, ClaudeAgentOptions, ResultMessage, query,
+        AssistantMessage,
+        ClaudeAgentOptions,
+        ResultMessage,
+        query,
     )
 
     print("\n" + "=" * 60)

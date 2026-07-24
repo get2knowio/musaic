@@ -19,12 +19,12 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(HERE))
 
-from musaic.db import _connect_raw  # type: ignore
 from musaic import fingerprint as fingerprint_module  # type: ignore
 from musaic.checks.duplicate_tracks import (  # type: ignore
     _MAX_DURATION_DELTA_SEC,
     _MIN_FINGERPRINT_SIMILARITY,
 )
+from musaic.db import _connect_raw  # type: ignore
 
 if len(sys.argv) < 2:
     print("Usage: diagnose_album.py <substring of dir_name>")
@@ -57,7 +57,7 @@ for a in albums:
     ).fetchall()
     print(f"    track_fingerprints rows: {len(fps)}")
     if not fps:
-        print(f"      (none — album has not been fingerprinted yet)")
+        print("      (none — album has not been fingerprinted yet)")
         print()
         continue
 
