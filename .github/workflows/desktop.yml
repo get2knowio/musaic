@@ -40,7 +40,7 @@ jobs:
           node-version: "20"
 
       - name: Install uv (fetches standalone CPython + installs deps)
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
 
       # libchromaprint for the duplicate-tracks slow path. Best-effort: the
       # build's fetch-binaries copies it when present, otherwise the bundle
