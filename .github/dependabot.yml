@@ -11,6 +11,13 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # fastapi is intentionally pinned <0.137 in pyproject.toml: 0.137.x
+      # regressed include_router (routes silently dropped on include). Stop
+      # Dependabot re-proposing 0.137+ every cycle; drop this once upstream
+      # fixes the regression and the pin is lifted.
+      - dependency-name: "fastapi"
+        versions: [">=0.137"]
 
   # Frontend (npm — frontend/package.json + package-lock.json)
   - package-ecosystem: "npm"
