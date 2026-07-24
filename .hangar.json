@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "ignore": [
+    {
+      "check": "pinned_deps",
+      "reason": "No Dockerfile — Musaic ships as a uv/npm project plus an Electron bundle (python-build-standalone + native binaries), not a container image, so there is no FROM to pin by digest."
+    }
+  ]
+}
