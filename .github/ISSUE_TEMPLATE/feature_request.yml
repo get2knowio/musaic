@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest an idea or improvement for Musaic
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The use case or pain point behind the request.
+      placeholder: When maintaining a large library, I can't ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like to happen. Rough ideas are fine.
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
