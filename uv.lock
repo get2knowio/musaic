@@ -11,15 +11,15 @@ resolution-markers = [
 
 [[package]]
 name = "airframe-agents"
-version = "0.9.0rc6"
+version = "0.9.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/30/94/9e7122c99d807076c4f90c698d6a3b92ddea640564ce32dd0a9fe7986a57/airframe_agents-0.9.0rc6.tar.gz", hash = "sha256:38bb7a3304c4bfedf4d29a54c66e85e80869128311b85b35c5a5b555674f0a26", size = 579613, upload-time = "2026-06-15T16:10:02.426Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f7/42/8a93ab73c8e380f99b5fc0d030e2a2e526facd52b0e028c215644d3777c9/airframe_agents-0.9.1.tar.gz", hash = "sha256:dab66c24bec33a99359ac9ee9d696517fa5f6f45adb9f6670f9adf34f72055f2", size = 600684, upload-time = "2026-07-11T16:28:39.708Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/c3/bec573677c523805d95b4f5bd7a3136a611e503ddd7db1c37004e89372d0/airframe_agents-0.9.0rc6-py3-none-any.whl", hash = "sha256:15b8e7443f5beaaa0f119d8b53e613885e02644a19c6c8075f8adc3574b7e1e9", size = 224711, upload-time = "2026-06-15T16:10:00.579Z" },
+    { url = "https://files.pythonhosted.org/packages/f1/fb/8da9d745100fd5abefe74f2c4dfdb87284e119ba45853dfe83e731e6041c/airframe_agents-0.9.1-py3-none-any.whl", hash = "sha256:a4c98c453802761bd2ef8645d75fd60ad29f0912f82b6baf387eda009ca8f4dc", size = 232088, upload-time = "2026-07-11T16:28:38.071Z" },
 ]
 
 [package.optional-dependencies]
@@ -54,7 +54,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.109.2"
+version = "0.120.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -66,22 +66,22 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1b/b7/9a8e2f79011e89dd6eeb599c27332aed765dac9d6fbee3a55e68e4e3ec25/anthropic-0.109.2.tar.gz", hash = "sha256:d37db299597c7bc124b49b767ff135f1e6456b64af2b2fad4b63b2a1df333cf0", size = 927559, upload-time = "2026-06-15T17:30:25.024Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/92/5c/3331da4fc009d448008a50c78d86cc929e8c937cd1442245ce3f80561c4e/anthropic-0.120.0.tar.gz", hash = "sha256:6ba6007dc9b00365b20f6101a6618f5196ac1ceef81512e4b5cc0e7436d4975d", size = 1008042, upload-time = "2026-07-24T16:32:52.384Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d1/f2/bee5de8a2699fc8a3cce34d61c7a2626a2c310ddde7ea5611327eb0ddbe9/anthropic-0.109.2-py3-none-any.whl", hash = "sha256:e0fb4ca5df0ed983248c9c6c3242adc81d9cfddb8725902da53698554117abac", size = 923800, upload-time = "2026-06-15T17:30:23.124Z" },
+    { url = "https://files.pythonhosted.org/packages/1b/8a/8522bdf809e1f95f0d9c936540987a3f6afba01d2921a2bf488dedf836a8/anthropic-0.120.0-py3-none-any.whl", hash = "sha256:591bd531563ec7b63a1e138f5c11f14cb94edda99623b349c2ce2ece8e08b8a5", size = 1022602, upload-time = "2026-07-24T16:32:50.506Z" },
 ]
 
 [[package]]
 name = "anyio"
-version = "4.14.1"
+version = "4.14.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "idna" },
     { name = "typing-extensions", marker = "python_full_version < '3.13'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/72/5562aabb8dd7181e8e860622a38bea08d17842b99ecd4c91f84ac95251b0/anyio-4.14.1.tar.gz", hash = "sha256:8d648a3544c1a700e3ff78615cd679e4c5c3f149904287e73687b2596963629e", size = 254831, upload-time = "2026-06-24T20:56:06.017Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/cc/a381afa6efea9f496eff839d4a6a1aed3bfafc7b3ab4b0d1b243a12573dd/anyio-4.14.2.tar.gz", hash = "sha256:cfa139f3ed1a23ee8f88a145ddb5ac7605b8bbfd8592baacd7ce3d8bb4313c7f", size = 260176, upload-time = "2026-07-12T20:29:07.082Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/7b/90df4a0a816d98d6ea26f559d87836d494a2cf1fcf063be67df50a7bcc30/anyio-4.14.1-py3-none-any.whl", hash = "sha256:4e5533c5b8ff0a24f5d7a176cbe6877129cd183893f66b537f8f227d10527d72", size = 124875, upload-time = "2026-06-24T20:56:04.413Z" },
+    { url = "https://files.pythonhosted.org/packages/da/35/f2287558c17e29fafc8ef3daf819bb9834061cfa43bff8014f7df7f63bdc/anyio-4.14.2-py3-none-any.whl", hash = "sha256:9f505dda5ac9f0c8309b5e8bd445a8c2bf7246f3ce950121e45ea15bc41d1494", size = 125813, upload-time = "2026-07-12T20:29:05.763Z" },
 ]
 
 [[package]]
@@ -303,20 +303,20 @@ wheels = [
 
 [[package]]
 name = "claude-agent-sdk"
-version = "0.2.101"
+version = "0.2.126"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "mcp" },
     { name = "sniffio" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/88/df/c60107c0b5f246017ab81d628b50d0b4d7a8f43230a3a978085829754cef/claude_agent_sdk-0.2.101.tar.gz", hash = "sha256:f9663e3b8b3a79c20bffd3196525fa5734a1908c1a69ea01aea4de877901a097", size = 255630, upload-time = "2026-06-13T01:37:22.255Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1b/33/30d51e1c53bb834fc4d51a39560c2e0cee0627767b2cc3b2001eb3b4ddb4/claude_agent_sdk-0.2.126.tar.gz", hash = "sha256:b0077f8da92f402032ec91b27499eb896aa97a9d78150ccd4a7840d39e70b9de", size = 304715, upload-time = "2026-07-22T21:40:34.678Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/29/3e/f4dacad00720da9362675faaf08f0c3d5e9abab09ed1b21590279f1cb16c/claude_agent_sdk-0.2.101-py3-none-macosx_11_0_arm64.whl", hash = "sha256:c07981e7fbf0cdbf2944a19f852f784c72de9764ea510cf602480eaf8749c969", size = 66210240, upload-time = "2026-06-13T01:37:25.7Z" },
-    { url = "https://files.pythonhosted.org/packages/24/00/61213b804921325d378b27a1fbd1864775a136713d87873a321fce2b50c4/claude_agent_sdk-0.2.101-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:3c03f59de5d7a78509be4f804fd73a2ff67935f13b159b1d89becb3a21ff2d78", size = 68255953, upload-time = "2026-06-13T01:37:29.082Z" },
-    { url = "https://files.pythonhosted.org/packages/52/ea/88e793dcadd7f3b429156f6a648bc191d1f1800aa059e309848b2b7c6bc0/claude_agent_sdk-0.2.101-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:97019d8db2d0aad5632d2f121ea88fb0310e27fc9181cf9f6bc758de640a4c35", size = 75795256, upload-time = "2026-06-13T01:37:32.628Z" },
-    { url = "https://files.pythonhosted.org/packages/40/04/768545299593e963605e99b4a97cb43565e742e994992e69b74999e126ab/claude_agent_sdk-0.2.101-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:ac43f1e0cb7980b447bcbaef7614f6cd068cfd4653c555e3dead2d72d9117133", size = 75968983, upload-time = "2026-06-13T01:37:36.072Z" },
-    { url = "https://files.pythonhosted.org/packages/00/8b/b4c906d8b18aa39afdf6f4a32f94040b9eaf2ef0481b9cd54591bab24d0d/claude_agent_sdk-0.2.101-py3-none-win_amd64.whl", hash = "sha256:9d994518a4939e17c389ae063f06c236528b4ddc23557d22f1a2685a6dc8d7a6", size = 76570206, upload-time = "2026-06-13T01:37:39.593Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/27/2624f73d65c24e2f2ebf8f4ef95f98a71bf382f3f622c439f096af8a66e8/claude_agent_sdk-0.2.126-py3-none-macosx_11_0_arm64.whl", hash = "sha256:edac88522b6fca74f1a84aa0d0f29caad4adda8aed04c3f08b86836e06c6c271", size = 74592742, upload-time = "2026-07-22T21:40:38.469Z" },
+    { url = "https://files.pythonhosted.org/packages/f8/38/d774167d45c238f69a49734154236d1632ef7204153eafd13c126add32a3/claude_agent_sdk-0.2.126-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:8dd73c1a193afa133241d7346e89e5b60ebf45f6a8f2cc38c84c8aad794af61e", size = 79619741, upload-time = "2026-07-22T21:40:42.25Z" },
+    { url = "https://files.pythonhosted.org/packages/01/f4/786a8c67b53677af27fdbe3b3a80ee57c38ca18f95d44ec03567f97a7495/claude_agent_sdk-0.2.126-py3-none-manylinux_2_17_aarch64.whl", hash = "sha256:239e6073486488ce78fe88681c05e819562f5c5e567f02574492c3be3d35684b", size = 84165405, upload-time = "2026-07-22T21:40:46.331Z" },
+    { url = "https://files.pythonhosted.org/packages/e0/42/76603fcd11ab51713ec0138c21ffbb82f5f1afcab9f73729e7e23a19e055/claude_agent_sdk-0.2.126-py3-none-manylinux_2_17_x86_64.whl", hash = "sha256:79caa03c6612e268bee93e95170d6b9ffdfa4bb21373a2e9ba7a439d3fb2e8e8", size = 85204584, upload-time = "2026-07-22T21:40:50.769Z" },
+    { url = "https://files.pythonhosted.org/packages/01/95/2d6685e502a7708473f03710f34f2ad6d7b3968fdd6cc90091e4f341c34d/claude_agent_sdk-0.2.126-py3-none-win_amd64.whl", hash = "sha256:201299609bb045e7ca8c7d3ff5e8d5900da2dcf3faad742990efe659e4c215ae", size = 85114596, upload-time = "2026-07-22T21:40:55.532Z" },
 ]
 
 [[package]]
@@ -435,19 +435,15 @@ wheels = [
 
 [[package]]
 name = "github-copilot-sdk"
-version = "1.0.1"
+version = "1.0.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "httpx" },
     { name = "pydantic" },
     { name = "python-dateutil" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/89/22/d4d576becff84146501e043831bdd2ca5aee57fcfdfface4ee7db7883655/github_copilot_sdk-1.0.1-py3-none-macosx_10_9_x86_64.whl", hash = "sha256:d1ca7fff62b69f8c9aa24eb2d1f615195730d6b7297050e8e240aa38fbae5eba", size = 94824679, upload-time = "2026-06-10T16:54:17.004Z" },
-    { url = "https://files.pythonhosted.org/packages/a9/5f/f3d935b81f11930539cdf47a7e0dbd4d5ccaadba1f4daf0c64892421a81d/github_copilot_sdk-1.0.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:dc4b59dfe034bec6a031b291dbe49de8a8558e42d28aee25213c680ab771d54e", size = 88837334, upload-time = "2026-06-10T16:54:23.056Z" },
-    { url = "https://files.pythonhosted.org/packages/6b/94/225ec0258e1630a81e13b193a9258d8c4550b552b6197f903b75002abf75/github_copilot_sdk-1.0.1-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:bedb442ee4dd40d43870719f91a9fb6e117ca5d76bbbf1807af80cc77ff64257", size = 97255205, upload-time = "2026-06-10T16:54:29.828Z" },
-    { url = "https://files.pythonhosted.org/packages/0f/34/72fb3936e7e8a425f1498bd6693a4e7db678e43fc3912dc5ce9cecccfe23/github_copilot_sdk-1.0.1-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:a498fffba3d8a521eb73f31d08fef9f534e7c57ae6d0a76fa1848beebb3fb6a9", size = 94572477, upload-time = "2026-06-10T16:54:37.253Z" },
-    { url = "https://files.pythonhosted.org/packages/df/95/34aa49c08033acabbe129acf83a2d71a382bd2977ce92f5114a299508a4e/github_copilot_sdk-1.0.1-py3-none-win_amd64.whl", hash = "sha256:29d850cf5cf2b85c0513b68cba112d4a7aba0a9a447893fc7cc69136dd4e6ac1", size = 91387201, upload-time = "2026-06-10T16:54:45.164Z" },
-    { url = "https://files.pythonhosted.org/packages/ea/b1/900b278e519442d4a5fc9dd070b9100f6f1e6b3c6af3b8642b0b3a65d2f5/github_copilot_sdk-1.0.1-py3-none-win_arm64.whl", hash = "sha256:5f69245b1cb2fc1054e78543ee5c10464b53ebbba11e749c7a42002b02ce6b13", size = 90455774, upload-time = "2026-06-10T16:54:53.093Z" },
+    { url = "https://files.pythonhosted.org/packages/3e/d2/517ae4be0dbbb02d5546f48e4be59f0ac2d83752cd608da739c5c580942f/github_copilot_sdk-1.0.8-py3-none-any.whl", hash = "sha256:7c3d868b73daa3a154ae6c1c5a2bd9301c47349c6b080f1ed77ba9027da3e0fa", size = 429721, upload-time = "2026-07-22T23:14:47.571Z" },
 ]
 
 [[package]]
@@ -824,7 +820,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "airframe-agents", extras = ["claude", "copilot", "opencode"], specifier = "==0.9.0rc6" },
+    { name = "airframe-agents", extras = ["claude", "copilot", "opencode"], specifier = "==0.9.1" },
     { name = "anyio", specifier = ">=4.14.1" },
     { name = "fastapi", specifier = ">=0.136.1,<0.137" },
     { name = "librosa", specifier = ">=0.10" },
@@ -1687,11 +1683,11 @@ wheels = [
 
 [[package]]
 name = "typing-extensions"
-version = "4.15.0"
+version = "4.16.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/72/94/1a15dd82efb362ac84269196e94cf00f187f7ed21c242792a923cdb1c61f/typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466", size = 109391, upload-time = "2025-08-25T13:49:26.313Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f6/cc/6253133b5bb138fc3306cebfbda2c520f545d36b5be2c7255cc528bb45d6/typing_extensions-4.16.0.tar.gz", hash = "sha256:dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5", size = 113555, upload-time = "2026-07-02T08:40:05.92Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/18/67/36e9267722cc04a6b9f15c7f3441c2363321a3ea07da7ae0c0707beb2a9c/typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548", size = 44614, upload-time = "2025-08-25T13:49:24.86Z" },
+    { url = "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl", hash = "sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8", size = 45571, upload-time = "2026-07-02T08:40:04.659Z" },
 ]
 
 [[package]]
