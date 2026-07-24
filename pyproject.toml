@@ -16,9 +16,9 @@ dependencies = [
     # extras pull the respective adapter SDKs so the AI worker can target those
     # providers via settings.ai_provider_id (Copilot + OpenCode serve native
     # web tools). Install more adapters (e.g. airframe-agents[bedrock]) as
-    # needed. Pinned to 0.9.0rc6; bump as airframe releases.
+    # needed. Pinned to 0.9.1; bump as airframe releases.
     # NB: [kimi] is excluded — disabled upstream pending an mcp co-install fix.
-    "airframe-agents[claude,copilot,opencode]==0.9.0rc6",
+    "airframe-agents[claude,copilot,opencode]==0.9.1",
     "anyio>=4.14.1",
     "Pillow",
     "requests",
