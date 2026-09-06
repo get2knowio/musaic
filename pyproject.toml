@@ -18,7 +18,7 @@ dependencies = [
     # web tools). Install more adapters (e.g. airframe-agents[bedrock]) as
     # needed. Pinned to 0.9.1; bump as airframe releases.
     # NB: [kimi] is excluded — disabled upstream pending an mcp co-install fix.
-    "airframe-agents[claude,copilot,opencode]==0.9.1",
+    "airframe-agents[claude,copilot,opencode]==0.9.2",
     "anyio>=4.14.1",
     "Pillow",
     "requests",
