@@ -30,6 +30,6 @@
     "electron": "^39.8.5",
     "electron-builder": "^26.15.3",
     "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^26.6.5"
   }
 }
