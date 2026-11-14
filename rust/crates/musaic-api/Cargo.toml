@@ -41,6 +41,7 @@ thiserror.workspace = true
 getrandom = "0.3"
 
 [dev-dependencies]
+unicode-normalization = "0.1"
 musaic-testdata = { path = "../musaic-testdata" }
 # tests/thumbs_golden.rs decodes thumbnails (the thumbnailer itself lives in
 # musaic-services).

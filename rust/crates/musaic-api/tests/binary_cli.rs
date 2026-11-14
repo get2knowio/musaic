@@ -16,6 +16,7 @@
 
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 const BIN: &str = env!("CARGO_BIN_EXE_musaic-api");

@@ -49,6 +49,24 @@ fn scenario(id: &str) -> &'static Value {
         .unwrap_or_else(|| panic!("no scenario {id}"))
 }
 
+/// The album's folder in the source library. The synthetic library writes one
+/// folder name in decomposed Unicode (NFD) while the scenarios name it in
+/// composed form; macOS finds it either way, Linux only by its exact bytes.
+fn source_album_dir(root: &Path, album: &str) -> std::path::PathBuf {
+    use unicode_normalization::UnicodeNormalization;
+    let direct = root.join(album);
+    if direct.is_dir() {
+        return direct;
+    }
+    let want: String = album.nfc().collect();
+    std::fs::read_dir(root)
+        .unwrap()
+        .flatten()
+        .find(|e| e.file_name().to_string_lossy().nfc().collect::<String>() == want)
+        .map(|e| e.path())
+        .unwrap_or(direct)
+}
+
 fn copy_dir(src: &Path, dst: &Path) {
     std::fs::create_dir_all(dst).unwrap();
     for e in std::fs::read_dir(src).unwrap().flatten() {
@@ -125,7 +143,7 @@ impl World {
         let root = td.path().canonicalize().unwrap();
         let lib = root.join("lib");
         let album_dir = lib.join(album);
-        copy_dir(&src_root.join(album), &album_dir);
+        copy_dir(&source_album_dir(&src_root, album), &album_dir);
         for (name, text) in sc["extra_files"].as_object().into_iter().flatten() {
             std::fs::write(album_dir.join(name), text.as_str().unwrap()).unwrap();
         }

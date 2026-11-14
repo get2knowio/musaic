@@ -80,6 +80,17 @@ fn entry(old: &str, new: &str) -> PlanEntry {
 fn failure_after_dir_rename_reports_the_rename() {
     let tmp = tempfile::tempdir().unwrap();
     let base = tmp.path().canonicalize().unwrap();
+    // The scenario needs a platform that renames a read-only directory (the
+    // rename only writes to the parent). Some systems refuse it; the dir
+    // rename then fails first and there is nothing to test here.
+    let probe = base.join("probe");
+    std::fs::create_dir(&probe).unwrap();
+    std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o555)).unwrap();
+    if std::fs::rename(&probe, base.join("probe2")).is_err() {
+        std::fs::set_permissions(&probe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        println!("skipped: this system does not rename a read-only directory");
+        return;
+    }
     let (mut db, lib_s, old_id) = library(&base, "Old", &[("1 a.flac", "A")]);
     let album = base.join("lib/Old");
     std::fs::set_permissions(&album, std::fs::Permissions::from_mode(0o555)).unwrap();
