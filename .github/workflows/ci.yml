@@ -25,6 +25,13 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Test binaries without debug info: with it, the hosted Linux runner runs
+  # out of disk while linking the ~150 test executables.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_INCREMENTAL: "0"
+  # The synthetic-library generator reads UTF-8 sources; Windows defaults to
+  # the ANSI code page otherwise.
+  PYTHONUTF8: "1"
   NODE_VERSION: "22"
   # The synthetic test library is byte-identical only with the tool versions
   # recorded in rust/testdata/synthetic-library/library.manifest.json
@@ -46,7 +53,7 @@ jobs:
         include:
           - os: ubuntu-22.04
             experimental: false
-          - os: macos-14
+          - os: macos-15
             experimental: false
           - os: windows-latest
             experimental: true
