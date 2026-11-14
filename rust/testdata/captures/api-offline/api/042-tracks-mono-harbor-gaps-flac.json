@@ -1,0 +1,66 @@
+{
+  "elapsed_ms": 1.3,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Gaps [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Pier One.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Pier One",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Breakwater.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Breakwater",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "04 - Tidewater.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Tidewater",
+          "tracknumber": "4"
+        },
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "05 - Lighthouse.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Lighthouse",
+          "tracknumber": "5"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

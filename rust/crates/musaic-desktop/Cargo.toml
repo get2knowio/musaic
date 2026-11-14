@@ -1,0 +1,61 @@
+[package]
+name = "musaic-desktop"
+description = "Tauri 2 desktop shell: in-process musaic-api on an ephemeral loopback port, one webview on that origin"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "musaic_desktop"
+path = "src/lib.rs"
+
+[[bin]]
+name = "musaic-desktop"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = "2"
+
+[dependencies]
+musaic-api = { path = "../musaic-api" }
+musaic-core = { path = "../musaic-core" }
+musaic-db = { path = "../musaic-db" }
+# The public-host rule for external links (nav.rs); already built for
+# musaic-api.
+musaic-net = { path = "../musaic-net" }
+musaic-secrets = { path = "../musaic-secrets" }
+tauri = { version = "2", default-features = false, features = ["wry", "common-controls-v6"] }
+# Native confirm/alert dialogs for the window.confirm shim (wry has no
+# WKUIDelegate confirm panel on macOS). Kept at the version
+# tauri-plugin-dialog uses, so only one copy is built.
+# No default features: rfd's defaults select its xdg-portal backend, and
+# tauri-plugin-dialog selects gtk3; rfd refuses to build with both on Linux.
+rfd = { version = "0.17", default-features = false }
+# Native folder picker for the library path (POST /__musaic/dialog/folder,
+# see gate.rs). Used from Rust only: no capability grants it to the page.
+tauri-plugin-dialog = "2"
+# Used from Rust only (no capability grants them to the page):
+# external links in the system browser + reveal in the file manager, and
+# window size/position for shown runs. Cargo.lock pins the versions.
+tauri-plugin-opener = "2"
+tauri-plugin-window-state = "2"
+# Single-instance lock keyed on the config dir (see instance.rs).
+fd-lock = "4"
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "query"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "time", "signal", "macros"] }
+serde_json.workspace = true
+url = "2"
+getrandom = "0.3"
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+musaic-log = { path = "../musaic-log" }
+rusqlite.workspace = true
+tempfile.workspace = true
+sha2 = "0.10"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[lints]
+workspace = true

@@ -8,7 +8,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
@@ -22,14 +22,16 @@ import {
   restoreDbSnapshot,
 } from "@/lib/api";
 import { useSettings, useUpdateSettings } from "@/hooks/useJobs";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import { reloadAfterRestore, takeRestoreNotice } from "@/lib/restoreReload";
 import type { DbInfo, DbSnapshot } from "@/lib/types";
 
 /**
  * Backup & Snapshots panel for the Settings page.
  *
  * The DB at ~/.musaic/library.db carries data that's expensive
- * to recover after a wipe — paid AI-driven MBID anchors, paid
- * AcoustID fingerprints, the user's tag taxonomy. This panel surfaces
+ * to recover after a wipe — AI-driven MBID anchors (API fees),
+ * AcoustID fingerprints (slow to recompute), the user's tag taxonomy. This panel surfaces
  * three protections:
  *
  *   1. **Automatic snapshots.** Taken on app startup if the configured
@@ -42,7 +44,23 @@ import type { DbInfo, DbSnapshot } from "@/lib/types";
  * or upload an external .db file (for off-machine recovery). Both
  * funnel through the same destructive confirm.
  */
-export default function BackupPanel() {
+export default function BackupPanel({
+  onRestored = reloadAfterRestore,
+}: {
+  /** What a successful restore does with its confirmation message. The
+   *  default reloads the app and shows the message afterwards
+   *  (lib/restoreReload.ts); tests pass a spy. */
+  onRestored?: (message: string) => void;
+} = {}) {
+  const ai = useAiStatus();
+  // The confirmation of a restore that reloaded the page.
+  // Deferred a tick so the App-level <Toaster> has subscribed.
+  useEffect(() => {
+    const notice = takeRestoreNotice();
+    if (notice === null) return;
+    const t = setTimeout(() => toast.success(notice), 0);
+    return () => clearTimeout(t);
+  }, []);
   const dbInfo = useQuery({
     queryKey: ["db-info"],
     queryFn: getDbInfo,
@@ -90,19 +108,13 @@ export default function BackupPanel() {
 
   const restoreFromSnap = useMutation({
     mutationFn: (name: string) => restoreDbSnapshot(name),
-    onSuccess: () => {
-      toast.success("Restored from snapshot — refresh the page to see updated data.");
-      refetchAll();
-    },
+    onSuccess: () => onRestored("Restored from snapshot."),
     onError: (e: Error) => toast.error(e.message || "Restore failed"),
   });
 
   const restoreFromUpload = useMutation({
     mutationFn: (file: File) => restoreDbFromFile(file),
-    onSuccess: () => {
-      toast.success("Restored from upload — refresh the page to see updated data.");
-      refetchAll();
-    },
+    onSuccess: () => onRestored("Restored from the uploaded backup."),
     onError: (e: Error) => toast.error(e.message || "Restore failed"),
   });
 
@@ -139,14 +151,25 @@ export default function BackupPanel() {
 
       <div className="px-4 py-4 space-y-5">
         <p className="text-sm text-fg-3 leading-relaxed">
-          Your library DB carries data that's expensive to rebuild — paid
-          AI-driven MBID anchors, AcoustID fingerprints, your tag taxonomy.
-          Automatic snapshots are taken on app startup so you can roll back
-          a mistake.
+          {ai.ready ? (
+            <>
+              Your library DB carries data that's expensive to rebuild — paid
+              AI-driven MBID anchors, AcoustID fingerprints, your tag taxonomy.
+              Automatic snapshots are taken on app startup so you can roll back
+              a mistake.
+            </>
+          ) : (
+            <>
+              Your library DB carries data that's expensive to rebuild —
+              MusicBrainz matches, AcoustID fingerprints, your tag taxonomy.
+              Automatic snapshots are taken on app startup so you can roll back
+              a mistake.
+            </>
+          )}
         </p>
 
         {/* Current DB stats */}
-        {dbInfo.data && <CurrentDbCard info={dbInfo.data} />}
+        {dbInfo.data && <CurrentDbCard info={dbInfo.data} aiReady={ai.ready} />}
 
         {/* Snapshot retention settings */}
         <div className="border-t border-line pt-4 space-y-2.5">
@@ -292,7 +315,7 @@ export default function BackupPanel() {
   );
 }
 
-function CurrentDbCard({ info }: { info: DbInfo }) {
+function CurrentDbCard({ info, aiReady }: { info: DbInfo; aiReady: boolean }) {
   return (
     <div className="border border-line rounded p-3 bg-panel">
       <div className="flex items-center justify-between gap-3 mb-2">
@@ -310,7 +333,7 @@ function CurrentDbCard({ info }: { info: DbInfo }) {
         <Stat label="Fingerprints"      value={info.counts.track_fingerprints} />
         <Stat label="Track tags"        value={info.counts.track_tags} />
         <Stat label="Vocabulary"        value={info.counts.tag_vocabulary} />
-        <Stat label="AI jobs"           value={info.counts.ai_jobs} />
+        <Stat label={aiReady ? "AI jobs" : "Jobs"} value={info.counts.ai_jobs} />
         <Stat label="Open findings"     value={info.counts.check_findings_open} />
       </div>
     </div>
@@ -433,7 +456,7 @@ function RestoreConfirm({
           <p className="text-fg-2">
             This will overwrite your current library database. The existing
             file will be moved aside as <code className="mono text-fg">library.db.bak-…</code> first,
-            so this is recoverable, but you'll need to refresh after.
+            so this is recoverable. Musaic reloads itself once the restore is done.
           </p>
           <div className="border border-line rounded p-3 bg-panel-2 space-y-1 text-xs">
             <div className="mono text-fg-2 truncate" title={summary.label}>{summary.label}</div>

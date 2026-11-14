@@ -1,0 +1,2132 @@
+{
+  "_meta": {
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "starting_state": "fresh config dir, fresh copy of fixtures/library at <LIB>, SPA dir <WORK>/frontend, no lifespan, network off, no AcoustID key; library configured and scanned, every check run, between the unconfigured requests and the tag requests (not recorded)",
+    "tool": "tools.gen_api_golden --wired"
+  },
+  "cases": [
+    {
+      "label": "tags unconfigured",
+      "request": {
+        "method": "GET",
+        "path": "/api/albums/abc/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "No library directory configured"
+        },
+        "status": 409
+      }
+    },
+    {
+      "label": "tags list empty",
+      "request": {
+        "method": "GET",
+        "path": "/api/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "tags": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "vocabulary empty",
+      "request": {
+        "method": "GET",
+        "path": "/api/vocabulary"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "orphans": [],
+          "vocabulary": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "pool status idle",
+      "request": {
+        "method": "GET",
+        "path": "/api/fingerprint-pool/status"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "completed": 0,
+          "completed_at": null,
+          "current_album_id": null,
+          "errors": 0,
+          "library_dir": null,
+          "skip_reason": null,
+          "started_at": null,
+          "status": "idle",
+          "total": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "pool status after scan",
+      "request": {
+        "method": "GET",
+        "path": "/api/fingerprint-pool/status"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "completed": 0,
+          "completed_at": "<NOW>",
+          "current_album_id": null,
+          "errors": 0,
+          "library_dir": "<LIB>",
+          "skip_reason": "AcoustID API key not set (configure in Settings)",
+          "started_at": "<NOW>",
+          "status": "unavailable",
+          "total": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "album tags",
+      "request": {
+        "method": "GET",
+        "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "album_tags": [],
+          "track_tags": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "add album tag",
+      "request": {
+        "json": {
+          "tag": "Ambient"
+        },
+        "method": "POST",
+        "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "album_tags": [
+            "Ambient"
+          ],
+          "track_tags": {
+            "01 - Dawn Chorus.flac": [
+              "Ambient"
+            ],
+            "02 - Low Sun.flac": [
+              "Ambient"
+            ],
+            "03 - Meridian.flac": [
+              "Ambient"
+            ],
+            "04 - Long Shadows.flac": [
+              "Ambient"
+            ],
+            "05 - Afterglow.flac": [
+              "Ambient"
+            ]
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "add album tag subset",
+      "request": {
+        "json": {
+          "filenames": [
+            "01 - Dawn Chorus.flac",
+            "02 - Low Sun.flac"
+          ],
+          "tag": "Late"
+        },
+        "method": "POST",
+        "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "album_tags": [
+            "Ambient"
+          ],
+          "track_tags": {
+            "01 - Dawn Chorus.flac": [
+              "Ambient",
+              "Late"
+            ],
+            "02 - Low Sun.flac": [
+              "Ambient",
+              "Late"
+            ],
+            "03 - Meridian.flac": [
+              "Ambient"
+            ],
+            "04 - Long Shadows.flac": [
+              "Ambient"
+            ],
+            "05 - Afterglow.flac": [
+              "Ambient"
+            ]
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "add track tag",
+      "request": {
+        "json": {
+          "tag": " Solo "
+        },
+        "method": "POST",
+        "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tracks/01%20-%20Dawn%20Chorus.flac/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "album_tags": [
+            "Ambient"
+          ],
+          "track_tags": {
+            "01 - Dawn Chorus.flac": [
+              "Ambient",
+              "Late",
+              "Solo"
+            ],
+            "02 - Low Sun.flac": [
+              "Ambient",
+              "Late"
+            ],
+            "03 - Meridian.flac": [
+              "Ambient"
+            ],
+            "04 - Long Shadows.flac": [
+              "Ambient"
+            ],
+            "05 - Afterglow.flac": [
+              "Ambient"
+            ]
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "replace album tags",
+      "request": {
+        "json": {
+          "track_tags": {
+            "01 - Blue Hour.flac": [
+              "Night",
+              "Late"
+            ],
+            "02 - Cirrus.flac": [
+              "Night"
+            ]
+          }
+        },
+        "method": "PUT",
+        "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+          "album_tags": [],
+          "track_tags": {
+            "01 - Blue Hour.flac": [
+              "Late",
+              "Night"
+            ],
+            "02 - Cirrus.flac": [
+              "Night"
+            ]
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "replace album tags bad shape",
+      "request": {
+        "json": {
+          "track_tags": {
+            "x": "y"
+          }
+        },
+        "method": "PUT",
+        "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": [
+            {
+              "input": "y",
+              "loc": [
+                "body",
+                "track_tags",
+                "x"
+              ],
+              "msg": "Input should be a valid list",
+              "type": "list_type"
+            }
+          ]
+        },
+        "status": 422
+      }
+    },
+    {
+      "label": "remove album tag",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tags/Ambient"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "album_tags": [],
+          "track_tags": {
+            "01 - Dawn Chorus.flac": [
+              "Late",
+              "Solo"
+            ],
+            "02 - Low Sun.flac": [
+              "Late"
+            ]
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "remove track tag",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tracks/01%20-%20Dawn%20Chorus.flac/tags/Solo"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "album_tags": [],
+          "track_tags": {
+            "01 - Dawn Chorus.flac": [
+              "Late"
+            ],
+            "02 - Low Sun.flac": [
+              "Late"
+            ]
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "tags list",
+      "request": {
+        "method": "GET",
+        "path": "/api/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "tags": [
+            {
+              "count": 3,
+              "tag": "Late"
+            },
+            {
+              "count": 2,
+              "tag": "Night"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "tracks for tag",
+      "request": {
+        "method": "GET",
+        "path": "/api/tags/Late/tracks"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "tag": "Late",
+          "tracks": [
+            {
+              "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+              "filename": "01 - Blue Hour.flac"
+            },
+            {
+              "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+              "filename": "01 - Dawn Chorus.flac"
+            },
+            {
+              "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+              "filename": "02 - Low Sun.flac"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "album tags unknown",
+      "request": {
+        "method": "GET",
+        "path": "/api/albums/0000000000000000/tags"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Album not found (try rescanning the library)"
+        },
+        "status": 404
+      }
+    },
+    {
+      "label": "vocab add",
+      "request": {
+        "json": {
+          "color": "#123456",
+          "sort_order": "2",
+          "tag": "Late"
+        },
+        "method": "POST",
+        "path": "/api/vocabulary"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "orphans": [
+            {
+              "count": 2,
+              "tag": "Night"
+            }
+          ],
+          "vocabulary": [
+            {
+              "color": "#123456",
+              "count": 3,
+              "created_at": "<NOW>",
+              "description": "",
+              "sort_order": 2,
+              "tag": "Late"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "vocab add bad type",
+      "request": {
+        "json": {
+          "tag": 5
+        },
+        "method": "POST",
+        "path": "/api/vocabulary"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": [
+            {
+              "input": 5,
+              "loc": [
+                "body",
+                "tag"
+              ],
+              "msg": "Input should be a valid string",
+              "type": "string_type"
+            }
+          ]
+        },
+        "status": 422
+      }
+    },
+    {
+      "label": "vocab patch",
+      "request": {
+        "json": {
+          "description": "after dark"
+        },
+        "method": "PATCH",
+        "path": "/api/vocabulary/late"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "orphans": [
+            {
+              "count": 2,
+              "tag": "Night"
+            }
+          ],
+          "vocabulary": [
+            {
+              "color": "#123456",
+              "count": 3,
+              "created_at": "<NOW>",
+              "description": "after dark",
+              "sort_order": 2,
+              "tag": "Late"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "vocab promote",
+      "request": {
+        "method": "POST",
+        "path": "/api/vocabulary/orphans/Night/promote"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "orphans": [],
+          "vocabulary": [
+            {
+              "color": "#123456",
+              "count": 3,
+              "created_at": "<NOW>",
+              "description": "after dark",
+              "sort_order": 2,
+              "tag": "Late"
+            },
+            {
+              "color": null,
+              "count": 2,
+              "created_at": "<NOW>",
+              "description": "",
+              "sort_order": 3,
+              "tag": "Night"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "vocab rename",
+      "request": {
+        "json": {
+          "new_tag": "Nocturne"
+        },
+        "method": "POST",
+        "path": "/api/vocabulary/Night/rename"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "orphans": [],
+          "rename_result": {
+            "albums": [
+              "<ID:Aurora Fields - Second Light [FLAC]>"
+            ],
+            "tag_rows": 2,
+            "vocab": true
+          },
+          "vocabulary": [
+            {
+              "color": "#123456",
+              "count": 3,
+              "created_at": "<NOW>",
+              "description": "after dark",
+              "sort_order": 2,
+              "tag": "Late"
+            },
+            {
+              "color": null,
+              "count": 2,
+              "created_at": "<NOW>",
+              "description": "",
+              "sort_order": 3,
+              "tag": "Nocturne"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "vocab merge",
+      "request": {
+        "json": {
+          "into_tag": "Late"
+        },
+        "method": "POST",
+        "path": "/api/vocabulary/Nocturne/merge"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "merge_result": {
+            "albums": [
+              "<ID:Aurora Fields - Second Light [FLAC]>"
+            ],
+            "moved": 1
+          },
+          "orphans": [],
+          "vocabulary": [
+            {
+              "color": "#123456",
+              "count": 4,
+              "created_at": "<NOW>",
+              "description": "after dark",
+              "sort_order": 2,
+              "tag": "Late"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "vocab delete strip",
+      "request": {
+        "method": "DELETE",
+        "params": {
+          "strip_from_tracks": "true"
+        },
+        "path": "/api/vocabulary/Late"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "delete_result": {
+            "albums": [
+              "<ID:Aurora Fields - Second Light [FLAC]>",
+              "<ID:Aurora Fields - First Light [FLAC]>"
+            ],
+            "tag_rows": 4,
+            "vocab": true
+          },
+          "orphans": [],
+          "vocabulary": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "vocab list",
+      "request": {
+        "method": "GET",
+        "path": "/api/vocabulary"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "orphans": [],
+          "vocabulary": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "fix filename-mismatch stub",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Legacy Folder Name>",
+          "check_id": "filename-mismatch",
+          "summary": "Album dir 'Legacy Folder Name' doesn't match the template"
+        },
+        "method": "POST",
+        "path": "/api/checks/filename-mismatch/findings/18/fix"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "job_id": null,
+          "message": "Filename-mismatch findings are resolved via the Resolve… dialog; this check has no single-click fix because the user has to review the rename plan first.",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "fix track-gaps",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "track-gaps",
+          "summary": "Track-number gaps: missing 3"
+        },
+        "json": {
+          "hint": ""
+        },
+        "method": "POST",
+        "path": "/api/checks/track-gaps/findings/15/fix"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "job_id": "<JOB>",
+          "message": "Asking Claude to verify the track sequence and propose a fix",
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "fix unidentified",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "check_id": "unidentified-album",
+          "summary": "Not fingerprinted and not yet identified on MusicBrainz"
+        },
+        "method": "POST",
+        "path": "/api/checks/unidentified-album/findings/9/fix"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "job_id": "<JOB>",
+          "message": "Asking Claude to identify this album on MusicBrainz",
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "fix unknown finding",
+      "request": {
+        "method": "POST",
+        "path": "/api/checks/track-gaps/findings/999999/fix"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Finding not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "label": "fix wrong check",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "track-gaps",
+          "summary": "Track-number gaps: missing 3"
+        },
+        "method": "POST",
+        "path": "/api/checks/no-cover-art/findings/15/fix"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Finding not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "label": "fix bad hint",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "track-gaps",
+          "summary": "Track-number gaps: missing 3"
+        },
+        "json": {
+          "hint": 5
+        },
+        "method": "POST",
+        "path": "/api/checks/track-gaps/findings/15/fix"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": [
+            {
+              "input": 5,
+              "loc": [
+                "body",
+                "hint"
+              ],
+              "msg": "Input should be a valid string",
+              "type": "string_type"
+            }
+          ]
+        },
+        "status": 422
+      }
+    },
+    {
+      "label": "fix bad id",
+      "request": {
+        "method": "POST",
+        "path": "/api/checks/track-gaps/findings/abc/fix"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": [
+            {
+              "input": "abc",
+              "loc": [
+                "path",
+                "finding_id"
+              ],
+              "msg": "Input should be a valid integer, unable to parse string as an integer",
+              "type": "int_parsing"
+            }
+          ]
+        },
+        "status": 422
+      }
+    },
+    {
+      "label": "quick-fix-all unknown",
+      "request": {
+        "method": "POST",
+        "path": "/api/checks/nope/quick-fix-all"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Unknown check_id: 'nope'"
+        },
+        "status": 404
+      }
+    },
+    {
+      "label": "quick-fix-all track-gaps",
+      "request": {
+        "method": "POST",
+        "path": "/api/checks/track-gaps/quick-fix-all"
+      },
+      "response": {
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "connection": "keep-alive",
+          "content-type": "text/event-stream; charset=utf-8",
+          "x-accel-buffering": "no"
+        },
+        "sse": "event: start\ndata: {\"total\": 1}\n\nevent: progress\ndata: {\"finding_id\": 15, \"outcome\": \"skipped\", \"message\": \"No deterministic fix found (MB title + fingerprint both inconclusive)\"}\n\nevent: done\ndata: {\"total\": 1, \"fixed\": 0, \"skipped\": 1, \"errors\": 0, \"not_applicable\": 0}\n\n",
+        "status": 200
+      }
+    },
+    {
+      "label": "quick-fix-all no-cover-art",
+      "request": {
+        "method": "POST",
+        "path": "/api/checks/no-cover-art/quick-fix-all"
+      },
+      "response": {
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "connection": "keep-alive",
+          "content-type": "text/event-stream; charset=utf-8",
+          "x-accel-buffering": "no"
+        },
+        "sse": "event: start\ndata: {\"total\": 1}\n\nevent: progress\ndata: {\"finding_id\": 17, \"outcome\": \"skipped\", \"message\": \"MusicBrainz / Cover Art Archive doesn't have a cover for this album\"}\n\nevent: done\ndata: {\"total\": 1, \"fixed\": 0, \"skipped\": 1, \"errors\": 0, \"not_applicable\": 0}\n\n",
+        "status": 200
+      }
+    },
+    {
+      "label": "quick-fix-all artist-sort",
+      "request": {
+        "method": "POST",
+        "path": "/api/checks/inconsistent-artist-sort/quick-fix-all"
+      },
+      "response": {
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "connection": "keep-alive",
+          "content-type": "text/event-stream; charset=utf-8",
+          "x-accel-buffering": "no"
+        },
+        "sse": "event: start\ndata: {\"total\": 1}\n\nevent: progress\ndata: {\"finding_id\": 16, \"outcome\": \"skipped\", \"message\": \"Skipped (state=conflicting); needs user input via Resolve dialog\"}\n\nevent: done\ndata: {\"total\": 1, \"fixed\": 0, \"skipped\": 1, \"errors\": 0, \"not_applicable\": 0}\n\n",
+        "status": 200
+      }
+    },
+    {
+      "label": "quick-fix-all duplicate-tracks (none open)",
+      "request": {
+        "method": "POST",
+        "path": "/api/checks/duplicate-tracks/quick-fix-all"
+      },
+      "response": {
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "connection": "keep-alive",
+          "content-type": "text/event-stream; charset=utf-8",
+          "x-accel-buffering": "no"
+        },
+        "sse": "event: start\ndata: {\"total\": 0}\n\nevent: done\ndata: {\"total\": 0, \"fixed\": 0, \"skipped\": 0, \"errors\": 0, \"not_applicable\": 0}\n\n",
+        "status": 200
+      }
+    },
+    {
+      "label": "apply-sort blank",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+          "check_id": "inconsistent-artist-sort",
+          "summary": "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+        },
+        "json": {
+          "sort_value": "  "
+        },
+        "method": "POST",
+        "path": "/api/checks/inconsistent-artist-sort/findings/16/apply-sort"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "sort_value is required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "label": "apply-sort bad type",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+          "check_id": "inconsistent-artist-sort",
+          "summary": "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+        },
+        "json": {
+          "sort_value": 5
+        },
+        "method": "POST",
+        "path": "/api/checks/inconsistent-artist-sort/findings/16/apply-sort"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": [
+            {
+              "input": 5,
+              "loc": [
+                "body",
+                "sort_value"
+              ],
+              "msg": "Input should be a valid string",
+              "type": "string_type"
+            }
+          ]
+        },
+        "status": 422
+      }
+    },
+    {
+      "label": "apply-sort",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+          "check_id": "inconsistent-artist-sort",
+          "summary": "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+        },
+        "json": {
+          "sort_value": "Harbor, Mono"
+        },
+        "method": "POST",
+        "path": "/api/checks/inconsistent-artist-sort/findings/16/apply-sort"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "applied": 4,
+          "cluster_size": 4,
+          "distinct_albums": 4,
+          "message": "Wrote sort='Harbor, Mono' to 4 of 4 album(s) in the cluster.",
+          "ok": true,
+          "sort_value": "Harbor, Mono"
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "delete-file unknown finding",
+      "request": {
+        "json": {
+          "filename": "x.flac"
+        },
+        "method": "POST",
+        "path": "/api/checks/duplicate-tracks/findings/999999/delete-file"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Finding not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "label": "delete-file wrong check",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "track-gaps",
+          "summary": "Track-number gaps: missing 3"
+        },
+        "json": {
+          "filename": "x.flac"
+        },
+        "method": "POST",
+        "path": "/api/checks/duplicate-tracks/findings/15/delete-file"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Finding not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "label": "delete-file bad body",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "track-gaps",
+          "summary": "Track-number gaps: missing 3"
+        },
+        "json": {},
+        "method": "POST",
+        "path": "/api/checks/duplicate-tracks/findings/15/delete-file"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": [
+            {
+              "input": {},
+              "loc": [
+                "body",
+                "filename"
+              ],
+              "msg": "Field required",
+              "type": "missing"
+            }
+          ]
+        },
+        "status": 422
+      }
+    },
+    {
+      "label": "rename empty plan",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Legacy Folder Name>",
+          "check_id": "filename-mismatch",
+          "summary": "Album dir 'Legacy Folder Name' doesn't match the template"
+        },
+        "json": {
+          "plan": []
+        },
+        "method": "POST",
+        "path": "/api/checks/filename-mismatch/findings/18/apply"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "plan or dir_rename is required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "label": "rename bad entry",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Legacy Folder Name>",
+          "check_id": "filename-mismatch",
+          "summary": "Album dir 'Legacy Folder Name' doesn't match the template"
+        },
+        "json": {
+          "dir_rename": "x",
+          "plan": [
+            {
+              "old": "a.flac"
+            }
+          ]
+        },
+        "method": "POST",
+        "path": "/api/checks/filename-mismatch/findings/18/apply"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": [
+            {
+              "input": {
+                "old": "a.flac"
+              },
+              "loc": [
+                "body",
+                "plan",
+                0,
+                "new"
+              ],
+              "msg": "Field required",
+              "type": "missing"
+            },
+            {
+              "input": "x",
+              "loc": [
+                "body",
+                "dir_rename"
+              ],
+              "msg": "Input should be a valid dictionary or object to extract fields from",
+              "type": "model_attributes_type"
+            }
+          ]
+        },
+        "status": 422
+      }
+    },
+    {
+      "label": "rename wrong check",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "track-gaps",
+          "summary": "Track-number gaps: missing 3"
+        },
+        "json": {
+          "dir_rename": {
+            "new": "Quiet Atlas - Old Rips [FLAC]",
+            "old": "Legacy Folder Name"
+          },
+          "plan": []
+        },
+        "method": "POST",
+        "path": "/api/checks/filename-mismatch/findings/15/apply"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Finding not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "label": "rename dir",
+      "request": {
+        "finding": {
+          "album_id": "<ID:Legacy Folder Name>",
+          "check_id": "filename-mismatch",
+          "summary": "Album dir 'Legacy Folder Name' doesn't match the template"
+        },
+        "json": {
+          "dir_rename": {
+            "new": "Quiet Atlas - Old Rips [FLAC]",
+            "old": "Legacy Folder Name"
+          },
+          "plan": []
+        },
+        "method": "POST",
+        "path": "/api/checks/filename-mismatch/findings/18/apply"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "dir_migration": {
+            "ai_jobs": 0,
+            "albums": 1,
+            "check_findings": 2,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "dir_renamed": true,
+          "errors": [],
+          "message": "Renamed album directory",
+          "new_album_id": "<ID:Quiet Atlas - Old Rips [FLAC]>",
+          "ok": true,
+          "renamed": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "albums after",
+      "request": {
+        "method": "GET",
+        "path": "/api/albums"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "albums": [
+            {
+              "album_artist": "Aurora Fields",
+              "album_artist_sort": "Aurora Fields",
+              "album_sort": null,
+              "artist": "Aurora Fields",
+              "artist_sort": "Aurora Fields",
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "First Light",
+              "dir_artist": "Aurora Fields",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Aurora Fields - First Light [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Ambient",
+              "has_embedded_cover": true,
+              "id": "<ID:Aurora Fields - First Light [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac",
+              "title": "First Light",
+              "total_seconds": 50.0,
+              "track_artists": [
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "01 - Dawn Chorus.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "02 - Low Sun.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "03 - Meridian.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "04 - Long Shadows.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "05 - Afterglow.flac"
+                }
+              ],
+              "track_count": 5,
+              "track_numbers": [
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "year": "2019"
+            },
+            {
+              "album_artist": "Aurora Fields",
+              "album_artist_sort": "Aurora Fields",
+              "album_sort": null,
+              "artist": "Aurora Fields",
+              "artist_sort": "Aurora Fields",
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": null,
+              "dir_album": "Second Light",
+              "dir_artist": "Aurora Fields",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Aurora Fields - Second Light [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Ambient",
+              "has_embedded_cover": false,
+              "id": "<ID:Aurora Fields - Second Light [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac",
+              "title": "Second Light",
+              "total_seconds": 40.0,
+              "track_artists": [
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "01 - Blue Hour.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "02 - Cirrus.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "03 - Halation.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "04 - Nightfall.flac"
+                }
+              ],
+              "track_count": 4,
+              "track_numbers": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "year": "2021"
+            },
+            {
+              "album_artist": "Aurora Fields",
+              "album_artist_sort": "Aurora Fields",
+              "album_sort": null,
+              "artist": "Aurora Fields",
+              "artist_sort": "Aurora Fields",
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "folder.jpg",
+              "dir_album": "Folder Art",
+              "dir_artist": "Aurora Fields",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Aurora Fields - Folder Art [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Post-Rock",
+              "has_embedded_cover": false,
+              "id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Aurora Fields - Folder Art [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac",
+              "title": "Folder Art",
+              "total_seconds": 20.0,
+              "track_artists": [
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "01 - Canvas.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "02 - Easel.flac"
+                }
+              ],
+              "track_count": 2,
+              "track_numbers": [
+                1,
+                2
+              ],
+              "year": "2022"
+            },
+            {
+              "album_artist": "Aurora Fields",
+              "album_artist_sort": "Aurora Fields",
+              "album_sort": null,
+              "artist": "Aurora Fields",
+              "artist_sort": "Aurora Fields",
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": null,
+              "dir_album": "Twin",
+              "dir_artist": "Aurora Fields",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+              "disc_number": 2,
+              "disc_total": 2,
+              "genre": "Electronic",
+              "has_embedded_cover": true,
+              "id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac",
+              "title": "Twin",
+              "total_seconds": 30.0,
+              "track_artists": [
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "01 - Reflection.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "02 - Doppler.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "03 - Return.flac"
+                }
+              ],
+              "track_count": 3,
+              "track_numbers": [
+                1,
+                2,
+                3
+              ],
+              "year": "2023"
+            },
+            {
+              "album_artist": "Aurora Fields",
+              "album_artist_sort": "Aurora Fields",
+              "album_sort": null,
+              "artist": "Aurora Fields",
+              "artist_sort": "Aurora Fields",
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": null,
+              "dir_album": "Twin",
+              "dir_artist": "Aurora Fields",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+              "disc_number": 1,
+              "disc_total": 2,
+              "genre": "Electronic",
+              "has_embedded_cover": true,
+              "id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac",
+              "title": "Twin",
+              "total_seconds": 30.0,
+              "track_artists": [
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "01 - Mirror.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "02 - Parallax.flac"
+                },
+                {
+                  "artist": "Aurora Fields",
+                  "artist_sort": "Aurora Fields",
+                  "filename": "03 - Echo.flac"
+                }
+              ],
+              "track_count": 3,
+              "track_numbers": [
+                1,
+                2,
+                3
+              ],
+              "year": "2023"
+            },
+            {
+              "album_artist": "Café Orchestra",
+              "album_artist_sort": null,
+              "album_sort": null,
+              "artist": "Café Orchestra",
+              "artist_sort": null,
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "Été",
+              "dir_artist": "Café Orchestra",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Café Orchestra - Été [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Jazz",
+              "has_embedded_cover": true,
+              "id": "<ID:Café Orchestra - Été [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Café Orchestra - Été [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Café Orchestra - Été [FLAC]/01 - Soirée.flac",
+              "title": "Été",
+              "total_seconds": 30.0,
+              "track_artists": [
+                {
+                  "artist": "Café Orchestra",
+                  "artist_sort": "",
+                  "filename": "01 - Soirée.flac"
+                },
+                {
+                  "artist": "Café Orchestra",
+                  "artist_sort": "",
+                  "filename": "02 - Terrasse.flac"
+                },
+                {
+                  "artist": "Café Orchestra",
+                  "artist_sort": "",
+                  "filename": "03 - Crème.flac"
+                }
+              ],
+              "track_count": 3,
+              "track_numbers": [
+                1,
+                2,
+                3
+              ],
+              "year": "2014"
+            },
+            {
+              "album_artist": null,
+              "album_artist_sort": null,
+              "album_sort": null,
+              "artist": "Mono Harbor",
+              "artist_sort": "Harbor, Mono",
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "Gaps",
+              "dir_artist": "Mono Harbor",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Mono Harbor - Gaps [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Indie Rock",
+              "has_embedded_cover": false,
+              "id": "<ID:Mono Harbor - Gaps [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Mono Harbor - Gaps [FLAC]/01 - Pier One.flac",
+              "title": "Gaps",
+              "total_seconds": 40.0,
+              "track_artists": [
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "Harbor, Mono",
+                  "filename": "01 - Pier One.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "Harbor, Mono",
+                  "filename": "02 - Breakwater.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "Harbor, Mono",
+                  "filename": "04 - Tidewater.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "Harbor, Mono",
+                  "filename": "05 - Lighthouse.flac"
+                }
+              ],
+              "track_count": 4,
+              "track_numbers": [
+                1,
+                2,
+                4,
+                5
+              ],
+              "year": "2016"
+            },
+            {
+              "album_artist": "Mono Harbor",
+              "album_artist_sort": "Harbor, Mono",
+              "album_sort": null,
+              "artist": "Mono Harbor",
+              "artist_sort": "Harbor, Mono",
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "Sorted",
+              "dir_artist": "Mono Harbor",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Mono Harbor - Sorted [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Indie Rock",
+              "has_embedded_cover": false,
+              "id": "<ID:Mono Harbor - Sorted [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Mono Harbor - Sorted [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Mono Harbor - Sorted [FLAC]/01 - Ordered.flac",
+              "title": "Sorted",
+              "total_seconds": 30.0,
+              "track_artists": [
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "Harbor, Mono",
+                  "filename": "01 - Ordered.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "Harbor, Mono",
+                  "filename": "02 - Indexed.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "Harbor, Mono",
+                  "filename": "03 - Filed.flac"
+                }
+              ],
+              "track_count": 3,
+              "track_numbers": [
+                1,
+                2,
+                3
+              ],
+              "year": "2018"
+            },
+            {
+              "album_artist": "Mono Harbor",
+              "album_artist_sort": "Harbor, Mono",
+              "album_sort": null,
+              "artist": "Mono Harbor",
+              "artist_sort": null,
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": null,
+              "dir_album": "Dupes",
+              "dir_artist": "Mono Harbor",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Mono Harbor - Dupes [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Shoegaze",
+              "has_embedded_cover": true,
+              "id": "<ID:Mono Harbor - Dupes [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Mono Harbor - Dupes [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac",
+              "title": "Dupes",
+              "total_seconds": 40.0,
+              "track_artists": [
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "",
+                  "filename": "01 - Static Bloom.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "",
+                  "filename": "02 - Feedback Garden.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "",
+                  "filename": "03 - Static Bloom (Reprise).flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "",
+                  "filename": "04 - Wall of Sound.flac"
+                }
+              ],
+              "track_count": 4,
+              "track_numbers": [
+                1,
+                2,
+                3,
+                4
+              ],
+              "year": "2019"
+            },
+            {
+              "album_artist": "Mono Harbor",
+              "album_artist_sort": "Harbor, Mono",
+              "album_sort": null,
+              "artist": "Mono Harbor",
+              "artist_sort": null,
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "Dotfiles",
+              "dir_artist": "Mono Harbor",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Lo-Fi",
+              "has_embedded_cover": false,
+              "id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac",
+              "title": "Dotfiles",
+              "total_seconds": 20.0,
+              "track_artists": [
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "",
+                  "filename": "01 - Hidden.flac"
+                },
+                {
+                  "artist": "Mono Harbor",
+                  "artist_sort": "",
+                  "filename": "02 - Visible.flac"
+                }
+              ],
+              "track_count": 2,
+              "track_numbers": [
+                1,
+                2
+              ],
+              "year": "2020"
+            },
+            {
+              "album_artist": "Quiet Atlas",
+              "album_artist_sort": null,
+              "album_sort": null,
+              "artist": "Quiet Atlas",
+              "artist_sort": null,
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "Old Rips",
+              "dir_artist": "Quiet Atlas",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Quiet Atlas - Old Rips [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Folk",
+              "has_embedded_cover": false,
+              "id": "<ID:Quiet Atlas - Old Rips [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Quiet Atlas - Old Rips [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Quiet Atlas - Old Rips [FLAC]/01 - Kitchen Radio.flac",
+              "title": "Old Rips",
+              "total_seconds": 20.0,
+              "track_artists": [
+                {
+                  "artist": "Quiet Atlas",
+                  "artist_sort": "",
+                  "filename": "01 - Kitchen Radio.flac"
+                },
+                {
+                  "artist": "Quiet Atlas",
+                  "artist_sort": "",
+                  "filename": "02 - Porch Light.flac"
+                }
+              ],
+              "track_count": 2,
+              "track_numbers": [
+                1,
+                2
+              ],
+              "year": "2009"
+            },
+            {
+              "album_artist": null,
+              "album_artist_sort": null,
+              "album_sort": null,
+              "artist": "Sable & The Static",
+              "artist_sort": null,
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "Night Mix",
+              "dir_artist": null,
+              "dir_mtime": "<MTIME>",
+              "dir_name": "Various Artists - Night Mix [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "House; Electronic; Downtempo",
+              "has_embedded_cover": false,
+              "id": "<ID:Various Artists - Night Mix [FLAC]>",
+              "is_compilation": true,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/Various Artists - Night Mix [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/Various Artists - Night Mix [FLAC]/02 - something.flac",
+              "title": "Night Mix",
+              "total_seconds": 40.0,
+              "track_artists": [
+                {
+                  "artist": "Sable & The Static",
+                  "artist_sort": "",
+                  "filename": "02 - something.flac"
+                },
+                {
+                  "artist": "Orbit Society",
+                  "artist_sort": "",
+                  "filename": "04.flac"
+                },
+                {
+                  "artist": "Kite Theory",
+                  "artist_sort": "",
+                  "filename": "Night Mix 3.flac"
+                },
+                {
+                  "artist": "Lumen Drift",
+                  "artist_sort": "",
+                  "filename": "trackA.flac"
+                }
+              ],
+              "track_count": 4,
+              "track_numbers": [
+                2,
+                4,
+                3,
+                1
+              ],
+              "year": "2017"
+            },
+            {
+              "album_artist": "The Lanterns",
+              "album_artist_sort": null,
+              "album_sort": null,
+              "artist": "The Lanterns",
+              "artist_sort": null,
+              "bits_per_sample": 16,
+              "channels": 2,
+              "cover_file": "cover.jpg",
+              "dir_album": "Porchlight",
+              "dir_artist": "The Lanterns",
+              "dir_mtime": "<MTIME>",
+              "dir_name": "The Lanterns - Porchlight [FLAC]",
+              "disc_number": null,
+              "disc_total": null,
+              "genre": "Americana",
+              "has_embedded_cover": false,
+              "id": "<ID:The Lanterns - Porchlight [FLAC]>",
+              "is_compilation": false,
+              "mb_last_checked_at": null,
+              "mb_match_score": null,
+              "mb_release_group_mbid": null,
+              "mb_release_mbid": null,
+              "metadata_ai_acted_on_at": null,
+              "missing_since": null,
+              "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+              "sample_rate": 44100,
+              "sample_track": "<LIB>/The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac",
+              "title": "Porchlight",
+              "total_seconds": 30.0,
+              "track_artists": [
+                {
+                  "artist": "The Lanterns",
+                  "artist_sort": "",
+                  "filename": "01 - Screen Door.flac"
+                },
+                {
+                  "artist": "The Lanterns",
+                  "artist_sort": "",
+                  "filename": "02 - Fireflies.flac"
+                },
+                {
+                  "artist": "The Lanterns",
+                  "artist_sort": "",
+                  "filename": "03 - Gravel Road.flac"
+                }
+              ],
+              "track_count": 3,
+              "track_numbers": [
+                1,
+                2,
+                3
+              ],
+              "year": "2012"
+            }
+          ],
+          "count": 13,
+          "library_dir": "<LIB>",
+          "scanned_at": "<NOW>"
+        },
+        "status": 200
+      }
+    }
+  ],
+  "findings_after_checks": [
+    [
+      1,
+      "unidentified-album",
+      "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      2,
+      "unidentified-album",
+      "<ID:Aurora Fields - Second Light [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      3,
+      "unidentified-album",
+      "<ID:Mono Harbor - Dupes [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      4,
+      "unidentified-album",
+      "<ID:Legacy Folder Name>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      5,
+      "unidentified-album",
+      "<ID:Various Artists - Night Mix [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      6,
+      "unidentified-album",
+      "<ID:Aurora Fields - Folder Art [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      7,
+      "unidentified-album",
+      "<ID:Mono Harbor - Sorted [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      8,
+      "unidentified-album",
+      "<ID:The Lanterns - Porchlight [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      9,
+      "unidentified-album",
+      "<ID:Aurora Fields - First Light [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      10,
+      "unidentified-album",
+      "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      11,
+      "unidentified-album",
+      "<ID:Café Orchestra - Été [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      12,
+      "unidentified-album",
+      "<ID:Mono Harbor - Dotfiles [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      13,
+      "unidentified-album",
+      "<ID:Mono Harbor - Gaps [FLAC]>",
+      "Not fingerprinted and not yet identified on MusicBrainz"
+    ],
+    [
+      14,
+      "tags-out-of-sync",
+      "<ID:The Lanterns - Porchlight [FLAC]>",
+      "2 sort tag (no MB anchor — AI required)"
+    ],
+    [
+      15,
+      "track-gaps",
+      "<ID:Mono Harbor - Gaps [FLAC]>",
+      "Track-number gaps: missing 3"
+    ],
+    [
+      16,
+      "inconsistent-artist-sort",
+      "<ID:Mono Harbor - Sorted [FLAC]>",
+      "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+    ],
+    [
+      17,
+      "no-cover-art",
+      "<ID:Aurora Fields - Second Light [FLAC]>",
+      "No cover art (embedded or sidecar)"
+    ],
+    [
+      18,
+      "filename-mismatch",
+      "<ID:Legacy Folder Name>",
+      "Album dir 'Legacy Folder Name' doesn't match the template"
+    ],
+    [
+      19,
+      "filename-mismatch",
+      "<ID:Various Artists - Night Mix [FLAC]>",
+      "4 files in 'Various Artists - Night Mix [FLAC]' don't match the template"
+    ],
+    [
+      20,
+      "filename-mismatch",
+      "<ID:Café Orchestra - Été [FLAC]>",
+      "Album dir 'Café Orchestra - Été [FLAC]' doesn't match the template"
+    ]
+  ]
+}

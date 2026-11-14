@@ -1,11 +1,11 @@
 {
   "name": "musaic-frontend",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0-rc.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:all": "concurrently -n api,web -c blue,green --kill-others-on-fail \"uv run --project .. musaic\" \"vite\"",
+    "dev:all": "concurrently -n api,web -c blue,green --kill-others-on-fail \"cargo run --manifest-path ../rust/Cargo.toml -p musaic-api -- --config-dir ../work/dev-config --verification-memory-secrets\" \"vite\"",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",

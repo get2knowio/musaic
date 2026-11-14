@@ -1,0 +1,34 @@
+# cargo-about configuration for the desktop bundle's NOTICES.txt.
+# Used by scripts/desktop_notices.py; see docs/desktop.md "Packaging (macOS)".
+#
+# Only the crates linked into the shipped binary on the target being
+# bundled (normal dependencies of musaic-desktop, filtered by target triple;
+# build and dev dependencies are not shipped). Workspace crates
+# (publish = false) are ours and skipped.
+
+targets = ["aarch64-apple-darwin"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+private = { ignore = true }
+
+# Every licence that appears in the desktop's runtime closure today
+# (work/desktop-licences/rust-runtime-licences.tsv). A new licence makes
+# generation fail (--fail): read it, then add it here deliberately.
+accepted = [
+    "MIT",
+    "MIT-0",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "Unlicense",
+    "CC0-1.0",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "CDLA-Permissive-2.0",
+    "IJG",
+    "OpenSSL",
+]

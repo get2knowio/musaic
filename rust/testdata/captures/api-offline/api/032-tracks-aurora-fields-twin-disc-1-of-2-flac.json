@@ -1,0 +1,54 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Mirror.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Mirror",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Parallax.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Parallax",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "03 - Echo.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Echo",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

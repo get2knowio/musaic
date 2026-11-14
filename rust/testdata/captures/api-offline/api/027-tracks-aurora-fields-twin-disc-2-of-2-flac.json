@@ -1,0 +1,54 @@
+{
+  "elapsed_ms": 1.5,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Reflection.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Reflection",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Doppler.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Doppler",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "03 - Return.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Return",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

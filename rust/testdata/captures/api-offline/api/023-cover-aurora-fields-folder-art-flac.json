@@ -1,0 +1,17 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "0f79d98ad85d4b16333eabb2b55ad97141d8fa4d28a63e1e0afc6d88061489a9",
+      "size": 6277
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

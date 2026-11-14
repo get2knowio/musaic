@@ -1,0 +1,327 @@
+{
+  "elapsed_ms": 1.3,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/unidentified-album"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "findings": [
+        {
+          "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Twin",
+            "dir_artist": "Aurora Fields",
+            "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 3
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 1,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Second Light",
+            "dir_artist": "Aurora Fields",
+            "dir_name": "Aurora Fields - Second Light [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 4
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 2,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Dupes",
+            "dir_artist": "Mono Harbor",
+            "dir_name": "Mono Harbor - Dupes [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 4
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 3,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Legacy Folder Name>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": null,
+            "dir_artist": null,
+            "dir_name": "Legacy Folder Name",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 2
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 4,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Night Mix",
+            "dir_artist": null,
+            "dir_name": "Various Artists - Night Mix [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 4
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 5,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Folder Art",
+            "dir_artist": "Aurora Fields",
+            "dir_name": "Aurora Fields - Folder Art [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 2
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 6,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Sorted",
+            "dir_artist": "Mono Harbor",
+            "dir_name": "Mono Harbor - Sorted [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 3
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 7,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Porchlight",
+            "dir_artist": "The Lanterns",
+            "dir_name": "The Lanterns - Porchlight [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 3
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 8,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "First Light",
+            "dir_artist": "Aurora Fields",
+            "dir_name": "Aurora Fields - First Light [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 5
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 9,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Twin",
+            "dir_artist": "Aurora Fields",
+            "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 3
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 10,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Été",
+            "dir_artist": "Café Orchestra",
+            "dir_name": "Café Orchestra - Été [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 3
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 11,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Dotfiles",
+            "dir_artist": "Mono Harbor",
+            "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 2
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 12,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        },
+        {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "unidentified-album",
+          "detail": {
+            "dir_album": "Gaps",
+            "dir_artist": "Mono Harbor",
+            "dir_name": "Mono Harbor - Gaps [FLAC]",
+            "mb_last_checked_at": null,
+            "needs_anchor": true,
+            "needs_fingerprints": false,
+            "previously_attempted": false,
+            "track_count": 4
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 13,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Not yet identified on MusicBrainz"
+        }
+      ],
+      "meta": {
+        "bulk_action_label": "Identify all",
+        "category": "external",
+        "cost": "cheap",
+        "description": "Albums that haven't been fully identified yet — either no AcoustID fingerprints have been computed for the tracks or no MusicBrainz release-group has been matched. Both are prerequisites: fingerprints power per-track recognition + duplicate detection, and the MBID anchor unlocks cover lookups, canonical tags, and tracklist matching. Run \"Identify all\" to fingerprint + match the whole library in one pass.",
+        "fix_kind": "ai-job",
+        "id": "unidentified-album",
+        "label": "Album not yet identified",
+        "runs_during_scan": true
+      },
+      "runs": [
+        {
+          "check_id": "unidentified-album",
+          "completed_at": "2026-11-09T17:39:25Z",
+          "duration_ms": 20,
+          "error": null,
+          "id": 1,
+          "issue_count": 13,
+          "library_path": "<LIB>",
+          "scope": "all",
+          "started_at": "2026-11-09T17:39:25Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

@@ -1,0 +1,36 @@
+file changed: Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac
+    content sha256 changed (size 984900 -> 984900)
+    tag replaygain_album_gain: None -> ['-2.07 dB']
+    tag replaygain_album_peak: None -> ['0.365356']
+    tag replaygain_reference_loudness: None -> ['-18.00 LUFS']
+    tag replaygain_track_gain: None -> ['-2.43 dB']
+    tag replaygain_track_peak: None -> ['0.365356']
+file changed: Aurora Fields - First Light [FLAC]/02 - Low Sun.flac
+    content sha256 changed (size 969310 -> 969310)
+    tag replaygain_album_gain: None -> ['-2.07 dB']
+    tag replaygain_album_peak: None -> ['0.365356']
+    tag replaygain_reference_loudness: None -> ['-18.00 LUFS']
+    tag replaygain_track_gain: None -> ['-1.59 dB']
+    tag replaygain_track_peak: None -> ['0.356049']
+file changed: Aurora Fields - First Light [FLAC]/03 - Meridian.flac
+    content sha256 changed (size 965671 -> 965671)
+    tag replaygain_album_gain: None -> ['-2.07 dB']
+    tag replaygain_album_peak: None -> ['0.365356']
+    tag replaygain_reference_loudness: None -> ['-18.00 LUFS']
+    tag replaygain_track_gain: None -> ['-2.45 dB']
+    tag replaygain_track_peak: None -> ['0.344116']
+file changed: Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac
+    content sha256 changed (size 975363 -> 975363)
+    tag replaygain_album_gain: None -> ['-2.07 dB']
+    tag replaygain_album_peak: None -> ['0.365356']
+    tag replaygain_reference_loudness: None -> ['-18.00 LUFS']
+    tag replaygain_track_gain: None -> ['-1.49 dB']
+    tag replaygain_track_peak: None -> ['0.323761']
+file changed: Aurora Fields - First Light [FLAC]/05 - Afterglow.flac
+    content sha256 changed (size 970419 -> 970419)
+    tag replaygain_album_gain: None -> ['-2.07 dB']
+    tag replaygain_album_peak: None -> ['0.365356']
+    tag replaygain_reference_loudness: None -> ['-18.00 LUFS']
+    tag replaygain_track_gain: None -> ['-2.27 dB']
+    tag replaygain_track_peak: None -> ['0.331116']
+table albums: row 9 changed: dir_mtime: 1794245969.290105 -> 1794245972.9582078

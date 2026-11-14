@@ -1,0 +1,154 @@
+{
+  "cases": [
+    {
+      "raw": null,
+      "value": null
+    },
+    {
+      "raw": "",
+      "value": null
+    },
+    {
+      "raw": " ",
+      "value": null
+    },
+    {
+      "raw": "5",
+      "value": 5
+    },
+    {
+      "raw": "05",
+      "value": 5
+    },
+    {
+      "raw": " 7 ",
+      "value": 7
+    },
+    {
+      "raw": "5/12",
+      "value": 5
+    },
+    {
+      "raw": "05/12",
+      "value": 5
+    },
+    {
+      "raw": " 5 / 12 ",
+      "value": 5
+    },
+    {
+      "raw": "1-05",
+      "value": 5
+    },
+    {
+      "raw": "1.05",
+      "value": 5
+    },
+    {
+      "raw": "01.05",
+      "value": 5
+    },
+    {
+      "raw": "2-11/20",
+      "value": 11
+    },
+    {
+      "raw": "A1",
+      "value": null
+    },
+    {
+      "raw": "B",
+      "value": null
+    },
+    {
+      "raw": "-5",
+      "value": 5
+    },
+    {
+      "raw": "+5",
+      "value": 5
+    },
+    {
+      "raw": "5-",
+      "value": null
+    },
+    {
+      "raw": "5.",
+      "value": null
+    },
+    {
+      "raw": "1-",
+      "value": null
+    },
+    {
+      "raw": "1_0",
+      "value": 10
+    },
+    {
+      "raw": "١٢",
+      "value": 12
+    },
+    {
+      "raw": "５",
+      "value": 5
+    },
+    {
+      "raw": "0",
+      "value": 0
+    },
+    {
+      "raw": "000",
+      "value": 0
+    },
+    {
+      "raw": "12a",
+      "value": null
+    },
+    {
+      "raw": "1-2-3",
+      "value": 3
+    },
+    {
+      "raw": "1.2.3",
+      "value": 3
+    },
+    {
+      "raw": "1/0",
+      "value": 1
+    },
+    {
+      "raw": "/12",
+      "value": null
+    },
+    {
+      "raw": "3 of 12",
+      "value": null
+    },
+    {
+      "raw": "1e2",
+      "value": null
+    },
+    {
+      "raw": "0x10",
+      "value": null
+    },
+    {
+      "raw": " 1-05 ",
+      "value": 5
+    },
+    {
+      "raw": "1 - 05",
+      "value": 5
+    },
+    {
+      "raw": "10.5",
+      "value": 5
+    },
+    {
+      "raw": "²",
+      "value": null
+    }
+  ],
+  "generator": "tools/gen_scan_golden.py",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d"
+}

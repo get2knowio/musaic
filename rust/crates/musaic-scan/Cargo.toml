@@ -1,0 +1,19 @@
+[package]
+name = "musaic-scan"
+description = "Library scanner: finds album directories and derives album rows from FLAC metadata"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+musaic-core = { path = "../musaic-core" }
+regex = "1.11"
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

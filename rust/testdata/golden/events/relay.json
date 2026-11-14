@@ -1,0 +1,1200 @@
+{
+  "cross_thread_publish": {
+    "received": [
+      "AlbumTagsChanged",
+      "{\"album_id\": \"from-thread\", \"fields\": []}"
+    ]
+  },
+  "dead_consumer_first": {
+    "dead": [],
+    "live": [
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"should-still-reach-live\", \"fields\": []}"
+      ]
+    ]
+  },
+  "fan_out_and_unregister": {
+    "q1": [
+      [
+        "AlbumCoverChanged",
+        "{\"album_id\": \"c1\"}"
+      ],
+      [
+        "AlbumRenamed",
+        "{\"old_album_id\": \"old\", \"new_album_id\": \"new\"}"
+      ],
+      [
+        "AlbumMbAnchorSet",
+        "{\"album_id\": \"m1\", \"source\": \"musicbrainz\"}"
+      ],
+      [
+        "TrackFingerprinted",
+        "{\"album_id\": \"f1\", \"filenames\": [\"01.flac\"]}"
+      ],
+      [
+        "AlbumDeleted",
+        "{\"album_id\": \"d1\"}"
+      ],
+      [
+        "AlbumMarkedMissing",
+        "{\"album_id\": \"x1\", \"missing_since\": \"2026-01-01T00:00:00Z\"}"
+      ],
+      [
+        "LibraryScanCompleted",
+        "{\"album_count\": 3}"
+      ],
+      [
+        "BulkBatchCompleted",
+        "{}"
+      ]
+    ],
+    "q2_unregistered": [],
+    "q3": [
+      [
+        "AlbumCoverChanged",
+        "{\"album_id\": \"c1\"}"
+      ],
+      [
+        "AlbumRenamed",
+        "{\"old_album_id\": \"old\", \"new_album_id\": \"new\"}"
+      ],
+      [
+        "AlbumMbAnchorSet",
+        "{\"album_id\": \"m1\", \"source\": \"musicbrainz\"}"
+      ],
+      [
+        "TrackFingerprinted",
+        "{\"album_id\": \"f1\", \"filenames\": [\"01.flac\"]}"
+      ],
+      [
+        "AlbumDeleted",
+        "{\"album_id\": \"d1\"}"
+      ],
+      [
+        "AlbumMarkedMissing",
+        "{\"album_id\": \"x1\", \"missing_since\": \"2026-01-01T00:00:00Z\"}"
+      ],
+      [
+        "LibraryScanCompleted",
+        "{\"album_count\": 3}"
+      ],
+      [
+        "BulkBatchCompleted",
+        "{}"
+      ]
+    ],
+    "subscriber_count": 2
+  },
+  "generator": "tools/gen_events_golden.py",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "order_preserved": {
+    "received": [
+      [
+        "AlbumRenamed",
+        "{\"old_album_id\": \"o\", \"new_album_id\": \"n\"}"
+      ],
+      [
+        "BulkBatchCompleted",
+        "{}"
+      ]
+    ]
+  },
+  "overflow_300_into_256": {
+    "published": 300,
+    "remaining": [
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a044\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a045\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a046\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a047\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a048\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a049\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a050\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a051\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a052\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a053\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a054\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a055\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a056\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a057\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a058\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a059\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a060\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a061\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a062\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a063\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a064\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a065\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a066\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a067\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a068\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a069\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a070\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a071\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a072\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a073\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a074\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a075\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a076\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a077\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a078\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a079\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a080\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a081\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a082\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a083\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a084\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a085\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a086\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a087\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a088\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a089\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a090\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a091\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a092\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a093\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a094\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a095\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a096\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a097\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a098\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a099\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a100\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a101\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a102\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a103\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a104\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a105\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a106\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a107\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a108\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a109\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a110\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a111\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a112\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a113\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a114\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a115\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a116\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a117\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a118\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a119\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a120\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a121\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a122\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a123\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a124\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a125\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a126\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a127\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a128\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a129\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a130\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a131\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a132\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a133\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a134\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a135\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a136\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a137\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a138\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a139\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a140\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a141\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a142\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a143\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a144\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a145\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a146\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a147\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a148\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a149\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a150\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a151\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a152\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a153\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a154\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a155\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a156\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a157\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a158\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a159\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a160\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a161\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a162\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a163\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a164\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a165\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a166\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a167\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a168\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a169\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a170\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a171\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a172\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a173\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a174\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a175\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a176\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a177\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a178\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a179\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a180\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a181\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a182\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a183\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a184\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a185\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a186\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a187\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a188\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a189\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a190\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a191\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a192\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a193\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a194\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a195\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a196\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a197\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a198\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a199\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a200\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a201\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a202\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a203\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a204\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a205\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a206\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a207\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a208\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a209\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a210\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a211\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a212\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a213\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a214\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a215\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a216\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a217\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a218\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a219\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a220\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a221\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a222\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a223\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a224\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a225\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a226\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a227\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a228\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a229\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a230\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a231\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a232\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a233\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a234\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a235\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a236\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a237\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a238\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a239\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a240\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a241\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a242\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a243\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a244\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a245\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a246\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a247\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a248\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a249\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a250\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a251\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a252\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a253\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a254\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a255\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a256\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a257\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a258\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a259\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a260\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a261\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a262\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a263\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a264\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a265\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a266\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a267\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a268\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a269\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a270\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a271\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a272\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a273\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a274\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a275\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a276\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a277\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a278\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a279\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a280\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a281\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a282\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a283\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a284\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a285\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a286\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a287\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a288\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a289\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a290\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a291\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a292\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a293\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a294\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a295\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a296\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a297\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a298\", \"fields\": [\"n\"]}"
+      ],
+      [
+        "AlbumTagsChanged",
+        "{\"album_id\": \"a299\", \"fields\": [\"n\"]}"
+      ]
+    ]
+  },
+  "python": "3.13.15",
+  "queue_maxsize": 256,
+  "registration": [
+    {
+      "background": false,
+      "name": "_sse_event_relay",
+      "priority": 400,
+      "topic": "Event"
+    }
+  ],
+  "safe_put_cases": [
+    {
+      "capacity": 2,
+      "prefill": 2,
+      "put": 2,
+      "remaining": [
+        [
+          "new0",
+          "{\"i\": 0}"
+        ],
+        [
+          "new1",
+          "{\"i\": 1}"
+        ]
+      ]
+    },
+    {
+      "capacity": 2,
+      "prefill": 0,
+      "put": 5,
+      "remaining": [
+        [
+          "new3",
+          "{\"i\": 3}"
+        ],
+        [
+          "new4",
+          "{\"i\": 4}"
+        ]
+      ]
+    },
+    {
+      "capacity": 1,
+      "prefill": 1,
+      "put": 3,
+      "remaining": [
+        [
+          "new2",
+          "{\"i\": 2}"
+        ]
+      ]
+    },
+    {
+      "capacity": 3,
+      "prefill": 0,
+      "put": 2,
+      "remaining": [
+        [
+          "new0",
+          "{\"i\": 0}"
+        ],
+        [
+          "new1",
+          "{\"i\": 1}"
+        ]
+      ]
+    }
+  ]
+}

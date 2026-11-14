@@ -1,0 +1,18 @@
+{
+  "elapsed_ms": 2.4,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tags"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+      "album_tags": [],
+      "track_tags": {}
+    },
+    "status": 200
+  }
+}

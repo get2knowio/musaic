@@ -1,0 +1,16 @@
+{
+  "elapsed_ms": 0.9,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/findings"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "findings": []
+    },
+    "status": 200
+  }
+}

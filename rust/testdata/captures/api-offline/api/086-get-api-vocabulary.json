@@ -1,0 +1,17 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/vocabulary"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "orphans": [],
+      "vocabulary": []
+    },
+    "status": 200
+  }
+}

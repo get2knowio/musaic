@@ -1,0 +1,139 @@
+{
+  "applies_to_mode": "offline",
+  "checks": {
+    "duplicate-tracks": {
+      "actual": [
+        "Mono Harbor - Dupes [FLAC]"
+      ],
+      "actual_count": 1,
+      "actual_summaries": [
+        "Duplicate audio: \"Static Bloom\" (2 copies)"
+      ],
+      "expected": [
+        "Mono Harbor - Dupes [FLAC]"
+      ],
+      "matched": true
+    },
+    "filename-mismatch": {
+      "actual": [
+        "Café Orchestra - Été [FLAC]",
+        "Legacy Folder Name",
+        "Various Artists - Night Mix [FLAC]"
+      ],
+      "actual_count": 3,
+      "actual_summaries": [
+        "Album dir 'Legacy Folder Name' doesn't match the template",
+        "4 files in 'Various Artists - Night Mix [FLAC]' don't match the template",
+        "Album dir 'Café Orchestra - Été [FLAC]' doesn't match the template"
+      ],
+      "expected": [
+        "Café Orchestra - Été [FLAC]",
+        "Legacy Folder Name",
+        "Various Artists - Night Mix [FLAC]"
+      ],
+      "matched": true
+    },
+    "inconsistent-artist-sort": {
+      "actual": [
+        "Mono Harbor - Gaps [FLAC]"
+      ],
+      "actual_count": 1,
+      "actual_summaries": [
+        "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+      ],
+      "expected": "mono harbor group (one cluster finding)",
+      "matched": true
+    },
+    "no-cover-art": {
+      "actual": [
+        "Aurora Fields - Second Light [FLAC]"
+      ],
+      "actual_count": 1,
+      "actual_summaries": [
+        "No cover art (embedded or sidecar)"
+      ],
+      "expected": [
+        "Aurora Fields - Second Light [FLAC]"
+      ],
+      "matched": true
+    },
+    "tags-out-of-sync": {
+      "actual": [
+        "The Lanterns - Porchlight [FLAC]"
+      ],
+      "actual_count": 1,
+      "actual_summaries": [
+        "2 sort tag (no MB anchor — AI required)"
+      ],
+      "expected": [
+        "The Lanterns - Porchlight [FLAC]"
+      ],
+      "matched": true
+    },
+    "track-gaps": {
+      "actual": [
+        "Mono Harbor - Gaps [FLAC]"
+      ],
+      "actual_count": 1,
+      "actual_summaries": [
+        "Track-number gaps: missing 3"
+      ],
+      "expected": [
+        "Mono Harbor - Gaps [FLAC]"
+      ],
+      "matched": true
+    },
+    "unidentified-album": {
+      "actual": [
+        "Aurora Fields - First Light [FLAC]",
+        "Aurora Fields - Folder Art [FLAC]",
+        "Aurora Fields - Second Light [FLAC]",
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+        "Café Orchestra - Été [FLAC]",
+        "Legacy Folder Name",
+        "Mono Harbor - Dotfiles [FLAC]",
+        "Mono Harbor - Dupes [FLAC]",
+        "Mono Harbor - Gaps [FLAC]",
+        "Mono Harbor - Sorted [FLAC]",
+        "The Lanterns - Porchlight [FLAC]",
+        "Various Artists - Night Mix [FLAC]"
+      ],
+      "actual_count": 13,
+      "actual_summaries": [
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz"
+      ],
+      "expected": [
+        "Aurora Fields - First Light [FLAC]",
+        "Aurora Fields - Folder Art [FLAC]",
+        "Aurora Fields - Second Light [FLAC]",
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+        "Café Orchestra - Été [FLAC]",
+        "Legacy Folder Name",
+        "Mono Harbor - Dotfiles [FLAC]",
+        "Mono Harbor - Dupes [FLAC]",
+        "Mono Harbor - Gaps [FLAC]",
+        "Mono Harbor - Sorted [FLAC]",
+        "The Lanterns - Porchlight [FLAC]",
+        "Various Artists - Night Mix [FLAC]"
+      ],
+      "matched": true
+    }
+  },
+  "matched": true,
+  "mode": "offline",
+  "unexpected_checks": []
+}

@@ -1,0 +1,42 @@
+{
+  "elapsed_ms": 1.5,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Legacy Folder Name>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Legacy Folder Name>",
+      "tracks": [
+        {
+          "artist": "Quiet Atlas",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Kitchen Radio.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Kitchen Radio",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Quiet Atlas",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Porch Light.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Porch Light",
+          "tracknumber": "2"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

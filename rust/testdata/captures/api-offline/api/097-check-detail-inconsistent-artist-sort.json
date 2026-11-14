@@ -1,0 +1,95 @@
+{
+  "elapsed_ms": 0.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/inconsistent-artist-sort"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "findings": [
+        {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "inconsistent-artist-sort",
+          "detail": {
+            "canonical_sort": null,
+            "headline": "Mono Harbor",
+            "members": [
+              {
+                "album_artist": "Mono Harbor",
+                "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+                "dir_name": "Mono Harbor - Dupes [FLAC]",
+                "kind": "album",
+                "sort": ""
+              },
+              {
+                "album_artist": "Mono Harbor",
+                "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+                "dir_name": "Mono Harbor - Sorted [FLAC]",
+                "kind": "album",
+                "sort": "Harbor, Mono"
+              },
+              {
+                "album_artist": "Mono Harbor",
+                "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+                "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+                "kind": "album",
+                "sort": ""
+              },
+              {
+                "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+                "artist": "Mono Harbor",
+                "dir_name": "Mono Harbor - Gaps [FLAC]",
+                "filenames": [
+                  "01 - Pier One.flac",
+                  "02 - Breakwater.flac",
+                  "04 - Tidewater.flac",
+                  "05 - Lighthouse.flac"
+                ],
+                "kind": "track",
+                "sort": "Mono Harbor"
+              }
+            ],
+            "primary_token": "mono harbor",
+            "state": "conflicting"
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 16,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+        }
+      ],
+      "meta": {
+        "bulk_action_label": "Propagate where possible",
+        "category": "metadata",
+        "cost": "cheap",
+        "description": "Clusters of albums whose album_artist values are credit permutations of the same primary artist (\"Ray Conniff\" / \"Ray Conniff & His Orchestra\" / \"Ray Conniff, his Orchestra and Chorus\") but whose sort tags don't agree. Setting the same album_artist_sort across the cluster groups them under one entry in Plex / Roon sidebars.",
+        "fix_kind": "deterministic",
+        "id": "inconsistent-artist-sort",
+        "label": "Inconsistent artist sort",
+        "runs_during_scan": true
+      },
+      "runs": [
+        {
+          "check_id": "inconsistent-artist-sort",
+          "completed_at": "2026-11-09T17:39:25Z",
+          "duration_ms": 2,
+          "error": null,
+          "id": 4,
+          "issue_count": 1,
+          "library_path": "<LIB>",
+          "scope": "all",
+          "started_at": "2026-11-09T17:39:25Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

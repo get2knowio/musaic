@@ -1,0 +1,27 @@
+{
+  "elapsed_ms": 2.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/filename-mismatch/findings/19/plan-preview"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Legacy Folder Name>",
+      "dir_name": "Legacy Folder Name",
+      "dir_rename": {
+        "new": "Quiet Atlas - Old Rips [FLAC]",
+        "old": "Legacy Folder Name"
+      },
+      "dir_template": "{albumartist} - {album} [FLAC]",
+      "headline": "Legacy Folder Name",
+      "is_compilation": false,
+      "is_empty": false,
+      "renames": [],
+      "template": "{tracknumber:02} - {title}"
+    },
+    "status": 200
+  }
+}

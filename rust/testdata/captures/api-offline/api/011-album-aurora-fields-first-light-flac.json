@@ -1,0 +1,80 @@
+{
+  "elapsed_ms": 1.7,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": "Aurora Fields",
+      "album_artist_sort": "Aurora Fields",
+      "album_sort": null,
+      "artist": "Aurora Fields",
+      "artist_sort": "Aurora Fields",
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": "First Light",
+      "dir_artist": "Aurora Fields",
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Aurora Fields - First Light [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Ambient",
+      "has_embedded_cover": true,
+      "id": "<ID:Aurora Fields - First Light [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac",
+      "title": "First Light",
+      "total_seconds": 50.0,
+      "track_artists": [
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "01 - Dawn Chorus.flac"
+        },
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "02 - Low Sun.flac"
+        },
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "03 - Meridian.flac"
+        },
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "04 - Long Shadows.flac"
+        },
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "05 - Afterglow.flac"
+        }
+      ],
+      "track_count": 5,
+      "track_numbers": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "year": "2019"
+    },
+    "status": 200
+  }
+}

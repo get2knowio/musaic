@@ -1,0 +1,18 @@
+{
+  "elapsed_ms": 1.6,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>/tags"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+      "album_tags": [],
+      "track_tags": {}
+    },
+    "status": 200
+  }
+}

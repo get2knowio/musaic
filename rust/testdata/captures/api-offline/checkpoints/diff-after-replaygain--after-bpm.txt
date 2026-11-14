@@ -1,0 +1,16 @@
+file changed: Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac
+    content sha256 changed (size 984900 -> 984900)
+    tag bpm: None -> ['143.55']
+file changed: Aurora Fields - First Light [FLAC]/02 - Low Sun.flac
+    content sha256 changed (size 969310 -> 969310)
+    tag bpm: None -> ['152.00']
+file changed: Aurora Fields - First Light [FLAC]/03 - Meridian.flac
+    content sha256 changed (size 965671 -> 965671)
+    tag bpm: None -> ['136.00']
+file changed: Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac
+    content sha256 changed (size 975363 -> 975363)
+    tag bpm: None -> ['95.70']
+file changed: Aurora Fields - First Light [FLAC]/05 - Afterglow.flac
+    content sha256 changed (size 970419 -> 970419)
+    tag bpm: None -> ['123.05']
+table albums: row 9 changed: dir_mtime: 1794245972.9582078 -> 1794245975.8837638

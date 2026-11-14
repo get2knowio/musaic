@@ -1,0 +1,22 @@
+Chromaprint (audio fingerprinting), via rusty-chromaprint
+---------------------------------------------------------
+
+Musaic computes audio fingerprints in process with the Rust crate
+rusty-chromaprint 0.3.0 (https://github.com/darksv/rusty-chromaprint),
+described by its authors as a "Pure Rust port of Chromaprint". The crate's
+metadata declares the MIT licence; the published crate ships no licence
+file, so no copyright line could be reproduced for it here.
+
+Chromaprint itself (https://github.com/acoustid/chromaprint) is
+Copyright (C) Lukas Lalinsky and contributors, and the Chromaprint library
+is distributed under the GNU Lesser General Public License, version 2.1
+(full text below). Musaic does not bundle the Chromaprint library or the
+fpcalc tool.
+
+Whether a port of Chromaprint is a derivative work of it, and which
+obligations that brings, has not been decided; this notice is included
+without prejudice to that question. The source code of rusty-chromaprint is
+available from crates.io and from the repository above.
+
+The full text of the GNU Lesser General Public License, version 2.1:
+

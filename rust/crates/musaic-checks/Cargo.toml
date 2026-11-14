@@ -1,0 +1,27 @@
+[package]
+name = "musaic-checks"
+description = "Health-check framework: Check trait, registry, findings runner, post-scan reruns"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+musaic-core = { path = "../musaic-core" }
+musaic-db = { path = "../musaic-db" }
+musaic-events = { path = "../musaic-events" }
+musaic-fsops = { path = "../musaic-fsops" }
+musaic-log = { path = "../musaic-log" }
+musaic-dsp = { path = "../musaic-dsp" }
+musaic-scan = { path = "../musaic-scan" }
+regex = "1.11"
+rusqlite.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

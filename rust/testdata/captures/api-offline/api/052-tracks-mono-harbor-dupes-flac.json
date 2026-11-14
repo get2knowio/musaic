@@ -1,0 +1,66 @@
+{
+  "elapsed_ms": 1.3,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Dupes [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Static Bloom.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Static Bloom",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Feedback Garden.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Feedback Garden",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "03 - Static Bloom (Reprise).flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Static Bloom (Reprise)",
+          "tracknumber": "3"
+        },
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "04 - Wall of Sound.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Wall of Sound",
+          "tracknumber": "4"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

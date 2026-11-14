@@ -1,0 +1,68 @@
+{
+  "elapsed_ms": 1.1,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": "Aurora Fields",
+      "album_artist_sort": "Aurora Fields",
+      "album_sort": null,
+      "artist": "Aurora Fields",
+      "artist_sort": "Aurora Fields",
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": null,
+      "dir_album": "Twin",
+      "dir_artist": "Aurora Fields",
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+      "disc_number": 2,
+      "disc_total": 2,
+      "genre": "Electronic",
+      "has_embedded_cover": true,
+      "id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac",
+      "title": "Twin",
+      "total_seconds": 30.0,
+      "track_artists": [
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "01 - Reflection.flac"
+        },
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "02 - Doppler.flac"
+        },
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "03 - Return.flac"
+        }
+      ],
+      "track_count": 3,
+      "track_numbers": [
+        1,
+        2,
+        3
+      ],
+      "year": "2023"
+    },
+    "status": 200
+  }
+}

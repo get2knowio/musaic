@@ -1,0 +1,19 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": {
+      "size": "full"
+    },
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "63777c3a9c7fe272b4be6f91b51ff1677a61219872a47be8a4f8c2043770c615",
+      "size": 17947
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

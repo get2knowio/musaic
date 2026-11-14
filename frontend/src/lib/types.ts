@@ -392,6 +392,21 @@ export interface OrphanTag {
 export interface VocabularyResponse {
   vocabulary: VocabularyEntry[];
   orphans: OrphanTag[];
+  /** Groups of vocabulary spellings that now count as one tag (entries
+   *  saved under older, ASCII-only case rules, e.g. "Été" / "été").
+   *  Absent when there are none, and from backends that don't report it. */
+  case_conflicts?: string[][];
+  /** Present after a rename / merge / delete that touched track rows. */
+  rename_result?: VocabularyMutationResult;
+  merge_result?: VocabularyMutationResult;
+  delete_result?: VocabularyMutationResult;
+}
+
+export interface VocabularyMutationResult {
+  albums?: string[];
+  /** Albums whose tag sidecar file wasn't rewritten (album Missing, folder
+   *  gone or not writable). Absent when every write succeeded. */
+  sidecars_not_written?: string[];
 }
 
 // ----- DB backup / snapshots -----

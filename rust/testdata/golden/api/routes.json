@@ -1,0 +1,615 @@
+{
+  "_meta": {
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "starting_state": "fresh config dir, fresh copy of fixtures/library at <LIB>, SPA dir <WORK>/frontend, no lifespan, network off, no AcoustID key",
+    "tool": "tools.gen_api_golden"
+  },
+  "routes": [
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "DELETE",
+      "path": "/api/ai/jobs",
+      "path_params": [],
+      "query_params": [
+        "status"
+      ]
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/ai/jobs",
+      "path_params": [],
+      "query_params": [
+        "status"
+      ]
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/ai/jobs",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/ai/jobs/active/{album_id}",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/ai/jobs/stream",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "DELETE",
+      "path": "/api/ai/jobs/{job_id}",
+      "path_params": [
+        "job_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/ai/jobs/{job_id}",
+      "path_params": [
+        "job_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/ai/jobs/{job_id}/acted-on",
+      "path_params": [
+        "job_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/ai/jobs/{job_id}/retry",
+      "path_params": [
+        "job_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/ai/providers",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/ai/queue/resume",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/albums",
+      "path_params": [],
+      "query_params": [
+        "refresh"
+      ]
+    },
+    {
+      "has_body": false,
+      "method": "DELETE",
+      "path": "/api/albums/{album_id}",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/albums/{album_id}",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/albums/{album_id}/analyze/stream",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/albums/{album_id}/apply/stream",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/albums/{album_id}/cover",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": [
+        "size"
+      ]
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/albums/{album_id}/cover/upload",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/albums/{album_id}/mb-anchor/clear",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/albums/{album_id}/resolution",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": [
+        "force",
+        "hint"
+      ]
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/albums/{album_id}/tags",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/albums/{album_id}/tags",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "PUT",
+      "path": "/api/albums/{album_id}/tags",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "DELETE",
+      "path": "/api/albums/{album_id}/tags/{tag}",
+      "path_params": [
+        "album_id",
+        "tag"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/albums/{album_id}/tracks",
+      "path_params": [
+        "album_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/albums/{album_id}/tracks/{filename}/tags",
+      "path_params": [
+        "album_id",
+        "filename"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "DELETE",
+      "path": "/api/albums/{album_id}/tracks/{filename}/tags/{tag}",
+      "path_params": [
+        "album_id",
+        "filename",
+        "tag"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/checks",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/checks/duplicate-tracks/findings/{finding_id}/canonical",
+      "path_params": [
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/checks/duplicate-tracks/findings/{finding_id}/cluster-preview",
+      "path_params": [
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/checks/duplicate-tracks/findings/{finding_id}/delete-file",
+      "path_params": [
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/checks/filename-mismatch/findings/{finding_id}/apply",
+      "path_params": [
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/checks/filename-mismatch/findings/{finding_id}/plan-preview",
+      "path_params": [
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/checks/findings",
+      "path_params": [],
+      "query_params": [
+        "album_id",
+        "check_id",
+        "include_ignored",
+        "include_resolved"
+      ]
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/checks/inconsistent-artist-sort/findings/{finding_id}/apply-sort",
+      "path_params": [
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/checks/stream",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/checks/{check_id}",
+      "path_params": [
+        "check_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/checks/{check_id}/findings/{finding_id}/fix",
+      "path_params": [
+        "check_id",
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/checks/{check_id}/findings/{finding_id}/ignore",
+      "path_params": [
+        "check_id",
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/checks/{check_id}/findings/{finding_id}/unignore",
+      "path_params": [
+        "check_id",
+        "finding_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/checks/{check_id}/quick-fix-all",
+      "path_params": [
+        "check_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/checks/{check_id}/run",
+      "path_params": [
+        "check_id"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/config",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/config",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/db/backup",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/db/info",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/db/restore",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/db/snapshots",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/db/snapshots",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "DELETE",
+      "path": "/api/db/snapshots/{name}",
+      "path_params": [
+        "name"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/db/snapshots/{name}/restore",
+      "path_params": [
+        "name"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/fingerprint-pool/status",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/fingerprint-pool/stream",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/health",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/library-events/stream",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/scan/rescan",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/scan/status",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/scan/stream",
+      "path_params": [],
+      "query_params": [
+        "force"
+      ]
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/settings",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "PATCH",
+      "path": "/api/settings",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/tags",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/tags/{tag}/tracks",
+      "path_params": [
+        "tag"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/api/vocabulary",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/vocabulary",
+      "path_params": [],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "POST",
+      "path": "/api/vocabulary/orphans/{tag}/promote",
+      "path_params": [
+        "tag"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "DELETE",
+      "path": "/api/vocabulary/{tag}",
+      "path_params": [
+        "tag"
+      ],
+      "query_params": [
+        "strip_from_tracks"
+      ]
+    },
+    {
+      "has_body": true,
+      "method": "PATCH",
+      "path": "/api/vocabulary/{tag}",
+      "path_params": [
+        "tag"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/vocabulary/{tag}/merge",
+      "path_params": [
+        "tag"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": true,
+      "method": "POST",
+      "path": "/api/vocabulary/{tag}/rename",
+      "path_params": [
+        "tag"
+      ],
+      "query_params": []
+    },
+    {
+      "has_body": false,
+      "method": "GET",
+      "path": "/{full_path}",
+      "path_params": [
+        "full_path"
+      ],
+      "query_params": []
+    }
+  ]
+}

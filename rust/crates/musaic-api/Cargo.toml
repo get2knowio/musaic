@@ -1,0 +1,58 @@
+[package]
+name = "musaic-api"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "musaic-api"
+path = "src/main.rs"
+
+[dependencies]
+musaic-core = { path = "../musaic-core" }
+musaic-db = { path = "../musaic-db" }
+musaic-secrets = { path = "../musaic-secrets" }
+musaic-scan = { path = "../musaic-scan" }
+musaic-services = { path = "../musaic-services" }
+musaic-events = { path = "../musaic-events" }
+musaic-checks = { path = "../musaic-checks" }
+musaic-fsops = { path = "../musaic-fsops" }
+musaic-resolve = { path = "../musaic-resolve" }
+musaic-net = { path = "../musaic-net" }
+musaic-ai = { path = "../musaic-ai" }
+musaic-app = { path = "../musaic-app" }
+musaic-log = { path = "../musaic-log" }
+axum = { version = "0.8", default-features = false, features = ["http1", "json", "query", "tokio", "multipart", "matched-path", "original-uri"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time", "fs", "signal"] }
+http-body = "1"
+bytes = "1"
+rusqlite.workspace = true
+serde_json.workspace = true
+# Request key order (lax::KeyOrder); serde_json's own Map is sorted.
+serde = "1"
+# Calling the inner router from the decoded-path dispatcher (starlette_routing).
+tower = { version = "0.5", features = ["util"] }
+thiserror.workspace = true
+# The per-launch token (launch.rs).
+getrandom = "0.3"
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+# tests/thumbs_golden.rs decodes thumbnails (the thumbnailer itself lives in
+# musaic-services).
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+musaic-ai = { path = "../musaic-ai", features = ["replay"] }
+tokio = { version = "1", features = ["io-util"] }
+tempfile.workspace = true
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+regex = "1"
+sha2 = "0.10"
+base64 = "0.22"
+
+[lints]
+workspace = true

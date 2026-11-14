@@ -621,9 +621,9 @@ function _creditOf(m: ClusterMember | undefined): string {
  *  We ONLY rotate articles ("The Beatles" → "Beatles, The"), which is
  *  deterministic and always correct. We deliberately DON'T do
  *  "First Last" → "Last, First" — that heuristic looks tempting but
- *  false-positives on band names like "Mannheim Steamroller" (would
- *  wrongly suggest "Steamroller, Mannheim") and "Steely Dan" /
- *  "Pink Floyd" / etc. Distinguishing personal names from band names
+ *  false-positives on band names like "Copper Steamroller" (would
+ *  wrongly suggest "Steamroller, Copper") and "Velvet Dan" /
+ *  "Paper Kite" / etc. Distinguishing personal names from band names
  *  reliably needs MusicBrainz data, which we don't have on the client.
  *
  *  When in doubt, return the credit unchanged and let the user type

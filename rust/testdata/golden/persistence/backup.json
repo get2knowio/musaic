@@ -1,0 +1,640 @@
+{
+  "auto_snapshot": [
+    {
+      "case": "retention 0",
+      "taken": false
+    },
+    {
+      "case": "no snapshots yet",
+      "filename": "library-20260104-000000Z-v16.db",
+      "taken": true
+    },
+    {
+      "case": "newest is 1h old, interval 24h",
+      "taken": false
+    },
+    {
+      "case": "newest is 1h old, interval 0.5h",
+      "filename": "library-20260104-000001Z-v16.db",
+      "taken": true
+    },
+    {
+      "case": "interval 0 always takes one",
+      "filename": "library-20260104-000002Z-v16.db",
+      "taken": true
+    }
+  ],
+  "delete_snapshot": {
+    "again": {
+      "restore_error": "Snapshot not found: plain-file"
+    },
+    "first": true,
+    "listing_after": [
+      {
+        "counts": {
+          "ai_jobs": 0,
+          "albums": 0,
+          "albums_with_mbid": 0,
+          "check_findings_open": 0,
+          "tag_vocabulary": 0,
+          "track_fingerprints": 0,
+          "track_tags": 0
+        },
+        "filename": "library-20260103-000000Z-v16.db",
+        "modified_at": "2026-01-03T00:00:00Z",
+        "schema_version": 16,
+        "valid": true
+      },
+      {
+        "counts": {
+          "ai_jobs": 0,
+          "albums": 0,
+          "albums_with_mbid": 0,
+          "check_findings_open": 0,
+          "tag_vocabulary": 0,
+          "track_fingerprints": 0,
+          "track_tags": 0
+        },
+        "filename": "library-20260103-000000Z-v16.1.db",
+        "modified_at": "2026-01-03T00:00:00Z",
+        "schema_version": 16,
+        "valid": true
+      },
+      {
+        "counts": {
+          "ai_jobs": 0,
+          "albums": 0,
+          "albums_with_mbid": 0,
+          "check_findings_open": 0,
+          "tag_vocabulary": 0,
+          "track_fingerprints": 0,
+          "track_tags": 0
+        },
+        "filename": "library-20260102-000000Z-v16.db",
+        "modified_at": "2026-01-02T00:00:00Z",
+        "schema_version": 16,
+        "valid": true
+      }
+    ],
+    "name": "plain-file"
+  },
+  "fixture_counts": {
+    "counts": {
+      "ai_jobs": 0,
+      "albums": 13,
+      "albums_with_mbid": 0,
+      "check_findings_open": 21,
+      "tag_vocabulary": 0,
+      "track_fingerprints": 42,
+      "track_tags": 0
+    },
+    "fixture": "fixtures/db/v16-synthetic-offline.db"
+  },
+  "generator": "tools/gen_persistence_golden.py",
+  "make_backup_dir": {
+    "header": "SQLite format 3\u0000",
+    "name": "library-20260101-120001Z.db",
+    "tag": "20260101-120001Z",
+    "wal_beside": false
+  },
+  "make_backup_temp": {
+    "is_file": true,
+    "prefix_ok": true,
+    "suffix": ".db"
+  },
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "resolve_snapshot": [
+    {
+      "name": "",
+      "restore_error": "Invalid snapshot name: ''"
+    },
+    {
+      "name": "/etc/passwd",
+      "restore_error": "Invalid snapshot name: '/etc/passwd'"
+    },
+    {
+      "name": "../library.db",
+      "restore_error": "Invalid snapshot name: '../library.db'"
+    },
+    {
+      "name": "..",
+      "restore_error": "Invalid snapshot name: '..'"
+    },
+    {
+      "name": ".",
+      "restore_error": "Invalid snapshot name: '.'"
+    },
+    {
+      "name": ".hidden",
+      "restore_error": "Invalid snapshot name: '.hidden'"
+    },
+    {
+      "name": "a\\b",
+      "restore_error": "Invalid snapshot name: 'a\\\\b'"
+    },
+    {
+      "name": "a/b",
+      "restore_error": "Invalid snapshot name: 'a/b'"
+    },
+    {
+      "name": "library-missing.db",
+      "restore_error": "Snapshot not found: library-missing.db"
+    },
+    {
+      "name": "library-escape.db",
+      "restore_error": "Snapshot name escapes backup dir: 'library-escape.db'"
+    },
+    {
+      "name": "library-dir.db",
+      "restore_error": "Snapshot not found: library-dir.db"
+    },
+    {
+      "name": "plain-file",
+      "ok": "plain-file"
+    },
+    {
+      "name": "nul\u0000byte",
+      "raises": "ValueError"
+    },
+    {
+      "name": "library-20260103-000000Z-v16.db",
+      "ok": "library-20260103-000000Z-v16.db"
+    }
+  ],
+  "restore_snapshot": {
+    "aside_tag": "20260105-000001Z",
+    "config_dir_after": [
+      "backups",
+      "config.json",
+      "library.db",
+      "library.db.bak-20260105-000001Z"
+    ],
+    "marker_after_restore": "before",
+    "marker_in_aside": "after",
+    "result": {
+      "aside_paths": [
+        "library.db.bak-20260105-000001Z"
+      ],
+      "counts": {
+        "ai_jobs": 0,
+        "albums": 0,
+        "albums_with_mbid": 0,
+        "check_findings_open": 0,
+        "tag_vocabulary": 0,
+        "track_fingerprints": 0,
+        "track_tags": 0
+      },
+      "keys": [
+        "aside_paths",
+        "counts",
+        "restored_at",
+        "schema_version",
+        "size_bytes"
+      ],
+      "schema_version": 16
+    },
+    "snapshot": "library-20260105-000000Z-v16.db"
+  },
+  "schema_version": 16,
+  "snapshot_steps": [
+    {
+      "listing": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        }
+      ],
+      "mtime": 1767225600,
+      "op": "create",
+      "result": {
+        "filename": "library-20260101-000000Z-v16.db",
+        "pruned": [],
+        "schema_version": 16
+      },
+      "retention": 3,
+      "tag": "20260101-000000Z"
+    },
+    {
+      "listing": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.1.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        }
+      ],
+      "mtime": 1767225600,
+      "op": "create",
+      "result": {
+        "filename": "library-20260101-000000Z-v16.1.db",
+        "pruned": [],
+        "schema_version": 16
+      },
+      "retention": 3,
+      "tag": "20260101-000000Z"
+    },
+    {
+      "listing": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.2.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.1.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        }
+      ],
+      "mtime": 1767225600,
+      "op": "create",
+      "result": {
+        "filename": "library-20260101-000000Z-v16.2.db",
+        "pruned": [],
+        "schema_version": 16
+      },
+      "retention": 3,
+      "tag": "20260101-000000Z"
+    },
+    {
+      "listing": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260102-000000Z-v16.db",
+          "modified_at": "2026-01-02T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.2.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        }
+      ],
+      "mtime": 1767312000,
+      "op": "create",
+      "result": {
+        "filename": "library-20260102-000000Z-v16.db",
+        "pruned": [
+          "library-20260101-000000Z-v16.1.db"
+        ],
+        "schema_version": 16
+      },
+      "retention": 3,
+      "tag": "20260102-000000Z"
+    },
+    {
+      "files": [
+        "library-junk.db",
+        "library-dir.db/",
+        "notes.txt",
+        "LIBRARY-upper.DB",
+        "library-.db"
+      ],
+      "listing": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260102-000000Z-v16.db",
+          "modified_at": "2026-01-02T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.2.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {},
+          "filename": "library-junk.db",
+          "modified_at": "2025-12-31T00:00:00Z",
+          "schema_version": null,
+          "valid": false
+        },
+        {
+          "counts": {},
+          "filename": "library-.db",
+          "modified_at": "2025-12-31T00:00:00Z",
+          "schema_version": null,
+          "valid": false
+        }
+      ],
+      "mtime": 1767139200,
+      "op": "add foreign files"
+    },
+    {
+      "listing": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260103-000000Z-v16.db",
+          "modified_at": "2026-01-03T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260102-000000Z-v16.db",
+          "modified_at": "2026-01-02T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        }
+      ],
+      "mtime": 1767398400,
+      "op": "create",
+      "result": {
+        "filename": "library-20260103-000000Z-v16.db",
+        "pruned": [
+          "library-20260101-000000Z-v16.db",
+          "library-20260101-000000Z-v16.2.db",
+          "library-junk.db",
+          "library-.db"
+        ],
+        "schema_version": 16
+      },
+      "retention": 2,
+      "tag": "20260103-000000Z"
+    },
+    {
+      "listing": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260103-000000Z-v16.db",
+          "modified_at": "2026-01-03T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260103-000000Z-v16.1.db",
+          "modified_at": "2026-01-03T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260102-000000Z-v16.db",
+          "modified_at": "2026-01-02T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        }
+      ],
+      "mtime": 1767398400,
+      "op": "create",
+      "result": {
+        "filename": "library-20260103-000000Z-v16.1.db",
+        "pruned": [],
+        "schema_version": 16
+      },
+      "retention": 0,
+      "tag": "20260103-000000Z"
+    }
+  ],
+  "suggested_backup_filename": {
+    "name": "musaic-v16-20260101-120000Z.db",
+    "tag": "20260101-120000Z"
+  },
+  "validate_upload": [
+    {
+      "restore_error": "Upload path doesn't exist: <ROOT>/uploads/missing.db",
+      "upload": "missing.db"
+    },
+    {
+      "restore_error": "Upload is too small to be a SQLite database.",
+      "upload": "tiny.db"
+    },
+    {
+      "restore_error": "Upload doesn't look like a SQLite database — wrong file format.",
+      "upload": "text.db"
+    },
+    {
+      "restore_error": "Upload is a SQLite DB but doesn't look like a Musaic backup — missing tables: albums, libraries, schema_version",
+      "upload": "foreign.db"
+    },
+    {
+      "restore_error": "Upload is a SQLite DB but doesn't look like a Musaic backup — missing tables: libraries",
+      "upload": "partial.db"
+    },
+    {
+      "restore_error": "Upload's schema_version table is empty — refusing to restore.",
+      "upload": "empty-version.db"
+    },
+    {
+      "restore_error": "Could not read schema_version from upload: no such column: version",
+      "upload": "no-version-column.db"
+    },
+    {
+      "restore_error": "Upload is from a newer build (schema v99); this build only knows up to v16. Update Musaic before restoring.",
+      "upload": "newer.db"
+    },
+    {
+      "restore_error": "Upload is from a newer build (schema v17); this build only knows up to v16. Update Musaic before restoring.",
+      "upload": "v17.db"
+    },
+    {
+      "ok": {
+        "counts": {
+          "ai_jobs": 0,
+          "albums": 1,
+          "albums_with_mbid": 0,
+          "check_findings_open": 0,
+          "tag_vocabulary": 0,
+          "track_fingerprints": 0,
+          "track_tags": 0
+        },
+        "schema_version": 16
+      },
+      "upload": "minimal-v16.db"
+    },
+    {
+      "ok": {
+        "counts": {
+          "ai_jobs": 0,
+          "albums": 13,
+          "albums_with_mbid": 0,
+          "check_findings_open": 21,
+          "tag_vocabulary": 0,
+          "track_fingerprints": 42,
+          "track_tags": 0
+        },
+        "schema_version": 16
+      },
+      "upload": "fixture.db"
+    }
+  ]
+}

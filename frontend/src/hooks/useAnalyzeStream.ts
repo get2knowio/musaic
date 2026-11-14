@@ -68,7 +68,7 @@ type Action =
   | { type: "file_done"; payload: FileDonePayload }
   | { type: "album_done"; gain: string; peak: string }
   | { type: "done"; errors: number }
-  | { type: "error"; detail: string };
+  | { type: "error"; detail: string; what?: AnalysisKind };
 
 function reducer(state: AnalyzeState, action: Action): AnalyzeState {
   switch (action.type) {
@@ -116,7 +116,16 @@ function reducer(state: AnalyzeState, action: Action): AnalyzeState {
     case "done":
       return { ...state, status: "done", errors: action.errors };
     case "error":
-      return { ...state, status: "error", error: action.detail };
+      // A refusal before the stream starts (409: album Missing, restore
+      // running, folder gone) arrives with no `start` event, so `what`
+      // is still null; take it from the action so the card that was
+      // clicked can show the server's message.
+      return {
+        ...state,
+        status: "error",
+        error: action.detail,
+        what: state.what ?? action.what ?? null,
+      };
   }
 }
 
@@ -177,7 +186,7 @@ export function useAnalyzeStream(): UseAnalyzeStreamResult {
         );
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
-        dispatch({ type: "error", detail: (err as Error).message });
+        dispatch({ type: "error", detail: (err as Error).message, what });
       } finally {
         abortRef.current = null;
       }

@@ -42,6 +42,8 @@ import { toast } from "sonner";
 import { useActiveJobForAlbum, usePriorCoverAttempts } from "@/hooks/useJobs";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useFixFinding } from "@/hooks/useChecks";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import { fixIsMusicBrainzOnly, offersHintEntry } from "@/lib/aiGating";
 import type { CheckFixKind, Finding, JobType } from "@/lib/types";
 
 import ArtistSortResolveDialog from "./ArtistSortResolveDialog";
@@ -102,6 +104,12 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   const [artistSortOpen, setArtistSortOpen] = useState(false);
   const [filenameOpen, setFilenameOpen] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
+  // Without a model backend an ai-job fix runs its MusicBrainz part only;
+  // where it would need a model the server answers ok:false with the
+  // not-available message, shown as the error toast
+  // (lib/aiGating.ts). No hint dialog: there is no model to steer.
+  const ai = useAiStatus();
+  const mbOnly = fixIsMusicBrainzOnly(fixKind, ai);
 
   // Album lookup for the hint-dialog header — keeps the title in the
   // dialog matching what the user just clicked Fix on. Falls back through
@@ -130,7 +138,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
 
   // For ai-job checks we have a hint mode; otherwise the click goes
   // straight through to the mutation with no hint.
-  const hintMode = HINT_MODE_FOR_CHECK[finding.check_id] ?? null;
+  const hintMode = offersHintEntry(ai) ? HINT_MODE_FOR_CHECK[finding.check_id] ?? null : null;
 
   // Library-level findings (no album_id) and findings on un-fixable checks
   // get no button at all.
@@ -216,7 +224,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           disabled
           className="h-7 px-2 rounded border border-line text-xs text-fg-3 inline-flex items-center gap-1 cursor-not-allowed"
-          title="An AI job is queued for this album"
+          title={ai.ready ? "An AI job is queued for this album" : "A job is queued for this album"}
         >
           <Clock className="w-3 h-3" />
           Queued
@@ -228,7 +236,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           disabled
           className="h-7 px-2 rounded bg-accent-soft text-accent text-xs font-medium inline-flex items-center gap-1 cursor-not-allowed"
-          title="Claude is working on this"
+          title={ai.ready ? "Claude is working on this" : "A job is working on this"}
         >
           <Loader2 className="w-3 h-3 spin" />
           Running
@@ -311,7 +319,13 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         onClick={onFix}
         disabled={fixMutation.isPending}
         className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1"
-        title={hintMode ? "Add a hint and queue an AI fix for this finding" : "Queue a fix for this finding"}
+        title={
+          mbOnly
+            ? "Fix from MusicBrainz data. A finding MusicBrainz can't settle stays open."
+            : hintMode
+              ? "Add a hint and queue an AI fix for this finding"
+              : "Queue a fix for this finding"
+        }
       >
         <Zap className="w-3 h-3" />
         Fix

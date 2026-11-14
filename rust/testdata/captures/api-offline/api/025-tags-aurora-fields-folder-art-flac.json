@@ -1,0 +1,18 @@
+{
+  "elapsed_ms": 1.7,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/tags"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+      "album_tags": [],
+      "track_tags": {}
+    },
+    "status": 200
+  }
+}

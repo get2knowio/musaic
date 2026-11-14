@@ -1,0 +1,30 @@
+{
+  "elapsed_ms": 1.4,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/duplicate-tracks/findings/18/cluster-preview"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+      "duplicate_count": 2,
+      "durations_s": [
+        10.0,
+        10.0
+      ],
+      "filenames": [
+        "01 - Static Bloom.flac",
+        "03 - Static Bloom (Reprise).flac"
+      ],
+      "is_empty": false,
+      "recommended_keep": null,
+      "recommended_reason": null,
+      "recording_mbid": null,
+      "removed_filenames": []
+    },
+    "status": 200
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "source": "musaic/settings.py DEFAULTS of the Python app at 6902c23",
+  "defaults": {
+    "acoustid_api_key": "",
+    "ai_max_parallel": "1",
+    "ai_queue_paused": "0",
+    "dir_template_compilation": "Various Artists - {album} [FLAC]",
+    "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+    "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+    "filename_template_single_artist": "{tracknumber:02} - {title}",
+    "firecrawl_api_key": "",
+    "snapshot_min_interval_hours": "24",
+    "snapshot_retention_count": "10"
+  },
+  "schema_version": 16
+}

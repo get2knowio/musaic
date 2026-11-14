@@ -1,0 +1,17 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "e86731f85490f3dde60ba038e8b97954dc1abafe15f36f26d4686ce343caf6e3",
+      "size": 7957
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

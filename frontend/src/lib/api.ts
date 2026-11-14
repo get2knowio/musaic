@@ -14,14 +14,25 @@ import type {
   JobType,
   TracksResponse,
 } from "./types";
+import { errorDetailText } from "./errors";
 
 class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  /** The body's `detail` as sent (string, object or list), for callers
+   *  that branch on a structured conflict such as `active_job_exists`. */
+  detail: unknown;
+  constructor(message: string, status: number, detail?: unknown) {
     super(message);
     this.status = status;
+    this.detail = detail;
     this.name = "ApiError";
   }
+}
+
+function bodyDetail(body: unknown): unknown {
+  return body && typeof body === "object" && "detail" in body
+    ? (body as { detail?: unknown }).detail
+    : undefined;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -39,11 +50,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
   }
   if (!res.ok) {
-    const detail =
-      (body && typeof body === "object" && "detail" in body && typeof body.detail === "string")
-        ? body.detail
-        : `${res.status} ${res.statusText}`;
-    throw new ApiError(detail, res.status);
+    const raw = bodyDetail(body);
+    const detail = errorDetailText(raw) ?? `${res.status} ${res.statusText}`;
+    throw new ApiError(detail, res.status, raw);
   }
   return body as T;
 }
@@ -222,6 +231,15 @@ export interface AppSettings {
   /** Whether the AcoustID API key is configured. The actual key is
    *  write-only — never returned by GET /api/settings. */
   acoustid_api_key_set: boolean;
+  /** False when the system keychain that holds the API keys can't be
+   *  reached: keys then read as not set and saving one fails. Absent from
+   *  backends that don't report it. */
+  keyring_available?: boolean;
+  /** True while API keys from an earlier version are still present in the
+   *  database file (or its backup, or an older snapshot) and removal is
+   *  being retried. Absent
+   *  from backends that don't report it. */
+  keys_pending_removal?: boolean;
   /** Whether the FireCrawl API key is configured. Same write-only
    *  treatment as AcoustID. When set, ai.py mounts the FireCrawl MCP
    *  server into Claude Agent SDK calls as a last-resort web fallback. */
@@ -658,9 +676,7 @@ export async function downloadDbBackup(): Promise<void> {
     let detail = `${res.status} ${res.statusText}`;
     try {
       const body = await res.json();
-      if (body && typeof body === "object" && "detail" in body) {
-        detail = String((body as { detail?: unknown }).detail);
-      }
+      detail = errorDetailText(bodyDetail(body)) ?? detail;
     } catch {
       /* keep default detail */
     }
@@ -695,11 +711,9 @@ export async function restoreDbFromFile(file: File): Promise<DbRestoreResponse> 
     /* empty body */
   }
   if (!res.ok) {
-    const detail =
-      body && typeof body === "object" && "detail" in body
-        ? String((body as { detail?: unknown }).detail)
-        : `${res.status} ${res.statusText}`;
-    throw new ApiError(detail, res.status);
+    const raw = bodyDetail(body);
+    const detail = errorDetailText(raw) ?? `${res.status} ${res.statusText}`;
+    throw new ApiError(detail, res.status, raw);
   }
   return body as DbRestoreResponse;
 }

@@ -1,0 +1,543 @@
+{
+ "error": null,
+ "events": [
+  {
+   "data": {},
+   "event": "ready",
+   "phase": "bootstrap/-",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 13
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+    "filenames": [
+     "01 - Reflection.flac",
+     "02 - Doppler.flac",
+     "03 - Return.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+    "filenames": [
+     "01 - Blue Hour.flac",
+     "02 - Cirrus.flac",
+     "03 - Halation.flac",
+     "04 - Nightfall.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+    "filenames": [
+     "01 - Static Bloom.flac",
+     "02 - Feedback Garden.flac",
+     "03 - Static Bloom (Reprise).flac",
+     "04 - Wall of Sound.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Legacy Folder Name>",
+    "filenames": [
+     "01 - Kitchen Radio.flac",
+     "02 - Porch Light.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+    "filenames": [
+     "02 - something.flac",
+     "04.flac",
+     "Night Mix 3.flac",
+     "trackA.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+    "filenames": [
+     "01 - Canvas.flac",
+     "02 - Easel.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+    "filenames": [
+     "01 - Ordered.flac",
+     "02 - Indexed.flac",
+     "03 - Filed.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+    "filenames": [
+     "01 - Screen Door.flac",
+     "02 - Fireflies.flac",
+     "03 - Gravel Road.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+    "filenames": [
+     "01 - Dawn Chorus.flac",
+     "02 - Low Sun.flac",
+     "03 - Meridian.flac",
+     "04 - Long Shadows.flac",
+     "05 - Afterglow.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+    "filenames": [
+     "01 - Mirror.flac",
+     "02 - Parallax.flac",
+     "03 - Echo.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+    "filenames": [
+     "01 - Soirée.flac",
+     "02 - Terrasse.flac",
+     "03 - Crème.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+    "filenames": [
+     "01 - Hidden.flac",
+     "02 - Visible.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+    "filenames": [
+     "01 - Pier One.flac",
+     "02 - Breakwater.flac",
+     "04 - Tidewater.flac",
+     "05 - Lighthouse.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "scan/scan-stream",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 13
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "scan/scan-stream-cached",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+    "source": "musicbrainz"
+   },
+   "event": "AlbumMbAnchorSet",
+   "phase": "resolution/resolution Various Artists - Night Mix [FLAC]",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+    "source": "musicbrainz"
+   },
+   "event": "AlbumMbAnchorSet",
+   "phase": "resolution/resolution Various Artists - Night Mix [FLAC]",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+    "source": "musicbrainz"
+   },
+   "event": "AlbumMbAnchorSet",
+   "phase": "resolution/resolution Various Artists - Night Mix [FLAC]",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "new_album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+    "old_album_id": "<ID:Various Artists - Night Mix [FLAC]>"
+   },
+   "event": "AlbumRenamed",
+   "phase": "rename-files/night-mix-apply",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "new_album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+    "old_album_id": "<ID:Various Artists - Night Mix [FLAC]>"
+   },
+   "event": "AlbumRenamed",
+   "phase": "rename-files/night-mix-apply-again",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "new_album_id": "<ID:Quiet Atlas - Old Rips [FLAC]>",
+    "old_album_id": "<ID:Legacy Folder Name>"
+   },
+   "event": "AlbumRenamed",
+   "phase": "rename-dir/legacy-apply",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "new_album_id": "<ID:Quiet Atlas - Old Rips [FLAC]>",
+    "old_album_id": "<ID:Quiet Atlas - Old Rips [FLAC]>"
+   },
+   "event": "AlbumRenamed",
+   "phase": "rename-dir/legacy-apply-again",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+    "fields": [
+     "track_count"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "duplicate-delete/delete-file",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+    "fields": [
+     "track_count"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "duplicate-delete/delete-again",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+    "fields": [
+     "album_artist_sort"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "apply-sort/apply-sort",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+    "fields": [
+     "album_artist_sort"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "apply-sort/apply-sort",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+    "fields": [
+     "album_artist_sort"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "apply-sort/apply-sort",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+    "fields": []
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "apply-sort/apply-sort",
+   "t": "<TS>"
+  },
+  {
+   "data": {},
+   "event": "BulkBatchCompleted",
+   "phase": "apply-sort/apply-sort",
+   "t": "<TS>"
+  },
+  {
+   "data": {},
+   "event": "BulkBatchCompleted",
+   "phase": "quick-fix-all/quick-fix-all track-gaps",
+   "t": "<TS>"
+  },
+  {
+   "data": {},
+   "event": "BulkBatchCompleted",
+   "phase": "quick-fix-all/quick-fix-all no-cover-art",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+    "fields": [
+     "album_artist_sort",
+     "artist_sort"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "quick-fix-all/quick-fix-all tags-out-of-sync",
+   "t": "<TS>"
+  },
+  {
+   "data": {},
+   "event": "BulkBatchCompleted",
+   "phase": "quick-fix-all/quick-fix-all tags-out-of-sync",
+   "t": "<TS>"
+  },
+  {
+   "data": {},
+   "event": "BulkBatchCompleted",
+   "phase": "quick-fix-all/quick-fix-all unidentified-album",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+    "fields": [
+     "genre",
+     "year",
+     "album_artist_sort",
+     "artist_sort",
+     "album_sort"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "apply/apply",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+    "fields": [
+     "genre",
+     "year",
+     "album_artist_sort",
+     "artist_sort",
+     "album_sort"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "apply/apply-again-noop",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+    "fields": []
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "cover-upload/upload-png-rgba",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - Second Light [FLAC]>"
+   },
+   "event": "AlbumCoverChanged",
+   "phase": "cover-upload/upload-png-rgba",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+    "fields": [
+     "replaygain"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "analyze/replaygain",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+    "fields": [
+     "bpm"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "analyze/bpm",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+    "missing_since": "<TS>"
+   },
+   "event": "AlbumMarkedMissing",
+   "phase": "missing/scan-one-gone",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 12
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "missing/scan-one-gone",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 12
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "missing/scan-still-gone",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+    "fields": [
+     "missing_since"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "missing/scan-returned",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 13
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "missing/scan-returned",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 8
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "missing/scan-vanish-abort",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 13
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "missing/scan-after-restore",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+    "fields": [
+     "mb_release_group_mbid"
+    ]
+   },
+   "event": "AlbumTagsChanged",
+   "phase": "delete-album/mb-anchor-clear",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Sorted [FLAC]>"
+   },
+   "event": "AlbumDeleted",
+   "phase": "delete-album/delete",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_count": 13
+   },
+   "event": "LibraryScanCompleted",
+   "phase": "streams/rescan",
+   "t": "<TS>"
+  },
+  {
+   "data": {
+    "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+    "filenames": [
+     "01 - Ordered.flac",
+     "02 - Indexed.flac",
+     "03 - Filed.flac"
+    ]
+   },
+   "event": "TrackFingerprinted",
+   "phase": "streams/rescan",
+   "t": "<TS>"
+  }
+ ],
+ "headers": {
+  "cache-control": "no-cache, no-transform",
+  "content-type": "text/event-stream; charset=utf-8",
+  "x-accel-buffering": "no"
+ },
+ "status": 200
+}

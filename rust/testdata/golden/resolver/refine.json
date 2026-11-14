@@ -1,0 +1,2107 @@
+{
+  "cases": [
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {
+        "01.flac": [
+          "r-1",
+          0.9
+        ],
+        "02.flac": [
+          null,
+          null
+        ]
+      },
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        },
+        {
+          "duration": 195.0,
+          "filename": "02.flac",
+          "tracknumber": "2"
+        },
+        {
+          "duration": 205.0,
+          "filename": "03.flac",
+          "tracknumber": "3"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "position and duration agree",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": 0.9,
+            "fingerprinted": true,
+            "recording_mbid": "r-1"
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 195.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T2"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "2"
+            },
+            "filename": "02.flac",
+            "fingerprint_score": null,
+            "fingerprinted": true,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A3"
+            },
+            "canonical_duration_s": 205.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T3"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "3"
+            },
+            "filename": "03.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 202.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "exactly 2.0 s off still aligns by position",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 197.1,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "2.9 s off: no position match and no duration match",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 1
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 197.5,
+          "filename": "01.flac",
+          "tracknumber": "2"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "2.5 s off by position, unique duration match elsewhere",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 1
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "9"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": null,
+            "length_ms": 199000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 201000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "ambiguous duration stays unresolved",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 1
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        },
+        {
+          "duration": 225.0,
+          "filename": "02.flac",
+          "tracknumber": "2"
+        },
+        {
+          "duration": 205.0,
+          "filename": "03.flac",
+          "tracknumber": "3"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "misaligned duration unresolved (Python app test)",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "02.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A3"
+            },
+            "canonical_duration_s": 205.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T3"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "3"
+            },
+            "filename": "03.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 1
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 195.0,
+          "filename": "a.flac",
+          "tracknumber": "1/12"
+        },
+        {
+          "duration": 205.0,
+          "filename": "b.flac",
+          "tracknumber": " 3 "
+        },
+        {
+          "duration": 200.0,
+          "filename": "c.flac",
+          "tracknumber": ""
+        },
+        {
+          "duration": 999.0,
+          "filename": "d.flac",
+          "tracknumber": "x"
+        },
+        {
+          "duration": 1.0,
+          "filename": "e.flac",
+          "tracknumber": "٢"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "tracknumber forms",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 195.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T2"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "2"
+            },
+            "filename": "a.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A3"
+            },
+            "canonical_duration_s": 205.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T3"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "3"
+            },
+            "filename": "b.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "c.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "d.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "e.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 2
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 0.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        },
+        {
+          "duration": null,
+          "filename": "02.flac",
+          "tracknumber": "2"
+        },
+        {
+          "duration": null,
+          "filename": "03.flac",
+          "tracknumber": ""
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "zero / missing durations skip the duration test",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 195.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T2"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "2"
+            },
+            "filename": "02.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "03.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 1
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 999.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        },
+        {
+          "duration": 195.0,
+          "filename": "02.flac",
+          "tracknumber": ""
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": null,
+            "length_ms": null,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "MB track without length matches by position only, never by duration",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 195.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T2"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "2"
+            },
+            "filename": "02.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        },
+        {
+          "duration": 200.0,
+          "filename": "01b.flac",
+          "tracknumber": "1"
+        },
+        {
+          "duration": 195.5,
+          "filename": "x.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "a used position is not reused",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "01b.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 195.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T2"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "2"
+            },
+            "filename": "x.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 1
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 195.0,
+          "filename": "01.flac",
+          "tracknumber": "7"
+        },
+        {
+          "duration": 195.0,
+          "filename": "02.flac",
+          "tracknumber": "2"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "duration fallback consumes the position for later tracks",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 195.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T2"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "2"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": null,
+            "canonical_title": null,
+            "canonical_tracknumber": null,
+            "filename": "02.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 1
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "0"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "tracknumber 0 is falsy",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 205.0,
+          "filename": "01.flac",
+          "tracknumber": "03"
+        },
+        {
+          "duration": 195.0,
+          "filename": "02.flac",
+          "tracknumber": 2
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "tracknumber 03 and int types",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A3"
+            },
+            "canonical_duration_s": 205.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T3"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "3"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          },
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 195.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T2"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "2"
+            },
+            "filename": "02.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {
+        "01.flac": [
+          "r-1",
+          0.5
+        ]
+      },
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [],
+        "year": "1979"
+      },
+      "name": "empty tracklist",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [
+          "Tier 1: anchored but MB returned no tracklist"
+        ],
+        "tracks": [],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-other",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "anchor mismatch",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": null,
+        "canonical_album_artist_sort": null,
+        "canonical_genre": null,
+        "canonical_title": null,
+        "canonical_year": null,
+        "cover_url": null,
+        "notes": [
+          "Tier 1: anchor present but tracklist fetch missed"
+        ],
+        "tracks": [],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": null,
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "no mbid",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": null,
+        "canonical_album_artist_sort": null,
+        "canonical_genre": null,
+        "canonical_title": null,
+        "canonical_year": null,
+        "cover_url": null,
+        "notes": [
+          "Tier 1: anchor present but tracklist fetch missed"
+        ],
+        "tracks": [],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": null,
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": false,
+        "mbid": "rg-1",
+        "primary_genre": null,
+        "title": "",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": null
+      },
+      "name": "unverified cover and empty canonical fields",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": null,
+        "canonical_album_artist_sort": null,
+        "canonical_genre": null,
+        "canonical_title": null,
+        "canonical_year": null,
+        "cover_url": null,
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 3600.1,
+          "filename": "01.flac",
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": null,
+            "length_ms": 3600123,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "Long"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "long MB length, float ms",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": null,
+            "canonical_duration_s": 3600.123,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "Long"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "01.flac",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    },
+    {
+      "anchor": "rg-1",
+      "fingerprint_map": {},
+      "flac_tracks": [
+        {
+          "duration": 200.0,
+          "tracknumber": "1"
+        }
+      ],
+      "match": {
+        "artist": "Canonical Artist",
+        "cover_url": "https://coverartarchive.org/release-group/rg-1/front",
+        "cover_url_verified": true,
+        "mbid": "rg-1",
+        "primary_genre": "Easy Listening",
+        "title": "Canonical Album",
+        "tracklist": [
+          {
+            "artist": "A1",
+            "length_ms": 200000,
+            "position": 1,
+            "recording_mbid": "rec-1",
+            "title": "T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 195000,
+            "position": 2,
+            "recording_mbid": "rec-2",
+            "title": "T2"
+          },
+          {
+            "artist": "A3",
+            "length_ms": 205000,
+            "position": 3,
+            "recording_mbid": "rec-3",
+            "title": "T3"
+          }
+        ],
+        "year": "1979"
+      },
+      "name": "missing filename",
+      "resolution": {
+        "album_id": "album-1",
+        "anchor": {
+          "confidence": 0.9,
+          "source": "cache",
+          "value": "rg-1"
+        },
+        "anchor_strategy": "cache",
+        "canonical_album_artist": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Artist"
+        },
+        "canonical_album_artist_sort": null,
+        "canonical_genre": {
+          "confidence": 0.55,
+          "source": "musicbrainz",
+          "value": "Easy Listening"
+        },
+        "canonical_title": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "Canonical Album"
+        },
+        "canonical_year": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "1979"
+        },
+        "cover_url": {
+          "confidence": 0.95,
+          "source": "musicbrainz",
+          "value": "https://coverartarchive.org/release-group/rg-1/front"
+        },
+        "notes": [],
+        "tracks": [
+          {
+            "canonical_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "A1"
+            },
+            "canonical_duration_s": 200.0,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "T1"
+            },
+            "canonical_tracknumber": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1"
+            },
+            "filename": "",
+            "fingerprint_score": null,
+            "fingerprinted": false,
+            "recording_mbid": null
+          }
+        ],
+        "unresolved_track_count": 0
+      }
+    }
+  ],
+  "provenance": {
+    "fresh_timestamp": "2999-01-01T00:00:00Z",
+    "network": "replay (fixtures/replay) + constructed overlay per case",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "stale_timestamp": "2000-01-01T00:00:00Z",
+    "tool": "gen_resolver_golden"
+  }
+}

@@ -1,0 +1,4 @@
+html { background: #0f1115; color: #d8dbe2; font: 14px system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 40rem; margin: 20vh auto; padding: 0 1.5rem; }
+h1 { font-weight: 600; font-size: 1.4rem; }
+pre { white-space: pre-wrap; color: #f2a7a7; }

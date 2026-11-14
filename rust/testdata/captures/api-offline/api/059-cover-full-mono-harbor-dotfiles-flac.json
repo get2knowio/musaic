@@ -1,0 +1,19 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": {
+      "size": "full"
+    },
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "15391109b120052d53e610ae50fde42f7a8dbd6da684f1551a357de1e559968d",
+      "size": 25786
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

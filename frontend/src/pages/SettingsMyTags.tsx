@@ -1,4 +1,4 @@
-import { Edit3, GitMerge, Plus, Tag as TagIcon, Trash2 } from "lucide-react";
+import { AlertTriangle, Edit3, GitMerge, Plus, Tag as TagIcon, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -12,7 +12,13 @@ import {
   renameVocabularyEntry,
 } from "@/lib/api";
 import { useVocabulary } from "@/hooks/useVocabulary";
+import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import type { VocabularyEntry, VocabularyResponse } from "@/lib/types";
+import {
+  renameTarget,
+  sidecarsNotWritten,
+  sidecarsNotWrittenMessage,
+} from "@/lib/vocabulary";
 
 /**
  * Settings panel for the user's curated tag vocabulary.
@@ -35,11 +41,19 @@ import type { VocabularyEntry, VocabularyResponse } from "@/lib/types";
 export default function MyTagsSettingsPanel() {
   const vocab = useVocabulary();
   const qc = useQueryClient();
+  const { data: albums = [] } = useAlbumsSnapshot();
 
   const onUpdated = (next: VocabularyResponse) => {
     qc.setQueryData(["vocabulary"], next);
     qc.invalidateQueries({ queryKey: ["album-tags"] });
     qc.invalidateQueries({ queryKey: ["all-tags"] });
+    // A rename / merge / delete that couldn't rewrite some albums' tag
+    // sidecar files says so; name them instead of staying silent.
+    const msg = sidecarsNotWrittenMessage(sidecarsNotWritten(next), (id) => {
+      const a = albums.find((x) => x.id === id);
+      return a ? a.title || a.dir_name : null;
+    });
+    if (msg) toast.warning(msg, { duration: 8000 });
   };
 
   const add = useMutation({
@@ -65,7 +79,9 @@ export default function MyTagsSettingsPanel() {
     },
     onError: (e: Error & { status?: number }) => {
       if (e.status === 409) {
-        toast.error("That tag already exists — use Merge instead.");
+        // The server says why: the name is taken (use Merge), it is one of
+        // several case-variant spellings, or a restore is running.
+        toast.error(e.message || "That tag already exists — use Merge instead.");
       } else {
         toast.error(e.message || "Couldn't rename tag");
       }
@@ -121,6 +137,7 @@ export default function MyTagsSettingsPanel() {
 
   const entries = vocab.data?.vocabulary ?? [];
   const orphans = vocab.data?.orphans ?? [];
+  const caseConflicts = (vocab.data?.case_conflicts ?? []).filter((g) => g.length > 1);
 
   return (
     <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
@@ -160,6 +177,35 @@ export default function MyTagsSettingsPanel() {
             Add tag
           </button>
         </div>
+
+        {/* Spellings saved under older case rules that now count as one
+            tag. The server refuses names that address several of them;
+            merging one into the other resolves the group. */}
+        {caseConflicts.length > 0 && (
+          <div
+            role="status"
+            className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+            <div>
+              <div>
+                {caseConflicts.length === 1
+                  ? "These tags differ only in case and now count as one tag:"
+                  : "These groups of tags differ only in case and now count as one tag each:"}
+              </div>
+              <ul className="mt-1 space-y-0.5">
+                {caseConflicts.map((g) => (
+                  <li key={g.join("\u0000")} className="mono text-fg">
+                    {g.join(" / ")}
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-1">
+                Use Merge on one spelling to fold it into the other.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Approved list */}
         <div className="border-t border-line pt-4">
@@ -252,8 +298,10 @@ function VocabularyRow({
   const [mode, setMode] = useState<"view" | "rename" | "merge" | "delete">("view");
   const [draft, setDraft] = useState("");
   const [descDraft, setDescDraft] = useState(entry.description);
+  // Every other entry, case variants included: a case-variant twin (see
+  // case_conflicts) is resolved by merging one spelling into the other.
   const otherEntries = useMemo(
-    () => allEntries.filter((e) => e.tag.toLowerCase() !== entry.tag.toLowerCase()),
+    () => allEntries.filter((e) => e.tag !== entry.tag),
     [allEntries, entry.tag],
   );
 
@@ -327,8 +375,9 @@ function VocabularyRow({
           value={draft}
           onChange={setDraft}
           onSubmit={() => {
-            const next = draft.trim();
-            if (!next || next.toLowerCase() === entry.tag.toLowerCase()) {
+            // A case-only change is a rename too (renameTarget).
+            const next = renameTarget(entry.tag, draft);
+            if (next === null) {
               cancel();
               return;
             }

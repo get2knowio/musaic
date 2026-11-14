@@ -1,0 +1,2342 @@
+{
+  "generator": "tools/gen_events_golden.py",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "python": "3.13.15",
+  "scenarios": {
+    "background_inherits_flags": {
+      "script": [
+        {
+          "background": true,
+          "op": "register",
+          "sub": "bg",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "flag": "in_post_scan_rerun",
+          "op": "with_flag",
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1",
+                  "fields": [
+                    "title"
+                  ]
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            }
+          ]
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "flag": "in_bulk_run",
+          "op": "with_flag",
+          "steps": [
+            {
+              "flag": "in_post_scan_rerun",
+              "op": "with_flag",
+              "steps": [
+                {
+                  "event": {
+                    "args": {
+                      "album_id": "a1",
+                      "fields": [
+                        "title"
+                      ]
+                    },
+                    "class": "AlbumTagsChanged"
+                  },
+                  "op": "publish"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        }
+      ],
+      "trace": {
+        "background": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "bg",
+            "thread": "library_events:bg"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": true,
+            "sub": "bg",
+            "thread": "library_events:bg"
+          },
+          {
+            "bulk": true,
+            "event": "AlbumTagsChanged",
+            "rerun": true,
+            "sub": "bg",
+            "thread": "library_events:bg"
+          }
+        ],
+        "sync": []
+      }
+    },
+    "background_snapshot_at_publish": {
+      "script": [
+        {
+          "background": true,
+          "op": "register",
+          "sub": "bg",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "flag": "in_post_scan_rerun",
+          "op": "with_flag",
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1",
+                  "fields": [
+                    "title"
+                  ]
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            }
+          ]
+        },
+        {
+          "op": "read_flags"
+        },
+        {
+          "op": "wait"
+        }
+      ],
+      "trace": {
+        "background": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": true,
+            "sub": "bg",
+            "thread": "library_events:bg"
+          }
+        ],
+        "sync": [
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          }
+        ]
+      }
+    },
+    "base_and_subclass_interleave": {
+      "script": [
+        {
+          "op": "register",
+          "priority": 100,
+          "sub": "base@100",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "sub@300",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 50,
+          "sub": "all@50",
+          "topic": "Event"
+        },
+        {
+          "op": "register",
+          "priority": 250,
+          "sub": "all@250",
+          "topic": "Event"
+        },
+        {
+          "op": "register",
+          "priority": 150,
+          "sub": "sub@150",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "all@50"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "base@100"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "sub@150"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "all@250"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "sub@300"
+          }
+        ]
+      }
+    },
+    "base_class_catches_subclasses": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "scoped",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "t1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "c1"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "m1",
+              "source": "musicbrainz"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "f1",
+              "filenames": [
+                "01.flac"
+              ]
+            },
+            "class": "TrackFingerprinted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "d1"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "x1",
+              "missing_since": "2026-01-01T00:00:00Z"
+            },
+            "class": "AlbumMarkedMissing"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 3
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "scoped"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumCoverChanged",
+            "rerun": false,
+            "sub": "scoped"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": false,
+            "sub": "scoped"
+          },
+          {
+            "bulk": false,
+            "event": "TrackFingerprinted",
+            "rerun": false,
+            "sub": "scoped"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumDeleted",
+            "rerun": false,
+            "sub": "scoped"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMarkedMissing",
+            "rerun": false,
+            "sub": "scoped"
+          }
+        ]
+      }
+    },
+    "concurrent_unrelated_not_suppressed": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "s",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "background": true,
+          "op": "register",
+          "sub": "bg",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "concurrent_unrelated"
+        },
+        {
+          "op": "wait"
+        }
+      ],
+      "trace": {
+        "background": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "bg",
+            "thread": "library_events:bg"
+          }
+        ],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "s"
+          }
+        ]
+      }
+    },
+    "dedupe_same_callback": {
+      "script": [
+        {
+          "op": "register",
+          "priority": 100,
+          "sub": "h",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "h",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "h"
+          }
+        ]
+      }
+    },
+    "event_base_catches_all": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "all",
+          "topic": "Event"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "t1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "c1"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "m1",
+              "source": "musicbrainz"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "f1",
+              "filenames": [
+                "01.flac"
+              ]
+            },
+            "class": "TrackFingerprinted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "d1"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "x1",
+              "missing_since": "2026-01-01T00:00:00Z"
+            },
+            "class": "AlbumMarkedMissing"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 3
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumCoverChanged",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumRenamed",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "TrackFingerprinted",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumDeleted",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMarkedMissing",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "LibraryScanCompleted",
+            "rerun": false,
+            "sub": "all"
+          },
+          {
+            "bulk": false,
+            "event": "BulkBatchCompleted",
+            "rerun": false,
+            "sub": "all"
+          }
+        ]
+      }
+    },
+    "exact_class_only": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "AlbumTagsChanged",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "sub": "AlbumCoverChanged",
+          "topic": "AlbumCoverChanged"
+        },
+        {
+          "op": "register",
+          "sub": "AlbumRenamed",
+          "topic": "AlbumRenamed"
+        },
+        {
+          "op": "register",
+          "sub": "AlbumMbAnchorSet",
+          "topic": "AlbumMbAnchorSet"
+        },
+        {
+          "op": "register",
+          "sub": "TrackFingerprinted",
+          "topic": "TrackFingerprinted"
+        },
+        {
+          "op": "register",
+          "sub": "AlbumDeleted",
+          "topic": "AlbumDeleted"
+        },
+        {
+          "op": "register",
+          "sub": "AlbumMarkedMissing",
+          "topic": "AlbumMarkedMissing"
+        },
+        {
+          "op": "register",
+          "sub": "LibraryScanCompleted",
+          "topic": "LibraryScanCompleted"
+        },
+        {
+          "op": "register",
+          "sub": "BulkBatchCompleted",
+          "topic": "BulkBatchCompleted"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "t1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "c1"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "m1",
+              "source": "musicbrainz"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "f1",
+              "filenames": [
+                "01.flac"
+              ]
+            },
+            "class": "TrackFingerprinted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "d1"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "x1",
+              "missing_since": "2026-01-01T00:00:00Z"
+            },
+            "class": "AlbumMarkedMissing"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 3
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "AlbumTagsChanged"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumCoverChanged",
+            "rerun": false,
+            "sub": "AlbumCoverChanged"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumRenamed",
+            "rerun": false,
+            "sub": "AlbumRenamed"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": false,
+            "sub": "AlbumMbAnchorSet"
+          },
+          {
+            "bulk": false,
+            "event": "TrackFingerprinted",
+            "rerun": false,
+            "sub": "TrackFingerprinted"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumDeleted",
+            "rerun": false,
+            "sub": "AlbumDeleted"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMarkedMissing",
+            "rerun": false,
+            "sub": "AlbumMarkedMissing"
+          },
+          {
+            "bulk": false,
+            "event": "LibraryScanCompleted",
+            "rerun": false,
+            "sub": "LibraryScanCompleted"
+          },
+          {
+            "bulk": false,
+            "event": "BulkBatchCompleted",
+            "rerun": false,
+            "sub": "BulkBatchCompleted"
+          }
+        ]
+      }
+    },
+    "flag_resets_after_subscriber_raises": {
+      "script": [
+        {
+          "behavior": "set_flag_then_raise",
+          "op": "register",
+          "priority": 100,
+          "sub": "bad",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 200,
+          "sub": "next",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "read_flags"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "action": "set_then_raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "inside": {
+              "bulk": false,
+              "rerun": true
+            },
+            "rerun": false,
+            "sub": "bad"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "next"
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          },
+          {
+            "action": "set_then_raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "inside": {
+              "bulk": false,
+              "rerun": true
+            },
+            "rerun": false,
+            "sub": "bad"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "next"
+          }
+        ]
+      }
+    },
+    "flag_visible_to_sync_subscriber": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "s",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "flag": "in_post_scan_rerun",
+          "op": "with_flag",
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1",
+                  "fields": [
+                    "title"
+                  ]
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            }
+          ]
+        },
+        {
+          "flag": "in_bulk_run",
+          "op": "with_flag",
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1",
+                  "fields": [
+                    "title"
+                  ]
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            }
+          ]
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": true,
+            "sub": "s"
+          },
+          {
+            "bulk": true,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "s"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "s"
+          }
+        ]
+      }
+    },
+    "fresh_thread_does_not_inherit": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "s",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "flag": "in_post_scan_rerun",
+          "op": "with_flag",
+          "steps": [
+            {
+              "op": "in_thread",
+              "steps": [
+                {
+                  "event": {
+                    "args": {
+                      "album_id": "a1",
+                      "fields": [
+                        "title"
+                      ]
+                    },
+                    "class": "AlbumTagsChanged"
+                  },
+                  "op": "publish"
+                },
+                {
+                  "op": "read_flags"
+                }
+              ]
+            },
+            {
+              "op": "read_flags"
+            }
+          ]
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "s"
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": true
+            }
+          }
+        ]
+      }
+    },
+    "mro_tie_order": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "e",
+          "topic": "Event"
+        },
+        {
+          "op": "register",
+          "sub": "s",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "op": "register",
+          "sub": "t",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "sub": "e2",
+          "topic": "Event"
+        },
+        {
+          "op": "register",
+          "sub": "t2",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "n",
+              "old_album_id": "o"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 1
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "t"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "t2"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "s"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "e"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "e2"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumRenamed",
+            "rerun": false,
+            "sub": "e"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumRenamed",
+            "rerun": false,
+            "sub": "e2"
+          },
+          {
+            "bulk": false,
+            "event": "LibraryScanCompleted",
+            "rerun": false,
+            "sub": "e"
+          },
+          {
+            "bulk": false,
+            "event": "LibraryScanCompleted",
+            "rerun": false,
+            "sub": "e2"
+          }
+        ]
+      }
+    },
+    "negative_priority_and_large": {
+      "script": [
+        {
+          "op": "register",
+          "priority": 1000,
+          "sub": "p1000",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": -5,
+          "sub": "pm5",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 0,
+          "sub": "p0",
+          "topic": "Event"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "pm5"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "p0"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "p1000"
+          }
+        ]
+      }
+    },
+    "nested_republish_guard_background": {
+      "script": [
+        {
+          "background": true,
+          "behavior": "guarded_republish",
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "source": "x"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "register",
+          "sub": "rerun",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "observer",
+          "topic": "Event"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "op": "read_flags"
+        }
+      ],
+      "trace": {
+        "background": [
+          {
+            "action": "run",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "rerun",
+            "thread": "library_events:rerun"
+          },
+          {
+            "action": "skip",
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": true,
+            "sub": "rerun",
+            "thread": "library_events:rerun"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": true,
+            "sub": "observer",
+            "thread": "library_events:rerun"
+          }
+        ],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "observer"
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          }
+        ]
+      }
+    },
+    "nested_republish_guard_sync": {
+      "script": [
+        {
+          "behavior": "guarded_republish",
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "source": "x"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "register",
+          "sub": "rerun",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "observer",
+          "topic": "Event"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "read_flags"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "action": "run",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "rerun"
+          },
+          {
+            "action": "skip",
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": true,
+            "sub": "rerun"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": true,
+            "sub": "observer"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "observer"
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          }
+        ]
+      }
+    },
+    "no_subscribers": {
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "t1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "c1"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "m1",
+              "source": "musicbrainz"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "f1",
+              "filenames": [
+                "01.flac"
+              ]
+            },
+            "class": "TrackFingerprinted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "d1"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "x1",
+              "missing_since": "2026-01-01T00:00:00Z"
+            },
+            "class": "AlbumMarkedMissing"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 3
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": []
+      }
+    },
+    "post_scan_async_nested_short_circuits": {
+      "script": [
+        {
+          "inner": [
+            {
+              "op": "post_scan",
+              "variant": "async"
+            }
+          ],
+          "op": "post_scan",
+          "variant": "async"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "async",
+            "rerun": false
+          }
+        ]
+      }
+    },
+    "post_scan_async_publish_inside_skips_bg_rerun": {
+      "script": [
+        {
+          "background": true,
+          "behavior": "skip_if_rerun",
+          "op": "register",
+          "priority": 200,
+          "sub": "fake_rerun",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "inner": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1",
+                  "source": "x"
+                },
+                "class": "AlbumMbAnchorSet"
+              },
+              "op": "publish"
+            }
+          ],
+          "op": "post_scan",
+          "variant": "async"
+        },
+        {
+          "op": "wait"
+        }
+      ],
+      "trace": {
+        "background": [
+          {
+            "action": "skip",
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": true,
+            "sub": "fake_rerun",
+            "thread": "library_events:fake_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "async",
+            "rerun": false
+          }
+        ]
+      }
+    },
+    "post_scan_async_resets_after_raise": {
+      "script": [
+        {
+          "inner": [
+            {
+              "op": "raise"
+            }
+          ],
+          "op": "post_scan",
+          "variant": "async"
+        },
+        {
+          "op": "read_flags"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "async",
+            "rerun": false
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          }
+        ]
+      }
+    },
+    "post_scan_async_sets_and_resets": {
+      "script": [
+        {
+          "inner": [],
+          "op": "post_scan",
+          "variant": "async"
+        },
+        {
+          "op": "read_flags"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "async",
+            "rerun": false
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          }
+        ]
+      }
+    },
+    "post_scan_skipped_when_flag_already_set": {
+      "script": [
+        {
+          "flag": "in_post_scan_rerun",
+          "op": "with_flag",
+          "steps": [
+            {
+              "inner": [],
+              "op": "post_scan",
+              "variant": "sync"
+            }
+          ]
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "post_scan_returned": "sync",
+            "rerun": true
+          }
+        ]
+      }
+    },
+    "post_scan_sync_nested_short_circuits": {
+      "script": [
+        {
+          "album_ids": [
+            "a1"
+          ],
+          "inner": [
+            {
+              "inner": [],
+              "op": "post_scan",
+              "variant": "sync"
+            }
+          ],
+          "op": "post_scan",
+          "variant": "sync"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "sync",
+            "rerun": true
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "sync",
+            "rerun": false
+          }
+        ]
+      }
+    },
+    "post_scan_sync_publish_inside_skips_bg_rerun": {
+      "script": [
+        {
+          "background": true,
+          "behavior": "skip_if_rerun",
+          "op": "register",
+          "priority": 200,
+          "sub": "fake_rerun",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "inner": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1",
+                  "source": "x"
+                },
+                "class": "AlbumMbAnchorSet"
+              },
+              "op": "publish"
+            }
+          ],
+          "op": "post_scan",
+          "variant": "sync"
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "source": "x"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        }
+      ],
+      "trace": {
+        "background": [
+          {
+            "action": "run",
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": false,
+            "sub": "fake_rerun",
+            "thread": "library_events:fake_rerun"
+          },
+          {
+            "action": "skip",
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": true,
+            "sub": "fake_rerun",
+            "thread": "library_events:fake_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "sync",
+            "rerun": false
+          }
+        ]
+      }
+    },
+    "post_scan_sync_resets_after_raise": {
+      "script": [
+        {
+          "inner": [
+            {
+              "op": "raise"
+            }
+          ],
+          "op": "post_scan",
+          "variant": "sync"
+        },
+        {
+          "op": "read_flags"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "sync",
+            "rerun": false
+          },
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          }
+        ]
+      }
+    },
+    "post_scan_sync_sets_and_resets": {
+      "script": [
+        {
+          "op": "read_flags"
+        },
+        {
+          "inner": [],
+          "op": "post_scan",
+          "variant": "sync"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "read_flags": {
+              "bulk": false,
+              "rerun": false
+            }
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "runner": "a"
+          },
+          {
+            "bulk": false,
+            "post_scan_returned": "sync",
+            "rerun": false
+          }
+        ]
+      }
+    },
+    "priority_order": {
+      "script": [
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "p300",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 100,
+          "sub": "p100",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 200,
+          "sub": "p200",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "p100"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "p200"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "p300"
+          }
+        ]
+      }
+    },
+    "raising_background_subscriber": {
+      "script": [
+        {
+          "background": true,
+          "behavior": "raise",
+          "op": "register",
+          "priority": 100,
+          "sub": "bgboom",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 200,
+          "sub": "ok",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "ok2",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [
+          {
+            "action": "raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "bgboom",
+            "thread": "library_events:bgboom"
+          },
+          {
+            "action": "raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "bgboom",
+            "thread": "library_events:bgboom"
+          }
+        ],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "ok"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "ok"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "ok2"
+          }
+        ]
+      }
+    },
+    "raising_subscriber_isolated": {
+      "script": [
+        {
+          "behavior": "raise",
+          "op": "register",
+          "priority": 100,
+          "sub": "boom",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "priority": 200,
+          "sub": "ok",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "behavior": "raise",
+          "op": "register",
+          "priority": 250,
+          "sub": "boom2",
+          "topic": "Event"
+        },
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "after",
+          "topic": "Event"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "action": "raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "boom"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "ok"
+          },
+          {
+            "action": "raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "boom2"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "after"
+          },
+          {
+            "action": "raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "boom"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "ok"
+          },
+          {
+            "action": "raise",
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "boom2"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "after"
+          }
+        ]
+      }
+    },
+    "same_callback_two_topics": {
+      "script": [
+        {
+          "op": "register",
+          "priority": 100,
+          "sub": "h",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "op": "register",
+          "priority": 300,
+          "sub": "h",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "d"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "h"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "h"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumDeleted",
+            "rerun": false,
+            "sub": "h"
+          }
+        ]
+      }
+    },
+    "same_priority_registration_order": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "first",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "sub": "second",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "sub": "third",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "first"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "second"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "third"
+          }
+        ]
+      }
+    },
+    "unregister": {
+      "script": [
+        {
+          "op": "register",
+          "sub": "cb1",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "register",
+          "sub": "cb2",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "op": "unregister",
+          "sub": "cb1",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "unregister",
+          "sub": "cb2",
+          "topic": "AlbumScopedEvent"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "unregister",
+          "sub": "never",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "unregister",
+          "sub": "cb2",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "register",
+          "sub": "cb1",
+          "topic": "AlbumTagsChanged"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ],
+      "trace": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "cb2"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "cb2"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "cb2"
+          },
+          {
+            "bulk": false,
+            "event": "AlbumTagsChanged",
+            "rerun": false,
+            "sub": "cb1"
+          }
+        ]
+      }
+    }
+  }
+}

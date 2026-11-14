@@ -13,6 +13,8 @@ import {
   useRetryJob,
 } from "@/hooks/useJobs";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import { jobsPageLabel } from "@/lib/aiGating";
 import type { Job, JobStatus } from "@/lib/types";
 
 /** Pending delete action — drives the confirmation modal. */
@@ -37,7 +39,9 @@ function compareJobs(a: Job, b: Job): number {
 }
 
 export default function JobsPage() {
-  usePageTitle("AI Jobs");
+  // "AI Jobs" only when a model can run.
+  const ai = useAiStatus();
+  usePageTitle(jobsPageLabel(ai));
   const { data: jobs = [], isLoading } = useJobs();
   const [filterIdx, setFilterIdx] = useState(0);
   const filter = STATUS_FILTERS[filterIdx];
@@ -93,13 +97,13 @@ export default function JobsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <Header counts={counts} onRequestBulkDelete={onBulkDeleteRequest} />
-      <PausedBanner />
+      <Header counts={counts} onRequestBulkDelete={onBulkDeleteRequest} title={jobsPageLabel(ai)} />
+      <PausedBanner aiReady={ai.ready} />
       <Filters filterIdx={filterIdx} setFilterIdx={setFilterIdx} />
       {isLoading && jobs.length === 0 ? (
         <div className="px-4 py-8 text-center text-fg-3 text-sm">Loading…</div>
       ) : filtered.length === 0 ? (
-        <Empty filterLabel={filter.label} totalJobs={jobs.length} />
+        <Empty filterLabel={filter.label} totalJobs={jobs.length} aiReady={ai.ready} />
       ) : (
         <div className="px-4 py-3">
           <div className="rounded-md border border-line bg-panel-2 overflow-hidden">
@@ -123,7 +127,7 @@ export default function JobsPage() {
           </div>
         </div>
       )}
-      <DeleteConfirmDialog pending={pendingDelete} onClose={() => setPendingDelete(null)} />
+      <DeleteConfirmDialog pending={pendingDelete} onClose={() => setPendingDelete(null)} aiReady={ai.ready} />
     </div>
   );
 }
@@ -131,14 +135,16 @@ export default function JobsPage() {
 function Header({
   counts,
   onRequestBulkDelete,
+  title,
 }: {
   counts: Record<string, number>;
   onRequestBulkDelete: (p: Extract<PendingDelete, { kind: "bulk" }>) => void;
+  title: string;
 }) {
   return (
     <div className="flex items-center gap-3 px-4 h-[var(--filterbar-h)] border-b border-line bg-panel-2 text-sm shrink-0">
       <Sparkles className="w-3.5 h-3.5 text-accent" />
-      <span className="font-medium">AI Jobs</span>
+      <span className="font-medium">{title}</span>
       <span className="text-fg-4 mono text-xs">·</span>
       <span className="mono text-fg-3">
         <b className="text-fg font-medium tabular-nums">{counts.completed}</b> completed
@@ -191,7 +197,7 @@ function Header({
  * isn't confused why nothing is dispatching after a failure. Stays mounted
  * across filter changes (rendered between header + filters in JobsPage).
  */
-function PausedBanner() {
+function PausedBanner({ aiReady }: { aiReady: boolean }) {
   const { data: queueState } = useQueueState();
   const resume = useResumeQueue();
   if (!queueState?.paused) return null;
@@ -200,7 +206,7 @@ function PausedBanner() {
     <div className="mx-4 mt-3 mb-1 rounded-md border border-warn/40 bg-warn-soft px-3 py-2.5 flex items-center gap-3 text-sm">
       <Pause className="w-4 h-4 text-warn shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-fg">AI queue paused after a failure</div>
+        <div className="font-medium text-fg">{aiReady ? "AI queue paused after a failure" : "Queue paused after a failure"}</div>
         <div className="text-xs text-fg-3 mt-0.5">
           {remaining > 0
             ? `${remaining} job${remaining === 1 ? "" : "s"} queued behind it. Retry the failed job(s) or resume to keep dispatching.`
@@ -243,11 +249,21 @@ function Filters({ filterIdx, setFilterIdx }: { filterIdx: number; setFilterIdx:
   );
 }
 
-function Empty({ filterLabel, totalJobs }: { filterLabel: string; totalJobs: number }) {
+function Empty({ filterLabel, totalJobs, aiReady }: { filterLabel: string; totalJobs: number; aiReady: boolean }) {
   return (
     <div className="px-8 py-16 text-center">
       <Sparkles className="w-9 h-9 mx-auto mb-3 text-fg-4" />
-      {totalJobs === 0 ? (
+      {totalJobs === 0 && !aiReady ? (
+        // Without a model only the jobs MusicBrainz covers can
+        // be queued, from the buttons' MusicBrainz labels.
+        <>
+          <h3 className="text-md font-medium mb-1.5">No jobs yet</h3>
+          <p className="text-sm text-fg-3 max-w-md mx-auto">
+            Open an album MusicBrainz has identified and click <b>Find MusicBrainz corrections</b> or <b>Get cover from MusicBrainz</b> to queue up your first job.
+            They'll run in the background — bebop around the library while they work.
+          </p>
+        </>
+      ) : totalJobs === 0 ? (
         <>
           <h3 className="text-md font-medium mb-1.5">No AI jobs yet</h3>
           <p className="text-sm text-fg-3 max-w-md mx-auto">
@@ -419,9 +435,11 @@ function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) 
 function DeleteConfirmDialog({
   pending,
   onClose,
+  aiReady,
 }: {
   pending: PendingDelete | null;
   onClose: () => void;
+  aiReady: boolean;
 }) {
   const deleteJob = useDeleteJob();
   const bulkDelete = useBulkDeleteJobs();
@@ -457,7 +475,7 @@ function DeleteConfirmDialog({
     title = "Delete this job?";
     body =
       j.status === "completed"
-        ? `This will discard Claude's suggestions for "${j.album_title || j.album_id}". This can't be undone.`
+        ? `This will discard ${aiReady ? "Claude's suggestions" : "the suggestions"} for "${j.album_title || j.album_id}". This can't be undone.`
         : j.status === "queued"
         ? `Remove the queued ${jobTypeLabel(j.job_type).toLowerCase()} job for "${j.album_title || j.album_id}" before it runs?`
         : `Remove the ${j.status} ${jobTypeLabel(j.job_type).toLowerCase()} job for "${j.album_title || j.album_id}" from the list?`;

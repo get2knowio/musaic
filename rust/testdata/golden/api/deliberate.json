@@ -1,0 +1,431 @@
+{
+  "_meta": {
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "starting_state": "fresh config dir, fresh copy of fixtures/library at <LIB>, SPA dir <WORK>/frontend, no lifespan, network off, no AcoustID key; library never configured",
+    "tool": "tools.gen_api_golden --deliberate",
+    "uploads": "cover: b'\\0' * size; restore: b'x' * size (see DELIBERATE_UPLOADS)"
+  },
+  "cases": [
+    {
+      "label": "host evil health",
+      "request": {
+        "headers": {
+          "host": "evil.example"
+        },
+        "method": "GET",
+        "path": "/api/health"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "ok"
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "host evil settings",
+      "request": {
+        "headers": {
+          "host": "attacker.example:8765"
+        },
+        "method": "GET",
+        "path": "/api/settings"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "acoustid_api_key_set": false,
+          "ai_api_key_set": false,
+          "ai_max_parallel": 1,
+          "ai_model_id": "claude-sonnet-4-6",
+          "ai_provider_id": "claude",
+          "ai_queue_paused": false,
+          "dir_template_compilation": "Various Artists - {album} [FLAC]",
+          "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+          "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+          "filename_template_single_artist": "{tracknumber:02} - {title}",
+          "firecrawl_api_key_set": false,
+          "snapshot_min_interval_hours": 24.0,
+          "snapshot_retention_count": 10
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "host evil spa",
+      "request": {
+        "headers": {
+          "host": "evil.example"
+        },
+        "method": "GET",
+        "path": "/library/x"
+      },
+      "response": {
+        "headers": {
+          "content-type": "text/html; charset=utf-8",
+          "etag": "<ETAG>"
+        },
+        "status": 200,
+        "text": "<!doctype html><html><body><div id=\"root\"></div></body></html>\n"
+      }
+    },
+    {
+      "label": "host unspecified",
+      "request": {
+        "headers": {
+          "host": "0.0.0.0:8765"
+        },
+        "method": "GET",
+        "path": "/api/health"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "ok"
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "host localhost",
+      "request": {
+        "headers": {
+          "host": "localhost:8765"
+        },
+        "method": "GET",
+        "path": "/api/health"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "ok"
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "host loopback v4",
+      "request": {
+        "headers": {
+          "host": "127.0.0.1:8765"
+        },
+        "method": "GET",
+        "path": "/api/health"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "ok"
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "host loopback v6",
+      "request": {
+        "headers": {
+          "host": "[::1]:8765"
+        },
+        "method": "GET",
+        "path": "/api/health"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "ok"
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "origin evil rescan",
+      "request": {
+        "headers": {
+          "host": "127.0.0.1:8765",
+          "origin": "http://evil.example"
+        },
+        "method": "POST",
+        "path": "/api/scan/rescan"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "No library directory configured"
+        },
+        "status": 409
+      }
+    },
+    {
+      "label": "origin null settings",
+      "request": {
+        "headers": {
+          "host": "127.0.0.1:8765",
+          "origin": "null"
+        },
+        "json": {},
+        "method": "PATCH",
+        "path": "/api/settings"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "acoustid_api_key_set": false,
+          "ai_api_key_set": false,
+          "ai_max_parallel": 1,
+          "ai_model_id": "claude-sonnet-4-6",
+          "ai_provider_id": "claude",
+          "ai_queue_paused": false,
+          "dir_template_compilation": "Various Artists - {album} [FLAC]",
+          "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+          "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+          "filename_template_single_artist": "{tracknumber:02} - {title}",
+          "firecrawl_api_key_set": false,
+          "snapshot_min_interval_hours": 24.0,
+          "snapshot_retention_count": 10
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "origin vite dev rescan",
+      "request": {
+        "headers": {
+          "host": "127.0.0.1:8765",
+          "origin": "http://localhost:5173"
+        },
+        "method": "POST",
+        "path": "/api/scan/rescan"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "No library directory configured"
+        },
+        "status": 409
+      }
+    },
+    {
+      "label": "origin same app rescan",
+      "request": {
+        "headers": {
+          "host": "127.0.0.1:8765",
+          "origin": "http://127.0.0.1:8765"
+        },
+        "method": "POST",
+        "path": "/api/scan/rescan"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "No library directory configured"
+        },
+        "status": 409
+      }
+    },
+    {
+      "label": "cover just over the Python app's limit",
+      "request": {
+        "files": {
+          "cover": {
+            "content_type": "image/png",
+            "filename": "c.png",
+            "sha256": "0765445211e5f3faf9378e5dd89603fe38c13f5863158906ece6fd1369631087",
+            "size": 26214401
+          }
+        },
+        "method": "POST",
+        "path": "/api/albums/abc/cover/upload"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Cover too large (26214401 bytes). Max accepted is 25 MB."
+        },
+        "status": 413
+      }
+    },
+    {
+      "label": "cover over the body cap",
+      "request": {
+        "files": {
+          "cover": {
+            "content_type": "image/png",
+            "filename": "c.png",
+            "sha256": "e0b8ca8ebb429245a152b4c7337d8a8d8206adb080e86410314763b26b268619",
+            "size": 27262977
+          }
+        },
+        "method": "POST",
+        "path": "/api/albums/abc/cover/upload"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Cover too large (27262977 bytes). Max accepted is 25 MB."
+        },
+        "status": 413
+      }
+    },
+    {
+      "label": "cover over the body cap not an image",
+      "request": {
+        "files": {
+          "cover": {
+            "content_type": "text/plain",
+            "filename": "c.png",
+            "sha256": "e0b8ca8ebb429245a152b4c7337d8a8d8206adb080e86410314763b26b268619",
+            "size": 27262977
+          }
+        },
+        "method": "POST",
+        "path": "/api/albums/abc/cover/upload"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Unsupported file type 'text/plain' — please upload an image"
+        },
+        "status": 400
+      }
+    },
+    {
+      "label": "restore 4 KiB not sqlite",
+      "request": {
+        "files": {
+          "file": {
+            "content_type": "application/octet-stream",
+            "filename": "x.db",
+            "sha256": "a2e659dacb4691e887ac0139f8893d04764ee197d70fb73d3190d56113d18e3e",
+            "size": 4096
+          }
+        },
+        "method": "POST",
+        "path": "/api/db/restore"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "detail": "Upload doesn't look like a SQLite database — wrong file format."
+        },
+        "status": 400
+      }
+    },
+    {
+      "label": "settings before",
+      "request": {
+        "method": "GET",
+        "path": "/api/settings"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "acoustid_api_key_set": false,
+          "ai_api_key_set": false,
+          "ai_max_parallel": 1,
+          "ai_model_id": "claude-sonnet-4-6",
+          "ai_provider_id": "claude",
+          "ai_queue_paused": false,
+          "dir_template_compilation": "Various Artists - {album} [FLAC]",
+          "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+          "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+          "filename_template_single_artist": "{tracknumber:02} - {title}",
+          "firecrawl_api_key_set": false,
+          "snapshot_min_interval_hours": 24.0,
+          "snapshot_retention_count": 10
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "settings max_parallel and key",
+      "request": {
+        "json": {
+          "acoustid_api_key": "golden-key-2",
+          "ai_max_parallel": 5
+        },
+        "method": "PATCH",
+        "path": "/api/settings"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "acoustid_api_key_set": true,
+          "ai_api_key_set": false,
+          "ai_max_parallel": 5,
+          "ai_model_id": "claude-sonnet-4-6",
+          "ai_provider_id": "claude",
+          "ai_queue_paused": false,
+          "dir_template_compilation": "Various Artists - {album} [FLAC]",
+          "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+          "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+          "filename_template_single_artist": "{tracknumber:02} - {title}",
+          "firecrawl_api_key_set": false,
+          "snapshot_min_interval_hours": 24.0,
+          "snapshot_retention_count": 10
+        },
+        "status": 200
+      }
+    },
+    {
+      "label": "settings after",
+      "request": {
+        "method": "GET",
+        "path": "/api/settings"
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "acoustid_api_key_set": true,
+          "ai_api_key_set": false,
+          "ai_max_parallel": 5,
+          "ai_model_id": "claude-sonnet-4-6",
+          "ai_provider_id": "claude",
+          "ai_queue_paused": false,
+          "dir_template_compilation": "Various Artists - {album} [FLAC]",
+          "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+          "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+          "filename_template_single_artist": "{tracknumber:02} - {title}",
+          "firecrawl_api_key_set": false,
+          "snapshot_min_interval_hours": 24.0,
+          "snapshot_retention_count": 10
+        },
+        "status": 200
+      }
+    }
+  ]
+}

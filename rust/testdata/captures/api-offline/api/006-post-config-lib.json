@@ -1,0 +1,19 @@
+{
+  "elapsed_ms": 1.4,
+  "request": {
+    "json": {
+      "library_dir": "<LIB>"
+    },
+    "method": "POST",
+    "params": null,
+    "path": "/api/config"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "exists": true,
+      "library_dir": "<LIB>"
+    },
+    "status": 200
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "elapsed_ms": 0.5,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "detail": "No library directory configured"
+    },
+    "status": 409
+  }
+}

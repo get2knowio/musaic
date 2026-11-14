@@ -1,0 +1,78 @@
+{
+  "elapsed_ms": 2.5,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Dawn Chorus.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Dawn Chorus",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Low Sun.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Low Sun",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "03 - Meridian.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Meridian",
+          "tracknumber": "3"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "04 - Long Shadows.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Long Shadows",
+          "tracknumber": "4"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "05 - Afterglow.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Afterglow",
+          "tracknumber": "5"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

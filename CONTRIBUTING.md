@@ -1,65 +1,118 @@
 # Contributing
 
+Thanks for helping. Musaic is a Rust workspace (`rust/`) with a React UI (`frontend/`),
+packaged with Tauri 2. [CLAUDE.md](CLAUDE.md) describes the crates, the architectural
+rules and where each lives; read it before a larger change.
+
 ## Setup
 
-```bash
-# Backend (Python 3.10+)
-uv sync
+- Rust via [rustup](https://rustup.rs/). The toolchain is pinned in
+  `rust/rust-toolchain.toml` and installed automatically the first time you run `cargo`
+  in `rust/`.
+- Node.js 22.12 or newer.
+- Linux: the WebKitGTK development packages (see the README's "Build from source").
+- Windows: the MSVC build tools and the WebView2 runtime.
+- For tests that use audio: Python 3.10+ with `numpy`, `soundfile`, `mutagen` and
+  `Pillow`, to generate the synthetic test library.
 
-# Frontend
-cd frontend && npm install
+```bash
+(cd frontend && npm ci && npm run build)    # the desktop crate's build needs frontend/dist
+
+# the synthetic test library (audio is generated, never committed); a virtualenv keeps
+# the pinned versions, which make the output byte-identical to the committed manifest
+python3 -m venv .venv && . .venv/bin/activate
+pip install numpy==2.5.4 soundfile==0.14.0 mutagen==1.48.1 Pillow==13.0.0
+(cd rust && python3 testdata/synthetic-library/gen_fixture_library.py)
+git checkout -- rust/testdata/synthetic-library/library.manifest.json   # the generator stamps a new timestamp
 ```
 
-## Running in development
+## Development
 
-The backend and frontend run separately:
+Run the desktop app on a throwaway config dir, with keys kept in memory:
 
 ```bash
-# Terminal 1 — backend on :8765
-uv run musaic
+cd rust
+cargo run -p musaic-desktop -- --config-dir "$(mktemp -d)/config" --dev-memory-secrets --network offline
+```
 
-# Terminal 2 — frontend dev server on :5173 (proxies /api/* to :8765)
+For UI work with hot reload, run the API server and Vite side by side:
+
+```bash
+# terminal 1 — API on 127.0.0.1:8765
+cd rust && cargo run -p musaic-api -- --config-dir "$(mktemp -d)/config" --verification-memory-secrets --network offline
+
+# terminal 2 — Vite on :5173, proxies /api to :8765
 cd frontend && npm run dev
 ```
 
-Open <http://localhost:5173> for the live-reloading frontend.
+Open <http://localhost:5173> and choose a library folder in Settings. Use a copy of some
+FLACs (or the generated synthetic library), never your real collection: Musaic writes
+tags and renames files. Drop `--network offline` when you want live MusicBrainz, AcoustID
+and Cover Art Archive lookups.
 
-## Building for production
-
-```bash
-cd frontend && npm run build
-```
-
-FastAPI serves the resulting `frontend/dist/` at the root. Run `uv run musaic` and open <http://localhost:8765>.
-
-## Type checking
+## Before you open a pull request
 
 ```bash
-cd frontend && npm run typecheck
+cd rust
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace
+
+cd ../frontend
+npm run lint
+npm run typecheck
+npm run typecheck:test
+npm test
+npm run build
 ```
 
-**Note:** Currently broken — known issue, not blocking day-to-day work.
+CI runs the same commands (`.github/workflows/ci.yml`) without the private test data.
+The Linux and macOS Rust jobs are required; the Windows job is allowed to fail for now
+while that platform is brought up — fixes that make it pass are welcome.
 
-## Diagnostics
+## Tests and test data
 
-Developer scripts live in `scripts/`. Run them from the project root:
+- Public test data is in `rust/testdata/`: synthetic inputs, databases and the expected
+  results recorded for them. Add new test data there only if you wrote it yourself or it
+  is synthetic.
+- Some tests need private data (recorded third-party API answers, material derived from
+  a real music library) that is not in this repository. They print
+  `skipped: private test data not available (<test>)` and pass. Do not add such data
+  here.
+- Never commit audio or cover art. The synthetic library is generated; its manifest is
+  committed.
+- Tests copy fixture databases to a temp dir before opening them, and never touch
+  `~/.musaic` or the OS keyring. Tests that do touch the real keyring are `#[ignore]`d.
 
-```bash
-uv run python scripts/diagnose_claude.py [album_id]   # verify AI integration
-uv run python scripts/diagnose_album.py <substring>   # inspect album + fingerprints from DB
-uv run python scripts/diagnose_fingerprints.py        # debug fingerprint persistence
-uv run python scripts/diagnose_chromaprint.py         # debug chromaprint decode
-```
+## Changing behaviour
+
+- Mutations publish an event on the bus; they do not call check reruns, the resolver
+  cache or thumbnails directly (CLAUDE.md, rule 1).
+- A Resolve dialog re-derives its plan from a preview endpoint (rule 2).
+- Compare files with a same-file check, not by path string (rule 3).
+- Use the shared album-field accessors (rule 4).
+- Do not add `invalidateQueries` calls to UI mutation handlers; publish the event and let
+  `useLibraryEventsStream` handle it (rule 5).
+- Skip Missing albums in anything that reads or writes album files (rule 6).
+- A deliberate change to recorded behaviour updates the golden file in the same change
+  and says why in the commit message.
 
 ## Adding a health check
 
-1. Create `musaic/checks/your_check.py` inheriting from `Check` (see `base.py`).
-2. Set the `meta` class variable (`CheckMeta` with id, label, description, category, cost, fix_kind).
-3. Implement `run(self, album, conn) -> list[Finding]`, and optionally `fix(self, finding, conn)`.
-4. Register it in `musaic/checks/__init__.py`.
+See "Adding a health check" in [CLAUDE.md](CLAUDE.md).
 
-Cost tiers: `cheap` (runs after every scan), `medium` (weekly), `heavy` (monthly). Fix kinds: `none`, `ai-job`, `deterministic`.
+## Packaging
 
-## Architecture notes
+```bash
+cargo install tauri-cli --version 2.12.4 --locked
+cargo install cargo-about --version 0.9.3 --locked --features cli
+scripts/package_macos.sh       # unsigned Musaic.app + .dmg under rust/target/release/bundle/
+```
 
-See [CLAUDE.md](CLAUDE.md) for module map, SSE stream details, and known issues.
+Windows and Linux bundles are built by `.github/workflows/release.yml`; its steps are the
+reference for building them by hand.
+
+## Reporting bugs and security issues
+
+Bugs: open an issue with your OS, the Musaic version (or commit) and the steps. For
+security problems, see [SECURITY.md](SECURITY.md) — please do not open a public issue.

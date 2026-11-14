@@ -1,0 +1,67 @@
+{
+  "elapsed_ms": 0.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/duplicate-tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "findings": [
+        {
+          "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+          "check_id": "duplicate-tracks",
+          "detail": {
+            "duplicate_count": 2,
+            "durations_s": [
+              10.0,
+              10.0
+            ],
+            "filenames": [
+              "01 - Static Bloom.flac",
+              "03 - Static Bloom (Reprise).flac"
+            ],
+            "recommended_keep": null,
+            "recommended_reason": null,
+            "recording_mbid": null
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 18,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "warn",
+          "summary": "Duplicate audio: \"Static Bloom\" (2 copies)"
+        }
+      ],
+      "meta": {
+        "bulk_action_label": null,
+        "category": "duplicates",
+        "cost": "cheap",
+        "description": "Albums with multiple files AcoustID identified as the same canonical recording — i.e. literal copies of the same audio. Requires fingerprints first (run \"Albums not yet fingerprinted\" or click Fix on a track-gaps finding). The Resolve dialog lets you pick which copy to keep.",
+        "fix_kind": "deterministic",
+        "id": "duplicate-tracks",
+        "label": "Duplicate audio files",
+        "runs_during_scan": true
+      },
+      "runs": [
+        {
+          "check_id": "duplicate-tracks",
+          "completed_at": "2026-11-09T17:39:25Z",
+          "duration_ms": 4,
+          "error": null,
+          "id": 6,
+          "issue_count": 1,
+          "library_path": "<LIB>",
+          "scope": "all",
+          "started_at": "2026-11-09T17:39:25Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

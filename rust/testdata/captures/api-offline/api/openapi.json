@@ -1,0 +1,3495 @@
+{
+  "components": {
+    "schemas": {
+      "ActedOnPayload": {
+        "properties": {
+          "action": {
+            "title": "Action",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "ActedOnPayload",
+        "type": "object"
+      },
+      "AlbumTagApplyPayload": {
+        "description": "Apply a tag to the entire album. `filenames` may be omitted, in\nwhich case the server fans out to every FLAC in the album dir.",
+        "properties": {
+          "filenames": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filenames"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag"
+        ],
+        "title": "AlbumTagApplyPayload",
+        "type": "object"
+      },
+      "AlbumTagsReplacePayload": {
+        "description": "Wholesale replace of the album's track tags. Map keyed by track\nfilename → list of tag strings.",
+        "properties": {
+          "track_tags": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Track Tags",
+            "type": "object"
+          }
+        },
+        "required": [
+          "track_tags"
+        ],
+        "title": "AlbumTagsReplacePayload",
+        "type": "object"
+      },
+      "AnalyzePayload": {
+        "properties": {
+          "what": {
+            "enum": [
+              "bpm",
+              "replaygain"
+            ],
+            "title": "What",
+            "type": "string"
+          }
+        },
+        "required": [
+          "what"
+        ],
+        "title": "AnalyzePayload",
+        "type": "object"
+      },
+      "ApplyClusterSortPayload": {
+        "description": "Sort string the user picked from the inconsistent-artist-sort\nResolve dialog. Validated minimally — must be non-empty, max 200\nchars (room for unusually-long band names without letting an\naccidental whole-paragraph paste through). The check itself\ndecides which albums get the value via the finding's stored\ncluster member list.",
+        "properties": {
+          "sort_value": {
+            "title": "Sort Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sort_value"
+        ],
+        "title": "ApplyClusterSortPayload",
+        "type": "object"
+      },
+      "ApplyPayload": {
+        "properties": {
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cover Url"
+          },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "suggestions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Suggestions",
+            "type": "object"
+          },
+          "track_suggestions": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "default": {},
+            "title": "Track Suggestions",
+            "type": "object"
+          }
+        },
+        "title": "ApplyPayload",
+        "type": "object"
+      },
+      "Body_db_restore_api_db_restore_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_db_restore_api_db_restore_post",
+        "type": "object"
+      },
+      "Body_upload_cover_api_albums__album_id__cover_upload_post": {
+        "properties": {
+          "cover": {
+            "contentMediaType": "application/octet-stream",
+            "title": "Cover",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cover"
+        ],
+        "title": "Body_upload_cover_api_albums__album_id__cover_upload_post",
+        "type": "object"
+      },
+      "ConfigPayload": {
+        "properties": {
+          "library_dir": {
+            "title": "Library Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "library_dir"
+        ],
+        "title": "ConfigPayload",
+        "type": "object"
+      },
+      "ConfigResponse": {
+        "properties": {
+          "exists": {
+            "title": "Exists",
+            "type": "boolean"
+          },
+          "library_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Library Dir"
+          }
+        },
+        "required": [
+          "library_dir",
+          "exists"
+        ],
+        "title": "ConfigResponse",
+        "type": "object"
+      },
+      "DeleteDuplicateFilePayload": {
+        "properties": {
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename"
+        ],
+        "title": "DeleteDuplicateFilePayload",
+        "type": "object"
+      },
+      "DirRenameEntry": {
+        "description": "Optional album-directory rename. When present, runs FIRST so\nfile renames execute inside the new dir.",
+        "properties": {
+          "new": {
+            "title": "New",
+            "type": "string"
+          },
+          "old": {
+            "title": "Old",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old",
+          "new"
+        ],
+        "title": "DirRenameEntry",
+        "type": "object"
+      },
+      "FilenameRenameEntry": {
+        "description": "One file in the rename plan. `old` and `new` are basenames\n(no directory component) — the apply path joins them onto the\nalbum dir.",
+        "properties": {
+          "new": {
+            "title": "New",
+            "type": "string"
+          },
+          "old": {
+            "title": "Old",
+            "type": "string"
+          }
+        },
+        "required": [
+          "old",
+          "new"
+        ],
+        "title": "FilenameRenameEntry",
+        "type": "object"
+      },
+      "FilenameRenamePayload": {
+        "properties": {
+          "dir_rename": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DirRenameEntry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "plan": {
+            "items": {
+              "$ref": "#/components/schemas/FilenameRenameEntry"
+            },
+            "title": "Plan",
+            "type": "array"
+          }
+        },
+        "required": [
+          "plan"
+        ],
+        "title": "FilenameRenamePayload",
+        "type": "object"
+      },
+      "FixFindingPayload": {
+        "description": "Optional body for the fix-finding endpoint. The hint is free-form\ntext the user typed in the finding-row Fix dialog (mirrors the\nexisting detail-sheet AI hint dialog). Forwarded to the check's\nfix() and, for AI-job checks, plumbed into the enqueued job's\n`hint` field. Absent body = no hint = pre-existing default behavior.",
+        "properties": {
+          "hint": {
+            "default": "",
+            "title": "Hint",
+            "type": "string"
+          }
+        },
+        "title": "FixFindingPayload",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "IgnoreFindingPayload": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "IgnoreFindingPayload",
+        "type": "object"
+      },
+      "JobEnqueuePayload": {
+        "properties": {
+          "album_id": {
+            "title": "Album Id",
+            "type": "string"
+          },
+          "attach_cover": {
+            "default": true,
+            "title": "Attach Cover",
+            "type": "boolean"
+          },
+          "hint": {
+            "default": "",
+            "title": "Hint",
+            "type": "string"
+          },
+          "job_type": {
+            "title": "Job Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "album_id",
+          "job_type"
+        ],
+        "title": "JobEnqueuePayload",
+        "type": "object"
+      },
+      "RunCheckPayload": {
+        "properties": {
+          "album_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Album Ids"
+          },
+          "scope": {
+            "default": "all",
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "title": "RunCheckPayload",
+        "type": "object"
+      },
+      "SettingsPatchPayload": {
+        "properties": {
+          "acoustid_api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acoustid Api Key"
+          },
+          "ai_api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Api Key"
+          },
+          "ai_max_parallel": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Max Parallel"
+          },
+          "ai_model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Model Id"
+          },
+          "ai_provider_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Provider Id"
+          },
+          "ai_queue_paused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Queue Paused"
+          },
+          "dir_template_compilation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dir Template Compilation"
+          },
+          "dir_template_single_artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dir Template Single Artist"
+          },
+          "filename_template_compilation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename Template Compilation"
+          },
+          "filename_template_single_artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename Template Single Artist"
+          },
+          "firecrawl_api_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firecrawl Api Key"
+          },
+          "snapshot_min_interval_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Min Interval Hours"
+          },
+          "snapshot_retention_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Retention Count"
+          }
+        },
+        "title": "SettingsPatchPayload",
+        "type": "object"
+      },
+      "TrackTagPayload": {
+        "properties": {
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag"
+        ],
+        "title": "TrackTagPayload",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VocabularyAddPayload": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag"
+        ],
+        "title": "VocabularyAddPayload",
+        "type": "object"
+      },
+      "VocabularyMergePayload": {
+        "properties": {
+          "into_tag": {
+            "title": "Into Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "into_tag"
+        ],
+        "title": "VocabularyMergePayload",
+        "type": "object"
+      },
+      "VocabularyPatchPayload": {
+        "properties": {
+          "color": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "sort_order": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort Order"
+          }
+        },
+        "title": "VocabularyPatchPayload",
+        "type": "object"
+      },
+      "VocabularyRenamePayload": {
+        "properties": {
+          "new_tag": {
+            "title": "New Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "new_tag"
+        ],
+        "title": "VocabularyRenamePayload",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Musaic",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/": {
+      "get": {
+        "operationId": "index__get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Index"
+      }
+    },
+    "/api/ai/jobs": {
+      "delete": {
+        "operationId": "bulk_delete_jobs_api_ai_jobs_delete",
+        "parameters": [
+          {
+            "description": "comma-separated statuses to delete (e.g. 'acted_on,failed')",
+            "in": "query",
+            "name": "status",
+            "required": true,
+            "schema": {
+              "description": "comma-separated statuses to delete (e.g. 'acted_on,failed')",
+              "title": "Status",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Bulk Delete Jobs Api Ai Jobs Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Delete Jobs"
+      },
+      "get": {
+        "operationId": "list_jobs_api_ai_jobs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Jobs Api Ai Jobs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Jobs"
+      },
+      "post": {
+        "operationId": "enqueue_job_api_ai_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobEnqueuePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Enqueue Job Api Ai Jobs Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enqueue Job"
+      }
+    },
+    "/api/ai/jobs/active/{album_id}": {
+      "get": {
+        "description": "Used by the detail sheet on mount — find the most recent unacted-on\njob for this album so its result can be displayed inline.",
+        "operationId": "active_job_for_album_api_ai_jobs_active__album_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": true,
+                      "type": "object"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Active Job For Album Api Ai Jobs Active  Album Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Active Job For Album"
+      }
+    },
+    "/api/ai/jobs/stream": {
+      "get": {
+        "description": "SSE stream of job-state changes. Emits a `jobs` event whenever any\njob is enqueued / status-changed / deleted, with the current full list\nin the payload. Cheap snapshot — list is bounded to the last 200.",
+        "operationId": "jobs_stream_api_ai_jobs_stream_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Jobs Stream"
+      }
+    },
+    "/api/ai/jobs/{job_id}": {
+      "delete": {
+        "operationId": "delete_job_api_ai_jobs__job_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Job Api Ai Jobs  Job Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Job"
+      },
+      "get": {
+        "operationId": "get_job_api_ai_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Job Api Ai Jobs  Job Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job"
+      }
+    },
+    "/api/ai/jobs/{job_id}/acted-on": {
+      "post": {
+        "operationId": "mark_job_acted_on_api_ai_jobs__job_id__acted_on_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActedOnPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Mark Job Acted On Api Ai Jobs  Job Id  Acted On Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Job Acted On"
+      }
+    },
+    "/api/ai/jobs/{job_id}/retry": {
+      "post": {
+        "description": "Retry a failed job. Resets it to 'queued' and bumps created_at so it\nsorts at the bottom of the queue. Resuming the queue is the user's\nresponsibility (we keep the paused flag so a quick retry cluster doesn't\naccidentally re-pause on the next failure).",
+        "operationId": "retry_job_api_ai_jobs__job_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retry Job Api Ai Jobs  Job Id  Retry Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Job"
+      }
+    },
+    "/api/ai/providers": {
+      "get": {
+        "description": "Discoverable airframe providers for the settings UI.\n\n`providers` are the *installed* adapters — the selectable set. Each is\nfully introspected: whether it takes a pasted API key (vs an env/CLI auth\nchain) and, for the chain-based ones, a short auth hint. `uninstalled` is\nthe names of providers airframe knows about but whose extra isn't installed\nhere — informational, the user adds them with `pip install\nairframe-agents[<extra>]`. (airframe guards `runtime_for` on uninstalled\nadapters, so we can't introspect those without importing their SDK.) Plus\nthe current selection.",
+        "operationId": "ai_providers_api_ai_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ai Providers Api Ai Providers Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ai Providers"
+      }
+    },
+    "/api/ai/queue/resume": {
+      "post": {
+        "description": "Clear the auto-paused flag so the worker resumes dispatching.",
+        "operationId": "resume_queue_api_ai_queue_resume_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Resume Queue Api Ai Queue Resume Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Resume Queue"
+      }
+    },
+    "/api/albums": {
+      "get": {
+        "description": "Return the cached album list. Does NOT scan — call /api/scan/stream\nafter to populate or refresh. Useful for the frontend to check the\ncache state on page load.",
+        "operationId": "list_albums_api_albums_get",
+        "parameters": [
+          {
+            "description": "Drop the cache so the next scan rebuilds from disk",
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Drop the cache so the next scan rebuilds from disk",
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Albums Api Albums Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Albums"
+      }
+    },
+    "/api/albums/{album_id}": {
+      "delete": {
+        "description": "Explicit user-initiated removal of an album from the cache.\n\nThis is the ONLY path that triggers `cache.delete_album` (and\ntherefore the FK cascade that drops `track_fingerprints` +\n`track_tags` + per-album blocklists). Intended use is the \"Remove\nfrom library\" affordance on Missing albums in the UI — the user\nconfirms that this album is gone for good, and we're free to\ndiscard the cached computed data along with it.\n\nScans never reach this path; they mark albums Missing via\n`cache.save_snapshot` and preserve everything.\n\nReturns 404 when the album_id isn't in the cache (already\nremoved, never cached, or wrong id). Returns 200 with the\ndeleted album_id on success.",
+        "operationId": "remove_album_from_library_api_albums__album_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Album From Library Api Albums  Album Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Album From Library"
+      },
+      "get": {
+        "operationId": "get_album_api_albums__album_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Album Api Albums  Album Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Album"
+      }
+    },
+    "/api/albums/{album_id}/analyze/stream": {
+      "post": {
+        "description": "Run BPM detection or ReplayGain analysis across an album's FLACs.\n\nStreams per-file progress + final outcome. The frontend invalidates\nits `tracks` query on `done` so the new BPM/RG values land in the\ntrack list without a manual reload.",
+        "operationId": "analyze_album_stream_api_albums__album_id__analyze_stream_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyzePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Analyze Album Stream"
+      }
+    },
+    "/api/albums/{album_id}/apply/stream": {
+      "post": {
+        "description": "Stream an album apply as Server-Sent Events.\n\nSolves two problems at once:\n  1. Per-file progress UX — the frontend gets a `file_started` /\n     `file_done` event for each FLAC so it can show a marching spinner.\n  2. The \"library re-scans after every apply\" flicker bug — instead of\n     dropping the entire library cache, we rescan ONLY the affected\n     album dir and emit an `updated_album` event with the fresh row.\n     The frontend updates one tile in place.\n\nEvent sequence: see `services.apply.apply_album_changes_iter`.",
+        "operationId": "apply_changes_stream_api_albums__album_id__apply_stream_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Changes Stream"
+      }
+    },
+    "/api/albums/{album_id}/cover": {
+      "get": {
+        "description": "Serve cover art for an album.\n\nDefault behaviour is `?size=thumb` — a pre-extracted 384px JPEG served from\n`~/.musaic/thumbs/{id}.jpg`, with `Cache-Control` and ETag headers so\nbrowsers don't re-fetch on reload. Generated on-the-fly the first time it's\nrequested if the scan didn't pre-build it.\n\n`?size=full` returns the original image — the on-disk cover.jpg if present\n(preferred, kernel sendfile), otherwise the largest embedded picture.",
+        "operationId": "get_cover_api_albums__album_id__cover_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "thumb (default, 384px) or full (original)",
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": "thumb",
+              "description": "thumb (default, 384px) or full (original)",
+              "title": "Size",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Cover"
+      }
+    },
+    "/api/albums/{album_id}/cover/upload": {
+      "post": {
+        "description": "Embed a user-supplied image as the album's cover art.\n\nPowers the manual-upload affordance on the album sheet — used when\nthe user has the right artwork in hand (clipboard, file on disk,\nURL paste) and Claude can't or didn't find it.\n\nThe bytes are read into memory, validated, normalized to JPEG q95,\nthen funneled through the same `apply_album_changes_iter` pipeline\nthe AI cover flow uses, so the on-disk result is identical (every\nFLAC re-embedded + cover.jpg sidecar + thumb invalidation +\npost-scan check rerun). Streamed as SSE so the UI can show\nper-file progress.",
+        "operationId": "upload_cover_api_albums__album_id__cover_upload_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_cover_api_albums__album_id__cover_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Cover"
+      }
+    },
+    "/api/albums/{album_id}/mb-anchor/clear": {
+      "post": {
+        "description": "Wipe the cached MusicBrainz anchor for an album AND blocklist\nthe rejected release-group.\n\nEscape hatch for the \"wrong release-group locked in\" case\n(typically compilations where MB matched a same-title-but-different\nrelease). Without the blocklist, the resolver's Tier 0c\n(fingerprint vote) immediately re-derives the same wrong release-\ngroup from the cached AcoustID matches and the user is right back\nwhere they started. Adding the rejected MBID to the per-album\nblocklist (`album_blocked_mb_release_groups`) makes the rejection\nsticky across all three tiers + AI persistence.\n\nPublishes a single `AlbumTagsChanged` event so SSE consumers\ninvalidate their caches. The frontend's\n`['album-resolution', id]` refetch re-runs the resolver on demand\nvia `GET /api/albums/{id}/resolution`, which is where Tier 0b/0c\nwill (or won't) re-derive a new anchor — and where that path\npublishes `AlbumMbAnchorSet` as a side effect if it does.\nConcentrating the resolver call in one place avoids the previous\ndouble-publish + concurrent-rerun race where both the endpoint\nand the resolver side-effect fired for one user action.",
+        "operationId": "clear_mb_anchor_api_albums__album_id__mb_anchor_clear_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Clear Mb Anchor Api Albums  Album Id  Mb Anchor Clear Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear Mb Anchor"
+      }
+    },
+    "/api/albums/{album_id}/resolution": {
+      "get": {
+        "description": "Run the metadata-resolution cascade for one album. Returns the\n`AlbumResolution` payload — anchor + canonical fields + per-track\nmatches + a trace of which strategies fired. AI is NOT invoked\nautomatically; check `anchor` and `unresolved_track_count` to decide\nwhether escalation is warranted.\n\nOff the FastAPI event loop via to_thread because the underlying\nMB / fpcalc calls are sync and can take a few seconds on a cold\ncache.",
+        "operationId": "get_album_resolution_api_albums__album_id__resolution_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Skip the in-process cache; re-run the cascade",
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Skip the in-process cache; re-run the cascade",
+              "title": "Force",
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Optional user hint biasing candidate selection",
+            "in": "query",
+            "name": "hint",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "Optional user hint biasing candidate selection",
+              "title": "Hint",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Album Resolution Api Albums  Album Id  Resolution Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Album Resolution"
+      }
+    },
+    "/api/albums/{album_id}/tags": {
+      "get": {
+        "description": "Return the album's full tag state.\n\nShape:\n    {\n        \"album_id\": \"...\",\n        \"track_tags\":   {filename: [tag, ...], ...},\n        \"album_tags\":   [tag, ...]   # intersection — tags on every track\n    }",
+        "operationId": "get_album_tags_api_albums__album_id__tags_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Album Tags Api Albums  Album Id  Tags Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Album Tags"
+      },
+      "post": {
+        "description": "Apply `tag` to every track on the album (or the subset given in\n`filenames`). Idempotent — already-tagged tracks are left alone.",
+        "operationId": "add_album_tag_api_albums__album_id__tags_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlbumTagApplyPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Album Tag Api Albums  Album Id  Tags Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Album Tag"
+      },
+      "put": {
+        "description": "Replace the album's track tags wholesale. Used by the bulk-edit\ndialog (e.g. paste a JSON snapshot to migrate from flac-jacket).\nThe sidecar is rewritten to match.",
+        "operationId": "replace_album_tags_api_albums__album_id__tags_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlbumTagsReplacePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Replace Album Tags Api Albums  Album Id  Tags Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace Album Tags"
+      }
+    },
+    "/api/albums/{album_id}/tags/{tag}": {
+      "delete": {
+        "description": "Strip `tag` from every track on the album.",
+        "operationId": "remove_album_tag_api_albums__album_id__tags__tag__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove Album Tag Api Albums  Album Id  Tags  Tag  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Album Tag"
+      }
+    },
+    "/api/albums/{album_id}/tracks": {
+      "get": {
+        "operationId": "get_tracks_api_albums__album_id__tracks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Tracks Api Albums  Album Id  Tracks Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Tracks"
+      }
+    },
+    "/api/albums/{album_id}/tracks/{filename}/tags": {
+      "post": {
+        "description": "Add a tag to a single track. Filename is the FLAC's basename\n(URL-encode special characters at the call site).",
+        "operationId": "add_one_track_tag_api_albums__album_id__tracks__filename__tags_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrackTagPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add One Track Tag Api Albums  Album Id  Tracks  Filename  Tags Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add One Track Tag"
+      }
+    },
+    "/api/albums/{album_id}/tracks/{filename}/tags/{tag}": {
+      "delete": {
+        "description": "Remove a tag from a single track.",
+        "operationId": "remove_one_track_tag_api_albums__album_id__tracks__filename__tags__tag__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "album_id",
+            "required": true,
+            "schema": {
+              "title": "Album Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "title": "Filename",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remove One Track Tag Api Albums  Album Id  Tracks  Filename  Tags  Tag  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove One Track Tag"
+      }
+    },
+    "/api/checks": {
+      "get": {
+        "description": "All registered checks + last-run summary + open finding counts.\nDrives the Health page's index-card grid.",
+        "operationId": "list_checks_api_checks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Checks Api Checks Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Checks"
+      }
+    },
+    "/api/checks/duplicate-tracks/findings/{finding_id}/canonical": {
+      "get": {
+        "description": "Look up MusicBrainz's canonical title + artist for a duplicate\ncluster's recording_mbid. Powers the resolve dialog's \"MB says: …\"\nline, which lets the user disambiguate which mistagged file is which.\n\nLazy-loaded (this endpoint hits MB live, the check itself doesn't) so\nthe duplicate-tracks check stays fast — most clusters never have\ntheir dialog opened. Recordings are immutable, so a single lookup\nper MBID per server lifetime is sufficient (cached via\nmb_lookup.get_recording_canonical's lru_cache).\n\nReturns:\n  {title, artist}                         — MB found it\n  {title: null, artist: null, reason: …}  — no MBID, MB miss, or HTTP error",
+        "operationId": "duplicate_finding_canonical_api_checks_duplicate_tracks_findings__finding_id__canonical_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Duplicate Finding Canonical Api Checks Duplicate Tracks Findings  Finding Id  Canonical Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Duplicate Finding Canonical"
+      }
+    },
+    "/api/checks/duplicate-tracks/findings/{finding_id}/cluster-preview": {
+      "get": {
+        "description": "Re-derive the duplicate cluster for a finding against *current*\ntrack_fingerprints + on-disk file state.\n\nSame architectural shape as the filename-mismatch plan-preview:\nthe finding's `detail.filenames` is a snapshot from check-run\ntime. If the user deleted a copy via another tool, re-encoded\none, or already trashed a sibling earlier, the Resolve dialog\nwould show ghost rows or stale tie-breaker recommendations.\nThis endpoint asks the check to recompute the cluster live so\nthe dialog always reflects right-now reality.\n\nResponse shape mirrors `Finding.detail`:\n  recording_mbid, filenames, durations_s, duplicate_count,\n  recommended_keep, recommended_reason. Plus:\n  - `album_id`     : convenience\n  - `is_empty`     : True when no duplicate cluster overlapping\n                     the original finding remains — the dialog\n                     should clear the stale finding\n  - `removed_filenames` : entries the original finding listed but\n                     that are no longer on disk / in the cluster\n                     (useful for UI \"X file was already trashed\"\n                     hints)",
+        "operationId": "duplicate_tracks_cluster_preview_api_checks_duplicate_tracks_findings__finding_id__cluster_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Duplicate Tracks Cluster Preview Api Checks Duplicate Tracks Findings  Finding Id  Cluster Preview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Duplicate Tracks Cluster Preview"
+      }
+    },
+    "/api/checks/duplicate-tracks/findings/{finding_id}/delete-file": {
+      "post": {
+        "description": "Custom action for the duplicate-tracks check: delete one of the\nduplicate FLACs that the user has chosen to remove.\n\nValidates the filename is one of the cluster's listed duplicates (so a\nmisdirected request can't accidentally nuke an unrelated file), deletes\nthe file from disk, drops the matching track_fingerprints row, and\ntriggers a post-scan rerun so the finding auto-resolves once the\ncluster is down to 1 file.",
+        "operationId": "delete_duplicate_file_api_checks_duplicate_tracks_findings__finding_id__delete_file_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteDuplicateFilePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Duplicate File Api Checks Duplicate Tracks Findings  Finding Id  Delete File Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Duplicate File"
+      }
+    },
+    "/api/checks/filename-mismatch/findings/{finding_id}/apply": {
+      "post": {
+        "description": "Custom action for the filename-mismatch check: execute the\nuser-confirmed rename plan. Validates the finding belongs to the\nright check, then runs the renames through filename_mismatch.\nexecute_renames (two-pass + track-tag migration + post-rename\nrescan). When `dir_rename` is supplied, the album directory is\nrenamed first and FK references migrate to the new id.",
+        "operationId": "apply_filename_rename_api_checks_filename_mismatch_findings__finding_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FilenameRenamePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Apply Filename Rename Api Checks Filename Mismatch Findings  Finding Id  Apply Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Filename Rename"
+      }
+    },
+    "/api/checks/filename-mismatch/findings/{finding_id}/plan-preview": {
+      "get": {
+        "description": "Re-derive the rename plan for a filename-mismatch finding against\n*current* disk + settings state.\n\nWhy: the finding's `detail.renames` is a snapshot from check-run\ntime. If the user edits tags, manually renames files, or already\napplied a sibling finding, the snapshot grows stale and the Resolve\ndialog shows ghost rows that either fail to apply or re-do work\nthat's already done. The dialog calls this endpoint on open so it\nalways shows what would actually happen against the current\nfilesystem.\n\nResponse shape mirrors `Finding.detail` (renames, dir_rename,\ntemplate, dir_template, dir_name, headline, is_compilation) plus:\n  - `album_id`     : convenience (the finding's album_id)\n  - `is_empty`     : True when nothing to do — the dialog should\n                      clear the stale finding and skip to next /\n                      close rather than render an empty plan\n  - `album_missing`: True when the album dir is gone from disk\n  - `error`        : present when plan derivation crashed; in that\n                      case the dialog should surface and fall back\n                      to the finding's stored detail",
+        "operationId": "filename_mismatch_plan_preview_api_checks_filename_mismatch_findings__finding_id__plan_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Filename Mismatch Plan Preview Api Checks Filename Mismatch Findings  Finding Id  Plan Preview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Filename Mismatch Plan Preview"
+      }
+    },
+    "/api/checks/findings": {
+      "get": {
+        "description": "Open findings across checks. The detail-sheet 'Findings' section\ncalls this with ?album_id= ; the Health detail page calls it with\n?check_id= .",
+        "operationId": "list_all_findings_api_checks_findings_get",
+        "parameters": [
+          {
+            "description": "filter to one album",
+            "in": "query",
+            "name": "album_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "filter to one album",
+              "title": "Album Id"
+            }
+          },
+          {
+            "description": "filter to one check",
+            "in": "query",
+            "name": "check_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "filter to one check",
+              "title": "Check Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_ignored",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Ignored",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_resolved",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Resolved",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List All Findings Api Checks Findings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List All Findings"
+      }
+    },
+    "/api/checks/inconsistent-artist-sort/findings/{finding_id}/apply-sort": {
+      "post": {
+        "description": "Custom action for the inconsistent-artist-sort check: bulk-write\nthe user's chosen sort value to album_artist_sort across every\nalbum in the finding's cluster. Goes through apply_direct so the\nactual FLAC tags get rewritten, not just our cache.",
+        "operationId": "apply_inconsistent_artist_sort_api_checks_inconsistent_artist_sort_findings__finding_id__apply_sort_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyClusterSortPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Apply Inconsistent Artist Sort Api Checks Inconsistent Artist Sort Findings  Finding Id  Apply Sort Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Inconsistent Artist Sort"
+      }
+    },
+    "/api/checks/stream": {
+      "get": {
+        "description": "SSE stream of check / finding state changes. Emits a single 'state'\nevent per change, carrying the full check-summary list. The frontend\ncache is small enough that diffing isn't worth the complexity.",
+        "operationId": "checks_stream_api_checks_stream_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Checks Stream"
+      }
+    },
+    "/api/checks/{check_id}": {
+      "get": {
+        "operationId": "get_check_api_checks__check_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_id",
+            "required": true,
+            "schema": {
+              "title": "Check Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Check Api Checks  Check Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Check"
+      }
+    },
+    "/api/checks/{check_id}/findings/{finding_id}/fix": {
+      "post": {
+        "operationId": "fix_finding_api_checks__check_id__findings__finding_id__fix_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_id",
+            "required": true,
+            "schema": {
+              "title": "Check Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/FixFindingPayload"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fix Finding Api Checks  Check Id  Findings  Finding Id  Fix Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Fix Finding"
+      }
+    },
+    "/api/checks/{check_id}/findings/{finding_id}/ignore": {
+      "post": {
+        "operationId": "ignore_finding_api_checks__check_id__findings__finding_id__ignore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_id",
+            "required": true,
+            "schema": {
+              "title": "Check Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IgnoreFindingPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ignore Finding Api Checks  Check Id  Findings  Finding Id  Ignore Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ignore Finding"
+      }
+    },
+    "/api/checks/{check_id}/findings/{finding_id}/unignore": {
+      "post": {
+        "operationId": "unignore_finding_api_checks__check_id__findings__finding_id__unignore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_id",
+            "required": true,
+            "schema": {
+              "title": "Check Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "finding_id",
+            "required": true,
+            "schema": {
+              "title": "Finding Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Unignore Finding Api Checks  Check Id  Findings  Finding Id  Unignore Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unignore Finding"
+      }
+    },
+    "/api/checks/{check_id}/quick-fix-all": {
+      "post": {
+        "description": "SSE-streamed bulk run of try_quick_fix() across every open finding\nfor this check. Lets the user trim the deterministic-fix portion of a\nlong list without committing AI work for the rest.\n\nPacing: one second between MB calls (MusicBrainz allows 1 req/s for\nunauthenticated traffic). For 80 findings that's ~80+ seconds; we\nstream per-finding outcomes so the UI can show progress.\n\nEvents emitted (event name → payload):\n  - `start`    : { total }\n  - `progress` : { finding_id, outcome, message }\n                   outcome ∈ \"fixed\" | \"skipped\" | \"error\" | \"not-applicable\"\n  - `done`     : { total, fixed, skipped, errors, not_applicable }\n  - `error`    : { detail }   (only on a fatal mid-run failure)",
+        "operationId": "quick_fix_all_api_checks__check_id__quick_fix_all_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_id",
+            "required": true,
+            "schema": {
+              "title": "Check Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Quick Fix All"
+      }
+    },
+    "/api/checks/{check_id}/run": {
+      "post": {
+        "description": "Kick off a check. Returns the final run row when the check finishes.\n\nFor the cheap checks Phase 2 ships, runs complete in well under a second\nso this is fine as a sync request. Once the heavy A1 (FLAC integrity)\ncheck lands, we'll likely change this to fire-and-forget + SSE updates.",
+        "operationId": "run_check_now_api_checks__check_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "check_id",
+            "required": true,
+            "schema": {
+              "title": "Check Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCheckPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run Check Now Api Checks  Check Id  Run Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Check Now"
+      }
+    },
+    "/api/config": {
+      "get": {
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Config"
+      },
+      "post": {
+        "operationId": "update_config_api_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Config"
+      }
+    },
+    "/api/db/backup": {
+      "get": {
+        "description": "Stream a consistent snapshot of the live DB as a download. Used\nfor off-machine backups (e.g. dropping the file in iCloud / Time\nMachine / a USB stick). Doesn't touch the snapshot dir.",
+        "operationId": "db_backup_download_api_db_backup_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Db Backup Download"
+      }
+    },
+    "/api/db/info": {
+      "get": {
+        "operationId": "db_info_api_db_info_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Db Info Api Db Info Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Db Info"
+      }
+    },
+    "/api/db/restore": {
+      "post": {
+        "description": "Restore the live DB from an uploaded backup file. Destructive:\nthe existing DB is moved aside as library.db.bak-{timestamp} but\nthe in-memory state of any in-flight requests will be stale until\na refresh.",
+        "operationId": "db_restore_api_db_restore_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_db_restore_api_db_restore_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Db Restore Api Db Restore Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Db Restore"
+      }
+    },
+    "/api/db/snapshots": {
+      "get": {
+        "operationId": "list_snapshots_api_db_snapshots_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Snapshots Api Db Snapshots Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Snapshots"
+      },
+      "post": {
+        "description": "Take a manual snapshot now, bypassing the interval gate. Retention\nis still enforced (older snapshots may get pruned).",
+        "operationId": "create_snapshot_api_db_snapshots_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Snapshot Api Db Snapshots Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Create Snapshot"
+      }
+    },
+    "/api/db/snapshots/{name}": {
+      "delete": {
+        "operationId": "delete_snapshot_api_db_snapshots__name__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Snapshot Api Db Snapshots  Name  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Snapshot"
+      }
+    },
+    "/api/db/snapshots/{name}/restore": {
+      "post": {
+        "operationId": "restore_snapshot_api_db_snapshots__name__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Restore Snapshot Api Db Snapshots  Name  Restore Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Snapshot"
+      }
+    },
+    "/api/fingerprint-pool/status": {
+      "get": {
+        "description": "Eager fingerprinting pool state — what the post-scan fpcalc /\nAcoustID worker is up to. Status enum: idle | running | done |\ncancelled | unavailable.\n\nRetained for one-shot reads (status pages, tests, the rare REST\nconsumer). Live consumers should subscribe to\n`/api/fingerprint-pool/stream` instead — the SSE channel pushes a\n`state` event on every transition with no polling required.",
+        "operationId": "fingerprint_pool_status_api_fingerprint_pool_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Fingerprint Pool Status Api Fingerprint Pool Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Fingerprint Pool Status"
+      }
+    },
+    "/api/fingerprint-pool/stream": {
+      "get": {
+        "description": "SSE stream of fingerprint-pool state transitions.\n\nMirrors `/api/checks/stream`: emit current state on connect, then\none `state` event per change. The pool sets a module-level\nasyncio.Event after every mutation; this handler awaits with a\n30-second timeout for keepalive pings.",
+        "operationId": "fingerprint_pool_stream_api_fingerprint_pool_stream_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Fingerprint Pool Stream"
+      }
+    },
+    "/api/health": {
+      "get": {
+        "description": "Liveness/readiness probe. Returns as soon as the ASGI app can\nserve a request — no DB, no scan state, no checks. The Electron\nmain process backoff-polls this until it returns 200 before\npointing the renderer at the sidecar origin.",
+        "operationId": "health_api_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Api Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health"
+      }
+    },
+    "/api/library-events/stream": {
+      "get": {
+        "description": "SSE stream of `library_events` bus events.\n\nDrives frontend cache invalidation: instead of every mutation\nhandler remembering a checklist of `qc.invalidateQueries` calls,\nthe frontend's `useLibraryEventsStream` subscribes here once and\ninvalidates by event name. See `docs/connectivity_design.md`.\n\nEach event arrives as a named SSE event (event: AlbumTagsChanged,\netc.) with a JSON payload carrying the event's identity fields\n(album_id, fields, source, etc.).\n\nPer-connection bounded queue (256 events); if a client falls\nbehind, the oldest events are dropped with a warning and the\nclient is expected to refetch on the next event it sees. This is\na \"something changed\" signal, not durable state.",
+        "operationId": "library_events_stream_api_library_events_stream_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Library Events Stream"
+      }
+    },
+    "/api/scan/rescan": {
+      "post": {
+        "description": "Drop the cache for the configured library and kick off a fresh\nbackground scan. Returns immediately; clients observe progress via\n/api/scan/stream or /api/scan/status.",
+        "operationId": "force_rescan_api_scan_rescan_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Force Rescan Api Scan Rescan Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Force Rescan"
+      }
+    },
+    "/api/scan/status": {
+      "get": {
+        "description": "Current scan state. Lets the UI detect an in-flight scan on page\nload (rather than relying on the SSE stream alone).",
+        "operationId": "scan_status_api_scan_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Scan Status Api Scan Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Scan Status"
+      }
+    },
+    "/api/scan/stream": {
+      "get": {
+        "description": "Stream a library scan as Server-Sent Events.\n\nThe scan itself runs as a background asyncio task, so a client\ndisconnect no longer halts the scan — late subscribers (or\nreconnects) catch up via the in-process event buffer.\n\nEvents emitted (event name → payload):\n  - `start`    : { library_dir, total, cached_count, force }\n  - `album`    : an album dict, with extra `_status` (\"cached\" | \"fresh\")\n  - `progress` : { scanned, total }\n  - `removed`  : { id, path }\n  - `done`     : { count, scanned_at }\n  - `error`    : { detail }",
+        "operationId": "scan_stream_api_scan_stream_get",
+        "parameters": [
+          {
+            "description": "Ignore cache; re-read every album",
+            "in": "query",
+            "name": "force",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Ignore cache; re-read every album",
+              "title": "Force",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Scan Stream"
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "description": "All persistent settings, with defaults filled in.",
+        "operationId": "get_settings_api_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Settings Api Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Settings"
+      },
+      "patch": {
+        "description": "Update one or more settings. Only the fields present in the payload\nare written; absent fields are left alone.",
+        "operationId": "patch_settings_api_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsPatchPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Patch Settings Api Settings Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Settings"
+      }
+    },
+    "/api/tags": {
+      "get": {
+        "description": "All tags the user has ever applied, with usage counts. Powers\nthe autocomplete dropdown in the tag editor.",
+        "operationId": "list_tags_api_tags_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Tags Api Tags Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Tags"
+      }
+    },
+    "/api/tags/{tag}/tracks": {
+      "get": {
+        "description": "Every (album_id, filename) pair carrying `tag`. The\nplaylist-construction query.",
+        "operationId": "tracks_for_tag_api_tags__tag__tracks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Tracks For Tag Api Tags  Tag  Tracks Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Tracks For Tag"
+      }
+    },
+    "/api/vocabulary": {
+      "get": {
+        "description": "The full vocabulary plus orphans (tags in track_tags but not in\nthe vocabulary). The Settings panel renders both.",
+        "operationId": "list_vocabulary_api_vocabulary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Vocabulary Api Vocabulary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Vocabulary"
+      },
+      "post": {
+        "operationId": "add_vocabulary_entry_api_vocabulary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyAddPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Add Vocabulary Entry Api Vocabulary Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Vocabulary Entry"
+      }
+    },
+    "/api/vocabulary/orphans/{tag}/promote": {
+      "post": {
+        "description": "Add an orphan tag to the vocabulary (no track_tags changes).\nConvenience over POST /api/vocabulary — preserves the exact tag\nstring the user has already been using on tracks.",
+        "operationId": "promote_orphan_tag_api_vocabulary_orphans__tag__promote_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Promote Orphan Tag Api Vocabulary Orphans  Tag  Promote Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Promote Orphan Tag"
+      }
+    },
+    "/api/vocabulary/{tag}": {
+      "delete": {
+        "operationId": "delete_vocabulary_entry_api_vocabulary__tag__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Also delete every track_tags row carrying this tag",
+            "in": "query",
+            "name": "strip_from_tracks",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Also delete every track_tags row carrying this tag",
+              "title": "Strip From Tracks",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Vocabulary Entry Api Vocabulary  Tag  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Vocabulary Entry"
+      },
+      "patch": {
+        "operationId": "patch_vocabulary_entry_api_vocabulary__tag__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyPatchPayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Patch Vocabulary Entry Api Vocabulary  Tag  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Vocabulary Entry"
+      }
+    },
+    "/api/vocabulary/{tag}/merge": {
+      "post": {
+        "description": "Merge `tag` into `payload.into_tag`. Both must exist before the\ncall (the destination is the survivor).",
+        "operationId": "merge_vocabulary_entry_api_vocabulary__tag__merge_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyMergePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Merge Vocabulary Entry Api Vocabulary  Tag  Merge Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Merge Vocabulary Entry"
+      }
+    },
+    "/api/vocabulary/{tag}/rename": {
+      "post": {
+        "operationId": "rename_vocabulary_entry_api_vocabulary__tag__rename_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tag",
+            "required": true,
+            "schema": {
+              "title": "Tag",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VocabularyRenamePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Rename Vocabulary Entry Api Vocabulary  Tag  Rename Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Vocabulary Entry"
+      }
+    },
+    "/{full_path}": {
+      "get": {
+        "operationId": "spa_fallback__full_path__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "full_path",
+            "required": true,
+            "schema": {
+              "title": "Full Path",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Spa Fallback"
+      }
+    }
+  }
+}

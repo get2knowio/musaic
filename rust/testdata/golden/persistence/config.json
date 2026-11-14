@@ -1,0 +1,268 @@
+{
+  "generator": "tools/gen_persistence_golden.py",
+  "load": [
+    {
+      "file": null,
+      "label": "absent",
+      "result": {
+        "library_dir": null
+      }
+    },
+    {
+      "file": "{\"library_dir\": \"/music/lib\"}",
+      "label": "object",
+      "result": {
+        "library_dir": "/music/lib"
+      }
+    },
+    {
+      "file": "{\"library_dir\": \"/music/lib\", \"theme\": \"dark\"}",
+      "label": "extra keys",
+      "result": {
+        "library_dir": "/music/lib"
+      }
+    },
+    {
+      "file": "{}",
+      "label": "empty object",
+      "result": {
+        "library_dir": null
+      }
+    },
+    {
+      "file": "{\"library_dir\": null}",
+      "label": "null",
+      "result": {
+        "library_dir": null
+      }
+    },
+    {
+      "file": "{\"library_dir\": 5}",
+      "label": "number",
+      "result": {
+        "library_dir": 5
+      }
+    },
+    {
+      "file": "{library_dir: /x",
+      "label": "not json",
+      "result": {
+        "library_dir": null
+      }
+    },
+    {
+      "file": "",
+      "label": "empty file",
+      "result": {
+        "library_dir": null
+      }
+    },
+    {
+      "file": "[1, 2]",
+      "label": "array",
+      "result": {
+        "raises": "AttributeError"
+      }
+    },
+    {
+      "file": "﻿{\"library_dir\": \"/music/lib\"}",
+      "label": "utf-8 bom",
+      "result": {
+        "library_dir": null
+      }
+    },
+    {
+      "file": "{\"library_dir\": \"/music/Bj\\u00f6rk\"}",
+      "label": "non-ascii escaped",
+      "result": {
+        "library_dir": "/music/Björk"
+      }
+    },
+    {
+      "file_bytes_hex": "7b226c6962726172795f646972223a2022ff227d",
+      "label": "invalid utf-8",
+      "result": {
+        "library_dir": null
+      }
+    }
+  ],
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "resolution": [
+    {
+      "env": {
+        "MUSAIC_CONFIG_DIR": "<ROOT>/explicit"
+      },
+      "home_after": [],
+      "home_dirs": [],
+      "label": "env set",
+      "result": "<ROOT>/explicit"
+    },
+    {
+      "env": {
+        "MUSAIC_CONFIG_DIR": "rel/cfg"
+      },
+      "home_after": [],
+      "home_dirs": [],
+      "label": "env set, relative",
+      "result": "rel/cfg"
+    },
+    {
+      "env": {
+        "MUSAIC_CONFIG_DIR": ""
+      },
+      "home_after": [],
+      "home_dirs": [],
+      "label": "env empty string falls through",
+      "result": "<HOME>/.musaic"
+    },
+    {
+      "env": {},
+      "home_after": [],
+      "home_dirs": [],
+      "label": "no env, fresh home",
+      "result": "<HOME>/.musaic"
+    },
+    {
+      "env": {},
+      "home_after": [
+        ".musaic"
+      ],
+      "home_dirs": [
+        ".musaic"
+      ],
+      "label": "no env, ~/.musaic exists",
+      "result": "<HOME>/.musaic"
+    },
+    {
+      "env": {},
+      "home_after": [
+        ".media_manager",
+        ".musaic"
+      ],
+      "home_dirs": [
+        ".musaic",
+        ".media_manager"
+      ],
+      "label": "no env, both exist",
+      "result": "<HOME>/.musaic"
+    },
+    {
+      "env": {
+        "MEDIA_MANAGER_CONFIG_DIR": "<ROOT>/legacy-env"
+      },
+      "home_after": [],
+      "home_dirs": [],
+      "label": "legacy env only",
+      "result": "<ROOT>/legacy-env"
+    },
+    {
+      "env": {
+        "MEDIA_MANAGER_CONFIG_DIR": "<ROOT>/legacy-env",
+        "MUSAIC_CONFIG_DIR": "<ROOT>/new-env"
+      },
+      "home_after": [],
+      "home_dirs": [],
+      "label": "both envs",
+      "result": "<ROOT>/new-env"
+    },
+    {
+      "env": {},
+      "home_after": [
+        ".musaic"
+      ],
+      "home_dirs": [
+        ".media_manager"
+      ],
+      "label": "legacy dir only",
+      "result": "<HOME>/.musaic"
+    }
+  ],
+  "set_library_dir": {
+    "cases": [
+      {
+        "arg": "<FS>/music/real",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "absolute",
+        "library_dir": "<FS>/music/real"
+      },
+      {
+        "arg": "<FS>/music/real/",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "trailing slash",
+        "library_dir": "<FS>/music/real"
+      },
+      {
+        "arg": "<FS>/music/real/../real",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "dot dot",
+        "library_dir": "<FS>/music/real"
+      },
+      {
+        "arg": "<FS>/music/./real",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "dot",
+        "library_dir": "<FS>/music/real"
+      },
+      {
+        "arg": "<FS>/music/link",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "symlink resolved",
+        "library_dir": "<FS>/music/real"
+      },
+      {
+        "arg": "<FS>/music/not-there",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/not-there\"\n}",
+        "label": "missing leaf",
+        "library_dir": "<FS>/music/not-there"
+      },
+      {
+        "arg": "<FS>/music/not-there/../real",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "missing then dot dot",
+        "library_dir": "<FS>/music/real"
+      },
+      {
+        "arg": "~/music/real",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "tilde",
+        "library_dir": "<FS>/music/real"
+      },
+      {
+        "arg": "~",
+        "file_text": "{\n  \"library_dir\": \"<FS>\"\n}",
+        "label": "tilde alone",
+        "library_dir": "<FS>"
+      },
+      {
+        "arg": "<FS>/music/Björk",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/Bj\\u00f6rk\"\n}",
+        "label": "non-ascii",
+        "library_dir": "<FS>/music/Björk"
+      },
+      {
+        "arg": "<FS>/music/a\"b\\c",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/a\\\"b\\\\c\"\n}",
+        "label": "quote and backslash",
+        "library_dir": "<FS>/music/a\"b\\c"
+      },
+      {
+        "arg": "<FS>//music//real",
+        "file_text": "{\n  \"library_dir\": \"<FS>/music/real\"\n}",
+        "label": "double slash",
+        "library_dir": "<FS>/music/real"
+      }
+    ],
+    "creates_missing_config_dir": true,
+    "fs_setup": {
+      "config_before": "{\"library_dir\": \"/old\", \"theme\": \"dark\"}",
+      "dirs": [
+        "music/real",
+        "music/Björk"
+      ],
+      "home": "<FS>",
+      "symlinks": {
+        "music/link": "music/real"
+      }
+    }
+  }
+}

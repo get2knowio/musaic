@@ -1,0 +1,2875 @@
+{
+  "generator": "tools/gen_events_golden.py",
+  "note": "Deliberate change: reruns triggered by bus events really run the checks. 'python_app' = the Python app as-is; 'fixed' = the Python app with that fix applied by monkeypatch: _post_scan_rerun, _post_scan_rerun_for_rename and _post_scan_rerun_library_wide no longer set in_post_scan_rerun before calling run_post_scan_checks (which sets it itself). Both runs use the real run_post_scan_checks with REGISTRY = [check 'a'] and checks.runner.run_check stubbed.",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "patched_subscribers": [
+    "_post_scan_rerun",
+    "_post_scan_rerun_for_rename",
+    "_post_scan_rerun_library_wide"
+  ],
+  "python": "3.13.15",
+  "scenarios": {
+    "bulk_dispatcher_coalesces": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide:bulk"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a2",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a3",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a2",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a3",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "op": "bulk",
+          "publish_after": true,
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1"
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "a2"
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "a3"
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            }
+          ]
+        }
+      ]
+    },
+    "bulk_dispatcher_no_publish": {
+      "fixed": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "op": "bulk",
+          "publish_after": false,
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1"
+                },
+                "class": "AlbumCoverChanged"
+              },
+              "op": "publish"
+            }
+          ]
+        }
+      ]
+    },
+    "bulk_flag_inherited_by_worker_thread": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide:bulk"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "w",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "w",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "op": "bulk",
+          "publish_after": true,
+          "steps": [
+            {
+              "flag": "in_bulk_run",
+              "op": "with_flag",
+              "steps": [
+                {
+                  "event": {
+                    "args": {
+                      "album_id": "w"
+                    },
+                    "class": "AlbumTagsChanged"
+                  },
+                  "op": "publish"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "composed_with_real_post_scan_guard": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "a1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_for_rename"
+          },
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          },
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide"
+          },
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide:bulk"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "a1"
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 1
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_AlbumCoverChanged": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "c1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "c1"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_AlbumDeleted": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "d1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "d1"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_AlbumMarkedMissing": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "x1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "x1",
+              "missing_since": "2026-01-01T00:00:00Z"
+            },
+            "class": "AlbumMarkedMissing"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_AlbumMbAnchorSet": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "m1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "m1",
+              "source": "musicbrainz"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_AlbumRenamed": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_for_rename"
+          },
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_AlbumTagsChanged": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "t1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "t1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_BulkBatchCompleted": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide:bulk"
+          }
+        ],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_LibraryScanCompleted": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide"
+          }
+        ],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_count": 3
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "each_event_TrackFingerprinted": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "f1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "f1",
+              "filenames": [
+                "01.flac"
+              ]
+            },
+            "class": "TrackFingerprinted"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "file_only_rename": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "same"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_for_rename"
+          },
+          {
+            "album_ids": [
+              "same"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "same",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "same",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "same",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [
+          {
+            "album_ids": [
+              "same"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "same",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "same",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "same",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "new_album_id": "same",
+              "old_album_id": "same"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "in_bulk_run_suppresses_reruns": {
+      "fixed": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a2",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a3",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": true,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a2",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "a3",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": true,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": true,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": true,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "flag": "in_bulk_run",
+          "op": "with_flag",
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "a1"
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "a2"
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "a3"
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "new_album_id": "new",
+                  "old_album_id": "old"
+                },
+                "class": "AlbumRenamed"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_count": 1
+                },
+                "class": "LibraryScanCompleted"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {},
+                "class": "BulkBatchCompleted"
+              },
+              "op": "publish"
+            }
+          ]
+        }
+      ]
+    },
+    "in_post_scan_rerun_suppresses_reruns": {
+      "fixed": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": true,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": true,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": true,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": true,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": true,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": true,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "flag": "in_post_scan_rerun",
+          "op": "with_flag",
+          "steps": [
+            {
+              "event": {
+                "args": {
+                  "album_id": "t1",
+                  "fields": [
+                    "title"
+                  ]
+                },
+                "class": "AlbumTagsChanged"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "c1"
+                },
+                "class": "AlbumCoverChanged"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "new_album_id": "new",
+                  "old_album_id": "old"
+                },
+                "class": "AlbumRenamed"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "m1",
+                  "source": "musicbrainz"
+                },
+                "class": "AlbumMbAnchorSet"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "f1",
+                  "filenames": [
+                    "01.flac"
+                  ]
+                },
+                "class": "TrackFingerprinted"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "d1"
+                },
+                "class": "AlbumDeleted"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_id": "x1",
+                  "missing_since": "2026-01-01T00:00:00Z"
+                },
+                "class": "AlbumMarkedMissing"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {
+                  "album_count": 3
+                },
+                "class": "LibraryScanCompleted"
+              },
+              "op": "publish"
+            },
+            {
+              "event": {
+                "args": {},
+                "class": "BulkBatchCompleted"
+              },
+              "op": "publish"
+            }
+          ]
+        }
+      ]
+    },
+    "no_library_configured": {
+      "fixed": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "library_dir": null,
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "t1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "c1"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "m1",
+              "source": "musicbrainz"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "f1",
+              "filenames": [
+                "01.flac"
+              ]
+            },
+            "class": "TrackFingerprinted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "d1"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "x1",
+              "missing_since": "2026-01-01T00:00:00Z"
+            },
+            "class": "AlbumMarkedMissing"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 3
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "register_all_twice": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "c1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": [
+              "d1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": [
+              "f1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": [
+              "m1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_for_rename"
+          },
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          },
+          {
+            "album_ids": [
+              "t1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": [
+              "x1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide"
+          },
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide:bulk"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "t1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "c1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "new",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "m1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "f1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "d1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "x1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "register_twice": true,
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "t1",
+              "fields": [
+                "title"
+              ]
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "c1"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "m1",
+              "source": "musicbrainz"
+            },
+            "class": "AlbumMbAnchorSet"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "f1",
+              "filenames": [
+                "01.flac"
+              ]
+            },
+            "class": "TrackFingerprinted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "d1"
+            },
+            "class": "AlbumDeleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "x1",
+              "missing_since": "2026-01-01T00:00:00Z"
+            },
+            "class": "AlbumMarkedMissing"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 3
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {},
+            "class": "BulkBatchCompleted"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "rerun_check_publishes_bg_republish_terminates": {
+      "check_publishes": true,
+      "fixed": {
+        "background": [
+          {
+            "action": "republish",
+            "bulk": false,
+            "event": "AlbumMbAnchorSet",
+            "rerun": true,
+            "sub": "bg_republisher",
+            "thread": "library_events:bg_republisher"
+          },
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_id": "from-bg",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate",
+            "thread": "library_events:bg_republisher"
+          },
+          {
+            "album_ids": [
+              "a1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed",
+            "thread": "library_events:bg_republisher"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "background": true,
+          "behavior": "republish",
+          "event": {
+            "args": {
+              "album_id": "from-bg"
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "register",
+          "sub": "bg_republisher",
+          "topic": "AlbumMbAnchorSet"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "a1"
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "rerun_check_publishes_terminates": {
+      "check_publishes": true,
+      "fixed": {
+        "background": [
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_id": "lib",
+            "bulk": false,
+            "rerun": true,
+            "target": "resolver_invalidate",
+            "thread": "library_events:_post_scan_rerun_library_wide"
+          },
+          {
+            "album_ids": [
+              "a1"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": null,
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "all",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_library_wide"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "bulk": false,
+            "rerun": true,
+            "target": "notify_findings_changed",
+            "thread": "library_events:_post_scan_rerun_library_wide"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [],
+        "sync": [
+          {
+            "album_id": "a1",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "album_id": "a1"
+            },
+            "class": "AlbumTagsChanged"
+          },
+          "op": "publish"
+        },
+        {
+          "op": "wait"
+        },
+        {
+          "event": {
+            "args": {
+              "album_count": 1
+            },
+            "class": "LibraryScanCompleted"
+          },
+          "op": "publish"
+        }
+      ]
+    },
+    "target_raises_rename_old": {
+      "fixed": {
+        "background": [
+          {
+            "album_ids": [
+              "boom-c"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun"
+          },
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "a",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_post_scan_rerun_for_rename"
+          },
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "boom-old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "boom-old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "boom-c",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "boom-c",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "python_app": {
+        "background": [
+          {
+            "album_ids": [
+              "new"
+            ],
+            "bulk": false,
+            "check_id": "filename-mismatch",
+            "library_path": "/lib",
+            "rerun": true,
+            "scope_kind": "albums",
+            "target": "run_check",
+            "thread": "library_events:_filename_mismatch_rerun"
+          }
+        ],
+        "sync": [
+          {
+            "album_id": "boom-old",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "album_id": "boom-old",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          },
+          {
+            "album_id": "boom-c",
+            "bulk": false,
+            "rerun": false,
+            "target": "delete_thumb"
+          },
+          {
+            "album_id": "boom-c",
+            "bulk": false,
+            "rerun": false,
+            "target": "resolver_invalidate"
+          },
+          {
+            "bulk": false,
+            "rerun": false,
+            "target": "notify_findings_changed"
+          }
+        ]
+      },
+      "script": [
+        {
+          "event": {
+            "args": {
+              "new_album_id": "new",
+              "old_album_id": "boom-old"
+            },
+            "class": "AlbumRenamed"
+          },
+          "op": "publish"
+        },
+        {
+          "event": {
+            "args": {
+              "album_id": "boom-c"
+            },
+            "class": "AlbumCoverChanged"
+          },
+          "op": "publish"
+        }
+      ]
+    }
+  }
+}

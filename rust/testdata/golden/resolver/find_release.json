@@ -1,0 +1,1586 @@
+{
+  "cases": [
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Never Asked",
+        "dir_artist": "Nobody Recorded",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "ConnectionError: unobserved in replay set (key 9af15e2d1098): GET https://musicbrainz.org/ws/2/release-group/?query=artist%3A%22Nobody+Recorded%22+AND+release%3A%22Never+Asked%22&fmt=json&limit=5",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (network error)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "unrecorded search: network error",
+      "overlay": [],
+      "requests": [
+        {
+          "key": "9af15e2d1098f1afaa18b2b9b0a5fa6f63869a561e30e29aeb653139a75d849d",
+          "method": "GET",
+          "served": "unobserved",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Nobody+Recorded%22+AND+release%3A%22Never+Asked%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": null,
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "Need both artist and title; got artist='' title='Album One'",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (insufficient input)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "insufficient: no artist",
+      "overlay": [],
+      "requests": [],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": null,
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": "  "
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "Need both artist and title; got artist='Ana Artist' title=''",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (insufficient input)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "insufficient: no title",
+      "overlay": [],
+      "requests": [],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "   ",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "h",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "Need both artist and title; got artist='' title='Album One'",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (insufficient input)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "insufficient: whitespace artist",
+      "overlay": [],
+      "requests": [],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": " Tag Artist ",
+        "dir_album": "Album One",
+        "dir_artist": "",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "No release-group match for artist='Tag Artist' title='Album One'",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (no match)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "artist falls back to album_artist then artist",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFtdfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "3563b50bdcd29d22b45127011c0ded26a7ad47feba566590c857bc5a267b3c9e",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Tag+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "3563b50bdcd29d22b45127011c0ded26a7ad47feba566590c857bc5a267b3c9e",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Tag+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": null,
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": "Tag Title"
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "No release-group match for artist='Ana Artist' title='Tag Title'",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (no match)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "title falls back to the title tag",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFtdfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "59bf51516c91e2e3067aee04f5b96dfbd862fd6a04027a994e044c15b68efec7",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Tag+Title%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "59bf51516c91e2e3067aee04f5b96dfbd862fd6a04027a994e044c15b68efec7",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Tag+Title%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Back\\slash",
+        "dir_artist": "Say \"Hi\"",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "No release-group match for artist='Say \"Hi\"' title='Back\\\\slash'",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (no match)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "quotes and backslashes are escaped",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFtdfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "4411c156672894c6ea4008faabca8f898beb4ef85e123f0f61aaae57609bda8a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Say+%5C%22Hi%5C%22%22+AND+release%3A%22Back%5C%5Cslash%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "4411c156672894c6ea4008faabca8f898beb4ef85e123f0f61aaae57609bda8a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Say+%5C%22Hi%5C%22%22+AND+release%3A%22Back%5C%5Cslash%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "Search response was not valid JSON",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (parse error)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "invalid json",
+      "overlay": [
+        {
+          "content_b64": "PGh0bWw+",
+          "headers": {},
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "No release-group match for artist='Ana Artist' title='Album One'",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (no match)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "release-groups null",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IG51bGx9",
+          "headers": {},
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": null,
+        "confidence": "high",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "Top match had no MBID",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 90,
+        "source": "MusicBrainz (malformed result)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "top has no id",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIxOTkwIiwgInNjb3JlIjogOTAsICJ0aXRsZSI6ICJYIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana Artist",
+        "confidence": "medium",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana Artist — Album One\" (score 77/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 77,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "1999"
+      },
+      "name": "missing title and credit fall back to the query",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIxOTk5LTAxLTAyIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDc3fV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana, Bo",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana, Bo — Album One\" (score 88/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": "rock",
+        "release_mbid": null,
+        "score": 88,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "score as string, credit joined with comma",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9LCB7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiQm8ifV0sICJmaXJzdC1yZWxlYXNlLWRhdGUiOiAiMjAwMSIsICJpZCI6ICIxMTExMTExMS0xMTExLTExMTEtMTExMS0xMTExMTExMTExMTEiLCAic2NvcmUiOiAiODgiLCAidGFncyI6IFt7ImNvdW50IjogMiwgIm5hbWUiOiAicm9jayJ9XSwgInRpdGxlIjogIkFsYnVtIE9uZSJ9XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana Artist",
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana Artist — Album One\" (score 0/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": null
+      },
+      "name": "missing score reads 0",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJ0aXRsZSI6ICJBbGJ1bSBPbmUifV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "key": "98910750e72773901e40ad355e11707a52c69b332e36943af6803cc6772e1795",
+          "method": "GET",
+          "served": "unobserved",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": "pop",
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "genre: highest count wins, first of ties",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGFncyI6IFt7ImNvdW50IjogMywgIm5hbWUiOiAiamF6eiJ9LCB7ImNvdW50IjogIjUiLCAibmFtZSI6ICJwb3AifSwgeyJjb3VudCI6IDUsICJuYW1lIjogInJvY2sifV0sICJ0aXRsZSI6ICJBbGJ1bSBPbmUifV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "genre: single vote is noise",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGFncyI6IFt7ImNvdW50IjogMSwgIm5hbWUiOiAiamF6eiJ9XSwgInRpdGxlIjogIkFsYnVtIE9uZSJ9XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "genre: blank name",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGFncyI6IFt7ImNvdW50IjogOSwgIm5hbWUiOiAiICAifV0sICJ0aXRsZSI6ICJBbGJ1bSBPbmUifV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "bo",
+      "match": {
+        "artist": "Bo",
+        "confidence": "medium",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "22222222-2222-2222-2222-222222222222",
+        "notes": "Matched \"Bo — Album One\" (score 80/100, MBID 22222222-2222-2222-2222-222222222222)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 80,
+        "source": "MusicBrainz (release-group 22222222-2222-2222-2222-222222222222)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2002"
+      },
+      "name": "hint ties keep the first; hint matches credit text",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn0sIHsiYXJ0aXN0LWNyZWRpdCI6IFt7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiQm8ifV0sICJmaXJzdC1yZWxlYXNlLWRhdGUiOiAiMjAwMiIsICJpZCI6ICIyMjIyMjIyMi0yMjIyLTIyMjItMjIyMi0yMjIyMjIyMjIyMjIiLCAic2NvcmUiOiA4MCwgInRpdGxlIjogIkFsYnVtIE9uZSJ9LCB7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkJvYiJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAzIiwgImlkIjogIjMzMzMzMzMzLTMzMzMtMzMzMy0zMzMzLTMzMzMzMzMzMzMzMyIsICJzY29yZSI6IDgwLCAidGl0bGUiOiAiT3RoZXIifV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "deluxe",
+      "match": {
+        "artist": "Ana",
+        "confidence": "medium",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "33333333-3333-3333-3333-333333333333",
+        "notes": "Matched \"Ana — Album One DELUXE\" (score 75/100, MBID 33333333-3333-3333-3333-333333333333)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 75,
+        "source": "MusicBrainz (release-group 33333333-3333-3333-3333-333333333333)",
+        "title": "Album One DELUXE",
+        "tracklist": [],
+        "year": "2011"
+      },
+      "name": "hint picks highest score among matches",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDEwMCwgInRpdGxlIjogIkFsYnVtIE9uZSJ9LCB7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDEwIiwgImlkIjogIjIyMjIyMjIyLTIyMjItMjIyMi0yMjIyLTIyMjIyMjIyMjIyMiIsICJzY29yZSI6IDcwLCAidGl0bGUiOiAiQWxidW0gT25lIChEZWx1eGUpIn0sIHsiYXJ0aXN0LWNyZWRpdCI6IFt7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiQW5hIn1dLCAiZmlyc3QtcmVsZWFzZS1kYXRlIjogIjIwMTEiLCAiaWQiOiAiMzMzMzMzMzMtMzMzMy0zMzMzLTMzMzMtMzMzMzMzMzMzMzMzIiwgInNjb3JlIjogNzUsICJ0aXRsZSI6ICJBbGJ1bSBPbmUgREVMVVhFIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "1975"
+      },
+      "name": "year: first-release-date too short -> browse fallback",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIxOTkiLCAiaWQiOiAiMTExMTExMTEtMTExMS0xMTExLTExMTEtMTExMTExMTExMTExIiwgInNjb3JlIjogOTUsICJ0aXRsZSI6ICJBbGJ1bSBPbmUifV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk3OS0wNSIsICJpZCI6ICJyMSJ9LCB7ImRhdGUiOiAiIiwgImlkIjogInIyIn0sIHsiZGF0ZSI6ICJhYmNkIiwgImlkIjogInIzIn0sIHsiZGF0ZSI6ICIxOTc1IiwgImlkIjogInI0In0sIHsiaWQiOiAicjUifV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "98910750e72773901e40ad355e11707a52c69b332e36943af6803cc6772e1795",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "key": "98910750e72773901e40ad355e11707a52c69b332e36943af6803cc6772e1795",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": null
+      },
+      "name": "year: non-digit date -> browse fallback, none dated",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIxOXh4LTAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiPz8/PyIsICJpZCI6ICJyMSJ9XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "98910750e72773901e40ad355e11707a52c69b332e36943af6803cc6772e1795",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "key": "98910750e72773901e40ad355e11707a52c69b332e36943af6803cc6772e1795",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": null
+      },
+      "name": "year: browse fallback HTTP 503",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "98910750e72773901e40ad355e11707a52c69b332e36943af6803cc6772e1795",
+          "method": "GET",
+          "status": 503,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "key": "98910750e72773901e40ad355e11707a52c69b332e36943af6803cc6772e1795",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "22222222-2222-2222-2222-222222222222",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 22222222-2222-2222-2222-222222222222)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 22222222-2222-2222-2222-222222222222)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": null
+      },
+      "name": "year: browse fallback unrecorded",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImlkIjogIjIyMjIyMjIyLTIyMjItMjIyMi0yMjIyLTIyMjIyMjIyMjIyMiIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "key": "9acb20c04e9ee6fe33b643749fe957f845b9f35d48b48d9cad71e8f06c5133ee",
+          "method": "GET",
+          "served": "unobserved",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=22222222-2222-2222-2222-222222222222"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "the hint",
+      "match": {
+        "artist": null,
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": null,
+        "notes": "No release-group match for artist='Ana Artist' title='Album One' (your hint: \"the hint\")",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 0,
+        "source": "MusicBrainz (no match)",
+        "title": null,
+        "tracklist": [],
+        "year": null
+      },
+      "name": "no match with hint note",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFtdfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "is_compilation": false,
+        "title": null
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "low",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 69/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 69,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "score below medium",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDY5LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "id": "fix-album",
+        "is_compilation": false,
+        "title": null,
+        "total_seconds": 600.0,
+        "track_count": 2
+      },
+      "blocked": [],
+      "events": [
+        {
+          "album_id": "fix-album",
+          "event": "AlbumMbAnchorSet",
+          "source": "musicbrainz"
+        }
+      ],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "with id: confident, listing agrees",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMjAwMSIsICJpZCI6ICJyLWFncmVlIiwgIm1lZGlhIjogW3sicG9zaXRpb24iOiAxLCAidHJhY2stY291bnQiOiAyLCAidHJhY2tzIjogW3sibGVuZ3RoIjogMzAwMDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIkEifSwgeyJsZW5ndGgiOiAzMDAwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiQiJ9XX1dfV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "cdb9b90c04ccd0c4a6439f5fe66936ae7152da906f6a8abfd665d55c9e3e75b4",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": [
+        {
+          "album_id": "fix-album",
+          "release_group_mbid": "11111111-1111-1111-1111-111111111111",
+          "release_mbid": null,
+          "score": 95
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "id": "fix-album",
+        "is_compilation": false,
+        "title": null,
+        "total_seconds": 600.0,
+        "track_count": 2
+      },
+      "blocked": [],
+      "events": [
+        {
+          "album_id": "fix-album",
+          "event": "AlbumMbAnchorSet",
+          "source": "musicbrainz"
+        }
+      ],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "with id: confident, listing has 9 tracks",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMjAwMSIsICJpZCI6ICJyLW5pbmUiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDksICJ0cmFja3MiOiBbeyJsZW5ndGgiOiA2NjAwMCwgInJlY29yZGluZyI6IHsiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJUMCJ9LCB7Imxlbmd0aCI6IDY2MDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlQxIn0sIHsibGVuZ3RoIjogNjYwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVDIifSwgeyJsZW5ndGgiOiA2NjAwMCwgInJlY29yZGluZyI6IHsiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJUMyJ9LCB7Imxlbmd0aCI6IDY2MDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlQ0In0sIHsibGVuZ3RoIjogNjYwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVDUifSwgeyJsZW5ndGgiOiA2NjAwMCwgInJlY29yZGluZyI6IHsiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJUNiJ9LCB7Imxlbmd0aCI6IDY2MDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlQ3In0sIHsibGVuZ3RoIjogNjYwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVDgifV19XX1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "cdb9b90c04ccd0c4a6439f5fe66936ae7152da906f6a8abfd665d55c9e3e75b4",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": [
+        {
+          "album_id": "fix-album",
+          "release_group_mbid": "11111111-1111-1111-1111-111111111111",
+          "release_mbid": null,
+          "score": 95
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "id": "fix-album",
+        "is_compilation": false,
+        "title": null,
+        "total_seconds": 600.0,
+        "track_count": 2
+      },
+      "blocked": [],
+      "events": [
+        {
+          "album_id": "fix-album",
+          "event": "AlbumMbAnchorSet",
+          "source": "musicbrainz"
+        }
+      ],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "with id: confident, listing 20% longer",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMjAwMSIsICJpZCI6ICJyLWxvbmciLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDIsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAzNjAwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiQSJ9LCB7Imxlbmd0aCI6IDM2MDAwMCwgInJlY29yZGluZyI6IHsiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJCIn1dfV19XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "cdb9b90c04ccd0c4a6439f5fe66936ae7152da906f6a8abfd665d55c9e3e75b4",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": [
+        {
+          "album_id": "fix-album",
+          "release_group_mbid": "11111111-1111-1111-1111-111111111111",
+          "release_mbid": null,
+          "score": 95
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "id": "fix-album",
+        "is_compilation": false,
+        "title": null,
+        "total_seconds": 600.0,
+        "track_count": 2
+      },
+      "blocked": [],
+      "events": [
+        {
+          "album_id": "fix-album",
+          "event": "AlbumMbAnchorSet",
+          "source": "musicbrainz"
+        }
+      ],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "high",
+        "confident": true,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 95/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 95,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "with id: confident, listing unrecorded",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDk1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": [
+        {
+          "album_id": "fix-album",
+          "release_group_mbid": "11111111-1111-1111-1111-111111111111",
+          "release_mbid": null,
+          "score": 95
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "id": "fix-album",
+        "is_compilation": false,
+        "title": null,
+        "total_seconds": 600.0,
+        "track_count": 2
+      },
+      "blocked": [],
+      "events": [],
+      "hint": "",
+      "match": {
+        "artist": "Ana",
+        "confidence": "medium",
+        "confident": false,
+        "cover_url": null,
+        "cover_url_verified": false,
+        "mbid": "11111111-1111-1111-1111-111111111111",
+        "notes": "Matched \"Ana — Album One\" (score 75/100, MBID 11111111-1111-1111-1111-111111111111)",
+        "primary_genre": null,
+        "release_mbid": null,
+        "score": 75,
+        "source": "MusicBrainz (release-group 11111111-1111-1111-1111-111111111111)",
+        "title": "Album One",
+        "tracklist": [],
+        "year": "2001"
+      },
+      "name": "with id: medium confidence",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSJ9XSwgImZpcnN0LXJlbGVhc2UtZGF0ZSI6ICIyMDAxIiwgImlkIjogIjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsICJzY29yZSI6IDc1LCAidGl0bGUiOiAiQWxidW0gT25lIn1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMjAwMSIsICJpZCI6ICJyLWFncmVlIiwgIm1lZGlhIjogW3sicG9zaXRpb24iOiAxLCAidHJhY2stY291bnQiOiAyLCAidHJhY2tzIjogW3sibGVuZ3RoIjogMzAwMDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIkEifSwgeyJsZW5ndGgiOiAzMDAwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiQiJ9XX1dfV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "cdb9b90c04ccd0c4a6439f5fe66936ae7152da906f6a8abfd665d55c9e3e75b4",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=11111111-1111-1111-1111-111111111111"
+        }
+      ],
+      "requests": [
+        {
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "store_writes": []
+    }
+  ],
+  "provenance": {
+    "fresh_timestamp": "2999-01-01T00:00:00Z",
+    "network": "replay (fixtures/replay) + constructed overlay per case",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "stale_timestamp": "2000-01-01T00:00:00Z",
+    "tool": "gen_resolver_golden"
+  }
+}

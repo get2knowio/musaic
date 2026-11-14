@@ -1,0 +1,688 @@
+{
+  "function_cases": [
+    {
+      "body_json": "{\"title\": \" T \", \"artist-credit\": [{\"name\": \"A\", \"joinphrase\": \"\"}]}",
+      "key": "0290160ed619e7562f270c9e39e57ebb2f965007574276bff69bb66c9c24906e",
+      "mbid": "f0000000-0000-4000-8000-000000000000",
+      "name": "title stripped, one credit",
+      "returns": {
+        "artist": "A",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"artist-credit\": [{\"name\": \"A\"}]}",
+      "key": "856c62120d018bf12cf7975c3ad3dfc190e40b874d0587ecdc0acb64bfa75af4",
+      "mbid": "f0000000-0000-4000-8000-000000000001",
+      "name": "title missing",
+      "returns": null
+    },
+    {
+      "body_json": "{\"title\": null}",
+      "key": "abb8b4ffc6a2cd29ddd4b0516182b4a1d27d003971ccebfd9b0b3e090e81623f",
+      "mbid": "f0000000-0000-4000-8000-000000000002",
+      "name": "title null",
+      "returns": null
+    },
+    {
+      "body_json": "{\"title\": \"\"}",
+      "key": "4f34bd3f41ca4650d7d9142ce1043a3193f3a04a2eb4ef46b184cdfc2045591d",
+      "mbid": "f0000000-0000-4000-8000-000000000003",
+      "name": "title empty",
+      "returns": null
+    },
+    {
+      "body_json": "{\"title\": 5}",
+      "key": "5271b6a8450ce773724e5637fe06c81a36f2e7360c7703c2413d528dea98c9e3",
+      "mbid": "f0000000-0000-4000-8000-000000000004",
+      "name": "title not a string",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": false}",
+      "key": "7b35a1790114afff6564d3b236e010cc5cc2ae81a36f57ba6538d65b4e7c4e89",
+      "mbid": "f0000000-0000-4000-8000-000000000005",
+      "name": "title false",
+      "returns": null
+    },
+    {
+      "body_json": "{\"title\": \"T\"}",
+      "key": "0d2963104dee948d3dc453477e008822a62a284525a3148f6b929e3d8a02d88c",
+      "mbid": "f0000000-0000-4000-8000-000000000006",
+      "name": "artist-credit missing",
+      "returns": {
+        "artist": "",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": []}",
+      "key": "2fd3d0de6afdc153277597212da9cc975ea9d9e3bf0bab12304e5d3beb0cf08c",
+      "mbid": "f0000000-0000-4000-8000-000000000007",
+      "name": "artist-credit empty list",
+      "returns": {
+        "artist": "",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": {}}",
+      "key": "8159013483133329d5d9fe44c3e0381c14eb59a437ccb66cb6f9f81c52593ecd",
+      "mbid": "f0000000-0000-4000-8000-000000000008",
+      "name": "artist-credit empty object",
+      "returns": {
+        "artist": "",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": {\"name\": \"A\"}}",
+      "key": "cab55f3638610149db909a4722bd052fbd047779f1ce01b47a4c967c6af11af5",
+      "mbid": "f0000000-0000-4000-8000-000000000009",
+      "name": "artist-credit an object",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": \"A\"}",
+      "key": "f48dee7269e70b724bc08eedbc3fad43f11c334c229496f582e0e8c314ba136a",
+      "mbid": "f0000000-0000-4000-8000-000000000010",
+      "name": "artist-credit a string",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [null]}",
+      "key": "1f5a2097a7ca2fe5ade17a3fbd68200ba616424b4314a9b611de0c6b6f78a372",
+      "mbid": "f0000000-0000-4000-8000-000000000011",
+      "name": "credit null",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"name\": 7}]}",
+      "key": "7a10cd3e645f66144bbf5be36b6d0a245c525bb15ef5e2f90ae49256e1b78f1e",
+      "mbid": "f0000000-0000-4000-8000-000000000012",
+      "name": "credit name not a string",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"name\": \"\", \"artist\": {\"name\": \" B \"}}]}",
+      "key": "5b757258462f4c96dba34de3073b8a71091156d3b5ebcf9faef474ce4f74cadf",
+      "mbid": "f0000000-0000-4000-8000-000000000013",
+      "name": "credit name empty, artist name used",
+      "returns": {
+        "artist": "B",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"name\": \"\", \"artist\": null}]}",
+      "key": "d77c8da225116a23b28202daa7e2972ceb52d5e32bba1daee034aa2f20af85e6",
+      "mbid": "f0000000-0000-4000-8000-000000000014",
+      "name": "credit artist null",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"artist\": []}]}",
+      "key": "9e8c33993888913dc427282736bbd7b4168e985d6a957ee5566038a32936490b",
+      "mbid": "f0000000-0000-4000-8000-000000000015",
+      "name": "credit artist empty list",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"artist\": {\"name\": 3}}]}",
+      "key": "f63d37a6b5840c60bcce88417207c356f5796941da2ceb66aea711206df4609a",
+      "mbid": "f0000000-0000-4000-8000-000000000016",
+      "name": "credit artist name not a string",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"artist\": {\"sort-name\": \"S\"}}]}",
+      "key": "057e2cdd425104498ba882995211bd68b7344ee166eda890660190c9df5e310d",
+      "mbid": "f0000000-0000-4000-8000-000000000017",
+      "name": "credit artist without name",
+      "returns": {
+        "artist": "",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"joinphrase\": \" & \"}, {\"name\": \"B\"}]}",
+      "key": "1703327d11f76fc635d077cc06eaeed6543b62ce8e1b8caa867e0ea0a8522157",
+      "mbid": "f0000000-0000-4000-8000-000000000018",
+      "name": "credit with neither",
+      "returns": {
+        "artist": "B",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"name\": \"A\", \"joinphrase\": 1}]}",
+      "key": "d48acef0c08e838cc8044420741d5cfbe84f67b62f0e7d9f2ac7ef736a91aafb",
+      "mbid": "f0000000-0000-4000-8000-000000000019",
+      "name": "joinphrase not a string",
+      "raises": "TypeError"
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"name\": \"A\", \"joinphrase\": null}]}",
+      "key": "1129ee381109a7a0e9f06a56b804a5d5e9a0db46d00a51d456113f9a741a22ed",
+      "mbid": "f0000000-0000-4000-8000-000000000020",
+      "name": "joinphrase null",
+      "returns": {
+        "artist": "A",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"T\", \"artist-credit\": [{\"name\": \"A\", \"joinphrase\": \"  x  \"}, {\"name\": \"B\", \"joinphrase\": \" ; \"}]}",
+      "key": "9e2f007e41a24e1391e72a409c75c07f2559c51ab5c8067924deaae2c55e6821",
+      "mbid": "f0000000-0000-4000-8000-000000000021",
+      "name": "joinphrase kept inside, stripped at the ends",
+      "returns": {
+        "artist": "A  x  B ;",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "{\"title\": \"\\u3000T\\u00a0\", \"artist-credit\": [{\"name\": \"\\u2003A\"}]}",
+      "key": "95222806a88d3d9035de9498cb0c2f20ffefbb5e746321124e2d1ad40dbba075",
+      "mbid": "f0000000-0000-4000-8000-000000000022",
+      "name": "unicode whitespace stripped",
+      "returns": {
+        "artist": "A",
+        "title": "T"
+      }
+    },
+    {
+      "body_json": "\"just text\"",
+      "key": "809f8b3cc9e4c574c49e329311071314e4d10334b6303edc0135c827e992657d",
+      "mbid": "f0000000-0000-4000-8000-000000000023",
+      "name": "not an object: string",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "42",
+      "key": "126080c97bb51917b3d31ec10b1bb6d69b733558aa0b18f4638f71f2d1f89942",
+      "mbid": "f0000000-0000-4000-8000-000000000024",
+      "name": "not an object: number",
+      "raises": "AttributeError"
+    },
+    {
+      "body_json": "null",
+      "key": "cf1833d081fd4fb24aac315954c0a0a9dd10cd73fc7af5ac0a6f23d35ef992ab",
+      "mbid": "f0000000-0000-4000-8000-000000000025",
+      "name": "not an object: null",
+      "raises": "AttributeError"
+    }
+  ],
+  "overlay": [
+    {
+      "content_b64": "eyJlcnJvciI6ICJidXN5In0=",
+      "encoding": "utf-8",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "key": "7c34fa43f248b43a7f15baf8f985a4a395d6672163bdca55e4a2cd038fcb6f30",
+      "method": "GET",
+      "note": "CONSTRUCTED: service unavailable",
+      "reason": "",
+      "status": 503,
+      "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-000000000503?fmt=json&inc=artist-credits"
+    },
+    {
+      "content_b64": "PGh0bWw+bm90IGpzb248L2h0bWw+",
+      "encoding": "utf-8",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "key": "88d366c027c21ed120d0d062ce29364a1ffb48416d6704046c66e8d7f914884a",
+      "method": "GET",
+      "note": "CONSTRUCTED: 200 whose body is not JSON",
+      "reason": "",
+      "status": 200,
+      "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000a?fmt=json&inc=artist-credits"
+    },
+    {
+      "content_b64": "eyJpZCI6ICJjMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMGIiLCAidGl0bGUiOiAiICAgIiwgImFydGlzdC1jcmVkaXQiOiBbeyJuYW1lIjogIlNvbWVib2R5IiwgImpvaW5waHJhc2UiOiAiIn1dfQ==",
+      "encoding": "utf-8",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "key": "c84f4595be7d933e6c75464106b8ac2632a6bd9dbb86823dc7171af50babb1c1",
+      "method": "GET",
+      "note": "CONSTRUCTED: blank title",
+      "reason": "",
+      "status": 200,
+      "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000b?fmt=json&inc=artist-credits"
+    },
+    {
+      "content_b64": "eyJpZCI6ICJjMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMGMiLCAidGl0bGUiOiAiICBCcmlkZ2UgT3ZlciBUcm91YmxlZCBXYXRlciAiLCAiYXJ0aXN0LWNyZWRpdCI6IFt7Im5hbWUiOiAiIFNpbW9uICIsICJqb2lucGhyYXNlIjogIiAmICIsICJhcnRpc3QiOiB7Im5hbWUiOiAiUGF1bCBTaW1vbiIsICJzb3J0LW5hbWUiOiAiU2ltb24sIFBhdWwifX0sIHsibmFtZSI6ICIiLCAiYXJ0aXN0IjogeyJuYW1lIjogIiJ9LCAiam9pbnBocmFzZSI6ICIgKHNraXBwZWQpICJ9LCB7ImFydGlzdCI6IHsibmFtZSI6ICJHYXJmdW5rZWwiLCAic29ydC1uYW1lIjogIkdhcmZ1bmtlbCwgQXJ0In0sICJqb2lucGhyYXNlIjogIiBmZWF0LiAifSwgeyJuYW1lIjogIkd1ZXN0IiwgImpvaW5waHJhc2UiOiAiICAifV19",
+      "encoding": "utf-8",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "key": "619ce1cb7430055f5aa8e2ac6d20f3ff1f8cad23f8a7aabad2456f2bdf69bab2",
+      "method": "GET",
+      "note": "CONSTRUCTED: joinphrases; a credit without a name is skipped with its joinphrase; name falls back to the artist's; the whole is stripped",
+      "reason": "",
+      "status": 200,
+      "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000c?fmt=json&inc=artist-credits"
+    },
+    {
+      "content_b64": "eyJpZCI6ICJjMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMGQiLCAidGl0bGUiOiAiTG9uZWx5IFRpdGxlIiwgImFydGlzdC1jcmVkaXQiOiBudWxsfQ==",
+      "encoding": "utf-8",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "key": "656da1728ad2c2b33c3338030426781c1277d365fea47e07ab06cb1f8583ff50",
+      "method": "GET",
+      "note": "CONSTRUCTED: title but no artist credit",
+      "reason": "",
+      "status": 200,
+      "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000d?fmt=json&inc=artist-credits"
+    },
+    {
+      "content_b64": "W3sidGl0bGUiOiAiaW4gYSBsaXN0In1d",
+      "encoding": "utf-8",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "key": "e2d900b7d8b19f0b0dc2c0626a82e3576e63b3dd35813aa5a0a9132aea648a5b",
+      "method": "GET",
+      "note": "CONSTRUCTED: a JSON array (the Python app's code raises)",
+      "reason": "",
+      "status": 200,
+      "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000e?fmt=json&inc=artist-credits"
+    }
+  ],
+  "provenance": {
+    "database": "copy of fixtures/db/v16-synthetic-offline.db",
+    "duplicate_finding_id": 18,
+    "network": "replay (fixtures/replay) + constructed overlay",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "other_finding": {
+      "check_id": "unidentified-album",
+      "id": 1
+    },
+    "tool": "gen_recording_canonical_golden"
+  },
+  "steps": [
+    {
+      "cache_size": 0,
+      "label": "finding not found",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/999999/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "detail": "Finding not found"
+        },
+        "raw": "{\"detail\":\"Finding not found\"}",
+        "status": 404
+      }
+    },
+    {
+      "cache_size": 0,
+      "label": "finding of another check",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/1/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "detail": "Finding not found"
+        },
+        "raw": "{\"detail\":\"Finding not found\"}",
+        "status": 404
+      }
+    },
+    {
+      "cache_size": 0,
+      "label": "not an integer id",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/abc/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "detail": [
+            {
+              "input": "abc",
+              "loc": [
+                "path",
+                "finding_id"
+              ],
+              "msg": "Input should be a valid integer, unable to parse string as an integer",
+              "type": "int_parsing"
+            }
+          ]
+        },
+        "raw": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"finding_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"abc\"}]}",
+        "status": 422
+      }
+    },
+    {
+      "cache_size": 0,
+      "label": "no recording MBID (the fixture's null)",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": null,
+          "reason": "no recording MBID for this cluster",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":null,\"reason\":\"no recording MBID for this cluster\"}",
+        "status": 200
+      }
+    },
+    {
+      "cache_size": 0,
+      "label": "empty-string MBID",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": null,
+          "reason": "no recording MBID for this cluster",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":null,\"reason\":\"no recording MBID for this cluster\"}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": \"\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 3,
+      "label": "request fails (unrecorded)",
+      "log": [
+        {
+          "level": "WARNING",
+          "logger": "musaic.mb_lookup",
+          "message": "MB recording lookup failed for 11111111-1111-4111-8111-111111111111: unobserved in replay set (key 89fe8b3b9065): GET https://musicbrainz.org/ws/2/recording/11111111-1111-4111-8111-111111111111?fmt=json&inc=artist-credits"
+        }
+      ],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "89fe8b3b90653ee518d90b1438229f7cb6482c865f7dd601be5f94cc9cd3e5d6",
+          "method": "GET",
+          "served": "unobserved",
+          "url": "https://musicbrainz.org/ws/2/recording/11111111-1111-4111-8111-111111111111?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": "11111111-1111-4111-8111-111111111111",
+          "reason": "MusicBrainz didn't return a recording for that MBID",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":\"11111111-1111-4111-8111-111111111111\",\"reason\":\"MusicBrainz didn't return a recording for that MBID\"}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": \"11111111-1111-4111-8111-111111111111\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 3,
+      "label": "request failed before: the None is cached",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": "11111111-1111-4111-8111-111111111111",
+          "reason": "MusicBrainz didn't return a recording for that MBID",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":\"11111111-1111-4111-8111-111111111111\",\"reason\":\"MusicBrainz didn't return a recording for that MBID\"}",
+        "status": 200
+      }
+    },
+    {
+      "cache_size": 4,
+      "label": "HTTP 503",
+      "log": [
+        {
+          "level": "WARNING",
+          "logger": "musaic.mb_lookup",
+          "message": "MB recording lookup HTTP 503 for c0000000-0000-4000-8000-000000000503"
+        }
+      ],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "7c34fa43f248b43a7f15baf8f985a4a395d6672163bdca55e4a2cd038fcb6f30",
+          "method": "GET",
+          "served": "constructed",
+          "status": 503,
+          "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-000000000503?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": "c0000000-0000-4000-8000-000000000503",
+          "reason": "MusicBrainz didn't return a recording for that MBID",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":\"c0000000-0000-4000-8000-000000000503\",\"reason\":\"MusicBrainz didn't return a recording for that MBID\"}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": \"c0000000-0000-4000-8000-000000000503\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 4,
+      "label": "HTTP 503 again: the None is cached",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": "c0000000-0000-4000-8000-000000000503",
+          "reason": "MusicBrainz didn't return a recording for that MBID",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":\"c0000000-0000-4000-8000-000000000503\",\"reason\":\"MusicBrainz didn't return a recording for that MBID\"}",
+        "status": 200
+      }
+    },
+    {
+      "cache_size": 5,
+      "label": "200 whose body is not JSON",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "88d366c027c21ed120d0d062ce29364a1ffb48416d6704046c66e8d7f914884a",
+          "method": "GET",
+          "served": "constructed",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000a?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": "c0000000-0000-4000-8000-00000000000a",
+          "reason": "MusicBrainz didn't return a recording for that MBID",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":\"c0000000-0000-4000-8000-00000000000a\",\"reason\":\"MusicBrainz didn't return a recording for that MBID\"}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": \"c0000000-0000-4000-8000-00000000000a\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 5,
+      "label": "200 not JSON again: the None is cached",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": "c0000000-0000-4000-8000-00000000000a",
+          "reason": "MusicBrainz didn't return a recording for that MBID",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":\"c0000000-0000-4000-8000-00000000000a\",\"reason\":\"MusicBrainz didn't return a recording for that MBID\"}",
+        "status": 200
+      }
+    },
+    {
+      "cache_size": 6,
+      "label": "blank title",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "c84f4595be7d933e6c75464106b8ac2632a6bd9dbb86823dc7171af50babb1c1",
+          "method": "GET",
+          "served": "constructed",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000b?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": "c0000000-0000-4000-8000-00000000000b",
+          "reason": "MusicBrainz didn't return a recording for that MBID",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":\"c0000000-0000-4000-8000-00000000000b\",\"reason\":\"MusicBrainz didn't return a recording for that MBID\"}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": \"c0000000-0000-4000-8000-00000000000b\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 7,
+      "label": "credits joined with their joinphrases",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "619ce1cb7430055f5aa8e2ac6d20f3ff1f8cad23f8a7aabad2456f2bdf69bab2",
+          "method": "GET",
+          "served": "constructed",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000c?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": "Simon & Garfunkel feat. Guest",
+          "mbid": "c0000000-0000-4000-8000-00000000000c",
+          "reason": null,
+          "title": "Bridge Over Troubled Water"
+        },
+        "raw": "{\"title\":\"Bridge Over Troubled Water\",\"artist\":\"Simon & Garfunkel feat. Guest\",\"mbid\":\"c0000000-0000-4000-8000-00000000000c\",\"reason\":null}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": \"c0000000-0000-4000-8000-00000000000c\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 8,
+      "label": "title without artist credit",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "656da1728ad2c2b33c3338030426781c1277d365fea47e07ab06cb1f8583ff50",
+          "method": "GET",
+          "served": "constructed",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000d?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": "",
+          "mbid": "c0000000-0000-4000-8000-00000000000d",
+          "reason": null,
+          "title": "Lonely Title"
+        },
+        "raw": "{\"title\":\"Lonely Title\",\"artist\":\"\",\"mbid\":\"c0000000-0000-4000-8000-00000000000d\",\"reason\":null}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": \"c0000000-0000-4000-8000-00000000000d\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 8,
+      "label": "JSON array: the Python app raises",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "e2d900b7d8b19f0b0dc2c0626a82e3576e63b3dd35813aa5a0a9132aea648a5b",
+          "method": "GET",
+          "served": "constructed",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000e?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "text/plain; charset=utf-8",
+        "status": 500,
+        "text": "Internal Server Error"
+      },
+      "set_detail_json": "{\"recording_mbid\": \"c0000000-0000-4000-8000-00000000000e\", \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    },
+    {
+      "cache_size": 8,
+      "label": "JSON array again: nothing was cached",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [
+        {
+          "key": "e2d900b7d8b19f0b0dc2c0626a82e3576e63b3dd35813aa5a0a9132aea648a5b",
+          "method": "GET",
+          "served": "constructed",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/recording/c0000000-0000-4000-8000-00000000000e?fmt=json&inc=artist-credits"
+        }
+      ],
+      "response": {
+        "content_type": "text/plain; charset=utf-8",
+        "status": 500,
+        "text": "Internal Server Error"
+      }
+    },
+    {
+      "cache_size": 8,
+      "label": "finding detail back to the fixture's",
+      "log": [],
+      "path": "/api/checks/duplicate-tracks/findings/18/canonical",
+      "requests": [],
+      "response": {
+        "content_type": "application/json",
+        "json": {
+          "artist": null,
+          "mbid": null,
+          "reason": "no recording MBID for this cluster",
+          "title": null
+        },
+        "raw": "{\"title\":null,\"artist\":null,\"mbid\":null,\"reason\":\"no recording MBID for this cluster\"}",
+        "status": 200
+      },
+      "set_detail_json": "{\"recording_mbid\": null, \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}"
+    }
+  ]
+}

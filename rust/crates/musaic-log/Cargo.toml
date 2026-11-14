@@ -1,0 +1,12 @@
+[package]
+name = "musaic-log"
+description = "Tiny logging facade for the lower crates (scan, resolve, net, tags, fsops); musaic-app's process log installs the sink"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

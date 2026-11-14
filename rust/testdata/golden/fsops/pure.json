@@ -1,0 +1,736 @@
+{
+  "album_fields": [
+    {
+      "album": {
+        "album_artist": "AA",
+        "artist": "A",
+        "dir_artist": "D"
+      },
+      "display_artist": "AA",
+      "display_artist_dir": "AA",
+      "sort_key": "aa"
+    },
+    {
+      "album": {
+        "album_artist": "  ",
+        "artist": " A ",
+        "dir_artist": "D"
+      },
+      "display_artist": "A",
+      "display_artist_dir": "A",
+      "sort_key": "a"
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": null,
+        "dir_artist": " D "
+      },
+      "display_artist": "",
+      "display_artist_dir": "D",
+      "sort_key": ""
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "",
+        "dir_artist": ""
+      },
+      "display_artist": "",
+      "display_artist_dir": "",
+      "sort_key": ""
+    },
+    {
+      "album": {},
+      "display_artist": "",
+      "display_artist_dir": "",
+      "sort_key": ""
+    },
+    {
+      "album": {
+        "album_artist": "The Beatles",
+        "album_artist_sort": "Beatles, The",
+        "artist_sort": "x"
+      },
+      "display_artist": "The Beatles",
+      "display_artist_dir": "The Beatles",
+      "sort_key": "beatles, the"
+    },
+    {
+      "album": {
+        "album_artist": "x",
+        "album_artist_sort": " ",
+        "artist_sort": "ÉCOLE"
+      },
+      "display_artist": "x",
+      "display_artist_dir": "x",
+      "sort_key": "école"
+    },
+    {
+      "album": {
+        "album_artist": "ΣΟΦΟΣ",
+        "artist": "y"
+      },
+      "display_artist": "ΣΟΦΟΣ",
+      "display_artist_dir": "ΣΟΦΟΣ",
+      "sort_key": "σοφος"
+    },
+    {
+      "album": {
+        "artist": "İstanbul ẞ"
+      },
+      "display_artist": "İstanbul ẞ",
+      "display_artist_dir": "İstanbul ẞ",
+      "sort_key": "i̇stanbul ß"
+    },
+    {
+      "album": {
+        "artist": " Nbsp "
+      },
+      "display_artist": "Nbsp",
+      "display_artist_dir": "Nbsp",
+      "sort_key": "nbsp"
+    }
+  ],
+  "case_insensitive_fs": true,
+  "generator": "tools/gen_fsops_golden.py",
+  "normalization_insensitive_fs": true,
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "render": [
+    {
+      "out": "05 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": "5"
+      }
+    },
+    {
+      "out": "05 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "  Song  ",
+        "tracknumber": "05"
+      }
+    },
+    {
+      "out": "05 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": "5/12"
+      }
+    },
+    {
+      "out": "07 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": " 7 / 9 "
+      }
+    },
+    {
+      "out": "A1 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": "A1"
+      }
+    },
+    {
+      "out": "1-05 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": "1-05"
+      }
+    },
+    {
+      "out": "Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": ""
+      }
+    },
+    {
+      "out": "3 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": "-3"
+      }
+    },
+    {
+      "out": "03 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": "+3"
+      }
+    },
+    {
+      "out": "1000 - Song",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Song",
+        "tracknumber": "1_000"
+      }
+    },
+    {
+      "out": "05 - Arabic-indic five",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Arabic-indic five",
+        "tracknumber": "٥"
+      }
+    },
+    {
+      "out": "123 - Int",
+      "template": "{tracknumber:02} - {title}",
+      "values": {
+        "title": "Int",
+        "tracknumber": 123
+      }
+    },
+    {
+      "out": "012 12 12 - 12 - c",
+      "template": "{tracknumber:03} {tracknumber:>4} {tracknumber:<4}|{tracknumber:^5}|{tracknumber:x}",
+      "values": {
+        "tracknumber": "12"
+      }
+    },
+    {
+      "out": "+1234 0x4d2 0o2322 10011010010 4D2 1,234",
+      "template": "{tracknumber:+d} {tracknumber:#x} {tracknumber:#o} {tracknumber:b} {tracknumber:X} {tracknumber:,}",
+      "values": {
+        "tracknumber": "1234"
+      }
+    },
+    {
+      "out": "1234 + 1234 1234 1_234",
+      "template": "{tracknumber:*>6} {tracknumber:=+6} {tracknumber: d} {tracknumber:_}",
+      "values": {
+        "tracknumber": "1234"
+      }
+    },
+    {
+      "out": "3.00 300.000000% 3.000000e+00",
+      "template": "{tracknumber:.2f} {tracknumber:%} {tracknumber:e}",
+      "values": {
+        "tracknumber": "3"
+      }
+    },
+    {
+      "out": "4 4 04",
+      "template": "{tracknumber:s} {tracknumber:zz} {tracknumber:02d}",
+      "values": {
+        "tracknumber": "4"
+      }
+    },
+    {
+      "out": "2-03",
+      "template": "{disc}-{tracknumber:02}",
+      "values": {
+        "disc": 2,
+        "tracknumber": "3"
+      }
+    },
+    {
+      "out": "03",
+      "template": "{disc}-{tracknumber:02}",
+      "values": {
+        "disc": null,
+        "tracknumber": "3"
+      }
+    },
+    {
+      "out": "01",
+      "template": "{disc:02}",
+      "values": {
+        "disc": "1/2"
+      }
+    },
+    {
+      "out": "Abc [ Abcdef] [Abcdef ] [ Abcdef ] [_Abcdef__]",
+      "template": "{title:.3} [{title:>8}] [{title:<8}] [{title:^9}] [{title:_^9}]",
+      "values": {
+        "title": "Abcdef"
+      }
+    },
+    {
+      "out": "Ab Ab Ab",
+      "template": "{title:d} {title:s} {title:10.2s}|",
+      "values": {
+        "title": "Ab"
+      }
+    },
+    {
+      "out": "X [FLAC]",
+      "template": "{albumartist} - {album} [FLAC]",
+      "values": {
+        "album": "X",
+        "albumartist": ""
+      }
+    },
+    {
+      "out": "A - B ()",
+      "template": "{albumartist} - {album} ({year})",
+      "values": {
+        "album": "B",
+        "albumartist": "A",
+        "year": ""
+      }
+    },
+    {
+      "out": "T {1bad} T",
+      "template": "{unknown} {title} {Title} {_x} {1bad} {title:}",
+      "values": {
+        "title": "T"
+      }
+    },
+    {
+      "out": "no placeholders",
+      "template": "no placeholders",
+      "values": {}
+    },
+    {
+      "out": "",
+      "template": "",
+      "values": {
+        "title": "x"
+      }
+    },
+    {
+      "out": "AC - DC - Back - in - Black",
+      "template": "{title}",
+      "values": {
+        "title": "AC/DC: Back\\in*Black?"
+      }
+    },
+    {
+      "out": "Quoted - angle - pipe",
+      "template": "{title}",
+      "values": {
+        "title": "\"Quoted\" <angle> |pipe|"
+      }
+    },
+    {
+      "out": "trailing dots",
+      "template": "{title}",
+      "values": {
+        "title": "trailing dots... "
+      }
+    },
+    {
+      "out": "leading and trailing",
+      "template": "{title}",
+      "values": {
+        "title": "- - leading and trailing - -"
+      }
+    },
+    {
+      "out": "tabnewlinenulusdel",
+      "template": "{title}",
+      "values": {
+        "title": "tab\tnew\nline\u0000nul\u001fusdel"
+      }
+    },
+    {
+      "out": "a - b",
+      "template": "{title}",
+      "values": {
+        "title": "a  -  -  b"
+      }
+    },
+    {
+      "out": "a - b",
+      "template": "{title}",
+      "values": {
+        "title": "a--b"
+      }
+    },
+    {
+      "out": "a - b",
+      "template": "{title}",
+      "values": {
+        "title": "a - -b"
+      }
+    },
+    {
+      "out": "",
+      "template": "{title}",
+      "values": {
+        "title": "/"
+      }
+    },
+    {
+      "out": "",
+      "template": "{title}",
+      "values": {
+        "title": "..."
+      }
+    },
+    {
+      "out": "nbsp em ideo",
+      "template": "{title}",
+      "values": {
+        "title": " nbsp em　ideo"
+      }
+    },
+    {
+      "out": "x y z",
+      "template": "{title}",
+      "values": {
+        "title": "x yz"
+      }
+    },
+    {
+      "out": "Été 🎷",
+      "template": "{title}",
+      "values": {
+        "title": "Été 🎷"
+      }
+    },
+    {
+      "out": "Été",
+      "template": "{title}",
+      "values": {
+        "title": "Été"
+      }
+    },
+    {
+      "out": "{T}",
+      "template": "{{title}}",
+      "values": {
+        "title": "T"
+      }
+    },
+    {
+      "out": "{title",
+      "template": "{title",
+      "values": {
+        "title": "T"
+      }
+    },
+    {
+      "out": "T}",
+      "template": "{title}}",
+      "values": {
+        "title": "T"
+      }
+    },
+    {
+      "out": "1999",
+      "template": "{year:>6}",
+      "values": {
+        "year": 1999
+      }
+    },
+    {
+      "out": "1234 - 1.2e+03 - 1234 - 1.234e+03 - 1234 - 1234.00",
+      "template": "{tracknumber:g}|{tracknumber:.2g}|{tracknumber:G}|{tracknumber:.3e}|{tracknumber:n}|{tracknumber:#g}",
+      "values": {
+        "tracknumber": "1234"
+      }
+    },
+    {
+      "out": "1e+03 - 1250 - 1e+03 - 1.250000E+03 - 1250 - 1250",
+      "template": "{tracknumber:.1g}|{tracknumber:.10g}|{tracknumber:.0e}|{tracknumber:E}|{tracknumber:.0f}|{tracknumber:#.0f}",
+      "values": {
+        "tracknumber": "1250"
+      }
+    },
+    {
+      "out": "1.23457e+06 - 1.23e+06 - 123456700.00% - 1234567.000000",
+      "template": "{tracknumber:g}|{tracknumber:.3g}|{tracknumber:.2%}|{tracknumber:F}",
+      "values": {
+        "tracknumber": "1234567"
+      }
+    },
+    {
+      "out": "00,123,456 - 123456 - 0b11110001001000000 - 123456 - 1_e240 - 1_1110_0010_0100_0000",
+      "template": "{tracknumber:010,}|{tracknumber:=10}|{tracknumber:#b}|{tracknumber:-^7}|{tracknumber:_x}|{tracknumber:_b}",
+      "values": {
+        "tracknumber": "123456"
+      }
+    },
+    {
+      "out": "7 - 7 - 7 - 7 - 7 - 7",
+      "template": "{tracknumber:.2d}|{tracknumber:,x}|{tracknumber:z}|{tracknumber:zd}|{tracknumber:#}|{tracknumber:0}",
+      "values": {
+        "tracknumber": "7"
+      }
+    },
+    {
+      "out": "A - A - 65",
+      "template": "{tracknumber:c}|{tracknumber:5c}|{tracknumber:+c}",
+      "values": {
+        "tracknumber": "65"
+      }
+    },
+    {
+      "out": "42xxxxx - 42 - 042.000 - 42 - 42",
+      "template": "{tracknumber:x<+#08_d}|{tracknumber: >+08}|{tracknumber:08.3f}|{tracknumber:-}|{tracknumber:+}",
+      "values": {
+        "tracknumber": "-42"
+      }
+    },
+    {
+      "out": "1,234,567 - 1_234_567 - 1,234,567.00 - 1.2e+06",
+      "template": "{tracknumber:,d}|{tracknumber:_d}|{tracknumber:,.2f}|{tracknumber:_.1e}",
+      "values": {
+        "tracknumber": "-1234567"
+      }
+    },
+    {
+      "out": "ab - ab000 - ab - ab - ab - ab - 00ab - ab",
+      "template": "{title:=5}|{title:05}|{title:,}|{title:+}|{title:#}|{title:5x}|{title:.0}|{title:0>4}|{title: <4}|",
+      "values": {
+        "title": "ab"
+      }
+    },
+    {
+      "out": "ab - ab - ab - ab - ab} - 🎷🎷ab🎷🎷",
+      "template": "{title:<<5}|{title:>}|{title:.}|{title:5.}|{title:{}}|{title:🎷^6}",
+      "values": {
+        "title": "ab"
+      }
+    },
+    {
+      "out": "é🎷x - é🎷 - é🎷x",
+      "template": "{title:^6}|{title:.2}|{title:>3}",
+      "values": {
+        "title": "é🎷x"
+      }
+    },
+    {
+      "out": "05",
+      "template": "{tracknumber:02}",
+      "values": {
+        "tracknumber": "0005"
+      }
+    },
+    {
+      "out": "12345678901234567890123",
+      "template": "{tracknumber:02}",
+      "values": {
+        "tracknumber": "12345678901234567890123"
+      }
+    },
+    {
+      "out": "07 - 01",
+      "template": "{tracknumber:02}|{disc:02}",
+      "values": {
+        "disc": true,
+        "tracknumber": 7.9
+      }
+    },
+    {
+      "out": "32",
+      "template": "{tracknumber:02}",
+      "values": {
+        "tracknumber": " ٣٢ "
+      }
+    },
+    {
+      "out": "²",
+      "template": "{tracknumber:02}",
+      "values": {
+        "tracknumber": "²"
+      }
+    },
+    {
+      "out": "1 2",
+      "template": "{tracknumber:02}",
+      "values": {
+        "tracknumber": "1 2"
+      }
+    },
+    {
+      "out": "5",
+      "template": "{tracknumber:02}",
+      "values": {
+        "tracknumber": "/5"
+      }
+    }
+  ],
+  "sanitize": [
+    {
+      "in": "",
+      "out": ""
+    },
+    {
+      "in": "plain",
+      "out": "plain"
+    },
+    {
+      "in": "a/b",
+      "out": "a - b"
+    },
+    {
+      "in": "a:b",
+      "out": "a - b"
+    },
+    {
+      "in": "a: b",
+      "out": "a - b"
+    },
+    {
+      "in": "a :b",
+      "out": "a - b"
+    },
+    {
+      "in": " a ",
+      "out": "a"
+    },
+    {
+      "in": "a.",
+      "out": "a"
+    },
+    {
+      "in": "a. . .",
+      "out": "a"
+    },
+    {
+      "in": "-a-",
+      "out": "a"
+    },
+    {
+      "in": " - a - ",
+      "out": "a"
+    },
+    {
+      "in": "a - - - b",
+      "out": "a - b"
+    },
+    {
+      "in": "x\u0000y",
+      "out": "xy"
+    },
+    {
+      "in": "x\ty",
+      "out": "xy"
+    },
+    {
+      "in": "Title (disc 1 of 2) [FLAC]",
+      "out": "Title (disc 1 of 2) [FLAC]"
+    },
+    {
+      "in": "a - b (disc 1 of 2)",
+      "out": "a - b (disc 1 of 2)"
+    },
+    {
+      "in": "...",
+      "out": ""
+    },
+    {
+      "in": "- -",
+      "out": ""
+    },
+    {
+      "in": "a-",
+      "out": "a"
+    },
+    {
+      "in": "-",
+      "out": ""
+    },
+    {
+      "in": "Mono Harbor - What - A - B (disc 1 of 2)",
+      "out": "Mono Harbor - What - A - B (disc 1 of 2)"
+    }
+  ],
+  "summarize": [
+    {
+      "dir_name": "Plain [FLAC]",
+      "dir_rename": false,
+      "out": "1 file in 'Plain [FLAC]' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "Plain [FLAC]",
+      "dir_rename": false,
+      "out": "2 files in 'Plain [FLAC]' don't match the template",
+      "renames": 2
+    },
+    {
+      "dir_name": "Plain [FLAC]",
+      "dir_rename": true,
+      "out": "Album dir 'Plain [FLAC]' doesn't match the template",
+      "renames": 0
+    },
+    {
+      "dir_name": "Plain [FLAC]",
+      "dir_rename": true,
+      "out": "Album dir + 1 file in 'Plain [FLAC]' don't match the templates",
+      "renames": 1
+    },
+    {
+      "dir_name": "Plain [FLAC]",
+      "dir_rename": true,
+      "out": "Album dir + 2 files in 'Plain [FLAC]' don't match the templates",
+      "renames": 2
+    },
+    {
+      "dir_name": null,
+      "dir_rename": false,
+      "out": "1 file in '(unknown album)' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "",
+      "dir_rename": false,
+      "out": "1 file in '(unknown album)' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "It's",
+      "dir_rename": false,
+      "out": "1 file in \"It's\" don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "Say \"hi\"",
+      "dir_rename": false,
+      "out": "1 file in 'Say \"hi\"' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "It's \"x\"",
+      "dir_rename": false,
+      "out": "1 file in 'It\\'s \"x\"' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "back\\slash",
+      "dir_rename": false,
+      "out": "1 file in 'back\\\\slash' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "tab\tnl\ncr\r",
+      "dir_rename": false,
+      "out": "1 file in 'tab\\tnl\\ncr\\r' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "ctl\u0001 ",
+      "dir_rename": false,
+      "out": "1 file in 'ctl\\x01\\x7f\\x85\\xa0' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "Été 🎷 ​   ퟿ 󠀁",
+      "dir_rename": false,
+      "out": "1 file in 'Été 🎷 \\u200b \\u2028 \\ud7ff \\U000e0001' don't match the template",
+      "renames": 1
+    },
+    {
+      "dir_name": "̀combining",
+      "dir_rename": false,
+      "out": "1 file in '̀combining' don't match the template",
+      "renames": 1
+    }
+  ]
+}

@@ -1,23 +1,19 @@
 version: 2
 updates:
-  # Python backend (uv — pyproject.toml + uv.lock at repo root)
-  - package-ecosystem: "uv"
-    directory: "/"
+  # Rust workspace (rust/Cargo.toml + rust/Cargo.lock)
+  - package-ecosystem: "cargo"
+    directory: "/rust"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
     groups:
-      python-minor-patch:
+      cargo-minor-patch:
         update-types:
           - "minor"
           - "patch"
-    ignore:
-      # fastapi is intentionally pinned <0.137 in pyproject.toml: 0.137.x
-      # regressed include_router (routes silently dropped on include). Stop
-      # Dependabot re-proposing 0.137+ every cycle; drop this once upstream
-      # fixes the regression and the pin is lifted.
-      - dependency-name: "fastapi"
-        versions: [">=0.137"]
+    # Uncomment if the 7-day cooldown is adopted for all ecosystems.
+    # cooldown:
+    #   default-days: 7
 
   # Frontend (npm — frontend/package.json + package-lock.json)
   - package-ecosystem: "npm"
@@ -31,21 +27,9 @@ updates:
           - "minor"
           - "patch"
 
-  # Desktop / Electron packaging (npm — desktop/package.json + package-lock.json).
-  # Previously unwatched, which is why the fast-uri / js-yaml / brace-expansion
-  # transitive alerts in the electron-builder toolchain had no update PRs.
-  - package-ecosystem: "npm"
-    directory: "/desktop"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
-    groups:
-      npm-minor-patch:
-        update-types:
-          - "minor"
-          - "patch"
-
-  # GitHub Actions used by ci.yml + desktop.yml (keeps action versions current).
+  # GitHub Actions used by ci.yml + release.yml. The tauri-cli and
+  # cargo-about versions pinned in release.yml are not tracked here; bump
+  # them by hand.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

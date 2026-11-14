@@ -75,7 +75,7 @@ const SUBTITLES: Record<HintDialogProps["mode"], string> = {
 };
 
 /** Checks where an empty-hint submit hits MusicBrainz first (free, fast) and
- *  only falls through to a paid AI call when MB can't disambiguate. The
+ *  only falls through to an AI call (which uses API quota) when MB can't disambiguate. The
  *  dialog surfaces this so the user can predict what their click will do. */
 const HAS_MB_DIRECT_PATH = new Set<string>([
   "unidentified-album",
@@ -117,7 +117,7 @@ export default function HintDialog({
     (checkId && PLACEHOLDERS_BY_CHECK[checkId]) ?? PLACEHOLDERS[mode];
 
   // Whether empty-hint submits will try MB first (free) before falling
-  // through to a paid AI call. Surfaced as inline copy so the user can
+  // through to an AI call. Surfaced as inline copy so the user can
   // predict what their click does.
   const hasMbDirect = checkId !== null && HAS_MB_DIRECT_PATH.has(checkId);
 

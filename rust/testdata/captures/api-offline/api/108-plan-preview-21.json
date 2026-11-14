@@ -1,0 +1,27 @@
+{
+  "elapsed_ms": 2.7,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/filename-mismatch/findings/21/plan-preview"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+      "dir_name": "Café Orchestra - Été [FLAC]",
+      "dir_rename": {
+        "new": "Café Orchestra - Été [FLAC]",
+        "old": "Café Orchestra - Été [FLAC]"
+      },
+      "dir_template": "{albumartist} - {album} [FLAC]",
+      "headline": "Café Orchestra - Été [FLAC]",
+      "is_compilation": false,
+      "is_empty": false,
+      "renames": [],
+      "template": "{tracknumber:02} - {title}"
+    },
+    "status": 200
+  }
+}

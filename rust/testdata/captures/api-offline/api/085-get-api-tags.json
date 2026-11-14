@@ -1,0 +1,16 @@
+{
+  "elapsed_ms": 0.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/tags"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "tags": []
+    },
+    "status": 200
+  }
+}

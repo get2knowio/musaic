@@ -3,18 +3,18 @@ import { displayArtist } from "@/lib/albumFields";
 
 describe("displayArtist", () => {
   it("prefers album_artist when present", () => {
-    expect(displayArtist({ album_artist: "Henry Mancini", artist: "Orchestra" })).toBe(
-      "Henry Mancini",
+    expect(displayArtist({ album_artist: "Harold Mansell", artist: "Orchestra" })).toBe(
+      "Harold Mansell",
     );
   });
 
-  it("falls back to artist when album_artist is empty (the Mancini case)", () => {
+  it("falls back to artist when album_artist is empty (an ARTIST-only library)", () => {
     // A library carrying only an ARTIST tag must not lose the artist.
-    expect(displayArtist({ album_artist: "", artist: "Henry Mancini" })).toBe(
-      "Henry Mancini",
+    expect(displayArtist({ album_artist: "", artist: "Harold Mansell" })).toBe(
+      "Harold Mansell",
     );
-    expect(displayArtist({ album_artist: null, artist: "Henry Mancini" })).toBe(
-      "Henry Mancini",
+    expect(displayArtist({ album_artist: null, artist: "Harold Mansell" })).toBe(
+      "Harold Mansell",
     );
   });
 

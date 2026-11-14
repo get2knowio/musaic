@@ -6,6 +6,7 @@
  */
 
 import type { ScanEvent } from "./types";
+import { errorDetailText } from "./errors";
 
 export interface SseHandle {
   close: () => void;
@@ -93,11 +94,13 @@ export async function postSse(
     let detail = `${resp.status} ${resp.statusText}`;
     try {
       const err = await resp.json();
-      if (err.detail) detail = err.detail;
+      detail = errorDetailText(err?.detail) ?? detail;
     } catch {
       /* ignore */
     }
-    throw new Error(detail);
+    // Carry the status so callers can tell a refusal (409: restore
+    // running, album Missing, folder gone) from a transport failure.
+    throw Object.assign(new Error(detail), { status: resp.status });
   }
   if (!resp.body) throw new Error("SSE response has no body");
 

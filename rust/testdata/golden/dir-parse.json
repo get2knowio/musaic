@@ -1,0 +1,330 @@
+{
+  "cases": [
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": 1,
+      "disc_total": 3,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album (disc 1 of 3) [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": 1,
+      "disc_total": 3,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album (1 of 3) [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": 1,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album Disc 1 [FLAC]"
+    },
+    {
+      "dir_album": "Album -",
+      "dir_artist": "Artist",
+      "disc_number": 1,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album - Disc 1 [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": 2,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album (disc 2) [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": 2,
+      "disc_total": 4,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album disc 2 of 4 [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": true,
+      "matched": true,
+      "name": "Compilations - Album [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": true,
+      "matched": true,
+      "name": "Various Artists - Album [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": true,
+      "matched": true,
+      "name": "various - Album [flac]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": true,
+      "matched": true,
+      "name": "COMPILATION - Album FLAC"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album FLAC"
+    },
+    {
+      "dir_album": null,
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": false,
+      "name": "Artist - Album"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist-Album [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist  -  Album  [FLAC]  "
+    },
+    {
+      "dir_album": "B - C",
+      "dir_artist": "A",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "A - B - C [FLAC]"
+    },
+    {
+      "dir_album": "B - C",
+      "dir_artist": "A",
+      "disc_number": 1,
+      "disc_total": 2,
+      "is_compilation": false,
+      "matched": true,
+      "name": "A - B - C (disc 1 of 2) [FLAC]"
+    },
+    {
+      "dir_album": null,
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": false,
+      "name": "Legacy Folder Name"
+    },
+    {
+      "dir_album": null,
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": false,
+      "name": "[FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": " - Album [FLAC]"
+    },
+    {
+      "dir_album": null,
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": false,
+      "name": "Artist - [FLAC]"
+    },
+    {
+      "dir_album": null,
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": false,
+      "name": "Artist - Album [FLAC] extra"
+    },
+    {
+      "dir_album": "Album (Deluxe Edition)",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album (Deluxe Edition) [FLAC]"
+    },
+    {
+      "dir_album": "Album (disc one of two)",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album (disc one of two) [FLAC]"
+    },
+    {
+      "dir_album": "Disc 2",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Disc 2 [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": 10,
+      "disc_total": 12,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album (10 of 12) [FLAC]"
+    },
+    {
+      "dir_album": null,
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": false,
+      "name": "Artist - Album [MP3]"
+    },
+    {
+      "dir_album": "Été",
+      "dir_artist": "Café Orchestra",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Café Orchestra - Été [FLAC]"
+    },
+    {
+      "dir_album": "Été",
+      "dir_artist": "Café Orchestra",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Café Orchestra - Été [FLAC]"
+    },
+    {
+      "dir_album": "It Could As Well Be Swung",
+      "dir_artist": "Frank Sorrel & Count Baxter",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Frank Sorrel & Count Baxter - It Could As Well Be Swung [FLAC]"
+    },
+    {
+      "dir_album": "Jukebox Top Rock’n’Roll Hits 1964",
+      "dir_artist": null,
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": true,
+      "matched": true,
+      "name": "Compilations - Jukebox Top Rock’n’Roll Hits 1964 [FLAC]"
+    },
+    {
+      "dir_album": "Pathway to Adventure (CD)",
+      "dir_artist": "Piano Pathways",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Piano Pathways - Pathway to Adventure (CD) [FLAC]"
+    },
+    {
+      "dir_album": "Let's Swing Again!",
+      "dir_artist": "Dana Carrow",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Dana Carrow  - Let's Swing Again! [FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album\t[FLAC]"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": null,
+      "disc_total": null,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album [FLAC]\n"
+    },
+    {
+      "dir_album": "Album",
+      "dir_artist": "Artist",
+      "disc_number": 3,
+      "disc_total": 5,
+      "is_compilation": false,
+      "matched": true,
+      "name": "Artist - Album (Disc 3 Of 5) [FLAC]"
+    }
+  ],
+  "generator": "tools/gen_scan_golden.py",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d"
+}

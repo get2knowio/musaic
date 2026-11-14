@@ -1,0 +1,385 @@
+{
+  "generator": "tools/gen_events_golden.py",
+  "mro": {
+    "AlbumCoverChanged": [
+      "AlbumCoverChanged",
+      "AlbumScopedEvent",
+      "Event"
+    ],
+    "AlbumDeleted": [
+      "AlbumDeleted",
+      "AlbumScopedEvent",
+      "Event"
+    ],
+    "AlbumMarkedMissing": [
+      "AlbumMarkedMissing",
+      "AlbumScopedEvent",
+      "Event"
+    ],
+    "AlbumMbAnchorSet": [
+      "AlbumMbAnchorSet",
+      "AlbumScopedEvent",
+      "Event"
+    ],
+    "AlbumRenamed": [
+      "AlbumRenamed",
+      "Event"
+    ],
+    "AlbumTagsChanged": [
+      "AlbumTagsChanged",
+      "AlbumScopedEvent",
+      "Event"
+    ],
+    "BulkBatchCompleted": [
+      "BulkBatchCompleted",
+      "Event"
+    ],
+    "LibraryScanCompleted": [
+      "LibraryScanCompleted",
+      "Event"
+    ],
+    "TrackFingerprinted": [
+      "TrackFingerprinted",
+      "AlbumScopedEvent",
+      "Event"
+    ]
+  },
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "payloads": [
+    {
+      "case": "tags_two_fields",
+      "data": "{\"album_id\": \"a1\", \"fields\": [\"title\", \"year\"]}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "fields": [
+            "title",
+            "year"
+          ]
+        },
+        "class": "AlbumTagsChanged"
+      },
+      "frame": "event: AlbumTagsChanged\ndata: {\"album_id\": \"a1\", \"fields\": [\"title\", \"year\"]}\n\n",
+      "name": "AlbumTagsChanged",
+      "rust_representable": true
+    },
+    {
+      "case": "tags_default_fields",
+      "data": "{\"album_id\": \"a1\", \"fields\": []}",
+      "event": {
+        "args": {
+          "album_id": "a1"
+        },
+        "class": "AlbumTagsChanged"
+      },
+      "frame": "event: AlbumTagsChanged\ndata: {\"album_id\": \"a1\", \"fields\": []}\n\n",
+      "name": "AlbumTagsChanged",
+      "rust_representable": true
+    },
+    {
+      "case": "tags_missing_since",
+      "data": "{\"album_id\": \"a1\", \"fields\": [\"missing_since\"]}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "fields": [
+            "missing_since"
+          ]
+        },
+        "class": "AlbumTagsChanged"
+      },
+      "frame": "event: AlbumTagsChanged\ndata: {\"album_id\": \"a1\", \"fields\": [\"missing_since\"]}\n\n",
+      "name": "AlbumTagsChanged",
+      "rust_representable": true
+    },
+    {
+      "case": "cover",
+      "data": "{\"album_id\": \"0123456789abcdef\"}",
+      "event": {
+        "args": {
+          "album_id": "0123456789abcdef"
+        },
+        "class": "AlbumCoverChanged"
+      },
+      "frame": "event: AlbumCoverChanged\ndata: {\"album_id\": \"0123456789abcdef\"}\n\n",
+      "name": "AlbumCoverChanged",
+      "rust_representable": true
+    },
+    {
+      "case": "renamed",
+      "data": "{\"old_album_id\": \"old\", \"new_album_id\": \"new\"}",
+      "event": {
+        "args": {
+          "new_album_id": "new",
+          "old_album_id": "old"
+        },
+        "class": "AlbumRenamed"
+      },
+      "frame": "event: AlbumRenamed\ndata: {\"old_album_id\": \"old\", \"new_album_id\": \"new\"}\n\n",
+      "name": "AlbumRenamed",
+      "rust_representable": true
+    },
+    {
+      "case": "renamed_file_only",
+      "data": "{\"old_album_id\": \"same\", \"new_album_id\": \"same\"}",
+      "event": {
+        "args": {
+          "new_album_id": "same",
+          "old_album_id": "same"
+        },
+        "class": "AlbumRenamed"
+      },
+      "frame": "event: AlbumRenamed\ndata: {\"old_album_id\": \"same\", \"new_album_id\": \"same\"}\n\n",
+      "name": "AlbumRenamed",
+      "rust_representable": true
+    },
+    {
+      "case": "anchor_musicbrainz",
+      "data": "{\"album_id\": \"a1\", \"source\": \"musicbrainz\"}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "source": "musicbrainz"
+        },
+        "class": "AlbumMbAnchorSet"
+      },
+      "frame": "event: AlbumMbAnchorSet\ndata: {\"album_id\": \"a1\", \"source\": \"musicbrainz\"}\n\n",
+      "name": "AlbumMbAnchorSet",
+      "rust_representable": true
+    },
+    {
+      "case": "anchor_default_source",
+      "data": "{\"album_id\": \"a1\", \"source\": \"\"}",
+      "event": {
+        "args": {
+          "album_id": "a1"
+        },
+        "class": "AlbumMbAnchorSet"
+      },
+      "frame": "event: AlbumMbAnchorSet\ndata: {\"album_id\": \"a1\", \"source\": \"\"}\n\n",
+      "name": "AlbumMbAnchorSet",
+      "rust_representable": true
+    },
+    {
+      "case": "fingerprinted",
+      "data": "{\"album_id\": \"a1\", \"filenames\": [\"01.flac\", \"02 - Caf\\u00e9.flac\"]}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "filenames": [
+            "01.flac",
+            "02 - Café.flac"
+          ]
+        },
+        "class": "TrackFingerprinted"
+      },
+      "frame": "event: TrackFingerprinted\ndata: {\"album_id\": \"a1\", \"filenames\": [\"01.flac\", \"02 - Caf\\u00e9.flac\"]}\n\n",
+      "name": "TrackFingerprinted",
+      "rust_representable": true
+    },
+    {
+      "case": "fingerprinted_empty",
+      "data": "{\"album_id\": \"a1\", \"filenames\": []}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "filenames": []
+        },
+        "class": "TrackFingerprinted"
+      },
+      "frame": "event: TrackFingerprinted\ndata: {\"album_id\": \"a1\", \"filenames\": []}\n\n",
+      "name": "TrackFingerprinted",
+      "rust_representable": true
+    },
+    {
+      "case": "deleted",
+      "data": "{\"album_id\": \"a1\"}",
+      "event": {
+        "args": {
+          "album_id": "a1"
+        },
+        "class": "AlbumDeleted"
+      },
+      "frame": "event: AlbumDeleted\ndata: {\"album_id\": \"a1\"}\n\n",
+      "name": "AlbumDeleted",
+      "rust_representable": true
+    },
+    {
+      "case": "missing",
+      "data": "{\"album_id\": \"a1\", \"missing_since\": \"2026-02-01T00:00:00Z\"}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "missing_since": "2026-02-01T00:00:00Z"
+        },
+        "class": "AlbumMarkedMissing"
+      },
+      "frame": "event: AlbumMarkedMissing\ndata: {\"album_id\": \"a1\", \"missing_since\": \"2026-02-01T00:00:00Z\"}\n\n",
+      "name": "AlbumMarkedMissing",
+      "rust_representable": true
+    },
+    {
+      "case": "missing_default",
+      "data": "{\"album_id\": \"a1\", \"missing_since\": \"\"}",
+      "event": {
+        "args": {
+          "album_id": "a1"
+        },
+        "class": "AlbumMarkedMissing"
+      },
+      "frame": "event: AlbumMarkedMissing\ndata: {\"album_id\": \"a1\", \"missing_since\": \"\"}\n\n",
+      "name": "AlbumMarkedMissing",
+      "rust_representable": true
+    },
+    {
+      "case": "scan_completed",
+      "data": "{\"album_count\": 42}",
+      "event": {
+        "args": {
+          "album_count": 42
+        },
+        "class": "LibraryScanCompleted"
+      },
+      "frame": "event: LibraryScanCompleted\ndata: {\"album_count\": 42}\n\n",
+      "name": "LibraryScanCompleted",
+      "rust_representable": true
+    },
+    {
+      "case": "scan_completed_zero",
+      "data": "{\"album_count\": 0}",
+      "event": {
+        "args": {
+          "album_count": 0
+        },
+        "class": "LibraryScanCompleted"
+      },
+      "frame": "event: LibraryScanCompleted\ndata: {\"album_count\": 0}\n\n",
+      "name": "LibraryScanCompleted",
+      "rust_representable": true
+    },
+    {
+      "case": "scan_completed_big",
+      "data": "{\"album_count\": 9007199254740993}",
+      "event": {
+        "args": {
+          "album_count": 9007199254740993
+        },
+        "class": "LibraryScanCompleted"
+      },
+      "frame": "event: LibraryScanCompleted\ndata: {\"album_count\": 9007199254740993}\n\n",
+      "name": "LibraryScanCompleted",
+      "rust_representable": true
+    },
+    {
+      "case": "scan_completed_negative",
+      "data": "{\"album_count\": -1}",
+      "event": {
+        "args": {
+          "album_count": -1
+        },
+        "class": "LibraryScanCompleted"
+      },
+      "frame": "event: LibraryScanCompleted\ndata: {\"album_count\": -1}\n\n",
+      "name": "LibraryScanCompleted",
+      "rust_representable": true
+    },
+    {
+      "case": "bulk",
+      "data": "{}",
+      "event": {
+        "args": {},
+        "class": "BulkBatchCompleted"
+      },
+      "frame": "event: BulkBatchCompleted\ndata: {}\n\n",
+      "name": "BulkBatchCompleted",
+      "rust_representable": true
+    },
+    {
+      "case": "unicode_id",
+      "data": "{\"album_id\": \"Bj\\u00f6rk \\u2014 \\u65e5\\u672c \\ud83c\\udfb5\"}",
+      "event": {
+        "args": {
+          "album_id": "Björk — 日本 🎵"
+        },
+        "class": "AlbumDeleted"
+      },
+      "frame": "event: AlbumDeleted\ndata: {\"album_id\": \"Bj\\u00f6rk \\u2014 \\u65e5\\u672c \\ud83c\\udfb5\"}\n\n",
+      "name": "AlbumDeleted",
+      "rust_representable": true
+    },
+    {
+      "case": "escapes",
+      "data": "{\"album_id\": \"q\\\"b\\\\s/\\n\\t\\r\\b\\f\\u0001\\u007f\", \"fields\": [\"\", \" \"]}",
+      "event": {
+        "args": {
+          "album_id": "q\"b\\s/\n\t\r\b\f\u0001",
+          "fields": [
+            "",
+            " "
+          ]
+        },
+        "class": "AlbumTagsChanged"
+      },
+      "frame": "event: AlbumTagsChanged\ndata: {\"album_id\": \"q\\\"b\\\\s/\\n\\t\\r\\b\\f\\u0001\\u007f\", \"fields\": [\"\", \" \"]}\n\n",
+      "name": "AlbumTagsChanged",
+      "rust_representable": true
+    },
+    {
+      "case": "empty_strings",
+      "data": "{\"old_album_id\": \"\", \"new_album_id\": \"\"}",
+      "event": {
+        "args": {
+          "new_album_id": "",
+          "old_album_id": ""
+        },
+        "class": "AlbumRenamed"
+      },
+      "frame": "event: AlbumRenamed\ndata: {\"old_album_id\": \"\", \"new_album_id\": \"\"}\n\n",
+      "name": "AlbumRenamed",
+      "rust_representable": true
+    },
+    {
+      "case": "none_album_id",
+      "data": "{\"album_id\": null}",
+      "event": {
+        "args": {
+          "album_id": null
+        },
+        "class": "AlbumDeleted"
+      },
+      "frame": "event: AlbumDeleted\ndata: {\"album_id\": null}\n\n",
+      "name": "AlbumDeleted",
+      "rust_representable": false
+    },
+    {
+      "case": "none_source",
+      "data": "{\"album_id\": \"a1\", \"source\": null}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "source": null
+        },
+        "class": "AlbumMbAnchorSet"
+      },
+      "frame": "event: AlbumMbAnchorSet\ndata: {\"album_id\": \"a1\", \"source\": null}\n\n",
+      "name": "AlbumMbAnchorSet",
+      "rust_representable": false
+    },
+    {
+      "case": "none_fields",
+      "data": "{\"album_id\": \"a1\", \"fields\": null}",
+      "event": {
+        "args": {
+          "album_id": "a1",
+          "fields": null
+        },
+        "class": "AlbumTagsChanged"
+      },
+      "frame": "event: AlbumTagsChanged\ndata: {\"album_id\": \"a1\", \"fields\": null}\n\n",
+      "name": "AlbumTagsChanged",
+      "rust_representable": false
+    }
+  ],
+  "python": "3.13.15",
+  "ready_frame": "event: ready\ndata: {}\n\n"
+}

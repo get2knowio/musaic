@@ -27,6 +27,7 @@ import {
 } from "@/hooks/useChecks";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useAiStatus } from "@/hooks/useAiStatus";
 import FindingFixButton from "@/components/FindingFixButton";
 import IgnoreFindingControl from "@/components/IgnoreFindingControl";
 import { displayArtist } from "@/lib/albumFields";
@@ -52,6 +53,8 @@ export default function HealthDetailPage() {
   // ALL hooks must run on every render (Rules of Hooks). Keep useState
   // above the early returns even though `bulkOpen` isn't used until later.
   const [bulkOpen, setBulkOpen] = useState(false);
+  // "no AI quota" only when a model can run.
+  const ai = useAiStatus();
 
   if (isLoading && !detail) {
     return <div className="flex-1 grid place-items-center text-fg-3 text-sm">Loading…</div>;
@@ -99,7 +102,11 @@ export default function HealthDetailPage() {
           <button
             onClick={() => setBulkOpen(true)}
             className="h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1.5"
-            title={`Run "${detail.meta.bulk_action_label}" against every open finding — no AI quota burned`}
+            title={
+              ai.ready
+                ? `Run "${detail.meta.bulk_action_label}" against every open finding — no AI quota burned`
+                : `Run "${detail.meta.bulk_action_label}" against every open finding`
+            }
           >
             <Music className="w-3 h-3" />
             {detail.meta.bulk_action_label} ({openCount})
@@ -351,8 +358,10 @@ function ConfirmBody({
   // library has never been fingerprinted.
   const isIdentify = checkId === "unidentified-album";
   // ai-job fix_kind means leftovers from the bulk pass fall through to
-  // AI when the user opens a per-finding Fix later.
-  const fallsThroughToAi = fixKind === "ai-job";
+  // AI when the user opens a per-finding Fix later — only when a model
+  // backend can run (lib/aiGating.ts).
+  const ai = useAiStatus();
+  const fallsThroughToAi = fixKind === "ai-job" && ai.ready;
 
   const lowSec = isIdentify
     ? totalFindings * 8        // wild guess, ~8 tracks per album
@@ -370,8 +379,7 @@ function ConfirmBody({
           <>
             {" "}Each album is fingerprinted (when missing) and run through
             the resolver to find its MusicBrainz match. Albums that don't
-            match stay open — use the per-finding Fix to escalate to AI
-            with a hint, or try editing the directory name to the
+            match stay open — try editing the directory name to the
             canonical "Artist - Album" form first.
           </>
         ) : fallsThroughToAi ? (
@@ -397,7 +405,7 @@ function ConfirmBody({
             <b>{lowSec}–{highSec} seconds</b>.
           </>
         )}
-        {" "}You can stop at any time. No AI quota will be burned.
+        {" "}You can stop at any time.{ai.ready && " No AI quota will be burned."}
       </p>
     </>
   );
@@ -450,7 +458,8 @@ function DoneBody({
   fixKind: "none" | "ai-job" | "deterministic";
 }) {
   const partial = summary.fixed > 0 && summary.skipped + summary.errors > 0;
-  const fallsThroughToAi = fixKind === "ai-job";
+  const ai = useAiStatus();
+  const fallsThroughToAi = fixKind === "ai-job" && ai.ready;
   return (
     <>
       <div className="grid grid-cols-4 gap-2 text-xs mb-3">

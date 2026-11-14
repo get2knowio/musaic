@@ -1,0 +1,16 @@
+{
+  "elapsed_ms": 1.7,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/ai/jobs"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "jobs": []
+    },
+    "status": 200
+  }
+}

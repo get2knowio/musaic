@@ -1,0 +1,541 @@
+{
+ "library": {
+  "Aurora Fields - First Light [FLAC]/.media-manager-tags.json": {
+   "json": {
+    "06 - Meridian.flac": [
+     "Meridian"
+    ]
+   }
+  },
+  "Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac": {
+   "flac": {
+    "comment_list": [
+     [
+      "ARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "ALBUM",
+      "First Light"
+     ],
+     [
+      "ALBUMARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "TRACKNUMBER",
+      "1"
+     ],
+     [
+      "TRACKTOTAL",
+      "5"
+     ],
+     [
+      "genre",
+      "Verify Ambient"
+     ],
+     [
+      "date",
+      "2001"
+     ],
+     [
+      "albumartistsort",
+      "Fields, Aurora"
+     ],
+     [
+      "artistsort",
+      ""
+     ],
+     [
+      "title",
+      "Dawn Chorus (Edit)"
+     ]
+    ],
+    "info": {
+     "bits_per_sample": 16,
+     "channels": 2,
+     "length": 10.0,
+     "md5_signature": "357b87b1e0478d90714cdf90697c7a1d",
+     "sample_rate": 44100
+    },
+    "pictures": [
+     {
+      "height": 600,
+      "image": {
+       "format": "JPEG",
+       "height": 600,
+       "mode": "RGB",
+       "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+       "size": 23289,
+       "width": 600
+      },
+      "mime": "image/jpeg",
+      "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+      "size": 23289,
+      "type": 3,
+      "width": 600
+     }
+    ],
+    "tags": {
+     "album": [
+      "First Light"
+     ],
+     "albumartist": [
+      "Aurora Fields"
+     ],
+     "albumartistsort": [
+      "Fields, Aurora"
+     ],
+     "artist": [
+      "Aurora Fields"
+     ],
+     "artistsort": [
+      ""
+     ],
+     "date": [
+      "2001"
+     ],
+     "genre": [
+      "Verify Ambient"
+     ],
+     "title": [
+      "Dawn Chorus (Edit)"
+     ],
+     "tracknumber": [
+      "1"
+     ],
+     "tracktotal": [
+      "5"
+     ]
+    }
+   },
+   "size": 984900
+  },
+  "Aurora Fields - First Light [FLAC]/02 - Low Sun.flac": {
+   "flac": {
+    "comment_list": [
+     [
+      "TITLE",
+      "Low Sun"
+     ],
+     [
+      "ARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "ALBUM",
+      "First Light"
+     ],
+     [
+      "ALBUMARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "TRACKNUMBER",
+      "2"
+     ],
+     [
+      "TRACKTOTAL",
+      "5"
+     ],
+     [
+      "genre",
+      "Verify Ambient"
+     ],
+     [
+      "date",
+      "2001"
+     ],
+     [
+      "albumartistsort",
+      "Fields, Aurora"
+     ],
+     [
+      "artistsort",
+      ""
+     ]
+    ],
+    "info": {
+     "bits_per_sample": 16,
+     "channels": 2,
+     "length": 10.0,
+     "md5_signature": "8c4209f2fc46d8986e4173b90f12b499",
+     "sample_rate": 44100
+    },
+    "pictures": [
+     {
+      "height": 600,
+      "image": {
+       "format": "JPEG",
+       "height": 600,
+       "mode": "RGB",
+       "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+       "size": 23289,
+       "width": 600
+      },
+      "mime": "image/jpeg",
+      "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+      "size": 23289,
+      "type": 3,
+      "width": 600
+     }
+    ],
+    "tags": {
+     "album": [
+      "First Light"
+     ],
+     "albumartist": [
+      "Aurora Fields"
+     ],
+     "albumartistsort": [
+      "Fields, Aurora"
+     ],
+     "artist": [
+      "Aurora Fields"
+     ],
+     "artistsort": [
+      ""
+     ],
+     "date": [
+      "2001"
+     ],
+     "genre": [
+      "Verify Ambient"
+     ],
+     "title": [
+      "Low Sun"
+     ],
+     "tracknumber": [
+      "2"
+     ],
+     "tracktotal": [
+      "5"
+     ]
+    }
+   },
+   "size": 969310
+  },
+  "Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac": {
+   "flac": {
+    "comment_list": [
+     [
+      "TITLE",
+      "Long Shadows"
+     ],
+     [
+      "ARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "ALBUM",
+      "First Light"
+     ],
+     [
+      "ALBUMARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "TRACKNUMBER",
+      "4"
+     ],
+     [
+      "TRACKTOTAL",
+      "5"
+     ],
+     [
+      "genre",
+      "Verify Ambient"
+     ],
+     [
+      "date",
+      "2001"
+     ],
+     [
+      "albumartistsort",
+      "Fields, Aurora"
+     ],
+     [
+      "artistsort",
+      ""
+     ]
+    ],
+    "info": {
+     "bits_per_sample": 16,
+     "channels": 2,
+     "length": 10.0,
+     "md5_signature": "14a04b780bd7b3207e2bc8b94235bb8b",
+     "sample_rate": 44100
+    },
+    "pictures": [
+     {
+      "height": 600,
+      "image": {
+       "format": "JPEG",
+       "height": 600,
+       "mode": "RGB",
+       "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+       "size": 23289,
+       "width": 600
+      },
+      "mime": "image/jpeg",
+      "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+      "size": 23289,
+      "type": 3,
+      "width": 600
+     }
+    ],
+    "tags": {
+     "album": [
+      "First Light"
+     ],
+     "albumartist": [
+      "Aurora Fields"
+     ],
+     "albumartistsort": [
+      "Fields, Aurora"
+     ],
+     "artist": [
+      "Aurora Fields"
+     ],
+     "artistsort": [
+      ""
+     ],
+     "date": [
+      "2001"
+     ],
+     "genre": [
+      "Verify Ambient"
+     ],
+     "title": [
+      "Long Shadows"
+     ],
+     "tracknumber": [
+      "4"
+     ],
+     "tracktotal": [
+      "5"
+     ]
+    }
+   },
+   "size": 975363
+  },
+  "Aurora Fields - First Light [FLAC]/05 - Afterglow.flac": {
+   "flac": {
+    "comment_list": [
+     [
+      "TITLE",
+      "Afterglow"
+     ],
+     [
+      "ARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "ALBUM",
+      "First Light"
+     ],
+     [
+      "ALBUMARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "TRACKNUMBER",
+      "5"
+     ],
+     [
+      "TRACKTOTAL",
+      "5"
+     ],
+     [
+      "genre",
+      "Verify Ambient"
+     ],
+     [
+      "date",
+      "2001"
+     ],
+     [
+      "albumartistsort",
+      "Fields, Aurora"
+     ],
+     [
+      "artistsort",
+      ""
+     ]
+    ],
+    "info": {
+     "bits_per_sample": 16,
+     "channels": 2,
+     "length": 10.0,
+     "md5_signature": "d1598a2ead7949ea223b10e9b107d819",
+     "sample_rate": 44100
+    },
+    "pictures": [
+     {
+      "height": 600,
+      "image": {
+       "format": "JPEG",
+       "height": 600,
+       "mode": "RGB",
+       "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+       "size": 23289,
+       "width": 600
+      },
+      "mime": "image/jpeg",
+      "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+      "size": 23289,
+      "type": 3,
+      "width": 600
+     }
+    ],
+    "tags": {
+     "album": [
+      "First Light"
+     ],
+     "albumartist": [
+      "Aurora Fields"
+     ],
+     "albumartistsort": [
+      "Fields, Aurora"
+     ],
+     "artist": [
+      "Aurora Fields"
+     ],
+     "artistsort": [
+      ""
+     ],
+     "date": [
+      "2001"
+     ],
+     "genre": [
+      "Verify Ambient"
+     ],
+     "title": [
+      "Afterglow"
+     ],
+     "tracknumber": [
+      "5"
+     ],
+     "tracktotal": [
+      "5"
+     ]
+    }
+   },
+   "size": 970419
+  },
+  "Aurora Fields - First Light [FLAC]/06 - Meridian.flac": {
+   "flac": {
+    "comment_list": [
+     [
+      "TITLE",
+      "Meridian"
+     ],
+     [
+      "ARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "ALBUM",
+      "First Light"
+     ],
+     [
+      "ALBUMARTIST",
+      "Aurora Fields"
+     ],
+     [
+      "TRACKTOTAL",
+      "5"
+     ],
+     [
+      "genre",
+      "Verify Ambient"
+     ],
+     [
+      "date",
+      "2001"
+     ],
+     [
+      "albumartistsort",
+      "Fields, Aurora"
+     ],
+     [
+      "artistsort",
+      ""
+     ],
+     [
+      "tracknumber",
+      "6"
+     ]
+    ],
+    "info": {
+     "bits_per_sample": 16,
+     "channels": 2,
+     "length": 10.0,
+     "md5_signature": "e4c472ed098a5622034ddddd96f06014",
+     "sample_rate": 44100
+    },
+    "pictures": [
+     {
+      "height": 600,
+      "image": {
+       "format": "JPEG",
+       "height": 600,
+       "mode": "RGB",
+       "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+       "size": 23289,
+       "width": 600
+      },
+      "mime": "image/jpeg",
+      "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+      "size": 23289,
+      "type": 3,
+      "width": 600
+     }
+    ],
+    "tags": {
+     "album": [
+      "First Light"
+     ],
+     "albumartist": [
+      "Aurora Fields"
+     ],
+     "albumartistsort": [
+      "Fields, Aurora"
+     ],
+     "artist": [
+      "Aurora Fields"
+     ],
+     "artistsort": [
+      ""
+     ],
+     "date": [
+      "2001"
+     ],
+     "genre": [
+      "Verify Ambient"
+     ],
+     "title": [
+      "Meridian"
+     ],
+     "tracknumber": [
+      "6"
+     ],
+     "tracktotal": [
+      "5"
+     ]
+    }
+   },
+   "size": 965671
+  },
+  "Aurora Fields - First Light [FLAC]/cover.jpg": {
+   "image": {
+    "format": "JPEG",
+    "height": 600,
+    "mode": "RGB",
+    "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+    "size": 23289,
+    "width": 600
+   }
+  }
+ }
+}

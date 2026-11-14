@@ -1,0 +1,66 @@
+{
+  "elapsed_ms": 1.6,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Blue Hour.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Blue Hour",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Cirrus.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Cirrus",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "03 - Halation.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Halation",
+          "tracknumber": "3"
+        },
+        {
+          "artist": "Aurora Fields",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "04 - Nightfall.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Nightfall",
+          "tracknumber": "4"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

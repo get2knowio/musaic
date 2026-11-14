@@ -1,0 +1,6 @@
+# The toolchain this workspace is built and tested with. rustup (and CI)
+# pick it up; a non-rustup install (Homebrew) ignores this file, so keep
+# it in step with `rust-version` in Cargo.toml when either changes.
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]

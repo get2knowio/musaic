@@ -1,0 +1,13 @@
+[package]
+name = "musaic-testdata"
+description = "Test-only helper: locates public test data (rust/testdata) and the optional private test data"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

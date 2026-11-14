@@ -1,0 +1,18 @@
+{
+  "elapsed_ms": 1.7,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>/tags"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+      "album_tags": [],
+      "track_tags": {}
+    },
+    "status": 200
+  }
+}

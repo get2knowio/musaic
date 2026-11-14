@@ -1,0 +1,17 @@
+{
+  "elapsed_ms": 2.6,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "bde91917533843d5a0ffb20f51157bc628c641a51b03246f02c107c770c92e1b",
+      "size": 8171
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

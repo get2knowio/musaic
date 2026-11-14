@@ -1,0 +1,200 @@
+2026-11-09 12:39:09 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Static Bloom.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:10 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Feedback Garden.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:10 [WARNING] musaic.fingerprint: AcoustID lookup failed for 03 - Static Bloom (Reprise).flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:10 [WARNING] musaic.fingerprint: AcoustID lookup failed for 04 - Wall of Sound.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:11 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Kitchen Radio.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:11 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Porch Light.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:12 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - something.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:12 [WARNING] musaic.fingerprint: AcoustID lookup failed for 04.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:12 [WARNING] musaic.fingerprint: AcoustID lookup failed for Night Mix 3.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:13 [WARNING] musaic.fingerprint: AcoustID lookup failed for trackA.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:13 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Canvas.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:14 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Easel.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:14 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Ordered.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:15 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Indexed.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:15 [WARNING] musaic.fingerprint: AcoustID lookup failed for 03 - Filed.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:16 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Screen Door.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:16 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Fireflies.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:16 [WARNING] musaic.fingerprint: AcoustID lookup failed for 03 - Gravel Road.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:17 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Dawn Chorus.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:17 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Low Sun.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:18 [WARNING] musaic.fingerprint: AcoustID lookup failed for 03 - Meridian.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:18 [WARNING] musaic.fingerprint: AcoustID lookup failed for 04 - Long Shadows.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:18 [WARNING] musaic.fingerprint: AcoustID lookup failed for 05 - Afterglow.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:19 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Mirror.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:19 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Parallax.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:20 [WARNING] musaic.fingerprint: AcoustID lookup failed for 03 - Echo.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:20 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Soirée.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:20 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Terrasse.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:21 [WARNING] musaic.fingerprint: AcoustID lookup failed for 03 - Crème.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:21 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Hidden.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:22 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Visible.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:22 [WARNING] musaic.fingerprint: AcoustID lookup failed for 01 - Pier One.flac: HTTP request failed: blocked by migration network policy (offline)
+2026-11-09 12:39:23 [WARNING] musaic.fingerprint: AcoustID lookup failed for 02 - Breakwater.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:23 [WARNING] musaic.fingerprint: AcoustID lookup failed for 04 - Tidewater.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:23 [WARNING] musaic.fingerprint: AcoustID lookup failed for 05 - Lighthouse.flac: HTTP request failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+2026-11-09 12:39:24 [INFO] musaic.services.fingerprint_pool: Eager fingerprinting done: completed=13 errors=0
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Second Light [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Second Light [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Second Light [FLAC]>/cover HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Second Light [FLAC]>/cover?size=full HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Second Light [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Folder Art [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Café Orchestra - Été [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Café Orchestra - Été [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Café Orchestra - Été [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Café Orchestra - Été [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Café Orchestra - Été [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Gaps [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Gaps [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Gaps [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Gaps [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Gaps [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Sorted [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Sorted [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Sorted [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Sorted [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Sorted [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dupes [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dupes [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dupes [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dupes [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dupes [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dotfiles [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Legacy Folder Name> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Legacy Folder Name>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Legacy Folder Name>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Legacy Folder Name>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Legacy Folder Name>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Various Artists - Night Mix [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Various Artists - Night Mix [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Various Artists - Night Mix [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Various Artists - Night Mix [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Various Artists - Night Mix [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:The Lanterns - Porchlight [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:The Lanterns - Porchlight [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:The Lanterns - Porchlight [FLAC]>/cover HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:The Lanterns - Porchlight [FLAC]>/cover?size=full HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:The Lanterns - Porchlight [FLAC]>/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/albums/0000000000000000 HTTP/1.1" 404 Not Found
+2026-11-09 12:39:25 [WARNING] musaic.mb_lookup: MusicBrainz search failed: blocked by migration network policy (offline)
+INFO:     127.0.0.1:63762 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]>/resolution HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/findings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/settings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/ai/providers HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/ai/jobs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/db/info HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/db/snapshots HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/tags HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/vocabulary HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/this-does-not-exist HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63762 - "GET /library/some-album-id HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.checks.runner: check unidentified-album completed in 20ms (13 findings, scope=all)
+INFO:     127.0.0.1:63762 - "POST /api/checks/unidentified-album/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/unidentified-album HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/unidentified-album HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.checks.runner: check tags-out-of-sync completed in 5ms (1 findings, scope=all)
+INFO:     127.0.0.1:63762 - "POST /api/checks/tags-out-of-sync/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/tags-out-of-sync HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/tags-out-of-sync HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.checks.runner: check track-gaps completed in 4ms (1 findings, scope=all)
+INFO:     127.0.0.1:63762 - "POST /api/checks/track-gaps/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/track-gaps HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/track-gaps HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.checks.runner: check inconsistent-artist-sort completed in 2ms (1 findings, scope=all)
+INFO:     127.0.0.1:63762 - "POST /api/checks/inconsistent-artist-sort/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/inconsistent-artist-sort HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/inconsistent-artist-sort HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.checks.runner: check no-cover-art completed in 2ms (1 findings, scope=all)
+INFO:     127.0.0.1:63762 - "POST /api/checks/no-cover-art/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/no-cover-art HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/no-cover-art HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.fingerprint: libchromaprint loaded from /opt/homebrew/lib/libchromaprint.dylib
+2026-11-09 12:39:25 [INFO] musaic.checks.duplicate_tracks: duplicate-tracks: album <ID:Mono Harbor - Dupes [FLAC]> has 1 cluster(s) totaling 2 files
+2026-11-09 12:39:25 [INFO] musaic.checks.runner: check duplicate-tracks completed in 4ms (1 findings, scope=all)
+INFO:     127.0.0.1:63762 - "POST /api/checks/duplicate-tracks/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/duplicate-tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/duplicate-tracks HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.checks.runner: check filename-mismatch completed in 8ms (3 findings, scope=all)
+INFO:     127.0.0.1:63762 - "POST /api/checks/filename-mismatch/run HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/filename-mismatch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/filename-mismatch HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/findings HTTP/1.1" 200 OK
+2026-11-09 12:39:25 [INFO] musaic.checks.duplicate_tracks: duplicate-tracks: album <ID:Mono Harbor - Dupes [FLAC]> has 1 cluster(s) totaling 2 files
+INFO:     127.0.0.1:63762 - "GET /api/checks/duplicate-tracks/findings/18/cluster-preview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/filename-mismatch/findings/19/plan-preview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/filename-mismatch/findings/20/plan-preview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks/filename-mismatch/findings/21/plan-preview HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63762 - "GET /api/checks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63767 - "POST /api/albums/<ID:Aurora Fields - First Light [FLAC]>/apply/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63768 - "POST /api/albums/<ID:Aurora Fields - First Light [FLAC]>/apply/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63777 - "POST /api/albums/<ID:Aurora Fields - First Light [FLAC]>/apply/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63781 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]> HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63781 - "GET /api/albums/<ID:Aurora Fields - First Light [FLAC]>/tracks HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63781 - "GET /api/checks/findings HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63782 - "POST /api/albums/<ID:Aurora Fields - First Light [FLAC]>/analyze/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63784 - "POST /api/albums/<ID:Aurora Fields - First Light [FLAC]>/analyze/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63785 - "GET /api/scan/status HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63785 - "GET /api/fingerprint-pool/status HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-11-09 12:39:41 [INFO] musaic.services.worker: AI job worker stopped
+INFO:     Application shutdown complete.
+INFO:     Finished server process [84601]

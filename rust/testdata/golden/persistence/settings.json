@@ -1,0 +1,265 @@
+{
+  "generator": "tools/gen_persistence_golden.py",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "scenarios": [
+    {
+      "accessors": {
+        "acoustid_api_key": "",
+        "ai_api_key": "",
+        "firecrawl_api_key": ""
+      },
+      "all_settings": {
+        "acoustid_api_key_set": false,
+        "ai_api_key_set": false,
+        "ai_max_parallel": 1,
+        "ai_model_id": "claude-sonnet-4-6",
+        "ai_provider_id": "claude",
+        "ai_queue_paused": false,
+        "dir_template_compilation": "Various Artists - {album} [FLAC]",
+        "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+        "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+        "filename_template_single_artist": "{tracknumber:02} - {title}",
+        "firecrawl_api_key_set": false,
+        "snapshot_min_interval_hours": 24.0,
+        "snapshot_retention_count": 10
+      },
+      "label": "defaults (no rows)",
+      "rows": {}
+    },
+    {
+      "accessors": {
+        "acoustid_api_key": "test-acoustid-key-not-real",
+        "ai_api_key": "test-key-not-real",
+        "firecrawl_api_key": "test-firecrawl-key-not-real"
+      },
+      "all_settings": {
+        "acoustid_api_key_set": true,
+        "ai_api_key_set": true,
+        "ai_max_parallel": 1,
+        "ai_model_id": "claude-sonnet-4-6",
+        "ai_provider_id": "claude",
+        "ai_queue_paused": false,
+        "dir_template_compilation": "Various Artists - {album} [FLAC]",
+        "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+        "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+        "filename_template_single_artist": "{tracknumber:02} - {title}",
+        "firecrawl_api_key_set": true,
+        "snapshot_min_interval_hours": 24.0,
+        "snapshot_retention_count": 10
+      },
+      "label": "secrets set",
+      "rows": {
+        "acoustid_api_key": "test-acoustid-key-not-real",
+        "ai_api_key": "test-key-not-real",
+        "firecrawl_api_key": "test-firecrawl-key-not-real"
+      }
+    },
+    {
+      "accessors": {
+        "acoustid_api_key": "",
+        "ai_api_key": "test-key-not-real",
+        "firecrawl_api_key": ""
+      },
+      "all_settings": {
+        "acoustid_api_key_set": false,
+        "ai_api_key_set": true,
+        "ai_max_parallel": 1,
+        "ai_model_id": "claude-sonnet-4-6",
+        "ai_provider_id": "claude",
+        "ai_queue_paused": false,
+        "dir_template_compilation": "Various Artists - {album} [FLAC]",
+        "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+        "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+        "filename_template_single_artist": "{tracknumber:02} - {title}",
+        "firecrawl_api_key_set": false,
+        "snapshot_min_interval_hours": 24.0,
+        "snapshot_retention_count": 10
+      },
+      "label": "secrets padded or blank",
+      "rows": {
+        "acoustid_api_key": "   ",
+        "ai_api_key": "  test-key-not-real\n",
+        "firecrawl_api_key": ""
+      }
+    },
+    {
+      "accessors": {
+        "acoustid_api_key": "",
+        "ai_api_key": "",
+        "firecrawl_api_key": ""
+      },
+      "all_settings": {
+        "acoustid_api_key_set": false,
+        "ai_api_key_set": false,
+        "ai_max_parallel": 4,
+        "ai_model_id": "gpt-5",
+        "ai_provider_id": "github-copilot",
+        "ai_queue_paused": true,
+        "dir_template_compilation": "VA - {album}",
+        "dir_template_single_artist": "{album}",
+        "filename_template_compilation": "{artist} - {title}",
+        "filename_template_single_artist": "{tracknumber} {title}",
+        "firecrawl_api_key_set": false,
+        "snapshot_min_interval_hours": 0.5,
+        "snapshot_retention_count": 3
+      },
+      "label": "typed values",
+      "rows": {
+        "ai_max_parallel": "4",
+        "ai_model_id": "gpt-5",
+        "ai_provider_id": "github-copilot",
+        "ai_queue_paused": "1",
+        "dir_template_compilation": "VA - {album}",
+        "dir_template_single_artist": "{album}",
+        "filename_template_compilation": "{artist} - {title}",
+        "filename_template_single_artist": "{tracknumber} {title}",
+        "snapshot_min_interval_hours": "0.5",
+        "snapshot_retention_count": "3"
+      }
+    },
+    {
+      "accessors": {
+        "acoustid_api_key": "",
+        "ai_api_key": "",
+        "firecrawl_api_key": ""
+      },
+      "all_settings": {
+        "acoustid_api_key_set": false,
+        "ai_api_key_set": false,
+        "ai_max_parallel": 8,
+        "ai_model_id": "claude-sonnet-4-6",
+        "ai_provider_id": "claude",
+        "ai_queue_paused": true,
+        "dir_template_compilation": "Various Artists - {album} [FLAC]",
+        "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+        "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+        "filename_template_single_artist": "{tracknumber:02} - {title}",
+        "firecrawl_api_key_set": false,
+        "snapshot_min_interval_hours": 0.0,
+        "snapshot_retention_count": 100
+      },
+      "label": "out of range and junk",
+      "rows": {
+        "ai_max_parallel": "99",
+        "ai_model_id": "",
+        "ai_provider_id": "   ",
+        "ai_queue_paused": " Yes ",
+        "dir_template_compilation": "",
+        "filename_template_single_artist": "   ",
+        "snapshot_min_interval_hours": "-5",
+        "snapshot_retention_count": "500"
+      }
+    },
+    {
+      "accessors": {
+        "acoustid_api_key": "",
+        "ai_api_key": "",
+        "firecrawl_api_key": ""
+      },
+      "all_settings": {
+        "acoustid_api_key_set": false,
+        "ai_api_key_set": false,
+        "ai_max_parallel": 1,
+        "ai_model_id": "claude-sonnet-4-6",
+        "ai_provider_id": "claude",
+        "ai_queue_paused": false,
+        "dir_template_compilation": "Various Artists - {album} [FLAC]",
+        "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+        "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+        "filename_template_single_artist": "{tracknumber:02} - {title}",
+        "firecrawl_api_key_set": false,
+        "snapshot_min_interval_hours": 24.0,
+        "snapshot_retention_count": 0
+      },
+      "label": "unparseable numbers",
+      "rows": {
+        "ai_max_parallel": "abc",
+        "ai_queue_paused": "no",
+        "snapshot_min_interval_hours": "abc",
+        "snapshot_retention_count": "-1"
+      }
+    },
+    {
+      "accessors": {
+        "acoustid_api_key": "",
+        "ai_api_key": "",
+        "firecrawl_api_key": ""
+      },
+      "all_settings": {
+        "acoustid_api_key_set": false,
+        "ai_api_key_set": false,
+        "ai_max_parallel": 8,
+        "ai_model_id": "claude-sonnet-4-6",
+        "ai_provider_id": "claude",
+        "ai_queue_paused": false,
+        "dir_template_compilation": "Various Artists - {album} [FLAC]",
+        "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+        "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+        "filename_template_single_artist": "{tracknumber:02} - {title}",
+        "firecrawl_api_key_set": false,
+        "snapshot_min_interval_hours": 10.0,
+        "snapshot_retention_count": 7
+      },
+      "label": "python number syntax",
+      "rows": {
+        "ai_max_parallel": " 1_0 ",
+        "snapshot_min_interval_hours": "1_0",
+        "snapshot_retention_count": "+7"
+      }
+    },
+    {
+      "accessors": {
+        "acoustid_api_key": "",
+        "ai_api_key": "",
+        "firecrawl_api_key": ""
+      },
+      "all_settings": {
+        "acoustid_api_key_set": false,
+        "ai_api_key_set": false,
+        "ai_max_parallel": 1,
+        "ai_model_id": "claude-sonnet-4-6",
+        "ai_provider_id": "claude",
+        "ai_queue_paused": true,
+        "dir_template_compilation": "Various Artists - {album} [FLAC]",
+        "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+        "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+        "filename_template_single_artist": "{tracknumber:02} - {title}",
+        "firecrawl_api_key_set": false,
+        "snapshot_min_interval_hours": 0.0,
+        "snapshot_retention_count": 10
+      },
+      "label": "zero parallel",
+      "rows": {
+        "ai_max_parallel": "0",
+        "ai_queue_paused": "TRUE",
+        "snapshot_min_interval_hours": "0"
+      }
+    }
+  ],
+  "secret_keys": [
+    "ai_api_key",
+    "acoustid_api_key",
+    "firecrawl_api_key"
+  ],
+  "setters_store": {
+    "calls": [
+      [
+        "set_ai_api_key",
+        "  test-key-not-real "
+      ],
+      [
+        "set_acoustid_api_key",
+        null
+      ],
+      [
+        "set_firecrawl_api_key",
+        "test-firecrawl-key-not-real"
+      ]
+    ],
+    "rows": {
+      "acoustid_api_key": "",
+      "ai_api_key": "test-key-not-real",
+      "firecrawl_api_key": "test-firecrawl-key-not-real"
+    }
+  }
+}

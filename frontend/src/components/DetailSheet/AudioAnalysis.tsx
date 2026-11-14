@@ -28,6 +28,12 @@ export default function AudioAnalysis({ albumId, tracks }: AudioAnalysisProps) {
   const analyze = useAnalyzeStream();
   const isRunning = analyze.state.status === "running";
   const runningKind: AnalysisKind | null = isRunning ? analyze.state.what : null;
+  // The card a failed run belongs to keeps its state so the error line
+  // (the server's message for a refused run) stays visible under it.
+  const failedKind: AnalysisKind | null =
+    analyze.state.status === "error" ? analyze.state.what : null;
+  const progressFor = (kind: AnalysisKind) =>
+    runningKind === kind || failedKind === kind ? analyze.state : null;
 
   const onRun = (what: AnalysisKind) => {
     if (isRunning) return;
@@ -48,7 +54,7 @@ export default function AudioAnalysis({ albumId, tracks }: AudioAnalysisProps) {
         onAction={() => onRun("bpm")}
         disabled={isRunning && runningKind !== "bpm"}
         running={runningKind === "bpm"}
-        progress={runningKind === "bpm" ? analyze.state : null}
+        progress={progressFor("bpm")}
       />
       <AnalysisCard
         icon={<BarChart3 className="w-3.5 h-3.5" />}
@@ -60,7 +66,7 @@ export default function AudioAnalysis({ albumId, tracks }: AudioAnalysisProps) {
         onAction={() => onRun("replaygain")}
         disabled={isRunning && runningKind !== "replaygain"}
         running={runningKind === "replaygain"}
-        progress={runningKind === "replaygain" ? analyze.state : null}
+        progress={progressFor("replaygain")}
         extra={
           albumGain && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 pt-2 border-t border-line text-xs">
@@ -151,9 +157,9 @@ function AnalysisCard({
         </div>
       )}
       {progress?.status === "error" && (
-        <div className="mt-3 text-xs text-err inline-flex items-center gap-1.5">
-          <XCircle className="w-3 h-3 shrink-0" />
-          <span className="truncate" title={progress.error ?? undefined}>{progress.error ?? "Analysis failed"}</span>
+        <div className="mt-3 text-xs text-err flex items-start gap-1.5" role="alert">
+          <XCircle className="w-3 h-3 shrink-0 mt-0.5" />
+          <span className="break-words min-w-0">{progress.error ?? "Analysis failed"}</span>
         </div>
       )}
       {extra}

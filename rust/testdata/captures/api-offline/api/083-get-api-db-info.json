@@ -1,0 +1,30 @@
+{
+  "elapsed_ms": 0.9,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/db/info"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "counts": {
+        "ai_jobs": 0,
+        "albums": 13,
+        "albums_with_mbid": 0,
+        "check_findings_open": 0,
+        "tag_vocabulary": 0,
+        "track_fingerprints": 42,
+        "track_tags": 0
+      },
+      "current_schema": 16,
+      "exists": true,
+      "modified_at": "2026-11-09T17:39:23Z",
+      "path": "<CFG>/library.db",
+      "schema_version": 16,
+      "size_bytes": 167936
+    },
+    "status": 200
+  }
+}

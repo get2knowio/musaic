@@ -1,0 +1,27 @@
+{
+  "elapsed_ms": 24.2,
+  "request": {
+    "json": {
+      "scope": "all"
+    },
+    "method": "POST",
+    "params": null,
+    "path": "/api/checks/unidentified-album/run"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "check_id": "unidentified-album",
+      "completed_at": "2026-11-09T17:39:25Z",
+      "duration_ms": 20,
+      "error": null,
+      "id": 1,
+      "issue_count": 13,
+      "library_path": "<LIB>",
+      "scope": "all",
+      "started_at": "2026-11-09T17:39:25Z",
+      "status": "completed"
+    },
+    "status": 200
+  }
+}

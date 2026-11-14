@@ -1,0 +1,68 @@
+{
+  "elapsed_ms": 1.0,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": "Café Orchestra",
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Café Orchestra",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": "Été",
+      "dir_artist": "Café Orchestra",
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Café Orchestra - Été [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Jazz",
+      "has_embedded_cover": true,
+      "id": "<ID:Café Orchestra - Été [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Café Orchestra - Été [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Café Orchestra - Été [FLAC]/01 - Soirée.flac",
+      "title": "Été",
+      "total_seconds": 30.0,
+      "track_artists": [
+        {
+          "artist": "Café Orchestra",
+          "artist_sort": "",
+          "filename": "01 - Soirée.flac"
+        },
+        {
+          "artist": "Café Orchestra",
+          "artist_sort": "",
+          "filename": "02 - Terrasse.flac"
+        },
+        {
+          "artist": "Café Orchestra",
+          "artist_sort": "",
+          "filename": "03 - Crème.flac"
+        }
+      ],
+      "track_count": 3,
+      "track_numbers": [
+        1,
+        2,
+        3
+      ],
+      "year": "2014"
+    },
+    "status": 200
+  }
+}

@@ -10,11 +10,13 @@ import {
   Pause,
   Play,
   Sparkles,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useLibraryConfig, useSetLibraryDir } from "@/hooks/useLibraryConfig";
+import { useNavigate } from "react-router-dom";
+import { useLibraryConfig } from "@/hooks/useLibraryConfig";
+import LibraryPathForm from "@/components/LibraryPathForm";
+import { libraryPathHelp } from "@/lib/desktop";
 import {
   useSettings,
   useUpdateSettings,
@@ -23,6 +25,9 @@ import {
   useAiProviders,
 } from "@/hooks/useJobs";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import { AI_UNAVAILABLE } from "@/lib/aiGating";
+import { errorText } from "@/lib/errors";
 import MyTagsSettingsPanel from "./SettingsMyTags";
 import BackupPanel from "./SettingsBackup";
 import FilenameTemplatesPanel from "./SettingsFilenameTemplates";
@@ -33,13 +38,21 @@ import FilenameTemplatesPanel from "./SettingsFilenameTemplates";
  */
 export default function SettingsPage() {
   usePageTitle("Settings");
+  // No listed provider can run a model: the AI backend settings (and the
+  // FireCrawl key, used only by AI lookups) have nothing to configure, so
+  // one notice stands in for them (lib/aiGating.ts).
+  const ai = useAiStatus();
+  const noAiBackend = ai.known && !ai.anyReady;
   return (
     <div className="flex-1 overflow-y-auto px-6 py-6">
       <div className="max-w-2xl">
         <h1 className="text-lg font-semibold mb-1">Settings</h1>
         <p className="text-sm text-fg-3 mb-6">
-          Tune how Musaic talks to your AI provider, MusicBrainz, AcoustID, and FireCrawl.
+          {noAiBackend
+            ? "Tune how Musaic talks to MusicBrainz and AcoustID."
+            : "Tune how Musaic talks to your AI provider, MusicBrainz, AcoustID, and FireCrawl."}
         </p>
+        <KeyStorageNotices />
         <GroupHeader>Library</GroupHeader>
         <LibrarySection />
         <GroupHeader>Tagging</GroupHeader>
@@ -47,16 +60,80 @@ export default function SettingsPage() {
         <GroupHeader>Files</GroupHeader>
         <FilenameTemplatesPanel />
         <GroupHeader>AI</GroupHeader>
-        <AIBackendSection />
-        <AISection />
+        {noAiBackend ? <AIUnavailableSection /> : <AIBackendSection />}
+        {/* The AI worker card (parallel jobs, queue status) only
+            when a provider can run. */}
+        {!noAiBackend && <AISection />}
         <GroupHeader>External services</GroupHeader>
         <FingerprintSection />
-        <FireCrawlSection />
+        {!noAiBackend && <FireCrawlSection />}
         <GroupHeader>Database</GroupHeader>
         <BackupPanel />
       </div>
     </div>
   );
+}
+
+/**
+ * Notices about where API keys are kept, from two settings fields some
+ * backends add: `keyring_available: false` (the system keychain can't be
+ * reached, so keys read as not set and can't be saved) and
+ * `keys_pending_removal: true` (keys from an earlier version are still in
+ * the database file, its backup or an older snapshot while their removal is
+ * retried).
+ * Absent fields show nothing.
+ */
+function KeyStorageNotices() {
+  const { data: settings } = useSettings();
+  if (!settings) return null;
+  const notices: string[] = [];
+  if (settings.keyring_available === false) {
+    notices.push(
+      "The system keychain can't be reached, so saved API keys show as not set and new keys can't be saved. Features that need a key stay off until the keychain is available again.",
+    );
+  }
+  if (settings.keys_pending_removal === true) {
+    notices.push(
+      "API keys saved by an earlier version are still in the library database file, its backup or an older snapshot. Musaic keeps trying to remove them, and the server log names any file it could not clean; this notice goes away once they are gone.",
+    );
+  }
+  if (notices.length === 0) return null;
+  return (
+    <div className="space-y-2 mb-6">
+      {notices.map((n) => (
+        <div
+          key={n}
+          role="status"
+          className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2"
+        >
+          <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+          <span>{n}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Stands in for the AI backend settings when no provider can run. */
+function AIUnavailableSection() {
+  return (
+    <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
+      <header className="flex items-center gap-2 px-4 h-10 border-b border-line bg-panel">
+        <Cpu className="w-3.5 h-3.5 text-accent" />
+        <h2 className="text-md font-semibold">AI backend</h2>
+      </header>
+      <div className="px-4 py-4">
+        <p className="text-sm text-fg-3 leading-relaxed">{AI_UNAVAILABLE}</p>
+      </div>
+    </section>
+  );
+}
+
+/** Toast for a failed save: the action as the title, the server's reason
+ *  (409 restore running, 503 keychain write failed, 400 validation) below. */
+function saveFailed(what: string, e: unknown) {
+  const reason = errorText(e, "");
+  toast.error(what, reason ? { description: reason } : undefined);
 }
 
 function GroupHeader({ children }: { children: React.ReactNode }) {
@@ -70,55 +147,30 @@ function GroupHeader({ children }: { children: React.ReactNode }) {
 /**
  * Library directory configuration. Two-state UX mirrors the AcoustID /
  * FireCrawl sections: when set, we show "configured: /path" with a Change
- * button; when clearing/changing, we expose a paste-only text input.
+ * button; when clearing/changing, we expose the path entry.
  *
  * The native HTML file picker only emits files (not folders) without
  * the non-standard `webkitdirectory` attribute, and even then it picks
  * a folder by uploading every file inside — useless for our needs.
- * So we ask the user to paste/type the path. The validation message
- * comes back from the server when `exists` is false.
+ * So in a browser we ask the user to paste/type the path; the desktop
+ * window adds a native folder picker (components/LibraryPathForm.tsx).
+ * The validation message comes back from the server when
+ * `exists` is false.
  */
 function LibrarySection() {
   const config = useLibraryConfig();
-  const setDir = useSetLibraryDir();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState("");
 
   const currentDir = config.data?.library_dir ?? null;
   const isSet = !!currentDir;
   const dirExists = config.data?.exists === true;
-
-  // When the user toggles into edit mode, start with the current value
-  // (so they can correct a typo without retyping the whole path).
-  useEffect(() => {
-    if (editing) setDraft(currentDir ?? "");
-  }, [editing, currentDir]);
 
   // If the configured directory disappeared (renamed/unmounted), nudge the
   // user into edit mode automatically so the input is right there for them.
   useEffect(() => {
     if (isSet && !dirExists && !editing) setEditing(true);
   }, [isSet, dirExists, editing]);
-
-  const onSave = () => {
-    const trimmed = draft.trim();
-    if (!trimmed) return;
-    setDir.mutate(trimmed, {
-      onSuccess: (next) => {
-        if (next.exists) {
-          toast.success("Library directory updated");
-          setEditing(false);
-        } else {
-          // Server accepted the path but it doesn't exist on disk; keep the
-          // input open so the user can fix it.
-          toast.warning("Saved, but that directory doesn't exist", {
-            description: "Check the path and try again.",
-          });
-        }
-      },
-      onError: (e) => toast.error((e as Error).message || "Couldn't save library directory"),
-    });
-  };
 
   return (
     <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
@@ -144,10 +196,7 @@ function LibrarySection() {
           </div>
         )}
 
-        <Row
-          label="Path"
-          help="Paste an absolute path. We don't pop a native folder picker because the browser file dialog returns files, not folders."
-        >
+        <Row label="Path" help={libraryPathHelp()}>
           {isSet && !editing ? (
             <>
               <span
@@ -165,37 +214,16 @@ function LibrarySection() {
               </button>
             </>
           ) : (
-            <>
-              <input
-                type="text"
-                placeholder="/Users/you/Music/FLAC"
-                value={draft}
-                disabled={setDir.isPending}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") onSave();
-                }}
-                className="w-72 h-8 px-2 border border-line rounded bg-bg text-sm text-fg focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
-              />
-              <button
-                onClick={onSave}
-                disabled={setDir.isPending || !draft.trim()}
-                className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
-              >
-                {setDir.isPending ? "Saving…" : "Save"}
-              </button>
-              {isSet && (
-                <button
-                  onClick={() => {
-                    setEditing(false);
-                    setDraft(currentDir ?? "");
-                  }}
-                  className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </>
+            // Shared with the Library empty state; a saved,
+            // existing directory goes to the grid, where its scan starts.
+            <LibraryPathForm
+              initial={currentDir ?? ""}
+              onSaved={() => {
+                setEditing(false);
+                navigate("/library");
+              }}
+              onCancel={isSet ? () => setEditing(false) : undefined}
+            />
           )}
         </Row>
       </div>
@@ -259,7 +287,7 @@ function AIBackendSection() {
     if (!settings || m === settings.ai_model_id) return;
     update.mutate(
       { ai_model_id: m },
-      { onError: () => toast.error("Couldn't save model") },
+      { onError: (e) => saveFailed("Couldn't save model", e) },
     );
   };
 
@@ -273,7 +301,7 @@ function AIBackendSection() {
           setKeyDraft("");
           toast.success(k ? "API key saved" : "API key cleared");
         },
-        onError: () => toast.error("Couldn't save API key"),
+        onError: (e) => saveFailed("Couldn't save API key", e),
       },
     );
   };
@@ -286,7 +314,7 @@ function AIBackendSection() {
           setEditingKey(false);
           toast.success("API key cleared");
         },
-        onError: () => toast.error("Couldn't clear API key"),
+        onError: (e) => saveFailed("Couldn't clear API key", e),
       },
     );
   };
@@ -468,7 +496,7 @@ function AISection() {
     update.mutate(
       { ai_max_parallel: n },
       {
-        onError: () => toast.error("Couldn't save settings"),
+        onError: (e) => saveFailed("Couldn't save settings", e),
       },
     );
   };
@@ -476,7 +504,7 @@ function AISection() {
   const onResume = () => {
     resume.mutate(undefined, {
       onSuccess: () => toast.success("Queue resumed"),
-      onError: () => toast.error("Couldn't resume queue"),
+      onError: (e) => saveFailed("Couldn't resume queue", e),
     });
   };
 
@@ -513,7 +541,7 @@ function AISection() {
         <div className="border-t border-line pt-4">
           <Row
             label="Queue status"
-            help="The queue auto-pauses when an AI job fails (most failures are rate-limit / capacity-related). Resume manually after retrying or waiting."
+            help="The queue auto-pauses when an AI job fails, except when it failed only because no AI backend is available (this build has none). Resume manually after retrying or waiting."
           >
             {queueState?.paused ? (
               <>
@@ -589,6 +617,7 @@ function Row({
  *     empty when revealed.
  */
 function FingerprintSection() {
+  const ai = useAiStatus();
   const { data: settings, isLoading } = useSettings();
   const update = useUpdateSettings();
   const [editing, setEditing] = useState(false);
@@ -611,7 +640,7 @@ function FingerprintSection() {
           setKey("");
           toast.success(trimmed ? "AcoustID key saved" : "AcoustID key cleared");
         },
-        onError: () => toast.error("Couldn't save AcoustID key"),
+        onError: (e) => saveFailed("Couldn't save AcoustID key", e),
       },
     );
   };
@@ -624,7 +653,7 @@ function FingerprintSection() {
           setEditing(false);
           toast.success("AcoustID key cleared");
         },
-        onError: () => toast.error("Couldn't clear AcoustID key"),
+        onError: (e) => saveFailed("Couldn't clear AcoustID key", e),
       },
     );
   };
@@ -676,7 +705,11 @@ function FingerprintSection() {
 
         <Row
           label="AcoustID API key"
-          help="Used only by the track-gaps and unidentified-album fix paths. Stored locally; never sent to Claude."
+          help={
+            ai.ready
+              ? "Used only by the track-gaps and unidentified-album fix paths. Stored locally; never sent to Claude."
+              : "Used only by the track-gaps and unidentified-album fix paths. Stored locally."
+          }
         >
           {isSet && !editing ? (
             <>
@@ -742,8 +775,8 @@ function FingerprintSection() {
  *
  * Treated as an absolute LAST RESORT: the system prompt instructs Claude
  * to try WebSearch / WebFetch first and only reach for FireCrawl when
- * those genuinely can't get the answer. Each FireCrawl call burns paid
- * quota.
+ * those genuinely can't get the answer. Each FireCrawl call uses the
+ * user's FireCrawl quota.
  *
  * Same write-only / two-state UX as the AcoustID section.
  */
@@ -769,7 +802,7 @@ function FireCrawlSection() {
           setKey("");
           toast.success(trimmed ? "FireCrawl key saved" : "FireCrawl key cleared");
         },
-        onError: () => toast.error("Couldn't save FireCrawl key"),
+        onError: (e) => saveFailed("Couldn't save FireCrawl key", e),
       },
     );
   };
@@ -782,7 +815,7 @@ function FireCrawlSection() {
           setEditing(false);
           toast.success("FireCrawl key cleared");
         },
-        onError: () => toast.error("Couldn't clear FireCrawl key"),
+        onError: (e) => saveFailed("Couldn't clear FireCrawl key", e),
       },
     );
   };

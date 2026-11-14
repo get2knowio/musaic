@@ -1,0 +1,8 @@
+{
+  "bundle": {
+    "resources": {
+      "../../../frontend/dist/": "frontend/",
+      "../../target/desktop-notices/NOTICES.txt": "NOTICES.txt"
+    }
+  }
+}

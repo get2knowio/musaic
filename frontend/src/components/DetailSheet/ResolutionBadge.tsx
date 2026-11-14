@@ -10,16 +10,18 @@
  * the resolver trace (`notes` array) so a curious user can see
  * exactly how Musaic got here without opening any other UI surface.
  */
-import { CheckCircle2, Loader2, ShieldQuestion } from "lucide-react";
+import { CheckCircle2, CircleSlash, Loader2, ShieldQuestion } from "lucide-react";
 
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
+import { useAiStatus } from "@/hooks/useAiStatus";
 
 interface Props {
   albumId: string;
 }
 
 export default function ResolutionBadge({ albumId }: Props) {
-  const { data: resolution, isLoading, error } = useAlbumResolution(albumId);
+  const { data: resolution, isLoading, isFetching, error, refetch } = useAlbumResolution(albumId);
+  const ai = useAiStatus();
 
   if (isLoading) {
     return (
@@ -31,12 +33,23 @@ export default function ResolutionBadge({ albumId }: Props) {
   }
 
   if (error || !resolution) {
+    // The lookup didn't answer (409 while a database restore runs, or a
+    // transport failure). That says nothing about whether the album is
+    // identified, so don't claim "Not identified": say the lookup is
+    // unavailable, give the server's reason, and let a click retry it.
     const detail = (error as Error)?.message ?? "Resolution unavailable";
+    const busy = (error as { status?: number } | null)?.status === 409;
     return (
-      <Chip tone="amber" title={withTrace("Couldn't fetch the resolver result for this album.", detail)}>
-        <ShieldQuestion className="w-3 h-3" />
-        <span>Not identified</span>
-      </Chip>
+      <button
+        type="button"
+        onClick={() => { void refetch(); }}
+        disabled={isFetching}
+        title={`${busy ? "Musaic is busy and couldn't look this album up." : "Couldn't fetch the resolver result for this album."}\n${detail}\n\nClick to try again.`}
+        className="mono text-[11px] inline-flex items-center gap-1 px-2 py-0.5 rounded-full whitespace-nowrap border bg-bg-3 text-fg-3 border-line hover:text-fg transition disabled:opacity-60"
+      >
+        {isFetching ? <Loader2 className="w-3 h-3 spin" /> : <CircleSlash className="w-3 h-3" />}
+        <span>{busy ? "Lookup busy" : "Lookup failed"}</span>
+      </button>
     );
   }
 
@@ -47,7 +60,9 @@ export default function ResolutionBadge({ albumId }: Props) {
       <Chip
         tone="amber"
         title={withTrace(
-          "No confident MusicBrainz release-group match was found from the directory name or per-track fingerprints. Suggesting fixes will require Claude AI.",
+          ai.ready
+            ? "No confident MusicBrainz release-group match was found from the directory name or per-track fingerprints. Suggesting fixes will require Claude AI."
+            : "No confident MusicBrainz release-group match was found from the directory name or per-track fingerprints.",
           trace,
         )}
       >
@@ -69,7 +84,9 @@ export default function ResolutionBadge({ albumId }: Props) {
       : anchor_strategy === "cache"
       ? "Matched from the local cache (anchor was discovered on a prior run)."
       : anchor_strategy === "ai"
-      ? "Matched via Claude AI; the anchor is now cached for free reuse."
+      ? ai.ready
+        ? "Matched via Claude AI; the anchor is now cached for free reuse."
+        : "Matched by an earlier lookup; the anchor is cached for free reuse."
       : "Matched to a MusicBrainz release group.";
 
   const tail =
@@ -85,7 +102,13 @@ export default function ResolutionBadge({ albumId }: Props) {
   return (
     <Chip
       tone={tone}
-      title={withTrace(`${strategyDetail}${tail} Suggestions can be generated for free, without Claude AI.`, trace)}
+      title={withTrace(
+        ai.ready
+          ? `${strategyDetail}${tail} Suggestions can be generated for free, without Claude AI.`
+          : // No AI wording; corrections need every track aligned.
+            `${strategyDetail}${unresolved_track_count === 0 ? " Corrections can be generated for free from MusicBrainz." : ""}`,
+        trace,
+      )}
     >
       <CheckCircle2 className="w-3 h-3" />
       <span>Identified</span>

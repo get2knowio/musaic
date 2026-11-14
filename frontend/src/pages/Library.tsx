@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Disc3 } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
 import FilterBar from "@/components/FilterBar";
 import ScanRibbon from "@/components/ScanRibbon";
 import TileGrid from "@/components/TileGrid";
 import AlbumList from "@/components/AlbumList";
 import DetailSheet from "@/components/DetailSheet";
+import LibraryPathForm from "@/components/LibraryPathForm";
+import { libraryPathHelp } from "@/lib/desktop";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScanStream } from "@/hooks/useScanStream";
@@ -32,7 +34,7 @@ export default function LibraryPage() {
   usePageTitle("Library");
   const config = useLibraryConfig();
   const enabled = config.data?.exists === true;
-  const { albums: scannedAlbums, scan, libraryDir } = useScanStream({ enabled });
+  const { albums: scannedAlbums, scan, libraryDir, snapshotSyncs } = useScanStream({ enabled });
 
   // Local overrides from apply flow — when the sheet emits an updated album,
   // we splice it into the scanned list so the tile reflects the change without
@@ -43,6 +45,13 @@ export default function LibraryPage() {
     if (overrides.size === 0) return scannedAlbums;
     return scannedAlbums.map((a) => overrides.get(a.id) ?? a);
   }, [scannedAlbums, overrides]);
+
+  // A newer server snapshot replaced the list: it already holds whatever
+  // an override carried, and an override kept longer would mask later
+  // changes (apply, then a cover upload).
+  useEffect(() => {
+    if (snapshotSyncs > 0) setOverrides((prev) => (prev.size === 0 ? prev : new Map()));
+  }, [snapshotSyncs]);
 
   const onAlbumUpdated = useCallback((updated: Album) => {
     setOverrides((prev) => {
@@ -97,7 +106,7 @@ export default function LibraryPage() {
   }
 
   if (!config.data?.exists) {
-    return <NoLibraryConfigured />;
+    return <NoLibraryConfigured current={config.data?.library_dir ?? null} />;
   }
 
   // ---- Main view --------------------------------------------------------
@@ -138,7 +147,13 @@ export default function LibraryPage() {
 
 // ---------- empty / placeholder views ----------
 
-function NoLibraryConfigured() {
+/**
+ * The path entry sits here (native folder picker in the
+ * desktop window, text field in a browser) instead of a link to Settings.
+ * A saved, existing directory flips the config query, this page renders
+ * the grid, and its scan stream opens straight away (useScanStream).
+ */
+function NoLibraryConfigured({ current }: { current: string | null }) {
   return (
     <div className="flex-1 grid place-items-center px-8 py-16 overflow-auto">
       <div className="max-w-lg text-center">
@@ -150,12 +165,16 @@ function NoLibraryConfigured() {
           Point Musaic at a folder containing your album directories.
           Subfolders with FLAC files are treated as albums.
         </p>
-        <Link
-          to="/settings"
-          className="inline-flex items-center justify-center gap-1.5 mt-5 h-9 px-4 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition"
-        >
-          Set library directory in Settings
-        </Link>
+        {current && (
+          <p className="text-sm text-fg-3 mt-3">
+            The configured directory doesn't exist:{" "}
+            <code className="mono text-fg-2 break-all">{current}</code>
+          </p>
+        )}
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+          <LibraryPathForm initial={current ?? ""} inputClassName="w-80 max-w-full" />
+        </div>
+        <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
       </div>
     </div>
   );
