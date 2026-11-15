@@ -60,6 +60,11 @@
 //! - A rename moves the file's `track_fingerprints` row too
 //!   (`musaic_db::renames::rename_track_files`); the Python app moved only
 //!   `track_tags`.
+//! - A save whose new metadata does not fit rewrites the file
+//!   (`musaic_tags::preserve`); what it could not carry over (an extended
+//!   attribute, the owner, a hard link) is listed in `file_done.warnings`,
+//!   a key present only then. `apply_direct` adds a count of them to its
+//!   message.
 //! - The post-apply rescan derives album fields in
 //!   (DISCNUMBER, TRACKNUMBER) order (`TrackOrder::DiscTrack`).
 //! - Cover bytes come from a [`CoverSource`]; the real one
@@ -302,6 +307,14 @@ pub fn tag_event_json(ev: &TagEvent) -> Json {
             ]);
             if let Some(r) = &c.renamed_to {
                 j.set("renamed_to", Json::from(r.as_str()));
+            }
+            // Only when there is something to say, so the event stays the
+            // Python app's otherwise.
+            if !c.warnings.is_empty() {
+                j.set(
+                    "warnings",
+                    Json::Arr(c.warnings.iter().map(|w| Json::from(w.as_str())).collect()),
+                );
             }
             j
         }
@@ -730,10 +743,14 @@ pub fn apply_direct(
         dry_run: false,
     };
     let mut saved = 0usize;
+    let mut warnings = 0usize;
     let mut error: Option<String> = None;
     apply_album_changes(env, &req, &mut |item| {
         if item.event == "file_done" && item.data.get("saved") == Some(&Json::Bool(true)) {
             saved += 1;
+            if let Some(Json::Arr(w)) = item.data.get("warnings") {
+                warnings += w.len();
+            }
         } else if item.event == "error" {
             let detail = item
                 .data
@@ -747,9 +764,17 @@ pub fn apply_direct(
     });
     match error {
         Some(e) => (false, e),
-        None => (
-            true,
-            format!("Wrote {saved} file{}", if saved != 1 { "s" } else { "" }),
-        ),
+        None => {
+            let mut msg = format!("Wrote {saved} file{}", if saved != 1 { "s" } else { "" });
+            // Each warning is in the log (musaic.tags); the fix outcome
+            // only says there were some.
+            if warnings > 0 {
+                let s = if warnings != 1 { "s" } else { "" };
+                msg.push_str(&format!(
+                    " ({warnings} warning{s} about what rewritten files could not keep; see the log)"
+                ));
+            }
+            (true, msg)
+        }
     }
 }

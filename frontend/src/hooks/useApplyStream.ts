@@ -21,6 +21,7 @@ export interface ApplyFileState {
   art_changed: boolean;
   saved: boolean;
   error: string | null;
+  warnings: string[];
 }
 
 export interface ApplyState {
@@ -34,6 +35,8 @@ export interface ApplyState {
   coverUrl: string | null;       // currently downloading
   error: string | null;
   updatedAlbum: Album | null;
+  /** Every file's rewrite warnings, as "filename: text". */
+  warnings: string[];
 }
 
 const INITIAL: ApplyState = {
@@ -47,6 +50,7 @@ const INITIAL: ApplyState = {
   coverUrl: null,
   error: null,
   updatedAlbum: null,
+  warnings: [],
 };
 
 type Action =
@@ -80,6 +84,7 @@ function reducer(state: ApplyState, action: Action): ApplyState {
         art_changed: false,
         saved: false,
         error: null,
+        warnings: [],
       };
       return { ...state, filesByIndex: next };
     }
@@ -99,12 +104,17 @@ function reducer(state: ApplyState, action: Action): ApplyState {
           art_changed: action.change.art_changed,
           saved: action.change.saved,
           error: action.change.error,
+          warnings: action.change.warnings ?? [],
         };
       }
+      const fileWarnings = (action.change.warnings ?? []).map(
+        (w) => `${action.change.filename}: ${w}`,
+      );
       return {
         ...state,
         filesByIndex: next,
         scannedCount: state.scannedCount + 1,
+        warnings: fileWarnings.length ? [...state.warnings, ...fileWarnings] : state.warnings,
       };
     }
     case "done":

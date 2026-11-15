@@ -577,6 +577,9 @@ export interface FileChange {
   art_changed: boolean;
   saved: boolean;
   error: string | null;
+  /** What a save that rewrote the file could not keep of it (extended
+   *  attributes, owner, a hard link). Present only when non-empty. */
+  warnings?: string[];
 }
 
 export type ApplyEvent =

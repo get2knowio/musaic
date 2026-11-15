@@ -211,6 +211,17 @@ pub enum SaveMode {
     Replaced,
 }
 
+/// What [`FlacFile::save`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SaveReport {
+    pub mode: SaveMode,
+    /// One sentence per thing the filesystem kept about the old file that
+    /// the rewritten file could not keep (an extended attribute, the owner,
+    /// a hard link; see [`crate::preserve`]). Always empty for
+    /// [`SaveMode::InPlace`]. Also logged as WARNING on `musaic.tags`.
+    pub warnings: Vec<String>,
+}
+
 /// A FLAC file's metadata, loaded the way mutagen loads it.
 #[derive(Debug, Clone)]
 pub struct FlacFile {
@@ -436,9 +447,13 @@ impl FlacFile {
     /// When the rendered metadata has exactly the old region's size it is
     /// overwritten in place, as mutagen does. Otherwise mutagen shifts the
     /// audio inside the same file (not crash-safe); here the complete new
-    /// file is written to `.<name>.musaic-tags.tmp` next to it, fsynced, given
-    /// the original's permissions and renamed over the original, so a crash
-    /// leaves either the old or the new file.
+    /// file is written to `.<name>.musaic-tags.tmp` next to it, given what
+    /// the filesystem keeps about the original (permissions, extended
+    /// attributes, owner, creation date: [`crate::preserve`]), fsynced and
+    /// renamed over the original, so a crash leaves either the old or the
+    /// new file. What could not be carried over is returned as warnings in
+    /// the [`SaveReport`]. A symlink is followed: the file it points to is
+    /// replaced and the link kept.
     ///
     /// Either way the file itself is first opened for writing, the open the
     /// in-place path needs anyway: a file that
@@ -454,7 +469,7 @@ impl FlacFile {
     /// original is untouched) when it does not. The Python app (mutagen shifts
     /// the audio inside the open file) saves that second case; it is a
     /// consequence of the temp-file write, not of the read-only probe.
-    pub fn save(&mut self) -> io::Result<SaveMode> {
+    pub fn save(&mut self) -> io::Result<SaveReport> {
         let mut writable = OpenOptions::new().write(true).open(&self.path)?;
         let file_len = writable.metadata()?.len();
         let available = self.audio_offset - self.header;
@@ -462,17 +477,26 @@ impl FlacFile {
             .checked_sub(self.audio_offset)
             .ok_or_else(|| invalid("file shrank since it was read"))?;
         let data = self.render_blocks(available, content_size)?;
-        let mode = if data.len() as u64 == available {
+        let report = if data.len() as u64 == available {
             let f = &mut writable;
             f.seek(SeekFrom::Start(self.header - 4))?;
             f.write_all(b"fLaC")?;
             f.write_all(&data)?;
             f.flush()?;
-            SaveMode::InPlace
+            SaveReport {
+                mode: SaveMode::InPlace,
+                warnings: Vec::new(),
+            }
         } else {
             drop(writable);
-            self.replace_whole_file(&data)?;
-            SaveMode::Replaced
+            let warnings = self.replace_whole_file(&data)?;
+            for w in &warnings {
+                musaic_log::warning("musaic.tags", &format!("{}: {w}", self.path.display()));
+            }
+            SaveReport {
+                mode: SaveMode::Replaced,
+                warnings,
+            }
         };
         // Reload the layout the file now has, so a second save behaves like
         // mutagen's (which re-reads header and audio offset from disk).
@@ -480,21 +504,28 @@ impl FlacFile {
         self.blocks.retain(|b| b.code() != PADDING);
         self.blocks.push(Block::Padding);
         self.tags = self.blocks.iter().position(|b| b.code() == VORBIS_COMMENT);
-        Ok(mode)
+        Ok(report)
     }
 
-    fn replace_whole_file(&self, data: &[u8]) -> io::Result<()> {
-        let name = self
-            .path
+    fn replace_whole_file(&self, data: &[u8]) -> io::Result<Vec<String>> {
+        // Replace the file a symlink points to, not the link: renaming over
+        // the link would turn it into a regular file and leave the target
+        // with the old tags.
+        let target = if fs::symlink_metadata(&self.path)?.file_type().is_symlink() {
+            fs::canonicalize(&self.path)?
+        } else {
+            self.path.clone()
+        };
+        let name = target
             .file_name()
             .ok_or_else(|| invalid("path has no file name"))?;
-        let tmp = self
-            .path
-            .with_file_name(format!(".{}.musaic-tags.tmp", name.to_string_lossy()));
-        let result = (|| -> io::Result<()> {
-            let mut src = File::open(&self.path)?;
-            let perms = src.metadata()?.permissions();
-            let mut out = File::create(&tmp)?;
+        let tmp = target.with_file_name(format!(".{}.musaic-tags.tmp", name.to_string_lossy()));
+        // A temp file left by a crash may carry attributes of its own.
+        let _ = fs::remove_file(&tmp);
+        let result = (|| -> io::Result<Vec<String>> {
+            let mut src = File::open(&target)?;
+            let meta = src.metadata()?;
+            let mut out = create_replacement(&target, &tmp)?;
             let mut prefix = vec![0u8; (self.header - 4) as usize];
             src.read_exact(&mut prefix)?;
             out.write_all(&prefix)?;
@@ -502,16 +533,36 @@ impl FlacFile {
             out.write_all(data)?;
             src.seek(SeekFrom::Start(self.audio_offset))?;
             io::copy(&mut src, &mut out)?;
+            let warnings = crate::preserve::carry_over(&src, &meta, &out)?;
+            // After the attributes, so the rename never publishes a file
+            // whose data or attributes are still only in the cache.
             out.sync_all()?;
             drop(out);
-            fs::set_permissions(&tmp, perms)?;
-            fs::rename(&tmp, &self.path)
+            fs::rename(&tmp, &target)?;
+            Ok(warnings)
         })();
         if result.is_err() {
             let _ = fs::remove_file(&tmp);
         }
         result
     }
+}
+
+/// The empty temporary file the rewritten FLAC goes into.
+#[cfg(not(windows))]
+fn create_replacement(_original: &Path, tmp: &Path) -> io::Result<File> {
+    OpenOptions::new().write(true).create_new(true).open(tmp)
+}
+
+/// On Windows, a copy of the original (`CopyFileExW` carries its alternate
+/// data streams, file attributes and NTFS extended attributes, which std has
+/// no other way to reach), emptied. Costs one extra copy of the audio.
+#[cfg(windows)]
+fn create_replacement(original: &Path, tmp: &Path) -> io::Result<File> {
+    fs::copy(original, tmp)?;
+    let out = OpenOptions::new().write(true).open(tmp)?;
+    out.set_len(0)?;
+    Ok(out)
 }
 
 fn push_block(out: &mut Vec<u8>, code: u8, body: &[u8], last: bool) -> io::Result<()> {

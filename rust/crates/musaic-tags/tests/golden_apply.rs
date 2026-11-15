@@ -798,7 +798,9 @@ fn save_is_in_place_when_it_fits_and_replaces_otherwise() {
                     p[1].as_str().unwrap(),
                 );
             }
-            modes.push(f.save().unwrap());
+            let report = f.save().unwrap();
+            assert!(report.warnings.is_empty(), "{id}: {n}: {report:?}");
+            modes.push(report.mode);
         }
         let golden_files = sc["rounds"][0]["files"].as_array().unwrap();
         for (n, ino) in names.iter().zip(&inodes) {
@@ -903,9 +905,9 @@ fn read_only_file_and_directory_combinations() {
         set_mode(&path, 0o644);
         let fits = id == "single-field";
         match res {
-            Ok(mode) => {
+            Ok(report) => {
                 assert!(!file_ro && fits, "{label}: saved");
-                assert_eq!(mode, musaic_tags::SaveMode::InPlace, "{label}");
+                assert_eq!(report.mode, musaic_tags::SaveMode::InPlace, "{label}");
                 let gf = sc["rounds"][0]["files"]
                     .as_array()
                     .unwrap()

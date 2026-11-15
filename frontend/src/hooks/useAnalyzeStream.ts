@@ -38,6 +38,9 @@ export interface AnalyzeState {
   albumGain: string | null;
   albumPeak: string | null;
   error: string | null;
+  /** Rewrite warnings from the tag writes, as "filename: text" (see
+   *  FileChange.warnings). */
+  warnings: string[];
 }
 
 interface FileDonePayload {
@@ -47,6 +50,7 @@ interface FileDonePayload {
   replaygain_track_gain?: string;
   replaygain_track_peak?: string;
   error?: string;
+  warnings?: string[];
 }
 
 const INITIAL: AnalyzeState = {
@@ -59,6 +63,7 @@ const INITIAL: AnalyzeState = {
   albumGain: null,
   albumPeak: null,
   error: null,
+  warnings: [],
 };
 
 type Action =
@@ -66,7 +71,7 @@ type Action =
   | { type: "start"; what: AnalysisKind; fileCount: number }
   | { type: "file_started"; index: number; filename: string }
   | { type: "file_done"; payload: FileDonePayload }
-  | { type: "album_done"; gain: string; peak: string }
+  | { type: "album_done"; gain: string; peak: string; warnings: string[] }
   | { type: "done"; errors: number }
   | { type: "error"; detail: string; what?: AnalysisKind };
 
@@ -105,14 +110,24 @@ function reducer(state: AnalyzeState, action: Action): AnalyzeState {
         rgPeak: action.payload.replaygain_track_peak,
         error: action.payload.error,
       };
+      const fileWarnings = (action.payload.warnings ?? []).map(
+        (w) => `${action.payload.filename}: ${w}`,
+      );
       return {
         ...state,
         filesByIndex: next,
         scannedCount: state.scannedCount + 1,
+        warnings: fileWarnings.length ? [...state.warnings, ...fileWarnings] : state.warnings,
       };
     }
     case "album_done":
-      return { ...state, albumGain: action.gain, albumPeak: action.peak };
+      return {
+        ...state,
+        albumGain: action.gain,
+        albumPeak: action.peak,
+        // Already "filename: text" from the server (one event for all files).
+        warnings: action.warnings.length ? [...state.warnings, ...action.warnings] : state.warnings,
+      };
     case "done":
       return { ...state, status: "done", errors: action.errors };
     case "error":
@@ -168,8 +183,17 @@ export function useAnalyzeStream(): UseAnalyzeStreamResult {
               dispatch({ type: "file_done", payload: data as FileDonePayload });
             },
             album_done: (data) => {
-              const d = data as { replaygain_album_gain: string; replaygain_album_peak: string };
-              dispatch({ type: "album_done", gain: d.replaygain_album_gain, peak: d.replaygain_album_peak });
+              const d = data as {
+                replaygain_album_gain: string;
+                replaygain_album_peak: string;
+                warnings?: string[];
+              };
+              dispatch({
+                type: "album_done",
+                gain: d.replaygain_album_gain,
+                peak: d.replaygain_album_peak,
+                warnings: d.warnings ?? [],
+              });
             },
             updated_album: () => {
               // Album row may have shifted (mtime); tracks refetch is
