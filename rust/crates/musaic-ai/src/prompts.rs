@@ -322,7 +322,7 @@ the vast majority of music-catalog queries. Only reach for FireCrawl
 (`mcp__firecrawl__firecrawl_search`, `mcp__firecrawl__firecrawl_scrape`,
 `mcp__firecrawl__firecrawl_extract`) when WebSearch / WebFetch can't get
 through — JS-rendered pages, paywalls, anti-bot blocks, or sites that
-return empty bodies to plain GETs. FireCrawl is paid quota; one or two
+return empty bodies to plain GETs. FireCrawl calls use up quota; one or two
 targeted calls is fine, more than that on a single album means you're
 fishing and should stop and return your best-guess answer with low
 confidence."###;

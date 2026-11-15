@@ -153,8 +153,8 @@ export default function BackupPanel({
         <p className="text-sm text-fg-3 leading-relaxed">
           {ai.ready ? (
             <>
-              Your library DB carries data that's expensive to rebuild — paid
-              AI-driven MBID anchors, AcoustID fingerprints, your tag taxonomy.
+              Your library DB carries data that's expensive to rebuild — AI-driven
+              MBID anchors, AcoustID fingerprints, your tag taxonomy.
               Automatic snapshots are taken on app startup so you can roll back
               a mistake.
             </>
