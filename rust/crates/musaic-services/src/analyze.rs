@@ -13,6 +13,8 @@
 //! file_done     {index, filename, bpm}                        BPM
 //!               {index, filename, replaygain_track_gain, replaygain_track_peak}
 //!               {index, filename, error}                      on any per-file failure
+//!               + `warnings: [str]` when a write rewrote the file and could not
+//!               keep some of its attributes (not in the Python app)
 //! album_done    {replaygain_album_gain, replaygain_album_peak} ReplayGain, when the
 //!                                                              aggregate exists
 //! updated_album <scanner dict of the rescanned album>          (not the merged row)
@@ -310,12 +312,29 @@ impl Forward<'_> {
 
 /// `_write_tags`: set each key (removing every case variant, appending at
 /// the end, as `audio[key] = value`) and save.
-fn write_tags(path: &Path, updates: &[(&str, &str)]) -> Result<(), String> {
+///
+/// `Ok` carries what the save could not carry over from a rewritten file
+/// ([`musaic_tags::SaveReport::warnings`]).
+fn write_tags(path: &Path, updates: &[(&str, &str)]) -> Result<Vec<String>, String> {
     let mut f = musaic_tags::FlacFile::open(path).map_err(|e| tag_error_text(&e, path))?;
     for (k, v) in updates {
         f.tags_mut().set(k, v);
     }
-    f.save().map(|_| ()).map_err(|e| tag_error_text(&e, path))
+    f.save()
+        .map(|r| r.warnings)
+        .map_err(|e| tag_error_text(&e, path))
+}
+
+/// Adds `warnings` to a `file_done` / `album_done` payload, only when there
+/// are any (the event is the Python app's otherwise).
+fn with_warnings(mut item: Json, warnings: Vec<String>) -> Json {
+    if !warnings.is_empty() {
+        item.set(
+            "warnings",
+            Json::Arr(warnings.into_iter().map(Json::from).collect()),
+        );
+    }
+    item
 }
 
 fn tag_error_text(e: &io::Error, path: &Path) -> String {
@@ -413,17 +432,20 @@ fn run(
         );
         let done = match req.what {
             AnalysisKind::Bpm => env.analyzer.bpm(path).and_then(|bpm| {
-                write_tags(path, &[("bpm", &musaic_bpm::format_bpm_tag(bpm))])?;
-                Ok(Json::obj([
-                    ("index", Json::from(index)),
-                    ("filename", Json::from(filename.as_str())),
-                    ("bpm", Json::from(round2(bpm))),
-                ]))
+                let warnings = write_tags(path, &[("bpm", &musaic_bpm::format_bpm_tag(bpm))])?;
+                Ok(with_warnings(
+                    Json::obj([
+                        ("index", Json::from(index)),
+                        ("filename", Json::from(filename.as_str())),
+                        ("bpm", Json::from(round2(bpm))),
+                    ]),
+                    warnings,
+                ))
             }),
             AnalysisKind::ReplayGain => env.analyzer.loudness(path).and_then(|(lufs, peak)| {
                 let gain = format_gain(REPLAYGAIN_REFERENCE_LUFS, lufs);
                 let peak_str = format_peak(peak);
-                write_tags(
+                let warnings = write_tags(
                     path,
                     &[
                         ("replaygain_track_gain", &gain),
@@ -437,12 +459,15 @@ fn run(
                     .info
                     .length();
                 rg_tracks.push((duration, lufs, peak));
-                Ok(Json::obj([
-                    ("index", Json::from(index)),
-                    ("filename", Json::from(filename.as_str())),
-                    ("replaygain_track_gain", Json::from(gain)),
-                    ("replaygain_track_peak", Json::from(peak_str)),
-                ]))
+                Ok(with_warnings(
+                    Json::obj([
+                        ("index", Json::from(index)),
+                        ("filename", Json::from(filename.as_str())),
+                        ("replaygain_track_gain", Json::from(gain)),
+                        ("replaygain_track_peak", Json::from(peak_str)),
+                    ]),
+                    warnings,
+                ))
             }),
         };
         let item = match done {
@@ -465,25 +490,31 @@ fn run(
         && !rg_tracks.is_empty()
         && let Some(agg) = aggregate_album(&rg_tracks)
     {
+        let mut album_warnings = Vec::new();
         for (path, _) in flacs.iter().zip(&failed).filter(|(_, f)| !**f) {
-            if write_tags(
+            match write_tags(
                 path,
                 &[
                     ("replaygain_album_gain", &agg.album_gain),
                     ("replaygain_album_peak", &agg.album_peak),
                 ],
-            )
-            .is_err()
-            {
-                errors += 1;
+            ) {
+                Ok(warnings) => {
+                    let name = path.file_name().unwrap_or_default().to_string_lossy();
+                    album_warnings.extend(warnings.into_iter().map(|w| format!("{name}: {w}")));
+                }
+                Err(_) => errors += 1,
             }
         }
         fwd.emit(
             "album_done",
-            Json::obj([
-                ("replaygain_album_gain", Json::from(agg.album_gain.as_str())),
-                ("replaygain_album_peak", Json::from(agg.album_peak.as_str())),
-            ]),
+            with_warnings(
+                Json::obj([
+                    ("replaygain_album_gain", Json::from(agg.album_gain.as_str())),
+                    ("replaygain_album_peak", Json::from(agg.album_peak.as_str())),
+                ]),
+                album_warnings,
+            ),
         );
     }
 

@@ -21,6 +21,13 @@ Security.
   failed) no longer announces completion: no post-scan check reruns, no fingerprinting
   pass, no "up to date" message; the scan reports `cancelled` / `aborted` instead, and
   the bus publishes `LibraryScanStopped`. New route `POST /api/scan/cancel` (#193).
+- A tag save whose new tags no longer fit (the file is rewritten) now keeps the file's
+  extended attributes (Finder tags and comments, quarantine, `user.*`, POSIX ACLs),
+  permission bits, group (and owner where allowed) and, on macOS and Windows, its
+  creation date; on Windows its alternate data streams. A symlinked file is rewritten
+  through the link. Anything that could not be kept, including a hard link that the
+  rewrite breaks, is listed as a warning next to the file in the apply and audio
+  analysis progress ([#211](https://github.com/get2knowio/musaic/issues/211)).
 
 ## [0.2.0-rc.1] - 2026-11-14
 

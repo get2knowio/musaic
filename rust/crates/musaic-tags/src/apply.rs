@@ -60,6 +60,10 @@ pub struct FileChange {
     /// part of the contract.
     pub error: Option<String>,
     pub renamed_to: Option<String>,
+    /// What the save could not carry over from the file it rewrote
+    /// ([`crate::SaveReport::warnings`]); the tags were written. Not in the
+    /// Python app's event (it shifted the audio in place).
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -274,6 +278,7 @@ pub fn apply_to_album_iter(
             saved: false,
             error: None,
             renamed_to: None,
+            warnings: Vec::new(),
         };
         let file_specific = per_file
             .iter()
@@ -313,7 +318,7 @@ pub fn apply_to_album_iter(
                 }
             }
             if !dry_run && (!change.diffs.is_empty() || change.art_changed) {
-                audio.save()?;
+                change.warnings = audio.save()?.warnings;
                 change.saved = true;
                 saved_count += 1;
                 if change.art_changed {

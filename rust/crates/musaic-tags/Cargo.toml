@@ -14,6 +14,12 @@ image = { version = "0.25", default-features = false, features = ["png", "jpeg",
 jpeg-encoder = "0.7"
 same-file = "1"
 
+# Extended attributes carried over when a save rewrites the file
+# (src/preserve.rs). Windows has no xattrs; its alternate data streams are
+# carried by `std::fs::copy` instead.
+[target.'cfg(unix)'.dependencies]
+xattr = "1.6"
+
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
 base64 = "0.22"

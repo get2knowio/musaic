@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 import { useAnalyzeStream, type AnalysisKind } from "@/hooks/useAnalyzeStream";
 import type { Track } from "@/lib/types";
+import RewriteWarnings from "./RewriteWarnings";
 
 interface AudioAnalysisProps {
   albumId: string;
@@ -34,6 +35,9 @@ export default function AudioAnalysis({ albumId, tracks }: AudioAnalysisProps) {
     analyze.state.status === "error" ? analyze.state.what : null;
   const progressFor = (kind: AnalysisKind) =>
     runningKind === kind || failedKind === kind ? analyze.state : null;
+  // Kept after the run ends (until the next one), unlike the progress.
+  const warningsFor = (kind: AnalysisKind) =>
+    analyze.state.what === kind ? analyze.state.warnings : [];
 
   const onRun = (what: AnalysisKind) => {
     if (isRunning) return;
@@ -55,6 +59,7 @@ export default function AudioAnalysis({ albumId, tracks }: AudioAnalysisProps) {
         disabled={isRunning && runningKind !== "bpm"}
         running={runningKind === "bpm"}
         progress={progressFor("bpm")}
+        warnings={warningsFor("bpm")}
       />
       <AnalysisCard
         icon={<BarChart3 className="w-3.5 h-3.5" />}
@@ -67,6 +72,7 @@ export default function AudioAnalysis({ albumId, tracks }: AudioAnalysisProps) {
         disabled={isRunning && runningKind !== "replaygain"}
         running={runningKind === "replaygain"}
         progress={progressFor("replaygain")}
+        warnings={warningsFor("replaygain")}
         extra={
           albumGain && (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 pt-2 border-t border-line text-xs">
@@ -82,7 +88,7 @@ export default function AudioAnalysis({ albumId, tracks }: AudioAnalysisProps) {
 
 function AnalysisCard({
   icon, title, subtitle, complete, total, actionLabel, onAction, disabled,
-  running, progress, extra,
+  running, progress, warnings, extra,
 }: {
   icon: React.ReactNode;
   title: string;
@@ -94,6 +100,7 @@ function AnalysisCard({
   disabled: boolean;
   running: boolean;
   progress: ReturnType<typeof useAnalyzeStream>["state"] | null;
+  warnings: string[];
   extra?: React.ReactNode;
 }) {
   const allDone = complete === total && total > 0;
@@ -162,6 +169,7 @@ function AnalysisCard({
           <span className="break-words min-w-0">{progress.error ?? "Analysis failed"}</span>
         </div>
       )}
+      <RewriteWarnings warnings={warnings} />
       {extra}
     </div>
   );

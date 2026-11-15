@@ -1,5 +1,6 @@
 import { CheckCircle2, Download, XCircle } from "lucide-react";
 import type { ApplyState } from "@/hooks/useApplyStream";
+import RewriteWarnings from "./RewriteWarnings";
 
 interface ApplyProgressProps {
   state: ApplyState;
@@ -59,6 +60,10 @@ export default function ApplyProgress({ state }: ApplyProgressProps) {
             )}
           </span>
         </div>
+      )}
+
+      {(state.status === "writing" || state.status === "done") && (
+        <RewriteWarnings warnings={state.warnings} />
       )}
 
       {state.status === "error" && state.error && (
