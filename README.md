@@ -57,6 +57,9 @@ Each release lists the SHA-256 of every file in `SHA256SUMS.txt`.
 **Tested so far:** only the macOS Apple Silicon build has been run by a person. The
 Windows, Linux and Intel Mac builds are produced by CI from the same source and have not
 yet been tested by hand. Reports of what works and what does not are very welcome.
+The automated tests pass on macOS and Linux. On Windows about one in six of them
+still fails (not yet investigated), so treat the Windows build as experimental and
+keep a backup of your music before letting it change files.
 
 ### The builds are not signed
 

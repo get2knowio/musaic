@@ -27,6 +27,9 @@ in `SHA256SUMS.txt`. They are **not code-signed or notarised**.
 - **Run by a person so far: only the macOS Apple Silicon build.** The macOS Intel,
   Windows and Linux builds are produced by CI from the same source and have not been
   tested by hand yet. Reports of what works and what does not are very welcome.
+  The automated tests pass on macOS and Linux. On Windows about one in six of them
+  still fails (not yet investigated), so treat the Windows build as experimental and
+  keep a backup of your music before letting it change files.
 - **Opening the unsigned app on macOS:** install with the one-line `install.sh` command
   from the README (a `curl` download should not be quarantined; this is not yet confirmed on a second machine), or, for a `.dmg` downloaded in a
   browser, use **System Settings → Privacy & Security → Open Anyway** after the first
