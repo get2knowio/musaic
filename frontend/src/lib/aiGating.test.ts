@@ -4,7 +4,6 @@ import {
   canQueueJob,
   fixIsMusicBrainzOnly,
   jobNeedsModel,
-  metadataJobType,
   modelFreeCoverage,
   offersHintEntry,
   type AiStatus,
@@ -144,18 +143,6 @@ describe("jobNeedsModel / canQueueJob", () => {
   it("with AI, queues anything (the Python version's behaviour)", () => {
     expect(canQueueJob("metadata", none, READY)).toBe(true);
     expect(canQueueJob("metadata+cover", none, READY)).toBe(true);
-  });
-});
-
-describe("metadataJobType", () => {
-  it("bundles a cover lookup for a coverless album when AI is ready", () => {
-    expect(metadataJobType(false, { metadata: false, cover: false }, READY)).toBe("metadata+cover");
-    expect(metadataJobType(true, { metadata: true, cover: true }, READY)).toBe("metadata");
-  });
-
-  it("without AI, bundles the cover only when the resolver covers it", () => {
-    expect(metadataJobType(false, { metadata: true, cover: false }, NOT_READY)).toBe("metadata");
-    expect(metadataJobType(false, { metadata: true, cover: true }, NOT_READY)).toBe("metadata+cover");
   });
 });
 

@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { ImagePlus, Music, Tag as TagIcon } from "lucide-react";
+import { useRef, useState } from "react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { ChevronDown, ImagePlus, Music, Sparkles, Tag as TagIcon, Upload } from "lucide-react";
 import { coverUrl } from "@/lib/api";
 import GenreTags from "@/components/GenreTags";
 import { useAlbumTags } from "@/hooks/useVocabulary";
@@ -10,18 +11,26 @@ import ResolutionBadge from "./ResolutionBadge";
 
 interface AlbumHeroProps {
   album: Album;
+  /** Show the MusicBrainz cover as a row in the corrections, to preview
+   *  and apply there. Omitted when MusicBrainz has no cover to offer or it
+   *  is already proposed. */
+  onUseMusicBrainzCover?: () => void;
+  /** Queue an AI cover search. Omitted unless AI is ready
+   *  (lib/aiGating.ts) and a job can be queued. */
+  onAskAiForCover?: () => void;
 }
 
 /**
- * Top of the detail sheet: cover + title + artist + meta strip + badges.
+ * Top of the album panel: cover + title + artist + meta strip + badges.
  * Always visible (never collapsed) since it's the album's identity.
  *
- * The cover thumb doubles as the entry point for manual cover upload —
- * hover/focus reveals an "Replace" overlay that opens
- * `CoverUploadDialog`. Useful when the user has the right artwork
- * (clipboard, file on disk, URL) and Claude can't find it.
+ * The one Cover control lives here: a visible button whose menu offers
+ * the MusicBrainz cover (previewed and applied in the corrections),
+ * upload / paste / URL (`CoverUploadDialog`) and, when AI is ready, an AI
+ * search. A Missing album has no Cover control: its files cannot be
+ * written.
  */
-export default function AlbumHero({ album }: AlbumHeroProps) {
+export default function AlbumHero({ album, onUseMusicBrainzCover, onAskAiForCover }: AlbumHeroProps) {
   const artist = album.is_compilation
     ? "Various Artists"
     : displayArtist(album, "Unknown artist");
@@ -34,21 +43,21 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
   const myTags = tagsQuery.data?.album_tags ?? [];
 
   const [uploadOpen, setUploadOpen] = useState(false);
-  // Missing: the full-size cover is read from the files, and a cover
-  // upload is an apply (refused with 409), so show the stored thumbnail
-  // (a cache in the config folder, kept until the album is removed) with
-  // nothing to click. The resolution chip is left out too: the resolver
-  // reads the tracks from disk, and it only steers the actions a Missing
-  // album does not offer.
+  // Missing: a cover change is an apply (refused with 409), so there is no
+  // Cover control. The resolution chip is left out too: the resolver reads
+  // the tracks from disk, and it only steers the actions a Missing album
+  // does not offer.
   const isMissing = !!album.missing_since;
 
   return (
     <div className="flex gap-4 px-4 py-3.5 border-b border-line">
-      {isMissing ? (
-        <div className="relative w-24 h-24 shrink-0 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4 shadow-card">
+      <div className="shrink-0 flex flex-col items-center gap-1.5">
+        <div className="relative w-24 h-24 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4 shadow-card">
           {hasCover ? (
             <img
-              src={coverUrl(album)}
+              // Missing: the full-size cover is read from the files, so
+              // show the stored thumbnail (kept until the album is removed).
+              src={isMissing ? coverUrl(album) : coverUrl(album, { size: "full" })}
               alt=""
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -59,32 +68,15 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
             <Music className="w-7 h-7" />
           )}
         </div>
-      ) : (
-      <button
-        type="button"
-        onClick={() => setUploadOpen(true)}
-        className="relative w-24 h-24 shrink-0 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4 shadow-card group focus:outline-none focus:ring-2 focus:ring-accent"
-        title={hasCover ? "Replace cover art" : "Upload cover art"}
-        aria-label={hasCover ? "Replace cover art" : "Upload cover art"}
-      >
-        {hasCover ? (
-          <img
-            src={coverUrl(album, { size: "full" })}
-            alt=""
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
+        {!isMissing && (
+          <CoverMenu
+            hasCover={hasCover}
+            onUpload={() => setUploadOpen(true)}
+            onUseMusicBrainzCover={onUseMusicBrainzCover}
+            onAskAiForCover={onAskAiForCover}
           />
-        ) : (
-          <Music className="w-7 h-7" />
         )}
-        <span className="absolute inset-0 bg-black/55 text-white text-[11px] mono uppercase tracking-[0.06em] flex flex-col items-center justify-center gap-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition">
-          <ImagePlus className="w-4 h-4" />
-          {hasCover ? "Replace" : "Upload"}
-        </span>
-      </button>
-      )}
+      </div>
       {!isMissing && (
         <CoverUploadDialog
           album={album}
@@ -136,6 +128,74 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * "Add cover" / "Change cover", by whether the album has one. Always a
+ * menu, so the button means the same thing whatever is on offer.
+ */
+function CoverMenu({
+  hasCover,
+  onUpload,
+  onUseMusicBrainzCover,
+  onAskAiForCover,
+}: {
+  hasCover: boolean;
+  onUpload: () => void;
+  onUseMusicBrainzCover?: () => void;
+  onAskAiForCover?: () => void;
+}) {
+  const item =
+    "flex items-center gap-2 px-2.5 h-8 rounded text-sm text-fg-2 outline-none cursor-pointer data-[highlighted]:bg-bg-3 data-[highlighted]:text-fg";
+  // An item's action runs once the menu has closed and focus is back on
+  // the button. A dialog opened earlier would lose focus to the menu's own
+  // focus return, and would not know where to return it when it closes.
+  const trigger = useRef<HTMLButtonElement>(null);
+  const pending = useRef<(() => void) | null>(null);
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
+        <button
+          ref={trigger}
+          type="button"
+          className="h-7 px-2 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition inline-flex items-center gap-1 whitespace-nowrap"
+        >
+          <ImagePlus className="w-3.5 h-3.5" />
+          {hasCover ? "Change cover" : "Add cover"}
+          <ChevronDown className="w-3 h-3 opacity-70" />
+        </button>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="start"
+          sideOffset={4}
+          className="min-w-56 rounded-md border border-line-2 bg-panel shadow-popup p-1 z-[60]"
+          onCloseAutoFocus={(e) => {
+            const action = pending.current;
+            pending.current = null;
+            if (!action) return;
+            e.preventDefault();
+            trigger.current?.focus();
+            action();
+          }}
+        >
+          {onUseMusicBrainzCover && (
+            <DropdownMenu.Item className={item} onSelect={() => { pending.current = onUseMusicBrainzCover; }}>
+              <ImagePlus className="w-3.5 h-3.5" /> Use MusicBrainz cover
+            </DropdownMenu.Item>
+          )}
+          <DropdownMenu.Item className={item} onSelect={() => { pending.current = onUpload; }}>
+            <Upload className="w-3.5 h-3.5" /> Upload, paste or URL…
+          </DropdownMenu.Item>
+          {onAskAiForCover && (
+            <DropdownMenu.Item className={item} onSelect={() => { pending.current = onAskAiForCover; }}>
+              <Sparkles className="w-3.5 h-3.5" /> Ask AI to find a cover…
+            </DropdownMenu.Item>
+          )}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 

@@ -254,20 +254,20 @@ function Empty({ filterLabel, totalJobs, aiReady }: { filterLabel: string; total
     <div className="px-8 py-16 text-center">
       <Sparkles className="w-9 h-9 mx-auto mb-3 text-fg-4" />
       {totalJobs === 0 && !aiReady ? (
-        // Without a model only the jobs MusicBrainz covers can
-        // be queued, from the buttons' MusicBrainz labels.
+        // Without a model the album panel applies MusicBrainz corrections
+        // directly; only fixes started from Health queue jobs.
         <>
           <h3 className="text-md font-medium mb-1.5">No jobs yet</h3>
           <p className="text-sm text-fg-3 max-w-md mx-auto">
-            Open an album MusicBrainz has identified and click <b>Find MusicBrainz corrections</b> or <b>Get cover from MusicBrainz</b> to queue up your first job.
-            They'll run in the background — bebop around the library while they work.
+            MusicBrainz corrections now show up directly in an album's panel, ready to apply.
+            Fixes started from Health that run in the background are listed here.
           </p>
         </>
       ) : totalJobs === 0 ? (
         <>
           <h3 className="text-md font-medium mb-1.5">No AI jobs yet</h3>
           <p className="text-sm text-fg-3 max-w-md mx-auto">
-            Open an album and click <b>Suggest fixes</b> or <b>Find cover art</b> to queue up your first job.
+            Open an album and choose <b>Ask AI for corrections…</b>, or <b>Ask AI to find a cover…</b> from its Cover menu, to queue up your first job.
             They'll run in the background — bebop around the library while they work.
           </p>
         </>

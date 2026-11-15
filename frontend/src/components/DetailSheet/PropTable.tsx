@@ -84,7 +84,7 @@ function MusicBrainzCell({ album, aiReady }: { album: Album; aiReady: boolean })
       `This release-group will be added to the album's blocklist so ` +
       `automatic resolution can't pick it again. ` +
       (aiReady
-        ? `You can re-identify the album with a hint via "Suggest fixes".`
+        ? `You can re-identify the album with a hint via "Ask AI for corrections".`
         : `The next lookup searches MusicBrainz again.`),
     );
     if (!ok) return;

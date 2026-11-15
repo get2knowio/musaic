@@ -21,9 +21,8 @@ import JobsPage from "@/pages/Jobs";
 import SettingsPage from "@/pages/Settings";
 import BackupPanel from "@/pages/SettingsBackup";
 import PropTable from "@/components/DetailSheet/PropTable";
-import AISuggestions from "@/components/DetailSheet/AISuggestions";
+import AlbumPanel from "@/components/DetailSheet";
 import ResolutionBadge from "@/components/DetailSheet/ResolutionBadge";
-import MbPreviewSection from "@/components/DetailSheet/MbPreviewSection";
 import { AI_UNAVAILABLE, jobsPageLabel } from "@/lib/aiGating";
 import type { AiProvidersResponse } from "@/lib/api";
 import type { AlbumResolution, DbInfo, Job } from "@/lib/types";
@@ -135,10 +134,21 @@ const completedJob = makeJob({
   status: "completed",
 });
 
+const reviewJob = makeJob({
+  id: "j2",
+  album_id: "a1",
+  album_title: "Old Title",
+  job_type: "metadata",
+  status: "completed",
+  result: {
+    metadata: { suggestions: { title: "New Title" }, tracks: [], notes: "", confidence: "high" },
+  },
+});
+
 /** Each surface that names AI, and the wording it shows when ready. */
 const surfaces: { name: string; ui: () => ReactNode; jobs?: Job[]; act?: () => void; namesAi: string[] }[] = [
   { name: "Sidebar", ui: () => <Sidebar />, namesAi: ["AI Jobs"] },
-  { name: "Jobs page, empty", ui: () => <JobsPage />, namesAi: ["AI Jobs", "No AI jobs yet", "Suggest fixes"] },
+  { name: "Jobs page, empty", ui: () => <JobsPage />, namesAi: ["AI Jobs", "No AI jobs yet", "Ask AI for corrections"] },
   {
     name: "Jobs page, delete dialog",
     ui: () => <JobsPage />,
@@ -149,32 +159,21 @@ const surfaces: { name: string; ui: () => ReactNode; jobs?: Job[]; act?: () => v
   { name: "Job status badge", ui: () => <JobStatusBadge job={makeJob({ status: "queued", job_type: "metadata" })} />, namesAi: ["AI job: queued"] },
   { name: "Album info", ui: () => <PropTable album={album} aiReady={READY_FLAG.value} />, namesAi: ["AI reviewed"] },
   {
-    name: "Suggestions panel, nothing found",
-    ui: () => (
-      <AISuggestions
-        album={album}
-        metadata={{ album_id: "a1", suggestions: {}, tracks: [], notes: "", mb_release_group_mbid: null } as never}
-        cover={null}
-        onAccept={() => {}}
-        onDiscard={() => {}}
-        onClearAnchor={() => {}}
-        clearingAnchor={false}
-        applying={false}
-        aiReady={READY_FLAG.value}
-      />
-    ),
-    namesAi: ["Claude's review", "Claude couldn't identify", "with a hint", "new AI run"],
+    name: "Album panel, a job's corrections under review",
+    ui: () => <AlbumPanel album={album} onClose={() => {}} />,
+    jobs: [reviewJob],
+    namesAi: ["Suggested corrections", "Ask AI for corrections…"],
+  },
+  {
+    name: "Album panel, MusicBrainz corrections",
+    ui: () => <AlbumPanel album={album} onClose={() => {}} />,
+    namesAi: ["MusicBrainz corrections", "Ask AI for corrections…"],
   },
   { name: "Resolution badge", ui: () => <ResolutionBadge albumId="a1" />, namesAi: ["Matched via Claude AI", "without Claude AI"] },
-  {
-    name: "MusicBrainz preview",
-    ui: () => <MbPreviewSection album={album} hasActiveJob={false} applying={false} onApply={async () => {}} />,
-    namesAi: ["deterministic · no AI quota"],
-  },
   { name: "Backup panel", ui: () => <BackupPanel onRestored={() => {}} />, namesAi: ["AI-driven MBID anchors", "AI jobs"] },
 ];
 
-/** PropTable / AISuggestions take readiness as a prop from the sheet. */
+/** PropTable takes readiness as a prop from the panel. */
 const READY_FLAG = { value: false };
 
 describe("AI vocabulary follows ai.ready", () => {
@@ -202,11 +201,11 @@ describe("AI vocabulary follows ai.ready", () => {
     expect(jobsPageLabel({ known: true, ready: true, anyReady: true })).toBe("AI Jobs");
   });
 
-  it("Jobs empty state points at the MusicBrainz buttons without a ready provider", () => {
+  it("Jobs empty state names no AI action without a ready provider", () => {
     renderWith(false, <JobsPage />);
     expect(screen.getByRole("heading", { name: "No jobs yet" })).toBeInTheDocument();
-    expect(document.body.textContent).toContain("Find MusicBrainz corrections");
-    expect(document.body.textContent).not.toContain("Suggest fixes");
+    expect(document.body.textContent).toContain("MusicBrainz corrections now show up directly");
+    expect(document.body.textContent).not.toContain("Ask AI");
   });
 
   it("Settings: the AI worker card is hidden and the AcoustID help names no AI; the one notice stays", () => {

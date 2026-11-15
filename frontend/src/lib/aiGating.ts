@@ -20,8 +20,10 @@
  *    >= 0.85 and no track is unresolved; `cover` when a Cover Art Archive
  *    cover is verified with confidence >= 0.85; `metadata+cover` when both.
  *  - A job may be queued when AI is ready or the job needs no model.
- *  - Hint entry (the HintDialog) is offered only when AI is ready; without
- *    a model the hint has nothing to steer, so covered jobs queue directly.
+ *  - Hint entry (the HintDialog), and every album-panel control that only
+ *    exists to queue an AI job, is offered only when AI is ready; without a
+ *    model the hint has nothing to steer. The album panel's MusicBrainz
+ *    corrections need no job at all.
  *  - A health-check fix of kind `ai-job` is always offered. It
  *    tries MusicBrainz first; where it would escalate to an AI job and no
  *    backend exists, the server answers `ok: false` with the not-available
@@ -119,22 +121,11 @@ export function canQueueJob(
 }
 
 /**
- * The job the album sheet's metadata button queues. With AI ready this is
- * the original choice (bundle a cover lookup when the album has no cover).
- * Without AI the cover lookup is bundled only when the resolver covers it,
- * so the bundle never turns a model-free job into one that needs a model.
+ * Whether AI-only entry points are offered: the hint dialog, and the album
+ * panel's "Ask AI for corrections…" and "Ask AI to find a cover…" that open
+ * it. Without a ready backend none is shown; the panel's corrections come
+ * from the resolver alone.
  */
-export function metadataJobType(
-  albumHasCover: boolean,
-  coverage: ModelFreeCoverage,
-  ai: AiStatus,
-): JobType {
-  if (albumHasCover) return "metadata";
-  if (ai.ready || coverage.cover) return "metadata+cover";
-  return "metadata";
-}
-
-/** Whether to show the hint dialog before queueing. */
 export function offersHintEntry(ai: AiStatus): boolean {
   return ai.ready;
 }
