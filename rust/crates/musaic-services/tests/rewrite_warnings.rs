@@ -2,6 +2,10 @@
 //! the per-file stream events as `warnings`, a key present only when there
 //! is one, so every event the Python app recorded stays as it was.
 
+// The end-to-end test needs hard links and is unix-only; its helpers and
+// imports are unused elsewhere.
+#![cfg_attr(not(unix), allow(unused_imports, dead_code))]
+
 mod common;
 
 use std::ops::ControlFlow;
