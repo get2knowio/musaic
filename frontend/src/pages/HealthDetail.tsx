@@ -457,26 +457,43 @@ function DoneBody({
   summary: QuickFixSummary;
   fixKind: "none" | "ai-job" | "deterministic";
 }) {
-  const partial = summary.fixed > 0 && summary.skipped + summary.errors > 0;
+  // `fixed` counts only findings that are gone; a fix that wrote part of
+  // what its finding asks for is `still_open`.
+  const stillOpen = summary.still_open ?? 0;
+  const partial = summary.fixed > 0 && summary.skipped + summary.errors + stillOpen > 0;
   const ai = useAiStatus();
   const fallsThroughToAi = fixKind === "ai-job" && ai.ready;
+  const stillOpenNote = stillOpen > 0 && (
+    <>
+      {" "}
+      <b>{stillOpen}</b> {stillOpen === 1 ? "fix was" : "fixes were"} applied but{" "}
+      {stillOpen === 1 ? "its finding is" : "their findings are"} still open.
+    </>
+  );
   return (
     <>
-      <div className="grid grid-cols-4 gap-2 text-xs mb-3">
+      <div className={`grid ${stillOpen > 0 ? "grid-cols-5" : "grid-cols-4"} gap-2 text-xs mb-3`}>
         <Stat label="Fixed" value={summary.fixed} tone="ok" />
+        {stillOpen > 0 && <Stat label="Still open" value={stillOpen} tone="muted" />}
         <Stat label="Skipped" value={summary.skipped} tone="muted" />
         <Stat label="N/A" value={summary.not_applicable} tone="muted" />
         <Stat label="Errors" value={summary.errors} tone="err" />
       </div>
       <p className="text-sm text-fg-2">
         {summary.fixed === 0 ? (
-          fallsThroughToAi
-            ? "No findings were resolvable directly. The rest can still be fixed individually with AI."
-            : "No findings were resolvable. Check the per-finding messages for hints."
+          <>
+            {stillOpen > 0
+              ? "No findings were fully resolved."
+              : fallsThroughToAi
+                ? "No findings were resolvable directly. The rest can still be fixed individually with AI."
+                : "No findings were resolvable. Check the per-finding messages for hints."}
+            {stillOpenNote}
+          </>
         ) : (
           <>
             Resolved <b>{summary.fixed}</b> of {summary.total} finding
             {summary.total === 1 ? "" : "s"}.
+            {stillOpenNote}
             {partial && fallsThroughToAi && " The rest can be fixed individually with AI."}
             {partial && !fallsThroughToAi && " The rest stay open — see per-finding messages for why."}
           </>

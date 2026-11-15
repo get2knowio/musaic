@@ -116,14 +116,17 @@ fn panic_message(p: Box<dyn std::any::Any + Send>) -> String {
 /// `library_path` is used as given (the Python app's callers pass the resolved
 /// library directory). Missing albums are left out of `scope.albums`. When
 /// the scope can resolve, findings of this check not seen in this run are
-/// resolved, limited to the scope's albums for an album-scoped run; findings
+/// resolved, limited to the scope's albums for an album-scoped run (unless
+/// the check sees the whole library on every run,
+/// [`crate::base::Check::sees_whole_library`]: then library-wide); findings
 /// of Missing albums are never resolved (a library-wide run leaves
 /// them untouched until the album returns; the Python app resolved them), and
 /// neither are findings of albums of another library (the Python app's
 /// library-wide run resolved them). Findings with no album, or whose album
 /// row is gone, are resolved by any library-wide run, as in the Python app. A check
 /// that errors (or panics) marks the run `failed` with the message; findings
-/// it emitted before failing stay, and nothing is auto-resolved.
+/// it emitted before failing stay and are counted in its `issue_count` (the
+/// Python app reported 0), and nothing is auto-resolved.
 pub fn run_check(
     conn: &Connection,
     env: &CheckEnv,
@@ -168,9 +171,11 @@ pub fn run_check(
     let run_id = findings::insert_run(conn, check_id, &started_at, library_path, &scope_str)?;
     (env.notify)();
 
-    let outcome: Result<i64, CheckError> = (|| {
+    // Counted outside the run so a failed run still reports the findings it
+    // upserted before failing.
+    let mut issue_count = 0i64;
+    let outcome: Result<(), CheckError> = (|| {
         let mut seen: HashSet<i64> = HashSet::new();
-        let mut issue_count = 0i64;
         let ctx = CheckCtx { conn, env };
         let mut emit = |f: Finding| -> Result<(), CheckError> {
             let detail = f.detail.as_ref().map(PyJson::dumps);
@@ -194,7 +199,13 @@ pub fn run_check(
             let now = env.clock.now_iso();
             let mut seen: Vec<i64> = seen.into_iter().collect();
             seen.sort_unstable();
-            let ids = scope.resolve_scope_album_ids();
+            // A check that saw the whole library resolves across it, so a
+            // multi-album finding closes whichever member was fixed.
+            let ids = if check.sees_whole_library() {
+                None
+            } else {
+                scope.resolve_scope_album_ids()
+            };
             // Only findings of this library's albums (plus, as in
             // the Python app, findings with no album or a vanished album row).
             findings::resolve_unseen_in_library(
@@ -206,16 +217,21 @@ pub fn run_check(
                 &now,
             )?;
         }
-        Ok(issue_count)
+        Ok(())
     })();
 
     let completed_at = env.clock.now_iso();
     let duration_ms = started.elapsed().as_millis() as i64;
     match outcome {
-        Ok(issue_count) => {
-            findings::complete_run(conn, run_id, &completed_at, issue_count, duration_ms)?
-        }
-        Err(e) => findings::fail_run(conn, run_id, &completed_at, &e.to_string(), duration_ms)?,
+        Ok(()) => findings::complete_run(conn, run_id, &completed_at, issue_count, duration_ms)?,
+        Err(e) => findings::fail_run(
+            conn,
+            run_id,
+            &completed_at,
+            &e.to_string(),
+            issue_count,
+            duration_ms,
+        )?,
     }
     (env.notify)();
     Ok(findings::get_run(conn, run_id)?.expect("check_runs row vanished after insert"))

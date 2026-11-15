@@ -143,6 +143,16 @@ impl CheckScope {
         matches!(self.kind, ScopeKind::All | ScopeKind::Albums)
     }
 
+    /// For a check that reads album rows itself: `Some(ids)` (a JSON list,
+    /// for `json_each`) when only these albums are to be read (an
+    /// album-scoped run), `None` for the whole library.
+    pub fn album_ids_json(&self) -> Option<String> {
+        (self.kind == ScopeKind::Albums).then(|| {
+            serde_json::Value::from(self.albums.iter().map(|a| a.id.clone()).collect::<Vec<_>>())
+                .to_string()
+        })
+    }
+
     /// `None` = resolve across the library; `Some(ids)` = only these albums.
     pub fn resolve_scope_album_ids(&self) -> Option<Vec<String>> {
         match self.kind {
@@ -229,6 +239,14 @@ pub type Emit<'e> = dyn FnMut(Finding) -> Result<(), CheckError> + 'e;
 /// an error stay recorded, as in the Python app.
 pub trait Check: Send + Sync {
     fn meta(&self) -> &CheckMeta;
+    /// `true` when every run, whatever its scope, looks at the whole
+    /// library and emits every finding the check has there. An album-scoped
+    /// run of such a check then auto-resolves library-wide: a finding that
+    /// spans several albums but is stored on one of them (an artist-sort
+    /// cluster) is resolved when a fix to another member clears it.
+    fn sees_whole_library(&self) -> bool {
+        false
+    }
     fn run(
         &self,
         ctx: &CheckCtx<'_>,

@@ -486,9 +486,13 @@ impl Check for TagsOutOfSync {
                 "SELECT id, dir_name, path, title, artist, album_artist, year, genre, \
                         album_artist_sort, artist_sort, album_sort, is_compilation, \
                         mb_release_group_mbid, mb_release_mbid \
-                 FROM albums WHERE library_path = ?1 AND missing_since IS NULL",
+                 FROM albums WHERE library_path = ?1 AND missing_since IS NULL \
+                   AND (?2 IS NULL OR id IN (SELECT value FROM json_each(?2)))",
             )?;
-            stmt.query_map([&scope.library_path], |r| {
+            // An album-scoped run reads (and resolves, which can be
+            // MusicBrainz work) only its albums; the Python app read every one.
+            let only = scope.album_ids_json();
+            stmt.query_map(rusqlite::params![scope.library_path, only], |r| {
                 Ok(TagsRow {
                     id: r.get(0)?,
                     dir_name: r.get(1)?,

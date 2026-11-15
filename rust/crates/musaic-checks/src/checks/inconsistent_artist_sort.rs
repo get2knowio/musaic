@@ -3,12 +3,17 @@
 //! whose sort tags disagree. Also the bulk-apply plan (`apply_cluster_sort`
 //! without the tag writes) and the API's member normalisation.
 //!
-//! Reproduced from the Python app: an album joins at album level only when
-//! ALBUMARTIST is set; an ARTIST-only album never does.
+//! Deliberate change: an album without ALBUMARTIST joins at album level,
+//! credited with its ARTIST through the shared cascade
+//! ([`musaic_core::album_fields::display_artist`]), when it is a
+//! single-artist album (not a compilation, every track by the same primary
+//! artist). The Python app clustered albums on ALBUMARTIST only, so the
+//! ALBUMARTISTSORT of an ARTIST-only album was never compared.
 
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
+use musaic_core::album_fields::display_artist;
 use musaic_core::pycompat::strip;
 use musaic_events::{Bus, Event};
 use musaic_fsops::py_repr;
@@ -365,8 +370,29 @@ pub struct SortRow {
     pub id: String,
     pub dir_name: Option<String>,
     pub album_artist: Option<String>,
+    /// ARTIST of the album's sample track.
+    pub artist: Option<String>,
+    pub is_compilation: bool,
     pub album_artist_sort: Option<String>,
     pub track_artists_json: Option<String>,
+}
+
+/// Whether an album without ALBUMARTIST is credited at album level with its
+/// ARTIST ([`display_artist`]). Only a single-artist album is: not a
+/// compilation, and every track ARTIST has the same primary artist as the
+/// album's. Otherwise the sample track's ARTIST stands for one track, and a
+/// cluster apply would write that artist's sort as ALBUMARTISTSORT on every
+/// file of a various-artists album.
+fn artist_only_album_credit(r: &SortRow, tracks: &[TrackArtist]) -> bool {
+    if r.is_compilation {
+        return false;
+    }
+    let token = primary_token(r.artist.as_deref());
+    !token.is_empty()
+        && tracks
+            .iter()
+            .filter(|t| !strip(&t.artist).is_empty())
+            .all(|t| primary_token(Some(&t.artist)) == token)
 }
 
 /// Cluster the rows (in row order) and return one finding per cluster of two
@@ -378,9 +404,23 @@ pub fn findings_for(rows: &[SortRow]) -> Vec<Finding> {
         None => clusters.push((token, vec![m])),
     };
     for r in rows {
-        let album_artist = r.album_artist.clone().unwrap_or_default();
+        let tracks = parse_track_artists_json(r.track_artists_json.as_deref());
+        // The album's credit through the shared cascade (ALBUMARTIST, then
+        // ARTIST), so an ARTIST-only album joins at album level too. The
+        // stored member keeps ALBUMARTIST as tagged (unstripped), as the
+        // Python app's detail did.
+        let has_album_artist = r
+            .album_artist
+            .as_deref()
+            .is_some_and(|a| !strip(a).is_empty());
+        let album_artist = if has_album_artist {
+            r.album_artist.clone().unwrap_or_default()
+        } else if artist_only_album_credit(r, &tracks) {
+            display_artist(None, r.artist.as_deref(), None, false)
+        } else {
+            String::new()
+        };
         let aa_sort = strip(r.album_artist_sort.as_deref().unwrap_or("")).to_string();
-        // ALBUMARTIST only.
         if !strip(&album_artist).is_empty() && !is_never_normalize(Some(&album_artist)) {
             let token = primary_token(Some(&album_artist));
             if !token.is_empty() {
@@ -396,7 +436,7 @@ pub fn findings_for(rows: &[SortRow]) -> Vec<Finding> {
             }
         }
         let mut grouped: Vec<((String, String), Vec<String>)> = Vec::new();
-        for t in parse_track_artists_json(r.track_artists_json.as_deref()) {
+        for t in tracks {
             let artist = strip(&t.artist).to_string();
             if artist.is_empty() || is_never_normalize(Some(&artist)) {
                 continue;
@@ -444,6 +484,13 @@ impl Check for InconsistentArtistSort {
         &META
     }
 
+    /// Clusters span albums and the finding is stored on one member, so a
+    /// run scoped to another member must still resolve it; every run reads
+    /// all of the library's Present albums, so it can.
+    fn sees_whole_library(&self) -> bool {
+        true
+    }
+
     fn run(
         &self,
         ctx: &CheckCtx<'_>,
@@ -452,7 +499,8 @@ impl Check for InconsistentArtistSort {
     ) -> Result<(), CheckError> {
         let rows: Vec<SortRow> = {
             let mut stmt = ctx.conn.prepare(
-                "SELECT id, dir_name, album_artist, album_artist_sort, track_artists_json \
+                "SELECT id, dir_name, album_artist, album_artist_sort, track_artists_json, \
+                 artist, is_compilation \
                  FROM albums WHERE library_path = ?1 AND missing_since IS NULL",
             )?;
             stmt.query_map([&scope.library_path], |r| {
@@ -462,6 +510,8 @@ impl Check for InconsistentArtistSort {
                     album_artist: r.get(2)?,
                     album_artist_sort: r.get(3)?,
                     track_artists_json: r.get(4)?,
+                    artist: r.get(5)?,
+                    is_compilation: r.get::<_, Option<i64>>(6)?.unwrap_or(0) != 0,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?

@@ -240,10 +240,17 @@ impl Check for DuplicateTracks {
                  FROM track_fingerprints tf JOIN albums a ON a.id = tf.album_id \
                  WHERE tf.fingerprint IS NOT NULL AND a.missing_since IS NULL \
                    AND a.library_path = ?1 \
+                   AND (?2 IS NULL OR tf.album_id IN (SELECT value FROM json_each(?2))) \
                  ORDER BY tf.album_id, tf.filename",
             )?;
-            stmt.query_map([&scope.library_path], |r| Ok((r.get(0)?, fp_track(r)?)))?
-                .collect::<rusqlite::Result<_>>()?
+            // Duplicates are clustered within one album, so an album-scoped
+            // run needs only its albums' fingerprints (the Python app loaded
+            // and clustered every album's).
+            let only = scope.album_ids_json();
+            stmt.query_map(rusqlite::params![scope.library_path, only], |r| {
+                Ok((r.get(0)?, fp_track(r)?))
+            })?
+            .collect::<rusqlite::Result<_>>()?
         };
         let mut albums: Vec<(String, Vec<FpTrack>)> = Vec::new();
         for (album_id, t) in rows {

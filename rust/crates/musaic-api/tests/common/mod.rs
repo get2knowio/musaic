@@ -5,6 +5,7 @@
 #![allow(dead_code)]
 
 pub mod ai_wording;
+pub mod artist_only;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

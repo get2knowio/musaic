@@ -26,29 +26,28 @@ cover. Albums with a recent failed lookup are skipped so bulk passes don't keep 
     bulk_action_label: Some("Try MusicBrainz on all"),
 };
 
-/// The Python app's query, verbatim in substance. Note (reproduced): `created_at`
-/// is ISO-8601 with a `T` while SQLite's `datetime()` uses a space, so on
-/// the cut-off day itself the comparison is decided by `'T' > ' '`.
-fn sql() -> String {
-    format!(
-        "SELECT id, dir_name, dir_artist, dir_album FROM albums
-         WHERE library_path = ?1
-           AND missing_since IS NULL
-           AND has_embedded_cover = 0
-           AND cover_file IS NULL
-           AND NOT EXISTS (
-             SELECT 1 FROM ai_jobs j
-             WHERE j.album_id = albums.id
-               AND j.job_type IN ('cover', 'metadata+cover')
-               AND j.created_at > datetime('now', '-{RECENT_ATTEMPT_DAYS} days')
-               AND (
-                 j.status = 'failed'
-                 OR (j.status = 'acted_on'
-                     AND COALESCE(json_extract(j.result_json, '$.cover.cover_url'), '') = '')
-               )
-           )"
-    )
-}
+/// The Python app's query, with one deliberate change: the window is
+/// compared as points in time (`julianday` of both sides; the cut-off,
+/// `?2`, comes from the check's clock). The Python app compared the
+/// `created_at` text (ISO-8601 with a `T`) with SQLite's `datetime()` text (a
+/// space), so on the cut-off date `'T' > ' '` counted a job up to a day older
+/// than the window as recent.
+const SQL: &str = "SELECT id, dir_name, dir_artist, dir_album FROM albums
+     WHERE library_path = ?1
+       AND missing_since IS NULL
+       AND has_embedded_cover = 0
+       AND cover_file IS NULL
+       AND NOT EXISTS (
+         SELECT 1 FROM ai_jobs j
+         WHERE j.album_id = albums.id
+           AND j.job_type IN ('cover', 'metadata+cover')
+           AND julianday(j.created_at) > julianday(?2)
+           AND (
+             j.status = 'failed'
+             OR (j.status = 'acted_on'
+                 AND COALESCE(json_extract(j.result_json, '$.cover.cover_url'), '') = '')
+           )
+       )";
 
 impl Check for NoCoverArt {
     fn meta(&self) -> &CheckMeta {
@@ -62,9 +61,13 @@ impl Check for NoCoverArt {
         emit: &mut Emit<'_>,
     ) -> Result<(), CheckError> {
         type Row = (String, Option<String>, Option<String>, Option<String>);
+        let cutoff = musaic_db::backup::iso_seconds(
+            ctx.env.clock.now()
+                - std::time::Duration::from_secs(u64::from(RECENT_ATTEMPT_DAYS) * 24 * 3600),
+        );
         let rows: Vec<Row> = {
-            let mut stmt = ctx.conn.prepare(&sql())?;
-            stmt.query_map([&scope.library_path], |r| {
+            let mut stmt = ctx.conn.prepare(SQL)?;
+            stmt.query_map(rusqlite::params![scope.library_path, cutoff], |r| {
                 Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
             })?
             .collect::<rusqlite::Result<_>>()?

@@ -25,6 +25,12 @@
 //!   and the album row stay.
 //! - Two libraries (`two_libraries`): a library-wide run no longer resolves the
 //!   findings of another library's albums.
+//! - Failed runs (`raising_check_does_not_stop_the_sweep`, `post_scan_guard`):
+//!   a failed run's `issue_count` counts the findings it upserted before
+//!   failing (the Python app left it 0).
+//! - Artist-sort clusters (`fix_artist_sort`): an album-scoped run of
+//!   inconsistent-artist-sort resolves across the library, so fixing another
+//!   member closes the cluster's finding.
 
 mod common;
 
@@ -262,6 +268,31 @@ fn replay(sc: &J) -> Vec<J> {
 /// `n_sweep` runs right after the outer `nested` row); ids are renumbered.
 /// (3) With rows removed, clock values shift, so timestamps of runs and
 /// findings are blanked in such scenarios.
+/// Delta: a failed run counts the findings it upserted before failing. The
+/// fake `boom` check emits one finding and then fails; the Python app left
+/// its run's `issue_count` at 0. Every failed `boom` run row (and a step's
+/// returned run): 0 -> 1.
+fn failed_run_count_delta(mut steps: Vec<J>) -> Vec<J> {
+    let mut changed = 0;
+    let mut fix = |r: &mut J| {
+        if r["check_id"] == "boom" && r["status"] == "failed" {
+            assert_eq!(r["issue_count"], 0, "Python app record");
+            r["issue_count"] = json!(1);
+            changed += 1;
+        }
+    };
+    for st in &mut steps {
+        for r in st["runs"].as_array_mut().into_iter().flatten() {
+            fix(r);
+        }
+        if let Some(r) = st["result"].get_mut("run") {
+            fix(r);
+        }
+    }
+    assert!(changed > 0, "failed-run delta changed nothing");
+    steps
+}
+
 fn post_scan_guard_delta(steps: &[J], n_sweep: usize) -> Vec<J> {
     let had_nested = steps.iter().any(|s| {
         s["probe"]
@@ -514,9 +545,27 @@ fn fix_on_disk_filename() {
 
 /// Inconsistent-artist-sort finding hangs on the representative
 /// album; scoped rerun of another member does not resolve it.
+///
+/// Delta: inconsistent-artist-sort sees the whole library on every run,
+/// so the album-scoped rerun for m2 (step 2) resolves the cluster's finding
+/// stored on m1; the Python app left it open until the library-wide run of
+/// step 3. Steps 2-3: finding 1 `resolved_at` -> "2026-01-01T00:00:05Z" (from
+/// null at step 2, from "2026-01-01T00:00:08Z" at step 3).
 #[test]
 fn fix_artist_sort() {
-    exact("fix-artist-sort");
+    let sc = scenario("fix-artist-sort");
+    let want = with_delta(&sc, |i, st| match i {
+        2 => finding_delta(st, 1, "resolved_at", J::Null, json!("2026-01-01T00:00:05Z")),
+        3 => finding_delta(
+            st,
+            1,
+            "resolved_at",
+            json!("2026-01-01T00:00:08Z"),
+            json!("2026-01-01T00:00:05Z"),
+        ),
+        _ => {}
+    });
+    assert_steps("fix-artist-sort", &replay(&sc), &want);
 }
 
 /// Preview contract: derive_cluster / cluster-preview after
@@ -536,12 +585,13 @@ fn default_post_scan_and_summary() {
 
 /// A failing check: the failing run is 'failed' with the message,
 /// its partial finding stays, its stale finding is not resolved, and the
-/// sweep continues. Delta: the probe sees the flag.
+/// sweep continues. Deltas: the probe sees the flag; the failed run counts
+/// its partial finding.
 #[test]
 fn raising_check_does_not_stop_the_sweep() {
     let sc = scenario("raising-check");
     let got = replay(&sc);
-    let want = post_scan_guard_delta(sc["steps"].as_array().unwrap(), 4);
+    let want = failed_run_count_delta(post_scan_guard_delta(sc["steps"].as_array().unwrap(), 4));
     assert_steps("raising-check", &got, &want);
 }
 
@@ -550,7 +600,7 @@ fn raising_check_does_not_stop_the_sweep() {
 fn post_scan_guard() {
     let sc = scenario("post-scan-guard");
     let mut got = replay(&sc);
-    let want = post_scan_guard_delta(sc["steps"].as_array().unwrap(), 4);
+    let want = failed_run_count_delta(post_scan_guard_delta(sc["steps"].as_array().unwrap(), 4));
     blank_times(&mut got);
     assert_steps("post-scan-guard", &got, &want);
     // The Python app really did run a second sweep (so the delta is not vacuous).

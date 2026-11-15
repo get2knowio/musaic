@@ -165,3 +165,79 @@ pub fn events_in_walk_order(
         evs[i] = e;
     }
 }
+
+/// The Python app's quick-fix-all SSE text with the verified count
+/// (deliberate change): `done` also carries `still_open`, the
+/// findings whose fix reported success but which a rerun of the check over
+/// the touched albums still finds, and `fixed` no longer counts them. The
+/// recorded `done` frame gains `"still_open": <still_open>` and its `fixed`
+/// drops by that much; every other frame is unchanged.
+pub fn done_with_still_open(sse: &str, still_open: i64) -> String {
+    let mut out = String::new();
+    let mut changed = 0;
+    for frame in sse.split_inclusive("\n\n") {
+        let Some(data) = frame
+            .strip_prefix("event: done\ndata: ")
+            .and_then(|d| d.strip_suffix("}\n\n"))
+        else {
+            out.push_str(frame);
+            continue;
+        };
+        let (head, rest) = data.split_once("\"fixed\": ").unwrap();
+        let (n, tail) = rest.split_once(',').unwrap();
+        let fixed: i64 = n.parse().unwrap();
+        assert!(fixed >= still_open, "{frame}");
+        out.push_str(&format!(
+            "event: done\ndata: {head}\"fixed\": {},{tail}, \"still_open\": {still_open}}}\n\n",
+            fixed - still_open
+        ));
+        changed += 1;
+    }
+    assert_eq!(changed, 1, "one done frame: {sse}");
+    out
+}
+
+/// quick-fix-all steps whose `done` frame reports findings still open after
+/// a fix that reported success ([`done_with_still_open`]); every other
+/// quick-fix-all step reports 0. "quick-fix-all artist-sort": the
+/// propagation writes ALBUMARTISTSORT on The Kilo - Twelve, whose track
+/// (ARTIST "The Kilo", no ARTISTSORT) then differs from its album credit and
+/// joins the cluster as a track-level member, so the cluster is still
+/// propagatable and the Python app's own sweep after the step left the
+/// finding open too (its record's state).
+/// "quick-fix-all tags-out-of-sync": both fixes write the canonical value
+/// MusicBrainz has (a sort tag, a title) but the albums still lack a genre,
+/// so both findings stay open under a shorter summary (the case the
+/// change is about: the Python app reported "fixed 2").
+/// "quick-fix-all unidentified": November is anchored (from the resolver's
+/// cache) but fingerprinting fails without an AcoustID key, so its "Not yet
+/// fingerprinted" finding stays open.
+pub const STILL_OPEN: &[(&str, i64)] = &[
+    ("quick-fix-all artist-sort", 1),
+    ("quick-fix-all tags-out-of-sync", 2),
+    ("quick-fix-all unidentified", 1),
+];
+
+/// [`STILL_OPEN`]'s count for a step label (0 when not listed).
+pub fn still_open_for(label: &str) -> i64 {
+    STILL_OPEN
+        .iter()
+        .find(|(l, _)| *l == label)
+        .map_or(0, |(_, n)| *n)
+}
+
+/// A state's `open_findings` after quick-fix-all's rerun of its check
+/// (deliberate change; the Python app left the findings as they were until
+/// the check's next run): `resolved` rows ((check, album, summary) as the
+/// state lists them) are removed, `opened` rows (a partly fixed album's
+/// finding under its new summary) added when not already listed.
+pub fn rerun_open_findings(state: &mut Value, resolved: &[Value], opened: &[Value]) {
+    if let Some(Value::Array(open)) = state.get_mut("open_findings") {
+        open.retain(|r| !resolved.contains(r));
+        for r in opened {
+            if !open.contains(r) {
+                open.push(r.clone());
+            }
+        }
+    }
+}
