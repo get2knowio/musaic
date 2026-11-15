@@ -218,7 +218,10 @@ See `musaic-fsops/src/rename.rs` (`samefile`) and `musaic-tags/src/sidecar.rs`.
 
 Album ids, by contrast, hash the resolved path string (symlinks followed, no case or
 Unicode normalisation) (`musaic-core/src/album_id.rs`, `musaic-scan/src/listing.rs` `py_resolve`):
-changing that orphans every user's database.
+changing that orphans every user's database. On Windows the resolved path is the OS's
+final path, as Python's `Path.resolve()` gives there (8.3 short names expanded, on-disk
+case, no `\\?\` prefix: `musaic-core/src/config.rs` `windows_realpath`), so one folder
+has one id however its path was typed.
 
 ### 4. One accessor per album-field cascade
 

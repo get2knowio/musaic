@@ -47,7 +47,113 @@ pub fn workspace_root() -> PathBuf {
     // This crate is `rust/crates/musaic-testdata`.
     let here = Path::new(env!("CARGO_MANIFEST_DIR"));
     let root = here.join("../..");
-    root.canonicalize().unwrap_or(root)
+    if root.exists() { canonical(root) } else { root }
+}
+
+/// `std::fs::canonicalize`, without the `\\?\` prefix it adds on Windows: the
+/// spelling `musaic_scan::py_resolve` gives an existing directory (on-disk
+/// names, links followed, 8.3 short names expanded on Windows), so a temp dir
+/// made with this matches the paths the app stores and reports. Panics when
+/// the path does not exist.
+pub fn canonical(p: impl AsRef<Path>) -> PathBuf {
+    let p = p.as_ref();
+    let c = p
+        .canonicalize()
+        .unwrap_or_else(|e| panic!("canonicalize {}: {e}", p.display()));
+    match c.to_str() {
+        Some(s) if s.starts_with(r"\\?\UNC\") => PathBuf::from(format!(r"\\{}", &s[8..])),
+        Some(s) if s.starts_with(r"\\?\") && s.as_bytes().get(5) == Some(&b':') => {
+            PathBuf::from(&s[4..])
+        }
+        _ => c,
+    }
+}
+
+/// `s.replace(root, marker)`, for masking a temp root in output compared
+/// with a golden recorded on macOS. On Windows the path that follows each
+/// masked root is also spelled with `/`, as the golden spells it. The root
+/// is looked for with its separators escaped once (JSON, or a Python-style
+/// repr: `C:\\Users\\…`) or twice (a repr inside JSON), most-escaped
+/// first, then as written; the separators of the same width that follow it
+/// become `/`, up to the next `'`, `"`, `\"` or line end, and any other
+/// escape (such as `\u00e9`) is kept. Elsewhere this is exactly
+/// `str::replace`.
+pub fn replace_root(s: &str, root: &str, marker: &str) -> String {
+    if !cfg!(windows) || root.is_empty() {
+        return s.replace(root, marker);
+    }
+    let mut out = s.to_owned();
+    for width in [4, 2, 1] {
+        let sep = "\\".repeat(width);
+        out = mask_runs(&out, &root.replace('\\', &sep), marker, &sep);
+    }
+    out
+}
+
+fn mask_runs(s: &str, root: &str, marker: &str, sep: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(at) = rest.find(root) {
+        out.push_str(&rest[..at]);
+        out.push_str(marker);
+        rest = &rest[at + root.len()..];
+        let mut i = 0;
+        while i < rest.len() {
+            let tail = &rest[i..];
+            if tail.starts_with(sep) {
+                out.push('/');
+                i += sep.len();
+                continue;
+            }
+            let c = tail.chars().next().unwrap();
+            if matches!(c, '\'' | '"' | '\n' | '\r') {
+                break;
+            }
+            if c == '\\' {
+                // An escaped quote ends the string; another escape is kept.
+                let after = tail.trim_start_matches('\\');
+                if after.starts_with('"') {
+                    break;
+                }
+                let run = tail.len() - after.len();
+                out.push_str(&tail[..run]);
+                i += run;
+                continue;
+            }
+            out.push(c);
+            i += c.len_utf8();
+        }
+        rest = &rest[i..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// A message recorded on macOS with the C library's text for ENOENT, in
+/// this OS's words: on Windows `No such file or directory (os error 2)`
+/// becomes `The system cannot find the file specified. (os error 2)`, the
+/// text `std::io::Error` gives there. Elsewhere unchanged.
+pub fn os_error_text(s: &str) -> String {
+    if !cfg!(windows) {
+        return s.to_owned();
+    }
+    s.replace(
+        "No such file or directory (os error 2)",
+        &std::io::Error::from_raw_os_error(2).to_string(),
+    )
+}
+
+/// `rel` with its components joined by `/`, the way goldens recorded on
+/// macOS spell relative paths.
+pub fn slash_path(rel: impl AsRef<Path>) -> String {
+    let mut out = String::new();
+    for c in rel.as_ref().components() {
+        if !out.is_empty() {
+            out.push('/');
+        }
+        out.push_str(&c.as_os_str().to_string_lossy());
+    }
+    out
 }
 
 /// The public test-data root (`rust/testdata`).
@@ -77,11 +183,7 @@ pub fn private_root() -> Option<PathBuf> {
         }
         None => {
             let p = workspace_root().join("..").join(PRIVATE_FALLBACK_DIR);
-            if p.is_dir() {
-                Some(p.canonicalize().unwrap_or(p))
-            } else {
-                None
-            }
+            if p.is_dir() { Some(canonical(p)) } else { None }
         }
     }
 }
@@ -357,5 +459,50 @@ mod tests {
     #[should_panic(expected = "both halves hold a value")]
     fn conflicting_scalars_panic() {
         merge(json!({"a": 1}), json!({"a": 2}));
+    }
+
+    #[test]
+    fn mask_runs_spells_the_masked_path_with_slashes() {
+        let root = r"C:\t\lib";
+        assert_eq!(
+            mask_runs(
+                r"Album directory 'C:\t\lib\A\B' is gone",
+                root,
+                "<LIB>",
+                "\\"
+            ),
+            "Album directory '<LIB>/A/B' is gone"
+        );
+        let escaped = r"C:\\t\\lib";
+        assert_eq!(
+            mask_runs(
+                r#"{"path": "C:\\t\\lib\\Caf\u00e9\\01.flac", "x": "a\\b"}"#,
+                escaped,
+                "<LIB>",
+                r"\\"
+            ),
+            r#"{"path": "<LIB>/Caf\u00e9/01.flac", "x": "a\\b"}"#
+        );
+        assert_eq!(
+            mask_runs(
+                r#"data: {\"p\": \"C:\\t\\lib\\x\"}"#,
+                escaped,
+                "<LIB>",
+                r"\\"
+            ),
+            r#"data: {\"p\": \"<LIB>/x\"}"#
+        );
+        // A Python repr inside JSON: separators escaped twice.
+        let twice = r"C:\\\\t\\\\lib";
+        assert_eq!(
+            mask_runs(
+                r#""[Errno 13] Permission denied: 'C:\\\\t\\\\lib\\\\A\\\\01.flac'""#,
+                twice,
+                "<LIB>",
+                r"\\\\"
+            ),
+            r#""[Errno 13] Permission denied: '<LIB>/A/01.flac'""#
+        );
+        assert_eq!(slash_path(Path::new("a").join("b")), "a/b");
     }
 }

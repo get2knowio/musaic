@@ -77,13 +77,9 @@ fn trash_listing(root: &std::path::Path) -> Vec<String> {
             if e.file_type().unwrap().is_dir() {
                 walk(&e.path(), root, out);
             } else {
-                out.push(
-                    e.path()
-                        .strip_prefix(root)
-                        .unwrap()
-                        .to_string_lossy()
-                        .into_owned(),
-                );
+                out.push(musaic_testdata::slash_path(
+                    e.path().strip_prefix(root).unwrap(),
+                ));
             }
         }
     }
@@ -196,7 +192,7 @@ fn replay(sc: &J) -> Vec<J> {
                     Ok(t) => json!({
                         "ok": true,
                         "message": t.message,
-                        "trashed_to": t.trashed_to.map(|p| p.to_string_lossy().replace(&trash.to_string_lossy().into_owned(), "<TRASH>")),
+                        "trashed_to": t.trashed_to.map(|p| musaic_testdata::replace_root(&p.to_string_lossy(), &trash.to_string_lossy(), "<TRASH>")),
                     }),
                     Err(e) => json!({"http_error": e.status, "detail": sb.unsub(&e.detail)}),
                 };
@@ -410,7 +406,10 @@ fn assert_steps(id: &str, got: &[J], want: &[J]) {
     assert_eq!(got.len(), want.len(), "{id}: step count");
     for (i, (g, w)) in got.iter().zip(want).enumerate() {
         for k in ["result", "findings", "runs", "probe"] {
-            assert_eq!(g[k], w[k], "{id}: step {i} ({}) {k}", w["op"]);
+            // The recorded messages carry macOS's text for ENOENT.
+            let w_k: J =
+                serde_json::from_str(&musaic_testdata::os_error_text(&w[k].to_string())).unwrap();
+            assert_eq!(g[k], w_k, "{id}: step {i} ({}) {k}", w["op"]);
         }
     }
 }

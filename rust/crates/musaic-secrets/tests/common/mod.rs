@@ -14,7 +14,7 @@ pub fn golden(name: &str) -> Value {
 /// migrated to v17, with its pre-migration backup beside it).
 pub fn open_copy(fixture: &str) -> (tempfile::TempDir, PathBuf, Db) {
     let t = tempfile::tempdir().unwrap();
-    let dir = t.path().canonicalize().unwrap();
+    let dir = musaic_testdata::canonical(t.path());
     let p = dir.join("library.db");
     std::fs::copy(musaic_testdata::public("db").join(fixture), &p).unwrap();
     let (db, _) = Db::open(&p).unwrap();

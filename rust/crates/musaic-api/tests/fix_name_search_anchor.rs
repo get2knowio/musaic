@@ -121,7 +121,7 @@ async fn world(case: &Value) -> World {
     let td = tempfile::tempdir().unwrap();
     let lib = td.path().join("lib").canonicalize().unwrap_or_else(|_| {
         std::fs::create_dir(td.path().join("lib")).unwrap();
-        td.path().join("lib").canonicalize().unwrap()
+        musaic_testdata::canonical(td.path().join("lib"))
     });
     let transport = Arc::new(Overlay::new(&case["overlay"]));
     let st = AppState::builder(td.path().join("cfg"))

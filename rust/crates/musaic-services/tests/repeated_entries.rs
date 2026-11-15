@@ -22,7 +22,7 @@ fn names(dir: &Path) -> Option<Vec<OsString>> {
 #[test]
 fn a_folder_listed_twice_is_discovered_once() {
     let t = tempfile::tempdir().unwrap();
-    let root = t.path().canonicalize().unwrap();
+    let root = musaic_testdata::canonical(t.path());
     touch(&root.join("Invented Band - First [FLAC]/01 - One.flac"));
     touch(&root.join("Invented Band - Second [FLAC]/01 - One.flac"));
     touch(&root.join("Nested/Other Band - Third [FLAC]/01 - One.flac"));

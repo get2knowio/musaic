@@ -277,16 +277,18 @@ fn run(sc: &Value, analyzer: &dyn Analyzer) -> Option<Run> {
     for (real, label) in &norm.ids {
         sse_body = sse_body.replace(real.as_str(), &format!("<ID:{label}>"));
     }
-    let sse_body = sse_body.replace(&norm.lib, "<LIB>");
+    let sse_body = musaic_testdata::replace_root(&sse_body, &norm.lib, "<LIB>");
     drop(td);
     let outcome = match outcome {
-        AnalyzeOutcome::Aborted(d) => AnalyzeOutcome::Aborted(d.replace(&norm.lib, "<LIB>")),
+        AnalyzeOutcome::Aborted(d) => {
+            AnalyzeOutcome::Aborted(musaic_testdata::replace_root(&d, &norm.lib, "<LIB>"))
+        }
         o => o,
     };
     Some(Run {
         refused_detail_normalized: refused
             .as_ref()
-            .map(|e| e.detail.replace(&norm.lib, "<LIB>"))
+            .map(|e| musaic_testdata::replace_root(&e.detail, &norm.lib, "<LIB>"))
             .unwrap_or_default(),
         refused,
         items: items.iter().map(|i| norm.value(i)).collect(),
@@ -610,7 +612,10 @@ fn check(id: &str) {
             assert_eq!(sc["exception"]["type"], "FileNotFoundError", "{id}");
             musaic_services::analyze::unreachable_album_detail(
                 Path::new(&format!("<LIB>/{}", sc["album"].as_str().unwrap())),
-                &std::io::Error::from_raw_os_error(2), // ENOENT
+                // The OS's error for listing a missing directory: ENOENT
+                // on Unix, ERROR_PATH_NOT_FOUND on Windows.
+                &std::fs::read_dir(std::env::temp_dir().join("musaic-golden-no-such-dir"))
+                    .unwrap_err(),
             )
         };
         assert_eq!(r.refused_detail_normalized, want_detail, "{id}");

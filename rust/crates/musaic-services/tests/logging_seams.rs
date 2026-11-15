@@ -81,7 +81,7 @@ struct Lib {
 /// into a copy of the fixture v16 database.
 fn library(files: &[(&str, &str)]) -> Lib {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let lib = base.join("lib");
     let album = lib.join("Al");
     std::fs::create_dir_all(&album).unwrap();
@@ -519,7 +519,7 @@ const SIDECAR: &str = "musaic.track_tags_sidecar";
 
 fn sidecar_dir(content: &[u8]) -> (tempfile::TempDir, PathBuf) {
     let tmp = tempfile::tempdir().unwrap();
-    let dir = tmp.path().canonicalize().unwrap();
+    let dir = musaic_testdata::canonical(tmp.path());
     std::fs::write(musaic_fsops::sidecar::sidecar_path(&dir), content).unwrap();
     (tmp, dir)
 }

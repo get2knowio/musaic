@@ -265,12 +265,13 @@ fn brief(dir: &Path) -> Vec<Value> {
 
 // ---------- events -> golden JSON shape ----------
 
+/// `<ALBUM>/name` for a path inside the album; the golden spells it with `/`
+/// on every platform.
 fn rel(p: &Path, album: &Path) -> String {
-    let s = p.to_string_lossy();
-    let a = album.to_string_lossy();
-    match s.strip_prefix(a.as_ref()) {
-        Some(rest) => format!("<ALBUM>{rest}"),
-        None => s.into_owned(),
+    match p.strip_prefix(album) {
+        Ok(rest) if rest.as_os_str().is_empty() => "<ALBUM>".into(),
+        Ok(rest) => format!("<ALBUM>/{}", musaic_testdata::slash_path(rest)),
+        Err(_) => p.to_string_lossy().into_owned(),
     }
 }
 
@@ -586,7 +587,21 @@ fn run_in(g: &Value, id: &str) {
             .iter()
             .map(|f| f["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names, golden_names, "{ctx}: directory listing");
+        if cfg!(windows) && id == "sidecar-uppercase-existing" {
+            // Renaming over an existing `cover.JPG` keeps that spelling on
+            // APFS (where the golden was recorded); NTFS gives the entry the
+            // new name, `cover.jpg`. Either way there is one cover file,
+            // holding the bytes checked below.
+            println!("note: {ctx}: directory listing compared without case (NTFS rename)");
+            let fold = |v: Vec<String>| v.into_iter().map(|n| n.to_lowercase()).collect::<Vec<_>>();
+            assert_eq!(
+                fold(names.iter().map(|n| n.to_string()).collect()),
+                fold(golden_names.iter().map(|n| n.to_string()).collect()),
+                "{ctx}: directory listing"
+            );
+        } else {
+            assert_eq!(names, golden_names, "{ctx}: directory listing");
+        }
 
         let python_jpeg = round["normalized_cover_sha256"]
             .as_str()

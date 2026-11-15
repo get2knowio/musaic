@@ -42,7 +42,7 @@ impl Sandbox {
     /// A copy of testdata/db/v16-empty.db (migrated to v17 on open).
     pub fn new() -> (Sandbox, Db) {
         let tmp = tempfile::tempdir().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
+        let root = musaic_testdata::canonical(tmp.path());
         let db_path = root.join("library.db");
         std::fs::copy(musaic_testdata::public("db/v16-empty.db"), &db_path).unwrap();
         let (db, _) = Db::open(&db_path).unwrap();
@@ -65,7 +65,7 @@ impl Sandbox {
     }
 
     pub fn unsub(&self, s: &str) -> String {
-        s.replace(&self.lib_s, "<LIB>")
+        musaic_testdata::replace_root(s, &self.lib_s, "<LIB>")
     }
 
     pub fn open(&self) -> Connection {

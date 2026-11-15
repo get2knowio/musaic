@@ -15,7 +15,7 @@ fn golden() -> Value {
 
 fn canonical_tempdir() -> (tempfile::TempDir, PathBuf) {
     let t = tempfile::tempdir().unwrap();
-    let root = t.path().canonicalize().unwrap();
+    let root = musaic_testdata::canonical(t.path());
     (t, root)
 }
 
@@ -41,11 +41,9 @@ fn config_dir_resolution_matches_the_python_app() {
             .as_str()
             .map(|s| s.replace("<ROOT>", root_s));
         let got = resolve_config_dir(env.as_deref().map(OsStr::new), Some(&home)).unwrap();
-        let got = got
-            .to_str()
-            .unwrap()
-            .replace(home.to_str().unwrap(), "<HOME>")
-            .replace(root_s, "<ROOT>");
+        let got =
+            musaic_testdata::replace_root(got.to_str().unwrap(), home.to_str().unwrap(), "<HOME>");
+        let got = musaic_testdata::replace_root(&got, root_s, "<ROOT>");
         let python = case["result"].as_str().unwrap();
         let mut home_after: Vec<String> = std::fs::read_dir(&home)
             .unwrap()
@@ -124,9 +122,19 @@ fn set_library_dir_matches_the_python_app() {
     for d in s["fs_setup"]["dirs"].as_array().unwrap() {
         std::fs::create_dir_all(fs.join(d.as_str().unwrap())).unwrap();
     }
-    #[cfg(unix)]
+    #[cfg_attr(not(windows), allow(unused_mut))]
+    let mut have_links = true;
     for (link, target) in s["fs_setup"]["symlinks"].as_object().unwrap() {
+        #[cfg(unix)]
         std::os::unix::fs::symlink(fs.join(target.as_str().unwrap()), fs.join(link)).unwrap();
+        // Needs a privilege (or developer mode) on Windows.
+        #[cfg(windows)]
+        if let Err(e) =
+            std::os::windows::fs::symlink_dir(fs.join(target.as_str().unwrap()), fs.join(link))
+        {
+            println!("skipped symlink cases: cannot create a symlink here ({e})");
+            have_links = false;
+        }
     }
     let fs_s = fs.to_str().unwrap();
     let cfg = ConfigDir::new(root.join("cfg"));
@@ -138,16 +146,19 @@ fn set_library_dir_matches_the_python_app() {
     .unwrap();
     for case in s["cases"].as_array().unwrap() {
         let label = case["label"].as_str().unwrap();
+        if !have_links && label.contains("symlink") {
+            continue;
+        }
         let arg = case["arg"].as_str().unwrap().replace("<FS>", fs_s);
         let got = cfg.set_library_dir(&arg, Some(&fs)).unwrap();
         assert_eq!(
-            got.library_dir.unwrap().replace(fs_s, "<FS>"),
+            musaic_testdata::replace_root(&got.library_dir.unwrap(), fs_s, "<FS>"),
             case["library_dir"].as_str().unwrap(),
             "{label}"
         );
         let text = std::fs::read_to_string(cfg.config_file()).unwrap();
         assert_eq!(
-            text.replace(fs_s, "<FS>"),
+            musaic_testdata::replace_root(&text, fs_s, "<FS>"),
             case["file_text"].as_str().unwrap(),
             "{label}"
         );

@@ -79,7 +79,7 @@ fn entry(old: &str, new: &str) -> PlanEntry {
 #[test]
 fn failure_after_dir_rename_reports_the_rename() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     // The scenario needs a platform that renames a read-only directory (the
     // rename only writes to the parent). Some systems refuse it; the dir
     // rename then fails first and there is nothing to test here.
@@ -139,7 +139,7 @@ fn failure_after_dir_rename_reports_the_rename() {
 #[test]
 fn staging_never_clobbers_a_leftover_temp_file() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib_s, id) = library(&base, "Album", &[("01 - one.flac", "One")]);
     let album = base.join("lib/Album");
     std::fs::write(album.join(".01 - one.flac.renaming.tmp"), b"leftover").unwrap();

@@ -21,7 +21,7 @@ const OLDER: &str = "invented-acoustid-key-older-0000";
 /// A config dir with a fresh live database (no key rows) and a `backups/`.
 fn config() -> (tempfile::TempDir, PathBuf, Db) {
     let t = tempfile::tempdir().unwrap();
-    let dir = t.path().canonicalize().unwrap();
+    let dir = musaic_testdata::canonical(t.path());
     let (db, _) = Db::open_or_create(dir.join("library.db")).unwrap();
     std::fs::create_dir_all(dir.join("backups")).unwrap();
     (t, dir, db)

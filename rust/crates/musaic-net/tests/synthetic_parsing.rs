@@ -558,9 +558,15 @@ fn no_failure_text_contains_the_key() {
         )));
         let port = closed_port();
         let refused = format!("127.0.0.1:{port}").parse().unwrap();
+        // A longer timeout here: Windows retries a refused loopback connect
+        // for about two seconds before reporting it, so 500 ms would end as
+        // a timeout there instead of a refused connection.
         errors.push(ClientError::Transport(
             LiveTransport::with_static_dns(refused, &[])
-                .send(&keyed(&format!("http://127.0.0.1:{port}")))
+                .send(
+                    &keyed(&format!("http://127.0.0.1:{port}"))
+                        .timeout(std::time::Duration::from_secs(10)),
+                )
                 .unwrap_err(),
         ));
         errors.push(ClientError::Transport(
