@@ -433,7 +433,13 @@ fn scrub_backup(backup: &Path, store: &dyn SecretStore) -> musaic_db::Result<Vec
             }
             conn.close().map_err(|(_, e)| e)?;
         }
-        std::fs::File::open(&tmp)?.sync_all()?;
+        // Opened for writing: on Windows, flushing a handle without write
+        // access fails ("Access is denied"), which left every backup
+        // unscrubbed there.
+        std::fs::OpenOptions::new()
+            .write(true)
+            .open(&tmp)?
+            .sync_all()?;
         // Anything that appeared beside the backup since settle_backup
         // belongs to the file about to be replaced: removed before the
         // rename, so a stale journal is never applied to the scrubbed file.

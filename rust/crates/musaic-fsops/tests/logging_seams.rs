@@ -116,7 +116,7 @@ fn has(lines: &[Record], level: Level, target: &str, prefix: &str) -> Record {
 #[test]
 fn missing_source_is_logged() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib, id) = library(&base, "Al", &[("1 a.flac", "1")]);
     let (out, lines) = run(&mut db, &lib, &id, &[entry("gone.flac", "x.flac")], None);
     assert_eq!(out.message, "Nothing to rename");
@@ -141,7 +141,7 @@ fn missing_source_is_logged() {
 #[test]
 fn failed_dir_migration_is_logged() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib, id) = library(&base, "Old", &[("1 a.flac", "1")]);
     db.connection()
         .execute_batch(
@@ -168,7 +168,7 @@ fn failed_dir_migration_is_logged() {
 #[test]
 fn failed_staging_is_logged() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib, id) = library(&base, "Al", &[("1 a.flac", "1")]);
     let album = base.join("lib/Al");
     std::fs::set_permissions(&album, std::fs::Permissions::from_mode(0o555)).unwrap();
@@ -194,7 +194,7 @@ fn failed_staging_is_logged() {
 #[test]
 fn failed_track_row_migration_is_logged() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib, id) = library(&base, "Al", &[("1 a.flac", "1")]);
     db.connection()
         .execute_batch("DROP TABLE track_tags;")
@@ -226,7 +226,7 @@ fn failed_rescans_are_logged() {
 
     // File rename.
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib, id) = library(&base, "Al", &[("1 a.flac", "1")]);
     db.connection().execute_batch(abort_albums).unwrap();
     let (out, lines) = run(&mut db, &lib, &id, &[entry("1 a.flac", "01 A.flac")], None);
@@ -242,7 +242,7 @@ fn failed_rescans_are_logged() {
     // Directory-only rename: the migration's UPDATE must pass, so the
     // triggers go in after it, through the rescan's INSERT only.
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib, id) = library(&base, "Old", &[("1 a.flac", "1")]);
     db.connection()
         .execute_batch(
@@ -266,7 +266,7 @@ fn failed_rescans_are_logged() {
 #[test]
 fn unreadable_flac_in_plan_is_logged() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (db, _lib, id) = library(&base, "Al", &[("1 a.flac", "1")]);
     let bad = base.join("lib/Al/2 b.flac");
     std::fs::write(&bad, b"not a flac").unwrap();
@@ -288,7 +288,7 @@ fn unreadable_flac_in_plan_is_logged() {
 #[test]
 fn derive_plan_error_is_logged() {
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let (db, _lib, id) = library(&base, "Al", &[("1 a.flac", "9999999")]);
     db.connection()
         .execute(

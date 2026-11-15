@@ -376,7 +376,7 @@ const NOT_ON_DISK: &str = "ecbbf886397962f1";
 /// absent), with that library configured.
 fn configured(dir: &std::path::Path) -> std::path::PathBuf {
     std::fs::create_dir_all(dir.join("library")).unwrap();
-    let lib = dir.join("library").canonicalize().unwrap();
+    let lib = musaic_testdata::canonical(dir.join("library"));
     let config = dir.join("config");
     std::fs::create_dir_all(&config).unwrap();
     std::fs::copy(
@@ -533,7 +533,7 @@ async fn reveal_album_endpoint() {
 #[tokio::test]
 async fn reveal_trash_endpoint_and_no_library() {
     let dir = tempfile::tempdir().unwrap();
-    let config = dir.path().canonicalize().unwrap();
+    let config = musaic_testdata::canonical(dir.path());
     let hooks = Arc::new(Counting::default());
     let app = app(&config, hooks.clone());
     let origin = format!("http://127.0.0.1:{PORT}");

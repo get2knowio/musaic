@@ -93,9 +93,15 @@ mod tests {
     use super::*;
     use crate::options::{NetworkMode, Options};
 
+    /// An absolute config dir on every platform (`/tmp/...` is not
+    /// absolute on Windows).
+    fn config_dir() -> PathBuf {
+        std::env::temp_dir().join("w58").join("config")
+    }
+
     fn opts(hidden: bool, selftest: bool) -> Options {
         Options {
-            config_dir: PathBuf::from("/tmp/w58/config"),
+            config_dir: config_dir(),
             port: 0,
             network: NetworkMode::Offline,
             frontend_dir: None,
@@ -111,7 +117,7 @@ mod tests {
     fn state_file_only_for_shown_runs() {
         assert_eq!(
             state_file(&opts(false, false)),
-            Some(PathBuf::from("/tmp/w58/config/window-state.json"))
+            Some(config_dir().join("window-state.json"))
         );
         assert_eq!(state_file(&opts(true, false)), None);
         assert_eq!(state_file(&opts(false, true)), None);

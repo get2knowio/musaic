@@ -47,7 +47,91 @@ pub fn workspace_root() -> PathBuf {
     // This crate is `rust/crates/musaic-testdata`.
     let here = Path::new(env!("CARGO_MANIFEST_DIR"));
     let root = here.join("../..");
-    root.canonicalize().unwrap_or(root)
+    if root.exists() { canonical(root) } else { root }
+}
+
+/// `std::fs::canonicalize`, without the `\\?\` prefix it adds on Windows: the
+/// spelling `musaic_scan::py_resolve` gives an existing directory (on-disk
+/// names, links followed, 8.3 short names expanded on Windows), so a temp dir
+/// made with this matches the paths the app stores and reports. Panics when
+/// the path does not exist.
+pub fn canonical(p: impl AsRef<Path>) -> PathBuf {
+    let p = p.as_ref();
+    let c = p
+        .canonicalize()
+        .unwrap_or_else(|e| panic!("canonicalize {}: {e}", p.display()));
+    match c.to_str() {
+        Some(s) if s.starts_with(r"\\?\UNC\") => PathBuf::from(format!(r"\\{}", &s[8..])),
+        Some(s) if s.starts_with(r"\\?\") && s.as_bytes().get(5) == Some(&b':') => {
+            PathBuf::from(&s[4..])
+        }
+        _ => c,
+    }
+}
+
+/// `s.replace(root, marker)`, for masking a temp root in output compared
+/// with a golden recorded on macOS. On Windows the path that follows each
+/// masked root is also spelled with `/`, as the golden spells it: in plain
+/// text up to the next `'`, `"` or line end (`\` → `/`), and where the root
+/// appears JSON-escaped (`C:\\Users\\…`) up to the next `\"` or `"`
+/// (`\\` → `/`, other escapes such as `\u00e9` kept). Elsewhere this is
+/// exactly `str::replace`.
+pub fn replace_root(s: &str, root: &str, marker: &str) -> String {
+    if !cfg!(windows) || root.is_empty() {
+        return s.replace(root, marker);
+    }
+    let escaped = root.replace('\\', "\\\\");
+    let s = mask_runs(s, &escaped, marker, true);
+    mask_runs(&s, root, marker, false)
+}
+
+fn mask_runs(s: &str, root: &str, marker: &str, json: bool) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(at) = rest.find(root) {
+        out.push_str(&rest[..at]);
+        out.push_str(marker);
+        rest = &rest[at + root.len()..];
+        let mut chars = rest.char_indices().peekable();
+        let mut end = rest.len();
+        while let Some((i, c)) = chars.next() {
+            match c {
+                '\'' | '"' | '\n' | '\r' => {
+                    end = i;
+                    break;
+                }
+                '\\' if json => match chars.peek() {
+                    Some((_, '\\')) => {
+                        chars.next();
+                        out.push('/');
+                    }
+                    Some((_, '"')) => {
+                        end = i;
+                        break;
+                    }
+                    _ => out.push('\\'),
+                },
+                '\\' => out.push('/'),
+                c => out.push(c),
+            }
+        }
+        rest = &rest[end..];
+    }
+    out.push_str(rest);
+    out
+}
+
+/// `rel` with its components joined by `/`, the way goldens recorded on
+/// macOS spell relative paths.
+pub fn slash_path(rel: impl AsRef<Path>) -> String {
+    let mut out = String::new();
+    for c in rel.as_ref().components() {
+        if !out.is_empty() {
+            out.push('/');
+        }
+        out.push_str(&c.as_os_str().to_string_lossy());
+    }
+    out
 }
 
 /// The public test-data root (`rust/testdata`).
@@ -77,11 +161,7 @@ pub fn private_root() -> Option<PathBuf> {
         }
         None => {
             let p = workspace_root().join("..").join(PRIVATE_FALLBACK_DIR);
-            if p.is_dir() {
-                Some(p.canonicalize().unwrap_or(p))
-            } else {
-                None
-            }
+            if p.is_dir() { Some(canonical(p)) } else { None }
         }
     }
 }
@@ -357,5 +437,39 @@ mod tests {
     #[should_panic(expected = "both halves hold a value")]
     fn conflicting_scalars_panic() {
         merge(json!({"a": 1}), json!({"a": 2}));
+    }
+
+    #[test]
+    fn mask_runs_spells_the_masked_path_with_slashes() {
+        let root = r"C:\t\lib";
+        assert_eq!(
+            mask_runs(
+                r"Album directory 'C:\t\lib\A\B' is gone",
+                root,
+                "<LIB>",
+                false
+            ),
+            "Album directory '<LIB>/A/B' is gone"
+        );
+        let escaped = r"C:\\t\\lib";
+        assert_eq!(
+            mask_runs(
+                r#"{"path": "C:\\t\\lib\\Caf\u00e9\\01.flac", "x": "a\\b"}"#,
+                escaped,
+                "<LIB>",
+                true
+            ),
+            r#"{"path": "<LIB>/Caf\u00e9/01.flac", "x": "a\\b"}"#
+        );
+        assert_eq!(
+            mask_runs(
+                r#"data: {\"p\": \"C:\\t\\lib\\x\"}"#,
+                escaped,
+                "<LIB>",
+                true
+            ),
+            r#"data: {\"p\": \"<LIB>/x\"}"#
+        );
+        assert_eq!(slash_path(Path::new("a").join("b")), "a/b");
     }
 }

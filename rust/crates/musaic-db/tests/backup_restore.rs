@@ -26,7 +26,7 @@ fn v17(s: &str) -> String {
 /// A config dir holding a private copy of a fixture as library.db, opened.
 fn live(fixture: &str) -> (tempfile::TempDir, PathBuf, Db) {
     let t = tempfile::tempdir().unwrap();
-    let cfg = t.path().canonicalize().unwrap();
+    let cfg = musaic_testdata::canonical(t.path());
     let db_path = cfg.join("library.db");
     std::fs::copy(musaic_testdata::public("db").join(fixture), &db_path).unwrap();
     let (db, _) = Db::open(&db_path).unwrap();
@@ -179,10 +179,28 @@ fn snapshot_sequence_matches_the_python_app() {
 
     // Name validation, same directory state as the Python app's.
     #[cfg(unix)]
-    std::os::unix::fs::symlink(cfg.join("library.db"), dir.join("library-escape.db")).unwrap();
+    let have_link = {
+        std::os::unix::fs::symlink(cfg.join("library.db"), dir.join("library-escape.db")).unwrap();
+        true
+    };
+    // Creating a symlink on Windows needs a privilege (or developer mode).
+    #[cfg(windows)]
+    let have_link = match std::os::windows::fs::symlink_file(
+        cfg.join("library.db"),
+        dir.join("library-escape.db"),
+    ) {
+        Ok(()) => true,
+        Err(e) => {
+            println!("skipped case library-escape.db: cannot create a symlink here ({e})");
+            false
+        }
+    };
     std::fs::write(dir.join("plain-file"), b"x").unwrap();
     for case in g["resolve_snapshot"].as_array().unwrap() {
         let name = case["name"].as_str().unwrap();
+        if !have_link && name.contains("escape") {
+            continue;
+        }
         let name = v17(name);
         let got = backup::resolve_snapshot(&dir, &name);
         if let Some(ok) = case["ok"].as_str() {
@@ -196,7 +214,9 @@ fn snapshot_sequence_matches_the_python_app() {
             assert!(matches!(got, Err(RestoreError::InvalidName(_))), "{name:?}");
         }
     }
-    std::fs::remove_file(dir.join("library-escape.db")).unwrap();
+    if have_link {
+        std::fs::remove_file(dir.join("library-escape.db")).unwrap();
+    }
 
     // Deliberate (issue #213): the Python app deleted `plain-file`; a file
     // whose name the app never writes is refused and left on disk.
@@ -349,7 +369,7 @@ fn make_upload(path: &Path, ddl: &[&str]) {
 fn upload_validation_matches_the_python_app() {
     let g = golden();
     let t = tempfile::tempdir().unwrap();
-    let up = t.path().canonicalize().unwrap();
+    let up = musaic_testdata::canonical(t.path());
     std::fs::write(up.join("tiny.db"), b"SQLite").unwrap();
     std::fs::write(
         up.join("text.db"),
@@ -425,10 +445,11 @@ fn upload_validation_matches_the_python_app() {
                     assert_eq!(json!(v.schema_version), ok["schema_version"], "{name}");
                     assert_eq!(json!(v.counts), ok["counts"], "{name}");
                 } else {
-                    let msg = got
-                        .unwrap_err()
-                        .to_string()
-                        .replace(root_s, "<ROOT>/uploads");
+                    let msg = musaic_testdata::replace_root(
+                        &got.unwrap_err().to_string(),
+                        root_s,
+                        "<ROOT>/uploads",
+                    );
                     assert_eq!(msg, case["restore_error"].as_str().unwrap(), "{name}");
                 }
             }
