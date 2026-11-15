@@ -3,8 +3,9 @@
  *
  * Shows the album, the template that's being applied, and a table
  * of current → expected filenames for every mismatched track. The
- * user confirms (Apply) and the backend two-pass renames everything
- * on disk. Track tags follow via cache.rename_track_filename.
+ * user confirms (Apply) and the backend renames everything on disk.
+ * The copy describes the outcome for the user's files, not the
+ * mechanism (#196).
  *
  * Chain mode: when `findings` is supplied, the dialog walks through
  * the list after each Apply instead of closing — same pattern as
@@ -123,7 +124,7 @@ export default function FilenameMismatchResolveDialog({
       if (r.ok) {
         toast.success(r.message);
       } else {
-        toast.warning(r.message || "Rename completed with errors");
+        toast.warning(r.message || "Some files couldn't be renamed");
       }
       // Cache invalidation is handled by the App-level
       // useLibraryEventsStream subscriber — execute_renames publishes
@@ -143,9 +144,12 @@ export default function FilenameMismatchResolveDialog({
       }
     },
     onError: (e) => {
-      toast.error((e as Error).message || "Rename failed");
+      toast.error((e as Error).message || "Couldn't rename the files");
     },
   });
+
+  const outcome =
+    previewIsEmpty || albumMissing ? null : _describeOutcome(safe.length, !!dirRename);
 
   const onApply = () => {
     if (safe.length === 0 && !dirRename) return;
@@ -173,7 +177,7 @@ export default function FilenameMismatchResolveDialog({
             <div className="flex items-center gap-2 min-w-0">
               <FileEdit className="w-3.5 h-3.5 text-accent shrink-0" />
               <Dialog.Title className="font-semibold text-md truncate">
-                Rename files to match template
+                Rename files to match your templates
               </Dialog.Title>
               {totalInChain > 1 && currentIndex >= 0 && (
                 <span className="mono text-[11px] text-fg-4 tabular-nums shrink-0">
@@ -200,20 +204,24 @@ export default function FilenameMismatchResolveDialog({
                 )}
               </div>
               <div className="mono text-[11px] text-fg-4 mt-0.5 truncate">
-                File template: <code className="text-fg-3">{template}</code>
+                File names: <code className="text-fg-3">{template}</code>
                 {dirTemplate && (
                   <>
                     <span className="mx-1.5">·</span>
-                    Dir template: <code className="text-fg-3">{dirTemplate}</code>
+                    Folder name: <code className="text-fg-3">{dirTemplate}</code>
                   </>
                 )}
               </div>
             </div>
 
+            {outcome && (
+              <p className="text-sm text-fg-2">{outcome}</p>
+            )}
+
             {preview.isLoading && !preview.data && (
               <div className="flex items-center gap-2 text-xs text-fg-3 bg-panel-2 border border-line rounded px-3 py-2">
                 <Loader2 className="w-3.5 h-3.5 spin shrink-0" />
-                <span>Re-checking the album against current disk state…</span>
+                <span>Checking the album's files…</span>
               </div>
             )}
 
@@ -221,9 +229,10 @@ export default function FilenameMismatchResolveDialog({
               <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-medium text-fg">Couldn't re-derive plan</div>
-                  <div className="mt-0.5 text-fg-3">{previewError}; showing the
-                  last snapshot from when the check ran.</div>
+                  <div className="font-medium text-fg">Couldn't check the files again</div>
+                  <div className="mt-0.5 text-fg-3">{previewError}. The list
+                  below is from when the check last ran and may be out of
+                  date.</div>
                 </div>
               </div>
             )}
@@ -232,10 +241,10 @@ export default function FilenameMismatchResolveDialog({
               <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-medium text-fg">Album directory is gone</div>
+                  <div className="font-medium text-fg">Album folder not found</div>
                   <div className="mt-0.5 text-fg-3">
-                    The album dir isn't on disk anymore. The finding will
-                    clear on the next library scan; nothing to rename here.
+                    This album's folder isn't on disk right now, so there is
+                    nothing to rename.
                   </div>
                 </div>
               </div>
@@ -245,11 +254,11 @@ export default function FilenameMismatchResolveDialog({
               <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-ok/10 border border-ok/30 rounded px-3 py-2">
                 <FileEdit className="w-3.5 h-3.5 text-ok shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-medium text-fg">Already matches the template</div>
+                  <div className="font-medium text-fg">Already named correctly</div>
                   <div className="mt-0.5 text-fg-3">
-                    Nothing to rename — the files on disk already match.
-                    This finding was stale; close to clear it on the next
-                    check rerun.
+                    The files already match your templates, so there is
+                    nothing to rename. This finding clears the next time the
+                    check runs.
                   </div>
                 </div>
               </div>
@@ -259,7 +268,7 @@ export default function FilenameMismatchResolveDialog({
               <div className="border border-accent/40 rounded-md bg-accent/5 px-3 py-2.5">
                 <div className="flex items-center gap-1.5 mb-1.5 text-[11px] mono uppercase tracking-[0.06em] text-accent">
                   <FolderInput className="w-3 h-3" />
-                  <span>Album folder rename</span>
+                  <span>Album folder</span>
                 </div>
                 <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-sm min-w-0">
                   <div className="mono text-[12px] text-warn line-through truncate" title={dirRename.old}>
@@ -271,10 +280,7 @@ export default function FilenameMismatchResolveDialog({
                   </div>
                 </div>
                 <div className="mt-1.5 text-[11px] text-fg-3 leading-relaxed">
-                  Done first; file renames below run inside the new folder.
-                  This changes the album's internal id, so any stored links
-                  pointing to the old id (in your URL bar, etc.) will need
-                  to be refreshed.
+                  The folder is renamed first, then the files inside it.
                 </div>
               </div>
             )}
@@ -283,12 +289,13 @@ export default function FilenameMismatchResolveDialog({
               <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-medium text-fg">Name collision detected</div>
+                  <div className="font-medium text-fg">Some files would get the same name</div>
                   <div className="mt-0.5 text-fg-3">
-                    {collisions.length} file{collisions.length === 1 ? "" : "s"}
-                    {" "}render to a name another file is also asking for. Those
-                    are skipped from the apply — fix the underlying tags
-                    (probably a duplicate tracknumber) and rerun the check.
+                    {collisions.length === 1
+                      ? "1 file would get the same name as another file, so it will be left as it is."
+                      : `${collisions.length} files would get the same name as another file, so they will be left as they are.`}
+                    {" "}This usually means two tracks share a track number; fix
+                    their tags and run the check again.
                   </div>
                 </div>
               </div>
@@ -306,10 +313,8 @@ export default function FilenameMismatchResolveDialog({
             )}
 
             <p className="text-xs text-fg-4 leading-relaxed">
-              Files are renamed via a two-pass operation (staged to a temp
-              name, then to the final) so swapped names can't collide
-              mid-rename. Per-track tags follow each file automatically.
-              The displayed FLAC tags (artist, title, etc.) are not modified.
+              Only the names change. The audio, the tags inside each file and
+              any tags you added in Musaic stay with the files.
             </p>
           </div>
 
@@ -367,7 +372,19 @@ function _buildApplyLabel(
   if (hasDirRename) parts.push("folder");
   if (fileCount > 0) parts.push(`${fileCount} file${fileCount === 1 ? "" : "s"}`);
   if (parts.length === 0) return hasNext ? "Skip" : "Nothing to rename";
-  return `Rename ${parts.join(" + ")}${hasNext ? " & next" : ""}`;
+  return `Rename ${parts.join(" and ")}${hasNext ? " & next" : ""}`;
+}
+
+/** One sentence saying what Apply will do to the user's files. Null when
+ *  there is nothing to do (the empty / missing banners say so). */
+function _describeOutcome(fileCount: number, hasDirRename: boolean): string | null {
+  const files = `${fileCount} file${fileCount === 1 ? "" : "s"}`;
+  if (fileCount > 0 && hasDirRename) {
+    return `Rename the album folder and ${files} in it to match your templates.`;
+  }
+  if (fileCount > 0) return `Rename ${files} in this album to match your filename template.`;
+  if (hasDirRename) return "Rename the album folder to match your folder template.";
+  return null;
 }
 
 
@@ -395,7 +412,7 @@ function RenameRow({ entry }: { entry: FilenameRenameEntry }) {
         </div>
         {stale && entry.collides_with && (
           <div className="text-[11px] text-warn mt-0.5 truncate" title={entry.collides_with}>
-            collides with {entry.collides_with}
+            same new name as {entry.collides_with}
           </div>
         )}
       </div>
