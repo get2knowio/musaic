@@ -133,7 +133,7 @@ describe("album sheet folder row", () => {
 describe("duplicate Resolve dialog trash text", () => {
   it("has no reveal control in a plain browser", async () => {
     wrap(<DuplicateResolveDialog finding={finding} open onClose={() => {}} />);
-    expect(await screen.findByText(/moved to the app's trash folder/)).toBeInTheDocument();
+    expect(await screen.findByText(/Nothing is deleted/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /show in/i })).toBeNull();
   });
 

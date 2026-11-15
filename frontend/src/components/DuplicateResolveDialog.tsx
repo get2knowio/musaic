@@ -2,22 +2,28 @@
  * Per-finding resolve dialog for the duplicate-tracks check.
  *
  * Lists every duplicate file in the cluster (filename + duration) and lets
- * the user delete copies one at a time. Each delete:
+ * the user move copies to the trash one at a time. Each one:
  *   - posts to /api/checks/duplicate-tracks/findings/{fid}/delete-file
- *   - server unlinks the FLAC, drops the fingerprint row, re-runs checks
+ *   - server moves the FLAC into the app's trash folder, drops the
+ *     fingerprint row, re-runs checks
  *   - SSE pushes the cache update; useFindings refetches
  *   - the finding's `detail.filenames` list shrinks; the dialog re-renders
  *   - once we're down to 1 file the cluster is no longer a duplicate, the
  *     check resolves the finding, and the FindingFixButton (which renders
  *     the dialog's parent) unmounts us. The dialog closes naturally.
  *
- * Each delete needs a confirmation — files are not recoverable. We use
- * Radix's AlertDialog primitive to gate the action.
+ * Each move needs a confirmation (a nested Radix Dialog). The copy says
+ * what happens to the file, not how (#196); the trash folder lives in
+ * the config dir, so it is named in words, not as a path.
  */
 import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Database, Files, Loader2, Music, ShieldCheck, Trash2, X } from "lucide-react";
+
+/** How the copy names the trash: the folder sits in the config dir,
+ *  which a user can move, and it is not the system Trash. */
+const TRASH_NAME = "Musaic's trash folder";
 import { toast } from "sonner";
 
 import RevealInFileManager from "@/components/RevealInFileManager";
@@ -124,7 +130,7 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
       {
         onSuccess: () => {
           toast.success(`Moved ${filename} to trash`, {
-            description: "Recoverable from ~/.musaic/trash/ until you empty the folder",
+            description: `You can move it back from ${TRASH_NAME}.`,
           });
           setPendingDelete(null);
           // Refetch the cluster so the file list shrinks immediately;
@@ -151,9 +157,9 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
         >
           <div className="flex items-center justify-between px-4 h-11 border-b border-line">
             <div className="flex items-center gap-2">
-              <Copy3Icon />
+              <Files className="w-3.5 h-3.5 text-accent" />
               <Dialog.Title className="font-semibold text-md">
-                Resolve duplicate audio
+                Remove duplicate copies
               </Dialog.Title>
             </div>
             <Dialog.Close asChild>
@@ -168,19 +174,20 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
 
           <div className="px-4 py-3.5">
             <p className="text-sm text-fg-2 mb-1">
-              {filenames.length} files in this album are the same canonical recording.
-              Pick which copies to move to trash — at least one will remain.
+              {filenames.length} files in this album contain the same recording.
+              Move the copies you don't want to the trash; the last copy always
+              stays.
             </p>
             {recordingMbid && (
               <p className="mono text-xs text-fg-4 mb-3">
-                Recording MBID: {recordingMbid}
+                MusicBrainz recording: {recordingMbid}
               </p>
             )}
 
             {preview.isLoading && !preview.data && (
               <div className="mb-3 flex items-center gap-2 text-xs text-fg-3 bg-panel border border-line rounded px-3 py-2">
                 <Loader2 className="w-3.5 h-3.5 spin shrink-0" />
-                <span>Re-checking the cluster against current fingerprints…</span>
+                <span>Checking which copies are still on disk…</span>
               </div>
             )}
 
@@ -189,9 +196,9 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
                 <AlertTriangle className="w-3.5 h-3.5 text-fg-4 shrink-0 mt-0.5" />
                 <div>
                   {removedFilenames.length === 1
-                    ? "1 file from the original cluster"
-                    : `${removedFilenames.length} files from the original cluster`}
-                  {" "}was already trashed or renamed; showing what's still on disk.
+                    ? "1 file the check found has since been moved or renamed"
+                    : `${removedFilenames.length} files the check found have since been moved or renamed`}
+                  ; showing the copies still on disk.
                 </div>
               </div>
             )}
@@ -215,12 +222,13 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
             <div className="border border-line rounded-md bg-panel-2 divide-y divide-line">
               {previewIsEmpty ? (
                 <div className="px-3 py-4 text-sm text-fg-3 text-center italic">
-                  No duplicate cluster remains — the finding will clear on the
-                  next check rerun. You can close this dialog.
+                  No duplicates are left. This finding clears the next time
+                  the check runs.
                 </div>
               ) : filenames.length === 0 ? (
                 <div className="px-3 py-4 text-sm text-fg-3 text-center italic">
-                  No duplicates left — close this dialog and the finding should clear.
+                  No duplicates are left. This finding clears the next time
+                  the check runs.
                 </div>
               ) : (
                 filenames.map((fname, i) => (
@@ -239,10 +247,9 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
             </div>
 
             <p className="text-xs text-fg-4 mt-3 leading-relaxed">
-              Deleted files are moved to the app's trash folder
-              (<code className="mono text-fg-3">~/.musaic/trash/</code>),
-              not unlinked. Restore by moving them back, or empty the
-              folder once you're sure.
+              Nothing is deleted: files you move to the trash go to
+              {" "}{TRASH_NAME}. To get one back, move it from there into the
+              album folder; empty the folder yourself once you're sure.
               {/* Desktop window only. */}
               <RevealInFileManager target={{ kind: "trash" }} className="ml-1.5 align-baseline" />
             </p>
@@ -275,9 +282,8 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
               <Dialog.Description className="text-sm text-fg-3 leading-relaxed">
                 <span className="mono text-fg-2 break-all">{pendingDelete}</span>
                 <br />
-                will be moved to{" "}
-                <code className="mono text-fg-2">~/.musaic/trash/</code>.
-                You can restore it from there if you change your mind.
+                will be moved to {TRASH_NAME}. You can move it back from there
+                if you change your mind.
               </Dialog.Description>
             </div>
             <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
@@ -366,17 +372,13 @@ function FileRow({
         onClick={onDelete}
         disabled={disabled || isLast}
         className="h-7 px-2 rounded border border-line text-xs text-fg-2 hover:bg-bg-3 hover:text-err transition disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
-        title={isLast ? "Can't delete the last copy" : "Delete this copy"}
+        title={isLast ? "The last copy always stays" : `Move this copy to ${TRASH_NAME}`}
       >
         <Trash2 className="w-3 h-3" />
-        Delete
+        Move to trash
       </button>
     </div>
   );
-}
-
-function Copy3Icon() {
-  return <Files className="w-3.5 h-3.5 text-accent" />;
 }
 
 function fmtDuration(seconds: number): string {
@@ -430,8 +432,8 @@ function CanonicalBanner({
         </div>
         {!matched && (
           <div className="text-fg-3 mt-1">
-            Neither filename's tags match — this AcoustID match may be
-            wrong, or both files are mistagged.
+            None of the file names match that title. The audio match may
+            be wrong, or the files are mislabelled.
           </div>
         )}
       </div>

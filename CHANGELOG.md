@@ -23,6 +23,13 @@ Security.
   ([#187](https://github.com/get2knowio/musaic/issues/187)).
 - Fix is disabled, with the reason on hover, for a finding whose album is Missing
   ([#186](https://github.com/get2knowio/musaic/issues/186)).
+- The filename and duplicate-track Resolve dialogs say what will happen to your files
+  ("Rename the album folder and 12 files in it to match your templates") instead of how
+  it is done. The duplicate dialog's row button reads "Move to trash", matching what it
+  does, and the trash is named as Musaic's trash folder rather than a fixed path (it
+  follows the config folder). The Resolve buttons on findings get icons that fit each
+  check instead of a copy icon. The requests the dialogs send are unchanged
+  ([#196](https://github.com/get2knowio/musaic/issues/196)).
 
 ### Fixed
 

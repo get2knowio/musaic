@@ -36,7 +36,7 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Clock, Copy, Loader2, Zap } from "lucide-react";
+import { CheckCircle2, Clock, FileEdit, Files, Loader2, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { useActiveJobForAlbum, usePriorCoverAttempts } from "@/hooks/useJobs";
@@ -158,7 +158,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
           title="Review the rename plan and apply it on disk"
         >
-          <Copy className="w-3 h-3" />
+          <FileEdit className="w-3 h-3" />
           Resolve…
         </button>
         <FilenameMismatchResolveDialog
@@ -182,7 +182,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
           title="Set a canonical sort value across all cluster members"
         >
-          <Copy className="w-3 h-3" />
+          <Users className="w-3 h-3" />
           Resolve…
         </button>
         <ArtistSortResolveDialog
@@ -203,9 +203,9 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           onClick={(e) => { e.stopPropagation(); setDuplicateOpen(true); }}
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
-          title="Choose which copy to keep"
+          title="Choose which copies to move to the trash"
         >
-          <Copy className="w-3 h-3" />
+          <Files className="w-3 h-3" />
           Resolve…
         </button>
         <DuplicateResolveDialog

@@ -1,0 +1,201 @@
+/**
+ * The two Resolve dialogs say what happens to the user's files (#196):
+ * the outcome, not the mechanism; the destructive row action is labelled
+ * by its effect. The requests they send are unchanged.
+ */
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }),
+}));
+
+import { toast } from "sonner";
+import DuplicateResolveDialog from "@/components/DuplicateResolveDialog";
+import FilenameMismatchResolveDialog from "@/components/FilenameMismatchResolveDialog";
+import type { Finding } from "@/lib/types";
+
+const ALBUM_ID = "7ddd61e60067be1a";
+
+interface Call {
+  url: string;
+  method: string;
+  body: unknown;
+}
+let calls: Call[];
+let routes: Record<string, unknown>;
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+}
+
+beforeEach(() => {
+  calls = [];
+  routes = {};
+  vi.mocked(toast.success).mockClear();
+  vi.mocked(toast.error).mockClear();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body;
+      calls.push({ url: String(url), method, body });
+      const hit = routes[`${method} ${String(url)}`];
+      return hit === undefined ? json({ detail: "not found" }, 404) : json(hit);
+    }),
+  );
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function wrap(ui: React.ReactElement) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>);
+}
+
+function makeFinding(id: number, check_id: string, detail: Record<string, unknown>): Finding {
+  return {
+    id,
+    check_id,
+    album_id: ALBUM_ID,
+    severity: "warn",
+    summary: "",
+    detail,
+    first_seen_at: "2026-11-14T00:00:00Z",
+    last_seen_at: "2026-11-14T00:00:00Z",
+    resolved_at: null,
+    ignored_at: null,
+    ignored_reason: null,
+  };
+}
+
+const posts = () => calls.filter((c) => c.method === "POST");
+
+describe("filename Resolve dialog copy", () => {
+  const finding = makeFinding(11, "filename-mismatch", {});
+  const plan = {
+    album_id: ALBUM_ID,
+    is_empty: false,
+    dir_name: "Artist - Album [FLAC]",
+    is_compilation: false,
+    template: "{tracknumber:02} - {title}",
+    dir_template: "{albumartist} - {album} [FLAC]",
+    headline: "",
+    dir_rename: { old: "artist - album", new: "Artist - Album [FLAC]" },
+    renames: [
+      { filename: "1.flac", expected: "01 - One.flac", tracknumber: "1", title: "One", artist: "", collides_with: null },
+      { filename: "2.flac", expected: "02 - Two.flac", tracknumber: "2", title: "Two", artist: "", collides_with: null },
+      { filename: "3.flac", expected: "02 - Two.flac", tracknumber: "2", title: "Two", artist: "", collides_with: "2.flac" },
+    ],
+  };
+
+  beforeEach(() => {
+    routes[`GET /api/checks/filename-mismatch/findings/11/plan-preview`] = plan;
+    routes[`POST /api/checks/filename-mismatch/findings/11/apply`] = {
+      ok: true, renamed: 2, errors: [], message: "Renamed 2 files",
+    };
+  });
+
+  it("describes the outcome and drops the mechanism prose", async () => {
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={() => {}} />);
+    expect(
+      await screen.findByText("Rename the album folder and 2 files in it to match your templates."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Rename files to match your templates")).toBeInTheDocument();
+    expect(screen.getByText(/File names:/)).toBeInTheDocument();
+    expect(screen.getByText(/Folder name:/)).toBeInTheDocument();
+    expect(screen.getByText("The folder is renamed first, then the files inside it.")).toBeInTheDocument();
+    expect(screen.getByText("Some files would get the same name")).toBeInTheDocument();
+    expect(screen.getByText(/Only the names change/)).toBeInTheDocument();
+    for (const gone of [/two-pass/, /temp name/, /internal id/, /URL bar/, /Dir template/, /File template/]) {
+      expect(screen.queryByText(gone)).toBeNull();
+    }
+  });
+
+  it("sends the same apply request", async () => {
+    const onClose = vi.fn();
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={onClose} />);
+    const apply = await screen.findByRole("button", { name: "Rename folder and 2 files" });
+    fireEvent.click(apply);
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(posts()).toEqual([
+      {
+        url: "/api/checks/filename-mismatch/findings/11/apply",
+        method: "POST",
+        body: {
+          plan: [
+            { old: "1.flac", new: "01 - One.flac" },
+            { old: "2.flac", new: "02 - Two.flac" },
+          ],
+          dir_rename: { old: "artist - album", new: "Artist - Album [FLAC]" },
+        },
+      },
+    ]);
+  });
+
+  it("says plainly when there is nothing to rename", async () => {
+    routes[`GET /api/checks/filename-mismatch/findings/11/plan-preview`] = {
+      ...plan, is_empty: true, dir_rename: null, renames: [],
+    };
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={() => {}} />);
+    expect(await screen.findByText("Already named correctly")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nothing to rename" })).toBeDisabled();
+  });
+});
+
+describe("duplicate Resolve dialog copy", () => {
+  const finding = makeFinding(7, "duplicate-tracks", {
+    filenames: ["01 - A.flac", "01 - A (1).flac"],
+    durations_s: [200, 200],
+  });
+
+  beforeEach(() => {
+    routes[`GET /api/checks/duplicate-tracks/findings/7/cluster-preview`] = {
+      album_id: ALBUM_ID,
+      is_empty: false,
+      recording_mbid: null,
+      filenames: ["01 - A.flac", "01 - A (1).flac"],
+      durations_s: [200, 200],
+      duplicate_count: 2,
+      recommended_keep: null,
+      recommended_reason: null,
+      removed_filenames: [],
+    };
+    routes[`POST /api/checks/duplicate-tracks/findings/7/delete-file`] = {
+      ok: true, message: "moved",
+    };
+  });
+
+  it("labels the row action by its effect and drops the mechanism prose", async () => {
+    wrap(<DuplicateResolveDialog finding={finding} open onClose={() => {}} />);
+    expect(await screen.findByText("Remove duplicate copies")).toBeInTheDocument();
+    expect(screen.getByText(/contain the same recording/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Move to trash" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    for (const gone of [/canonical/, /unlinked/, /~\/\.musaic/]) {
+      expect(screen.queryByText(gone)).toBeNull();
+    }
+  });
+
+  it("confirms, then sends the same delete-file request", async () => {
+    wrap(<DuplicateResolveDialog finding={finding} open onClose={() => {}} />);
+    const rows = await screen.findAllByRole("button", { name: "Move to trash" });
+    fireEvent.click(rows[1]);
+    const confirm = await screen.findByRole("dialog", { name: "Move this file to trash?" });
+    expect(within(confirm).getByText(/will be moved to Musaic's trash folder/)).toBeInTheDocument();
+    fireEvent.click(within(confirm).getByRole("button", { name: "Move to trash" }));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(posts()[0]).toEqual({
+      url: "/api/checks/duplicate-tracks/findings/7/delete-file",
+      method: "POST",
+      body: { filename: "01 - A (1).flac" },
+    });
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Moved 01 - A (1).flac to trash", {
+        description: "You can move it back from Musaic's trash folder.",
+      }),
+    );
+  });
+});
