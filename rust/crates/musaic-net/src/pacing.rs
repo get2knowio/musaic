@@ -30,9 +30,14 @@
 //! the wait ends. An HTTP-date `Retry-After` is treated as absent (our
 //! backoff applies): the limiter runs on a monotonic clock with no wall
 //! time to compare a date against.
+//!
+//! Background work (a sweep nobody is waiting on) takes its slots through
+//! [`Limiter::acquire_quiet`] instead, usually via
+//! [`crate::BackgroundPaced`]; see [`crate::background`] for what that
+//! promises foreground callers.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
 
 use crate::{Request, Response, Transport, TransportError};
@@ -134,15 +139,34 @@ impl Default for RetryPolicy {
 /// `Retry-After` waits this long; it does not abort the request.
 pub const MAX_RETRY_WAIT: Duration = Duration::from_secs(30);
 
+/// When requests to one host went and may go.
+#[derive(Debug, Default)]
+struct SlotTimes {
+    /// Earliest time the next request may go out under the pacing gap.
+    next: Duration,
+    /// When the last request to this host took its slot (foreground or
+    /// background); `None` before the first.
+    last: Option<Duration>,
+}
+
 /// One host's state.
 #[derive(Debug, Default)]
 struct HostSlot {
-    /// Earliest time the next request may go out under the pacing gap.
-    /// Held while a caller waits for its slot.
-    next: Mutex<Duration>,
+    /// Held while a foreground caller waits for its slot; a background
+    /// caller never sleeps holding it.
+    times: Mutex<SlotTimes>,
     /// No request before this time: the host said it is busy.
     /// Never held across a sleep, so a busy answer lands at once.
     hold_until: Mutex<Duration>,
+}
+
+impl HostSlot {
+    fn hold(&self) -> Duration {
+        *self
+            .hold_until
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
 }
 
 /// Send slots per host, on one clock. Share it (`Arc`) between every caller
@@ -180,18 +204,14 @@ impl<C: Clock> Limiter<C> {
     pub fn acquire(&self, host: &str) -> Duration {
         let gap = self.pacing.interval_for(host).unwrap_or(Duration::ZERO);
         let slot = self.slot(host);
-        let mut next = slot
-            .next
+        let mut times = slot
+            .times
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         // A push-back may arrive while this caller sleeps: look again on
         // waking, until nothing is in the way.
         loop {
-            let hold = *slot
-                .hold_until
-                .lock()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let target = (*next).max(hold);
+            let target = times.next.max(slot.hold());
             let now = self.clock.now();
             if target <= now {
                 break;
@@ -199,8 +219,58 @@ impl<C: Clock> Limiter<C> {
             self.clock.sleep(target - now);
         }
         let taken = self.clock.now();
-        *next = taken + gap;
+        times.next = taken + gap;
+        times.last = Some(taken);
         taken
+    }
+
+    /// Take a send slot for `host` only if no request has gone to it for
+    /// `quiet` (and the pacing gap and any push-back also allow one now).
+    /// Never blocks: returns `Ok(taken)` with the slot taken, or
+    /// `Err(not_before)`, the earliest time a retry could succeed if no
+    /// other request arrives in the meantime.
+    ///
+    /// A caller already waiting in [`Limiter::acquire`] for this host counts
+    /// as a request: it holds the slot lock, and this reports busy instead
+    /// of queueing behind it.
+    pub fn try_acquire_quiet(&self, host: &str, quiet: Duration) -> Result<Duration, Duration> {
+        let gap = self.pacing.interval_for(host).unwrap_or(Duration::ZERO);
+        let slot = self.slot(host);
+        let mut times = match slot.times.try_lock() {
+            Ok(times) => times,
+            Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
+            Err(TryLockError::WouldBlock) => {
+                // Someone is taking a slot at or after now; quiet cannot
+                // start before it (the floor keeps a zero gap from spinning).
+                let now = self.clock.now();
+                return Err(now + quiet.max(gap).max(Duration::from_millis(1)));
+            }
+        };
+        let quiet_from = times.last.map_or(Duration::ZERO, |last| last + quiet);
+        let target = times.next.max(slot.hold()).max(quiet_from);
+        let now = self.clock.now();
+        if target > now {
+            return Err(target);
+        }
+        times.next = now + gap;
+        times.last = Some(now);
+        Ok(now)
+    }
+
+    /// Wait until no request has gone to `host` for `quiet`, then take a
+    /// send slot. The wait happens outside the slot lock and is re-checked
+    /// on waking, so any foreground request that arrives meanwhile goes
+    /// first and restarts the quiet period. See [`crate::background`].
+    pub fn acquire_quiet(&self, host: &str, quiet: Duration) -> Duration {
+        loop {
+            match self.try_acquire_quiet(host, quiet) {
+                Ok(taken) => return taken,
+                Err(not_before) => {
+                    let now = self.clock.now();
+                    self.clock.sleep(not_before.saturating_sub(now));
+                }
+            }
+        }
     }
 
     /// Nobody sends to `host` before `until` (a busy answer). Only
@@ -230,9 +300,9 @@ pub fn process_limiter() -> Arc<Limiter<SystemClock>> {
 /// Wraps a transport with pacing and retry. Clones share the limiter, so
 /// the limit holds across every clone, thread and task.
 pub struct Paced<T, C> {
-    inner: T,
+    pub(crate) inner: T,
     limiter: Arc<Limiter<C>>,
-    retry: RetryPolicy,
+    pub(crate) retry: RetryPolicy,
 }
 
 impl<T: Clone, C> Clone for Paced<T, C> {
@@ -287,30 +357,47 @@ fn retry_after(resp: &Response) -> Option<Duration> {
 
 impl<T: Transport, C: Clock> Transport for Paced<T, C> {
     fn send(&self, request: &Request) -> Result<Response, TransportError> {
-        let host = request.host().to_lowercase();
-        let mut backoff = self.retry.base_backoff;
-        let mut attempt = 1;
-        loop {
-            self.limiter.acquire(&host);
-            let resp = self.inner.send(request)?;
-            let busy = resp.status == 503 || resp.status == 429;
-            if !busy {
-                return Ok(resp);
-            }
-            // The server's own figure when it is longer than ours; MusicBrainz
-            // sends "Retry-After: 0" while busy, which must not mean "hammer".
-            // Capped. The whole host backs off, this caller
-            // included: its retry waits in `acquire` like everyone else.
-            let wait = retry_after(&resp)
-                .map_or(backoff, |ra| ra.max(backoff))
-                .min(MAX_RETRY_WAIT);
-            let now = self.limiter.clock().now();
-            self.limiter.push_back(&host, now + wait);
-            if attempt >= self.retry.max_attempts {
-                return Ok(resp);
-            }
-            backoff = (backoff * 2).min(self.retry.max_backoff);
-            attempt += 1;
+        send_with_retry(&self.inner, &self.limiter, &self.retry, request, |host| {
+            self.limiter.acquire(host);
+            Ok(())
+        })
+    }
+}
+
+/// The send-and-retry loop shared by [`Paced`] and
+/// [`crate::BackgroundPaced`]; they differ only in how a slot is taken
+/// before each try. `take_slot` may refuse (a stopped background caller),
+/// which ends the request with that error.
+pub(crate) fn send_with_retry<T: Transport, C: Clock>(
+    inner: &T,
+    limiter: &Limiter<C>,
+    retry: &RetryPolicy,
+    request: &Request,
+    mut take_slot: impl FnMut(&str) -> Result<(), TransportError>,
+) -> Result<Response, TransportError> {
+    let host = request.host().to_lowercase();
+    let mut backoff = retry.base_backoff;
+    let mut attempt = 1;
+    loop {
+        take_slot(&host)?;
+        let resp = inner.send(request)?;
+        let busy = resp.status == 503 || resp.status == 429;
+        if !busy {
+            return Ok(resp);
         }
+        // The server's own figure when it is longer than ours; MusicBrainz
+        // sends "Retry-After: 0" while busy, which must not mean "hammer".
+        // Capped. The whole host backs off, this caller
+        // included: its retry waits for a slot like everyone else.
+        let wait = retry_after(&resp)
+            .map_or(backoff, |ra| ra.max(backoff))
+            .min(MAX_RETRY_WAIT);
+        let now = limiter.clock().now();
+        limiter.push_back(&host, now + wait);
+        if attempt >= retry.max_attempts {
+            return Ok(resp);
+        }
+        backoff = (backoff * 2).min(retry.max_backoff);
+        attempt += 1;
     }
 }

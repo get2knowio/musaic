@@ -7,12 +7,15 @@
 //!
 //! The API is blocking. Pacing and retry are written against a [`Clock`] so
 //! tests run on virtual time. A tokio host calls the clients from
-//! `spawn_blocking`; see [`live`] for how to build them.
+//! `spawn_blocking`; see [`live`] for how to build them. Background work
+//! that should yield to the user's own requests goes through
+//! [`BackgroundPaced`] (see [`background`]).
 //!
 //! No secret (the AcoustID key, a form field) appears in any `Display` or
 //! `Debug` output of this crate: URLs in errors are redacted and free text
 //! that could echo a request is scrubbed of the request's secrets.
 
+pub mod background;
 mod caa;
 mod clients;
 pub mod live;
@@ -21,6 +24,7 @@ pub mod preview;
 mod replay;
 mod request;
 
+pub use background::{BACKGROUND_POLL, BACKGROUND_QUIET, BackgroundPaced};
 pub use caa::{
     CAA_TIMEOUT, COVER_ACCEPT, COVER_DOWNLOAD_TIMEOUT, COVER_MAX_BYTES, CoverArtClient, CoverError,
     CoverImage, FrontCover,
@@ -73,6 +77,10 @@ pub enum TransportError {
     /// URL or an address that is not on the public internet.
     #[error("refused to fetch {url}: {reason}")]
     Refused { url: String, reason: String },
+    /// A [`BackgroundPaced`] request was stopped by its caller while it
+    /// waited for a quiet slot; nothing was sent.
+    #[error("background request stopped before it was sent")]
+    Stopped,
     #[error("transport: {0}")]
     Other(String),
 }
