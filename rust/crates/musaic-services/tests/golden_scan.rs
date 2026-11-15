@@ -1,7 +1,8 @@
 //! The scan service against testdata/golden/services/scan.json, recorded by
 //! a generator that drove the Python app's own `services.scan` (start_scan /
-//! subscribe / get_state) in one asyncio loop. A scan cannot be cancelled,
-//! as in the Python app.
+//! subscribe / get_state) in one asyncio loop. The Python app could not
+//! cancel a scan, so no recording has one; cancelling is pinned by
+//! `tests/scan_cancel.rs`.
 //!
 //! Each story replays the same library changes between scans. Per scan
 //! compared: the state `start_scan` returned, the state before and after, the
@@ -15,6 +16,14 @@
 //! were Present before the scan, and `marked_missing` / its counts announce
 //! only Present -> Missing transitions. Every other difference fails, and so
 //! does a delta whose old value is not in the record.
+//!
+//! Deliberate change, as enumerated deltas too ([`stopped_deltas`], issue
+//! #193): a scan that saved nothing (aborted by the sanity check, or
+//! failed) ends with status `aborted` / `error` and publishes
+//! `LibraryScanStopped(reason, album_count)` instead of
+//! `LibraryScanCompleted`, and an aborted scan no longer kicks off the
+//! fingerprint pool. The Python app reported an aborted scan as `done`,
+//! announced completion on every path and warmed the pool after an abort.
 //!
 //! Deliberate change, applied to the whole record ([`in_scan_order`]):
 //! albums are discovered in name order, not in the filesystem's listing
@@ -394,7 +403,71 @@ fn deltas() -> Vec<Delta> {
             ),
         ],
     };
-    vec![small6, small8, ten16, ten17, f10, f12, f13, sidecar6]
+    let mut all = vec![small6, small8, ten16, ten17, f10, f12, f13, sidecar6];
+    all.extend(stopped_deltas());
+    all
+}
+
+/// The recorded `LibraryScanCompleted` of a scan that saved nothing.
+fn completed(album_count: u64) -> Value {
+    json!({"type": "LibraryScanCompleted", "album_count": album_count})
+}
+
+/// What replaces it (deliberate change, issue #193).
+fn stopped(reason: &str, album_count: u64) -> Value {
+    json!({"type": "LibraryScanStopped", "reason": reason, "album_count": album_count})
+}
+
+/// The recorded post-scan hook calls (`fingerprint_pool.stop()` +
+/// `warm_library`).
+fn pool_kickoff() -> Value {
+    json!([["stop"], ["warm_library", "<LIB>"]])
+}
+
+/// The scans that save nothing, and the state the next scan of the story
+/// starts from (issue #193):
+///
+/// - ten step 5 four-of-ten-vanish (aborted, 6 albums read): status
+///   `aborted`, `LibraryScanStopped(vanish_ratio_exceeded, 6)`, no pool
+///   kick-off; step 10 they-return starts from `aborted`. (Steps 16 and 17
+///   aborted in the Python app too, but they commit now, see [`deltas`].)
+/// - fifteen step 10 four-more-vanish (still aborted, 7 albums read): the
+///   same; step 12 three-more-vanish starts from `aborted`.
+/// - error step 0 save-fails (1 album read): `LibraryScanStopped(error, 1)`
+///   (status `error` and no pool kick-off were already the Python app's).
+fn stopped_deltas() -> Vec<Delta> {
+    let aborted_scan = |story: &'static str, step: usize, read: u64| Delta {
+        story,
+        step,
+        why: "stopped-scan-no-completion",
+        changes: vec![
+            set("/state_after/status", json!("done"), json!("aborted")),
+            set(
+                "/bus_events/0",
+                completed(read),
+                stopped("vanish_ratio_exceeded", read),
+            ),
+            set("/fingerprint_pool_calls", pool_kickoff(), json!([])),
+        ],
+    };
+    let after_abort = |story: &'static str, step: usize| Delta {
+        story,
+        step,
+        why: "stopped-scan-no-completion",
+        changes: vec![set("/state_before/status", json!("done"), json!("aborted"))],
+    };
+    vec![
+        aborted_scan("ten", 5, 6),
+        after_abort("ten", 10),
+        aborted_scan("fifteen", 10, 7),
+        after_abort("fifteen", 12),
+        Delta {
+            story: "error",
+            step: 0,
+            why: "stopped-scan-no-completion",
+            changes: vec![set("/bus_events/0", completed(1), stopped("error", 1))],
+        },
+    ]
 }
 
 /// The record of one scan step in this build's scan order (see the module
@@ -763,8 +836,9 @@ fn small_library_lifecycle() {
     run_story(&ScanService::new(), story("small"), true);
 }
 
-/// 4 of 10 vanish -> aborted, nothing written,
-/// LibraryScanCompleted + hook still run; exactly 30% commits. In the Python app
+/// 4 of 10 vanish -> aborted, nothing written; exactly 30% commits. Delta:
+/// the abort ends `aborted` with LibraryScanStopped and no pool kick-off
+/// (the Python app: `done`, LibraryScanCompleted, kick-off). In the Python app
 /// Missing albums kept counting toward the ratio, so later scans kept
 /// aborting; deltas: 1 more of 7 Present commits, then a rescan
 /// commits with nothing to announce.
@@ -789,7 +863,8 @@ fn empty_library() {
 }
 
 /// Negative: a failing save -> error event, status
-/// error, LibraryScanCompleted still published, no post-scan hook.
+/// error, no post-scan hook; delta: LibraryScanStopped(error) instead of the
+/// Python app's LibraryScanCompleted.
 #[test]
 fn save_failure_is_an_error() {
     run_story(&ScanService::new(), story("error"), false);
@@ -872,13 +947,16 @@ fn subscription_past_the_end_finishes() {
 /// after the worker's last scan event, while the status is still
 /// `running`, and before the bus event. No capture records that instant
 /// (state comparisons are taken after the scenario); this pins the code
-/// order of the Python app's source.
+/// order of the Python app's source. Deliberate change (issue #193): the
+/// failed scan's bus event is `LibraryScanStopped`, not the Python app's
+/// `LibraryScanCompleted`; the order is the same.
 #[test]
 fn worker_done_hook_runs_before_library_scan_completed_on_every_path() {
     use musaic_events::{Subscriber, Topic};
-    for (label, read_only_db, last_event) in
-        [("clean", false, "done"), ("save fails", true, "error")]
-    {
+    for (label, read_only_db, last_event, bus_event) in [
+        ("clean", false, "done", "LibraryScanCompleted"),
+        ("save fails", true, "error", "LibraryScanStopped"),
+    ] {
         let svc = ScanService::new();
         let (td, lib) = temp_lib(golden());
         let db = fresh_db(td.path());
@@ -888,8 +966,11 @@ fn worker_done_hook_runs_before_library_scan_completed_on_every_path() {
         bus.register(
             Topic::Event,
             Subscriber::from_fn(move |ev| {
-                if let Event::LibraryScanCompleted { .. } = ev {
-                    o2.lock().unwrap().push("LibraryScanCompleted".into());
+                if matches!(
+                    ev,
+                    Event::LibraryScanCompleted { .. } | Event::LibraryScanStopped { .. }
+                ) {
+                    o2.lock().unwrap().push(ev.name().into());
                 }
                 Ok(())
             })
@@ -923,7 +1004,7 @@ fn worker_done_hook_runs_before_library_scan_completed_on_every_path() {
             *order.lock().unwrap(),
             vec![
                 format!("worker_done status=running last_event={last_event}"),
-                "LibraryScanCompleted".to_string(),
+                bus_event.to_string(),
             ],
             "{label}"
         );

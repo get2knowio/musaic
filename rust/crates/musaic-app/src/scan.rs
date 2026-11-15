@@ -5,9 +5,11 @@
 
 use std::sync::Arc;
 
+use std::time::Duration;
+
 use musaic_services::ScanState;
 use musaic_services::gate::WorkGuard;
-use musaic_services::scan::ScanSubscription;
+use musaic_services::scan::{CancelScan, ScanSubscription};
 
 use crate::App;
 
@@ -47,5 +49,31 @@ impl App {
             Some(guard)
         };
         (self.0.scan.subscribe(0), unused)
+    }
+
+    /// Cancel the running scan (`POST /api/scan/cancel`, and the first step
+    /// of [`App::shutdown`]): [`musaic_services::ScanService::cancel`],
+    /// logged when it was accepted.
+    pub fn cancel_scan(&self) -> CancelScan {
+        let out = self.0.scan.cancel();
+        if let CancelScan::Requested(s) = &out {
+            self.log().info(
+                musaic_services::scan_run::SCAN_TARGET,
+                &format!(
+                    "scan cancel requested ({} of {} album(s) read)",
+                    s.scanned, s.total
+                ),
+            );
+        }
+        out
+    }
+
+    /// [`App::cancel_scan`], then wait up to `timeout` for the scan to end.
+    /// `true` when no scan runs at the end.
+    pub fn cancel_scan_and_wait(&self, timeout: Duration) -> bool {
+        match self.cancel_scan() {
+            CancelScan::NotRunning(_) => true,
+            _ => self.0.scan.wait_until_stopped(timeout),
+        }
     }
 }

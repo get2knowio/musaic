@@ -13,8 +13,15 @@
 //!        │                    └─ AlbumMarkedMissing(album_id, missing_since)
 //!        ├─ AlbumRenamed(old_album_id, new_album_id)
 //!        ├─ LibraryScanCompleted(album_count)
-//!        └─ BulkBatchCompleted()
+//!        ├─ BulkBatchCompleted()
+//!        └─ LibraryScanStopped(reason, album_count)   (not in the Python app)
 //! ```
+//!
+//! `LibraryScanStopped` is new (deliberate change): a scan that ended
+//! without saving (aborted by the sanity check, cancelled, failed) publishes
+//! it instead of `LibraryScanCompleted`, so nothing reruns after a scan
+//! that changed nothing, while subscribers still learn that the scan ended
+//! and why. `reason` is `vanish_ratio_exceeded`, `cancelled` or `error`.
 //!
 //! Here the concrete classes are one enum ([`Event`]); the two abstract
 //! classes become [`Topic::Event`] / [`Topic::AlbumScoped`], and
@@ -59,6 +66,10 @@ pub enum Event {
         album_count: i64,
     },
     BulkBatchCompleted,
+    LibraryScanStopped {
+        reason: String,
+        album_count: i64,
+    },
 }
 
 /// The concrete event class, without its data.
@@ -73,6 +84,7 @@ pub enum EventKind {
     AlbumMarkedMissing,
     LibraryScanCompleted,
     BulkBatchCompleted,
+    LibraryScanStopped,
 }
 
 /// What a subscriber registers for: one concrete class, or one of the two
@@ -86,7 +98,7 @@ pub enum Topic {
 }
 
 impl EventKind {
-    pub const ALL: [EventKind; 9] = [
+    pub const ALL: [EventKind; 10] = [
         EventKind::AlbumTagsChanged,
         EventKind::AlbumCoverChanged,
         EventKind::AlbumRenamed,
@@ -96,6 +108,7 @@ impl EventKind {
         EventKind::AlbumMarkedMissing,
         EventKind::LibraryScanCompleted,
         EventKind::BulkBatchCompleted,
+        EventKind::LibraryScanStopped,
     ];
 
     /// The Python class name: the SSE `event:` name.
@@ -110,6 +123,7 @@ impl EventKind {
             EventKind::AlbumMarkedMissing => "AlbumMarkedMissing",
             EventKind::LibraryScanCompleted => "LibraryScanCompleted",
             EventKind::BulkBatchCompleted => "BulkBatchCompleted",
+            EventKind::LibraryScanStopped => "LibraryScanStopped",
         }
     }
 
@@ -124,6 +138,7 @@ impl EventKind {
             EventKind::AlbumRenamed
                 | EventKind::LibraryScanCompleted
                 | EventKind::BulkBatchCompleted
+                | EventKind::LibraryScanStopped
         )
     }
 
@@ -151,6 +166,7 @@ impl EventKind {
             EventKind::AlbumRenamed => plain!(AlbumRenamed),
             EventKind::LibraryScanCompleted => plain!(LibraryScanCompleted),
             EventKind::BulkBatchCompleted => plain!(BulkBatchCompleted),
+            EventKind::LibraryScanStopped => plain!(LibraryScanStopped),
         }
     }
 }
@@ -240,6 +256,7 @@ impl Event {
             Event::AlbumMarkedMissing { .. } => EventKind::AlbumMarkedMissing,
             Event::LibraryScanCompleted { .. } => EventKind::LibraryScanCompleted,
             Event::BulkBatchCompleted => EventKind::BulkBatchCompleted,
+            Event::LibraryScanStopped { .. } => EventKind::LibraryScanStopped,
         }
     }
 
@@ -299,6 +316,10 @@ impl Event {
                 vec![("album_count", Int(*album_count))]
             }
             Event::BulkBatchCompleted => vec![],
+            Event::LibraryScanStopped {
+                reason,
+                album_count,
+            } => vec![("reason", Str(reason)), ("album_count", Int(*album_count))],
         }
     }
 
@@ -402,6 +423,14 @@ impl Event {
                 Some(_) => return Err(FromFieldsError::WrongType("album_count")),
             },
             EventKind::BulkBatchCompleted => Event::BulkBatchCompleted,
+            EventKind::LibraryScanStopped => Event::LibraryScanStopped {
+                reason: s("reason", take("reason"))?,
+                album_count: match take("album_count") {
+                    Some(ArgValue::Int(n)) => n,
+                    None => return Err(FromFieldsError::Missing("album_count")),
+                    Some(_) => return Err(FromFieldsError::WrongType("album_count")),
+                },
+            },
         };
         if let Some((k, _)) = args.first() {
             return Err(FromFieldsError::Unexpected((*k).to_owned()));

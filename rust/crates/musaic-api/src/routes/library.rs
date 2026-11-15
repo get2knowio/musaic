@@ -180,6 +180,20 @@ pub async fn scan_status(State(st): State<AppState>) -> ApiResult {
     ok_ordered(&st.0.scan.state().to_json())
 }
 
+/// `POST /api/scan/cancel` (not a route of the Python app): ask the running
+/// scan to stop ([`musaic_services::ScanService::cancel`]). Always 200 with
+/// the outcome, because a cancel can race with the scan ending on its own:
+/// `requested` / `already_requested` (it ends `cancelled`, nothing saved),
+/// `too_late` (it is saving and ends `done`), `not_running`. Takes no work
+/// guard: it writes nothing, and must work while a restore holds the gate.
+pub async fn scan_cancel(State(st): State<AppState>) -> ApiResult {
+    let out = st.cancel_scan();
+    ok_ordered(&Json::obj([
+        ("outcome", Json::from(out.as_str())),
+        ("scan", out.state().to_json()),
+    ]))
+}
+
 pub async fn scan_stream(State(st): State<AppState>, q: Q) -> ApiResult {
     let q = qp(q);
     let mut p = Params::default();

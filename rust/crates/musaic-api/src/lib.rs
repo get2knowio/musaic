@@ -63,11 +63,21 @@ pub const STUBS: &[(&str, &str, &str)] = &[];
 /// Routes the Python app does not have: deliberate additions (method, path,
 /// why). `tests/inventory.rs` pins this list and checks that every
 /// registered route is either a Python app route or listed here.
-pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[(
-    "GET",
-    routes::preview::COVER_PREVIEW_ROUTE,
-    "same-origin preview of a job's suggested remote cover (the desktop CSP allows img-src 'self' only); not a route of the Python app",
-)];
+pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
+    (
+        "GET",
+        routes::preview::COVER_PREVIEW_ROUTE,
+        "same-origin preview of a job's suggested remote cover (the desktop CSP allows img-src 'self' only); not a route of the Python app",
+    ),
+    (
+        "POST",
+        SCAN_CANCEL_ROUTE,
+        "cancel the running library scan (the Python app could not cancel a scan); not a route of the Python app",
+    ),
+];
+
+/// `POST /api/scan/cancel` ([`EXTRA_ROUTES`]).
+pub const SCAN_CANCEL_ROUTE: &str = "/api/scan/cancel";
 
 /// Registrations that are not routes of their own on the wire: each
 /// reproduces how Starlette routes a request the Python app has no route for
@@ -155,6 +165,8 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             get(library::scan_stream).query(&["force"]),
         )
         .route("/api/scan/rescan", post(library::rescan))
+        // Not a Python app route: cancel a running scan ([`EXTRA_ROUTES`]).
+        .route(SCAN_CANCEL_ROUTE, post(library::scan_cancel))
         .route(
             "/api/albums/{album_id}",
             get(library::get_album).delete(library::delete_album),

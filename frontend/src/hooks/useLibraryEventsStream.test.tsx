@@ -119,6 +119,12 @@ describe("useLibraryEventsStream", () => {
     ]);
   });
 
+  it("LibraryScanStopped refreshes only the snapshot (the scan saved nothing)", () => {
+    const { invalidate, es } = setup();
+    es.emit("LibraryScanStopped", { reason: "cancelled", album_count: 3 });
+    expect(keysOf(invalidate)).toEqual([["albums-snapshot"]]);
+  });
+
   it("BulkBatchCompleted does a broad prefix-matched refresh", () => {
     const { invalidate, es } = setup();
     es.emit("BulkBatchCompleted");

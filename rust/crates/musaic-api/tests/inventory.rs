@@ -167,7 +167,14 @@ fn the_extra_route_list_is_exactly_this() {
         .iter()
         .map(|(m, p, _)| format!("{m} {p}"))
         .collect();
-    assert_eq!(got, ["GET /api/ai/jobs/{job_id}/cover-preview"]);
+    assert_eq!(
+        got,
+        [
+            "GET /api/ai/jobs/{job_id}/cover-preview",
+            // Deliberate addition: cancelling a running scan (issue #193).
+            "POST /api/scan/cancel",
+        ]
+    );
 }
 
 // Every extra route is registered with its method and is

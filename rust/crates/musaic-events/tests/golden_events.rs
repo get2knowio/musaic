@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use common::{Fx, Interp, Trace, canon, ev, event_from, golden, replay_catalog};
 use musaic_events::{
-    Bus, EventKind, FromFieldsError, Relay, RelayMessage, SideEffects, Topic, ready_frame,
-    register_all, sse_frame,
+    ArgValue, Bus, Event, EventKind, FromFieldsError, Relay, RelayMessage, SideEffects, Topic,
+    ready_frame, register_all, sse_frame,
 };
 use serde_json::{Value, json};
 
@@ -154,11 +154,24 @@ fn payloads_match_python_bytes() {
     assert_eq!(ready_frame(), g["ready_frame"].as_str().unwrap());
 }
 
+/// Deliberate addition (issue #193): `LibraryScanStopped`, which the Python
+/// app does not have. A plain `Event` (not album-scoped), like
+/// `LibraryScanCompleted`; nothing in the catalog subscribes to it by name,
+/// so only the `Event`-wide subscribers (findings notify, SSE relay) run.
+/// Every other kind must match the recording.
+const ADDED_KINDS: &[EventKind] = &[EventKind::LibraryScanStopped];
+
+fn recorded_kinds() -> impl Iterator<Item = EventKind> {
+    EventKind::ALL
+        .into_iter()
+        .filter(|k| !ADDED_KINDS.contains(k))
+}
+
 /// The class hierarchy (MRO) each event fans out through.
 #[test]
 fn mro_matches_python() {
     let g = golden("payloads.json");
-    for kind in EventKind::ALL {
+    for kind in recorded_kinds() {
         let names: Vec<&str> = kind.mro().iter().map(|t| t.name()).collect();
         let want: Vec<&str> = g["mro"][kind.name()]
             .as_array()
@@ -169,7 +182,47 @@ fn mro_matches_python() {
         assert_eq!(names, want, "{kind:?}");
         assert_eq!(kind.is_album_scoped(), want.contains(&"AlbumScopedEvent"));
     }
-    assert_eq!(g["mro"].as_object().unwrap().len(), EventKind::ALL.len());
+    assert_eq!(
+        g["mro"].as_object().unwrap().len(),
+        EventKind::ALL.len() - ADDED_KINDS.len()
+    );
+    // The added kind: absent from the recording, shaped like
+    // LibraryScanCompleted.
+    let stopped = EventKind::LibraryScanStopped;
+    assert!(g["mro"].get(stopped.name()).is_none());
+    let names: Vec<&str> = stopped.mro().iter().map(|t| t.name()).collect();
+    assert_eq!(names, ["LibraryScanStopped", "Event"]);
+    assert!(!stopped.is_album_scoped());
+}
+
+/// The added event's relay frame and its keyword constructor.
+#[test]
+fn library_scan_stopped_payload_and_fields() {
+    let e = Event::LibraryScanStopped {
+        reason: "cancelled".into(),
+        album_count: 3,
+    };
+    assert_eq!(
+        RelayMessage::from_event(&e).frame(),
+        "event: LibraryScanStopped\ndata: {\"reason\": \"cancelled\", \"album_count\": 3}\n\n"
+    );
+    assert_eq!(
+        Event::from_fields(
+            "LibraryScanStopped",
+            [
+                ("reason", ArgValue::Str("cancelled".into())),
+                ("album_count", ArgValue::Int(3)),
+            ],
+        ),
+        Ok(e)
+    );
+    assert_eq!(
+        Event::from_fields(
+            "LibraryScanStopped",
+            [("reason", ArgValue::Str("error".into()))]
+        ),
+        Err(FromFieldsError::Missing("album_count"))
+    );
 }
 
 // ------------------------------------------------------------------ catalog
@@ -212,13 +265,25 @@ fn catalog_registry_and_dispatch_plan_match_python() {
         }
     }
     assert_eq!(serde_json::to_value(registry).unwrap(), g["registry"]);
-    for kind in EventKind::ALL {
+    for kind in recorded_kinds() {
         assert_eq!(
             info_json(bus.dispatch_plan(kind)),
             g["dispatch_plan"][kind.name()],
             "{kind:?}"
         );
     }
+    // The added kind (ADDED_KINDS): only the Event-wide subscribers, i.e.
+    // what BulkBatchCompleted gets minus its library-wide rerun. No check
+    // rerun follows a scan that saved nothing.
+    let mut want = g["dispatch_plan"]["BulkBatchCompleted"].clone();
+    want.as_array_mut()
+        .unwrap()
+        .retain(|r| !r["name"].as_str().unwrap().starts_with("_post_scan_rerun"));
+    assert_eq!(want.as_array().unwrap().len(), 2, "{want}");
+    assert_eq!(
+        info_json(bus.dispatch_plan(EventKind::LibraryScanStopped)),
+        want
+    );
 }
 
 fn run_catalog_scenario(name: &str) {

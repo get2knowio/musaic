@@ -53,7 +53,7 @@ pub fn start_scan_with(
 }
 
 /// The end of a scan in the log: its status and counts (from the state and
-/// the `done` / `aborted` / `error` event).
+/// the `done` / `aborted` / `cancelled` / `error` event).
 pub fn log_scan_end(log: &dyn HostLog, scan: &ScanService, took: Duration) {
     let s = scan.state();
     let last = scan.buffer().into_iter().last();
@@ -71,11 +71,18 @@ pub fn log_scan_end(log: &dyn HostLog, scan: &ScanService, took: Duration) {
                 ev.data.get("returned_count").map_or_else(String::new, |v| v.dumps()),
             ),
         ),
-        ("done", Some(ev)) if ev.name == "aborted" => log.warn(
+        ("aborted", Some(ev)) if ev.name == "aborted" => log.warn(
             t,
             &format!(
                 "Scan sanity check tripped after {ms}ms: {}",
                 ev.data.get("detail").and_then(|v| v.as_str()).unwrap_or("")
+            ),
+        ),
+        ("cancelled", _) => log.info(
+            t,
+            &format!(
+                "scan cancelled after {ms}ms ({} of {} album(s) read); nothing saved",
+                s.scanned, s.total
             ),
         ),
         (status, _) => log.error(

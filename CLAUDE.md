@@ -175,7 +175,10 @@ the SSE relay). Callers never call those directly.
 
 - Event types: `rust/crates/musaic-events/src/event.rs` (`AlbumTagsChanged`,
   `AlbumCoverChanged`, `AlbumRenamed`, `AlbumMbAnchorSet`, `TrackFingerprinted`,
-  `AlbumDeleted`, `AlbumMarkedMissing`, `LibraryScanCompleted`, `BulkBatchCompleted`).
+  `AlbumDeleted`, `AlbumMarkedMissing`, `LibraryScanCompleted`, `BulkBatchCompleted`,
+  `LibraryScanStopped`). Only a scan that saved its snapshot publishes
+  `LibraryScanCompleted` (post-scan reruns, fingerprint pool kick-off); an aborted,
+  cancelled or failed scan publishes `LibraryScanStopped(reason)` and starts nothing.
 - Bus (priorities, background subscribers, isolation): `musaic-events/src/bus.rs`.
 - The subscriber list: `musaic-events/src/catalog.rs` (`CATALOG`, `register_all`); the
   real side effects: `musaic-checks/src/post_scan.rs` and
@@ -241,9 +244,17 @@ A scan never deletes an album row. An album whose folder is gone gets `missing_s
 set (`AlbumMarkedMissing`) and keeps its fingerprints, anchors and tags; a returning album
 clears it (`AlbumTagsChanged` with field `missing_since`). A scan that would mark a large
 share of the library Missing at once is aborted as untrustworthy (an unmounted drive).
+A running scan can be cancelled (`POST /api/scan/cancel`; the app's shutdown does the
+same); the snapshot save is the commit point, so an aborted or cancelled scan writes
+nothing and nobody is marked Missing from a partial walk.
 
 - `musaic-db/src/albums.rs`: `save_snapshot`, `mark_album_missing`, `delete_album`.
-- Scan sanity check: `musaic-services/src/scan.rs`.
+- Scan states (`idle`, `running`, `cancelling`, `done`, `aborted`, `cancelled`, `error`),
+  the sanity check, cancellation and the scan stream's events (`start`, `album`,
+  `progress`, `marked_missing`, `cancelling`, then exactly one of `done` / `aborted` /
+  `cancelled` / `error`): `musaic-services/src/scan.rs` (module docs). Routes
+  `GET /api/scan/status`, `GET /api/scan/stream`, `POST /api/scan/rescan`,
+  `POST /api/scan/cancel`: `musaic-api/src/routes/library.rs`.
 - Checks: `musaic-checks/src/runner.rs` drops Missing albums from scope and keeps their
   open findings; SQL-only checks filter `missing_since IS NULL` themselves.
 - The only path that drops a row is the user's "Remove from library"
