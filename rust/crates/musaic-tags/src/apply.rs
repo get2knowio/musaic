@@ -5,6 +5,16 @@
 //! layer can forward them as they happen. Ordered maps (Python dicts) are
 //! `Vec<(key, value)>`; a repeated key behaves like a dict assignment (value
 //! replaced, first position kept).
+//!
+//! # Removing a tag
+//!
+//! A suggestion only ever sets a value: an empty, whitespace-only or null
+//! suggestion is "no change", so a source whose data is missing (a resolver
+//! field it could not fill, a model that answered `""`) never clears a tag.
+//! Removal is a separate, explicit request ([`Removals`]); the Python app
+//! had no way to remove a tag. Deliberate change: a whitespace-only
+//! suggestion is skipped like an empty one; the Python app stripped it after
+//! the emptiness test and wrote an empty tag.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -37,15 +47,85 @@ pub const TRACK_FIELD_TO_VORBIS: [(&str, &str); 4] = [
 ];
 
 /// Suggestion values as the Python app receives them, already `str()`-ed by the
-/// caller; `None` stands for JSON null.
+/// caller; `None` stands for JSON null. `None`, `""` and whitespace-only
+/// values are skipped: a suggestion never removes a tag (see [`Removals`]).
 pub type Suggestions = Vec<(String, Option<String>)>;
 /// Filename -> per-track suggestions.
 pub type TrackSuggestions = Vec<(String, Suggestions)>;
 
+/// Spellings the scanner reads as the same field as a key this module
+/// writes (`musaic-scan`'s tag fallbacks). Removing the field removes them
+/// too, or the scanner would show the field again from the other spelling.
+/// ORIGINALDATE / ORIGINALYEAR are another field (the first release) and
+/// stay.
+const REMOVAL_ALIASES: [(&str, &[&str]); 2] =
+    [("albumartist", &["album_artist"]), ("date", &["year"])];
+
+/// Per-track fields that cannot be removed: the scanner orders tracks by
+/// TRACKNUMBER and file renames key on it. Correct it by setting a number.
+pub const TRACK_FIELDS_NOT_REMOVABLE: [&str; 1] = ["tracknumber"];
+
+/// Whether `field` names an album-level field a [`Removals`] can remove (a
+/// key of [`FIELD_TO_VORBIS`]).
+pub fn is_removable_album_field(field: &str) -> bool {
+    FIELD_TO_VORBIS.iter().any(|(f, _)| *f == field)
+}
+
+/// The album-level field names a [`Removals`] can remove, in table order.
+pub fn removable_album_fields() -> Vec<&'static str> {
+    FIELD_TO_VORBIS.iter().map(|(f, _)| *f).collect()
+}
+
+/// The per-track field names a [`Removals`] can remove, in table order.
+pub fn removable_track_fields() -> Vec<&'static str> {
+    TRACK_FIELD_TO_VORBIS
+        .iter()
+        .map(|(f, _)| *f)
+        .filter(|f| is_removable_track_field(f))
+        .collect()
+}
+
+/// Whether `field` names a per-track field a [`Removals`] can remove (a key
+/// of [`TRACK_FIELD_TO_VORBIS`] other than [`TRACK_FIELDS_NOT_REMOVABLE`]).
+pub fn is_removable_track_field(field: &str) -> bool {
+    TRACK_FIELD_TO_VORBIS.iter().any(|(f, _)| *f == field)
+        && !TRACK_FIELDS_NOT_REMOVABLE.contains(&field)
+}
+
+/// Fields to remove from the files: only ever an explicit request (a user
+/// blanking a field), never derived from a source's missing data.
+///
+/// A removal deletes every value of the field's Vorbis key under any
+/// spelling of the key (`GENRE`, `genre`, ...), plus the aliases the scanner
+/// reads as the same field (ALBUM_ARTIST for album_artist, YEAR for year).
+/// A file without the tag is left alone. Names that are not removable
+/// fields are ignored here (the HTTP layer refuses them). For one file and
+/// one Vorbis key, a per-track entry overrides an album-level one, as with
+/// suggestions, and a removal overrides a suggestion given with it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Removals {
+    /// Album-level field names (keys of [`FIELD_TO_VORBIS`]), removed from
+    /// every FLAC of the album.
+    pub album: Vec<String>,
+    /// Filename -> per-track field names (see [`is_removable_track_field`]).
+    pub tracks: Vec<(String, Vec<String>)>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Diff {
+    /// The value before: the first value of the key ("" when absent). For a
+    /// removal, every value the key held, joined with "; " (the way the
+    /// scanner shows a multi-valued genre).
     pub old: String,
-    pub new: String,
+    /// The value written, or `None` when the tag is removed (JSON null).
+    pub new: Option<String>,
+}
+
+/// One planned edit of a Vorbis key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Edit {
+    Set(String),
+    Remove,
 }
 
 /// `FileChange` as `change_to_dict` renders it, plus `renamed_to`.
@@ -79,6 +159,9 @@ pub enum Event {
         dry_run: bool,
         file_count: usize,
         suggestions_applied: Vec<(String, String)>,
+        /// Album-level fields removed (user-facing names). Not part of
+        /// the Python app's payload; sent only when not empty.
+        cleared: Vec<String>,
         has_cover_change: bool,
         track_change_count: usize,
     },
@@ -102,6 +185,8 @@ pub enum Event {
         renamed_count: usize,
         errors: usize,
         suggestions_applied: Vec<(String, String)>,
+        /// As in [`Event::Start`].
+        cleared: Vec<String>,
     },
     CoverSaved {
         path: PathBuf,
@@ -124,15 +209,16 @@ impl Event {
     }
 }
 
-fn dict_set(map: &mut Vec<(String, String)>, key: &str, value: String) {
+fn dict_set<V>(map: &mut Vec<(String, V)>, key: &str, value: V) {
     match map.iter_mut().find(|(k, _)| k == key) {
         Some(slot) => slot.1 = value,
         None => map.push((key.to_string(), value)),
     }
 }
 
-/// `{table[k]: str(v).strip() for k, v in sug.items() if k in table and v not in (None, "")}`
-fn translate(sug: &Suggestions, table: &[(&str, &str)]) -> Vec<(String, String)> {
+/// `{table[k]: str(v).strip() for k, v in sug.items() if k in table and v not in (None, "")}`,
+/// except that a value that strips to nothing is skipped too.
+fn translate(sug: &Suggestions, table: &[(&str, &str)]) -> Vec<(String, Edit)> {
     // The caller's dict first: a repeated key keeps its first position.
     let mut dict: Vec<(String, Option<String>)> = Vec::new();
     for (k, v) in sug {
@@ -143,14 +229,45 @@ fn translate(sug: &Suggestions, table: &[(&str, &str)]) -> Vec<(String, String)>
     }
     let mut out = Vec::new();
     for (k, v) in dict {
-        let Some(v) = v.filter(|v| !v.is_empty()) else {
+        let Some(v) = v.map(|v| pycompat::strip(&v).to_string()) else {
             continue;
         };
+        // Deliberate change: the Python app tested for "" before stripping
+        // and wrote an empty tag for a whitespace-only value.
+        if v.is_empty() {
+            continue;
+        }
         if let Some((_, vk)) = table.iter().find(|(f, _)| *f == k) {
-            dict_set(&mut out, vk, pycompat::strip(&v).to_string());
+            dict_set(&mut out, vk, Edit::Set(v));
         }
     }
     out
+}
+
+/// Add the removals of `fields` (those `removable` accepts) to `out`.
+fn add_removals(
+    out: &mut Vec<(String, Edit)>,
+    fields: &[String],
+    table: &[(&str, &str)],
+    removable: fn(&str) -> bool,
+) {
+    for f in fields {
+        if !removable(f) {
+            continue;
+        }
+        if let Some((_, vk)) = table.iter().find(|(name, _)| name == f) {
+            dict_set(out, vk, Edit::Remove);
+        }
+    }
+}
+
+/// The user-facing field name of an album-level Vorbis key.
+fn album_field_of(vk: &str) -> &str {
+    FIELD_TO_VORBIS
+        .iter()
+        .rev()
+        .find(|(_, x)| *x == vk)
+        .map_or(vk, |(f, _)| f)
 }
 
 /// `_proposed_filename`: replace a leading numeric prefix matched by
@@ -186,7 +303,7 @@ fn filename_prefix_end(name: &str) -> Option<usize> {
 }
 
 /// `apply_to_album_iter(album_dir, suggestions, track_suggestions=...,
-/// cover_bytes=..., cover_mime=..., dry_run=...)`.
+/// cover_bytes=..., cover_mime=..., dry_run=...)`, plus `removals`.
 ///
 /// `cover` is the (already normalised) image bytes and the MIME type to
 /// record in the PICTURE block. Errors only when `album_dir` is not a
@@ -196,6 +313,7 @@ pub fn apply_to_album_iter(
     album_dir: &Path,
     suggestions: &Suggestions,
     track_suggestions: &TrackSuggestions,
+    removals: &Removals,
     cover: Option<(&[u8], &str)>,
     dry_run: bool,
     emit: &mut dyn FnMut(Event),
@@ -206,17 +324,24 @@ pub fn apply_to_album_iter(
             format!("Not a directory: {}", album_dir.display()),
         ));
     }
-    let album_applied = translate(suggestions, &FIELD_TO_VORBIS);
+    let mut album_applied = translate(suggestions, &FIELD_TO_VORBIS);
+    add_removals(
+        &mut album_applied,
+        &removals.album,
+        &FIELD_TO_VORBIS,
+        is_removable_album_field,
+    );
     let user_friendly: Vec<(String, String)> = album_applied
         .iter()
-        .map(|(vk, v)| {
-            let field = FIELD_TO_VORBIS
-                .iter()
-                .rev()
-                .find(|(_, x)| x == vk)
-                .map_or(vk.as_str(), |(f, _)| f);
-            (field.to_string(), v.clone())
+        .filter_map(|(vk, e)| match e {
+            Edit::Set(v) => Some((album_field_of(vk).to_string(), v.clone())),
+            Edit::Remove => None,
         })
+        .collect();
+    let cleared: Vec<String> = album_applied
+        .iter()
+        .filter(|(_, e)| *e == Edit::Remove)
+        .map(|(vk, _)| album_field_of(vk).to_string())
         .collect();
     // The caller's dict of filename -> suggestions (last value of a repeated
     // filename wins, first position kept), then translated per file.
@@ -227,11 +352,26 @@ pub fn apply_to_album_iter(
             None => raw_by_file.push((filename, raw)),
         }
     }
-    let per_file: Vec<(String, Vec<(String, String)>)> = raw_by_file
+    let mut per_file: Vec<(String, Vec<(String, Edit)>)> = raw_by_file
         .into_iter()
         .map(|(f, raw)| (f.clone(), translate(raw, &TRACK_FIELD_TO_VORBIS)))
-        .filter(|(_, t)| !t.is_empty())
         .collect();
+    for (filename, fields) in &removals.tracks {
+        let i = match per_file.iter().position(|(f, _)| f == filename) {
+            Some(i) => i,
+            None => {
+                per_file.push((filename.clone(), Vec::new()));
+                per_file.len() - 1
+            }
+        };
+        add_removals(
+            &mut per_file[i].1,
+            fields,
+            &TRACK_FIELD_TO_VORBIS,
+            is_removable_track_field,
+        );
+    }
+    per_file.retain(|(_, t)| !t.is_empty());
 
     let flacs = musaic_scan::list_flacs(album_dir);
     let pic: Option<Picture> = cover.map(|(bytes, mime)| build_picture(bytes.to_vec(), mime));
@@ -241,6 +381,7 @@ pub fn apply_to_album_iter(
         dry_run,
         file_count: flacs.len(),
         suggestions_applied: user_friendly.clone(),
+        cleared: cleared.clone(),
         has_cover_change: pic.is_some(),
         track_change_count: per_file.len(),
     });
@@ -252,6 +393,7 @@ pub fn apply_to_album_iter(
         renamed_count,
         errors,
         suggestions_applied: user_friendly.clone(),
+        cleared: cleared.clone(),
     };
     if flacs.is_empty() {
         emit(done(0, 0, 0, 0));
@@ -291,22 +433,53 @@ pub fn apply_to_album_iter(
             for (k, v) in file_specific {
                 dict_set(&mut combined, k, v.clone());
             }
-            for (vkey, new_val) in &combined {
-                let old_val = audio
-                    .tags()
-                    .and_then(|t| t.first(vkey))
-                    .unwrap_or("")
-                    .to_string();
-                if old_val != *new_val {
-                    change.diffs.push((
-                        vkey.clone(),
-                        Diff {
-                            old: old_val,
-                            new: new_val.clone(),
-                        },
-                    ));
-                    if !dry_run {
-                        audio.tags_mut().set(vkey, new_val);
+            for (vkey, edit) in &combined {
+                match edit {
+                    Edit::Set(new_val) => {
+                        let old_val = audio
+                            .tags()
+                            .and_then(|t| t.first(vkey))
+                            .unwrap_or("")
+                            .to_string();
+                        if old_val != *new_val {
+                            change.diffs.push((
+                                vkey.clone(),
+                                Diff {
+                                    old: old_val,
+                                    new: Some(new_val.clone()),
+                                },
+                            ));
+                            if !dry_run {
+                                audio.tags_mut().set(vkey, new_val);
+                            }
+                        }
+                    }
+                    Edit::Remove => {
+                        let aliases = REMOVAL_ALIASES
+                            .iter()
+                            .find(|(k, _)| k == vkey)
+                            .map_or(&[][..], |(_, a)| *a);
+                        for key in std::iter::once(vkey.as_str()).chain(aliases.iter().copied()) {
+                            let old: Vec<String> = audio
+                                .tags()
+                                .map(|t| t.values(key).map(str::to_string).collect())
+                                .unwrap_or_default();
+                            // Absent: nothing to remove. A present but empty
+                            // value is removed (and shown as a diff).
+                            if old.is_empty() {
+                                continue;
+                            }
+                            change.diffs.push((
+                                key.to_string(),
+                                Diff {
+                                    old: old.join("; "),
+                                    new: None,
+                                },
+                            ));
+                            if !dry_run {
+                                audio.tags_mut().remove(key);
+                            }
+                        }
                     }
                 }
             }
@@ -325,7 +498,7 @@ pub fn apply_to_album_iter(
                     art_changed_count += 1;
                 }
             }
-            if let Some((_, n)) = file_specific.iter().find(|(k, _)| k == "tracknumber")
+            if let Some((_, Edit::Set(n))) = file_specific.iter().find(|(k, _)| k == "tracknumber")
                 && let Some(proposed) = proposed_filename(&filename, n)
                 && proposed != filename
             {
@@ -418,6 +591,7 @@ pub fn apply_album_files(
     album_dir: &Path,
     suggestions: &Suggestions,
     track_suggestions: &TrackSuggestions,
+    removals: &Removals,
     cover: Option<CoverInput<'_>>,
     dry_run: bool,
     emit: &mut dyn FnMut(Event),
@@ -436,6 +610,7 @@ pub fn apply_album_files(
         album_dir,
         suggestions,
         track_suggestions,
+        removals,
         normalized.as_deref().map(|b| (b, "image/jpeg")),
         dry_run,
         emit,

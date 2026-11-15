@@ -9,7 +9,7 @@
 
 import { useCallback, useReducer, useRef } from "react";
 import { postSse } from "@/lib/sse";
-import type { Album, ApplyPayload, FileChange } from "@/lib/types";
+import type { Album, ApplyPayload, FileChange, TagDiff } from "@/lib/types";
 
 export type FileStatus = "pending" | "active" | "done" | "error";
 
@@ -17,7 +17,8 @@ export interface ApplyFileState {
   index: number;
   filename: string;
   status: FileStatus;
-  diffs: Record<string, { old: string; new: string }>;
+  /** `new: null` = the tag is removed. */
+  diffs: Record<string, TagDiff>;
   art_changed: boolean;
   saved: boolean;
   error: string | null;

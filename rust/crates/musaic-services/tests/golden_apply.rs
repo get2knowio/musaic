@@ -422,6 +422,7 @@ fn run(sc: &Value, s: &Setup) -> Run {
         ),
         suggestions: pairs(&pp["suggestions"]),
         track_suggestions: track_pairs(&pp["track_suggestions"]),
+        removals: Default::default(),
         cover_url: payload["cover_url"].as_str().map(str::to_string),
         cover_bytes: payload["cover_bytes"].as_str().map(payload_image),
         cover_mime: payload["cover_mime"].as_str().map(str::to_string),

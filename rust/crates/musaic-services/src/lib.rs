@@ -90,6 +90,11 @@ pub use apply::{
     resolve_album, validate_cover_upload,
 };
 pub use json::Json;
+/// What an apply may remove (the HTTP layer validates a request against it).
+pub use musaic_tags::{
+    Removals, TRACK_FIELDS_NOT_REMOVABLE, is_removable_album_field, is_removable_track_field,
+    removable_album_fields, removable_track_fields,
+};
 pub use scan::{
     CancelScan, Poll, ScanDeps, ScanEvent, ScanJob, ScanService, ScanState, ScanStatus,
     ScanSubscription, StartScan,

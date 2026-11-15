@@ -66,6 +66,7 @@ fn renumber(album: &Path) -> Vec<Event> {
             "01 a.flac".to_owned(),
             vec![("tracknumber".to_owned(), Some("2".to_owned()))],
         )],
+        &Default::default(),
         None,
         false,
         &mut |e| events.push(e),

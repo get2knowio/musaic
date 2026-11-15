@@ -265,6 +265,7 @@ fn apply_reports_the_warning_on_the_file_it_concerns() {
         &album,
         &vec![("genre".to_string(), Some(big_comment()))],
         &Vec::new(),
+        &musaic_tags::Removals::default(),
         None,
         false,
         &mut |e| {

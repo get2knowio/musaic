@@ -167,6 +167,23 @@ impl VorbisComment {
             .map(|(_, v)| v.as_str())
     }
 
+    /// Every value stored under `key`, case-insensitively, in file order.
+    pub fn values<'a>(&'a self, key: &'a str) -> impl Iterator<Item = &'a str> + 'a {
+        self.comments
+            .iter()
+            .filter(move |(k, _)| k.eq_ignore_ascii_case(key))
+            .map(|(_, v)| v.as_str())
+    }
+
+    /// `del tags[key]`: delete every entry whose key matches
+    /// case-insensitively (every value of a multi-valued tag, every spelling
+    /// of the key). Returns whether anything was removed.
+    pub fn remove(&mut self, key: &str) -> bool {
+        let before = self.comments.len();
+        self.comments.retain(|(k, _)| !k.eq_ignore_ascii_case(key));
+        self.comments.len() != before
+    }
+
     /// `tags[key] = value`: delete every entry whose key matches
     /// case-insensitively, then append `(key, value)` at the end with the
     /// caller's spelling of the key.

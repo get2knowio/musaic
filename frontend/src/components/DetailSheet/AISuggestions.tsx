@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useTracks } from "@/hooks/useTracks";
+import { writtenSuggestions } from "@/lib/suggestions";
 import type {
   Album,
   CoverSuggestionResponse,
@@ -72,9 +73,13 @@ export default function AISuggestions({
     [tracksQuery.data],
   );
 
-  const sug = metadata?.suggestions ?? {};
+  // An empty or whitespace-only suggestion is "no change" in the apply (a
+  // suggestion never removes a tag), so it is not shown as one here.
+  const sug = writtenSuggestions(metadata?.suggestions ?? {});
   const albumKeys = Object.keys(sug);
-  const trackEntries = metadata?.tracks ?? [];
+  const trackEntries = (metadata?.tracks ?? [])
+    .map((entry) => ({ ...entry, suggestions: writtenSuggestions(entry.suggestions) }))
+    .filter((entry) => Object.keys(entry.suggestions).length > 0);
   const hasAlbumChanges = albumKeys.length > 0;
   const hasTrackChanges = trackEntries.length > 0;
   const hasCover = !!cover?.cover_url;

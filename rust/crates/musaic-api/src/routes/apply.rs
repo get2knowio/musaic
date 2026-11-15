@@ -6,23 +6,103 @@
 //! `Break` and musaic-services runs a non-dry-run apply to completion anyway;
 //! the HTTP layer only stops forwarding. A Missing album is refused
 //! by musaic-services' `resolve_album` with 409, surfaced as is.
+//!
+//! Removing a tag (not in the Python app): `clear` lists album-level
+//! fields and `track_clear` maps a filename to per-track fields to remove
+//! from the files. An empty or null suggestion still means "no change", so
+//! only these explicit lists remove anything. Refused with 422 before
+//! anything runs: an unknown field name, `tracknumber` (the scanner orders
+//! tracks by it; set a number instead) and a field that is both suggested
+//! and cleared for the same target.
 
 use std::ops::ControlFlow;
 
 use axum::body::Bytes;
 use axum::extract::multipart::MultipartRejection;
 use axum::extract::{Multipart, Path as UrlPath, State};
-use musaic_services::{ApplyRequest, apply_album_changes};
+use musaic_services::{ApplyRequest, Removals, apply_album_changes};
 use serde_json::{Value, json};
 
 use crate::gate::WorkGuard;
 use crate::http::{ApiError, ApiResult, blocking};
-use crate::lax::{Fields, KeyOrder, err, parse_json_body, unprocessable};
+use crate::lax::{Fields, KeyOrder, err, literal_err, parse_json_body, unprocessable};
 use crate::sse;
 use crate::state::AppState;
 
 fn sugg(pairs: Vec<(String, String)>) -> Vec<(String, Option<String>)> {
     pairs.into_iter().map(|(k, v)| (k, Some(v))).collect()
+}
+
+fn value_error(loc: Vec<Value>, msg: &str, input: Value) -> Value {
+    err("value_error", loc, &format!("Value error, {msg}"), input)
+}
+
+/// `clear` / `track_clear` checked against the removable fields and
+/// against the suggestions for the same target.
+fn removals(
+    suggestions: &[(String, String)],
+    track: &[(String, Vec<(String, String)>)],
+    clear: Vec<String>,
+    track_clear: Vec<(String, Vec<String>)>,
+) -> Result<Removals, ApiError> {
+    let mut errors = Vec::new();
+    let suggested = |pairs: &[(String, String)], field: &str| pairs.iter().any(|(k, _)| k == field);
+    for (i, field) in clear.iter().enumerate() {
+        let loc = vec![json!("body"), json!("clear"), json!(i)];
+        if !musaic_services::is_removable_album_field(field) {
+            errors.push(literal_err(
+                loc,
+                json!(field),
+                &musaic_services::removable_album_fields(),
+            ));
+        } else if suggested(suggestions, field) {
+            errors.push(value_error(
+                loc,
+                &format!("{field} is both in suggestions and in clear"),
+                json!(field),
+            ));
+        }
+    }
+    for (filename, fields) in &track_clear {
+        let row = track
+            .iter()
+            .find(|(f, _)| f == filename)
+            .map_or(&[][..], |(_, r)| r.as_slice());
+        for (i, field) in fields.iter().enumerate() {
+            let loc = vec![
+                json!("body"),
+                json!("track_clear"),
+                json!(filename),
+                json!(i),
+            ];
+            if musaic_services::TRACK_FIELDS_NOT_REMOVABLE.contains(&field.as_str()) {
+                errors.push(value_error(
+                    loc,
+                    &format!("{field} cannot be removed; set a value instead"),
+                    json!(field),
+                ));
+            } else if !musaic_services::is_removable_track_field(field) {
+                errors.push(literal_err(
+                    loc,
+                    json!(field),
+                    &musaic_services::removable_track_fields(),
+                ));
+            } else if suggested(row, field) {
+                errors.push(value_error(
+                    loc,
+                    &format!("{field} is both in track_suggestions and in track_clear"),
+                    json!(field),
+                ));
+            }
+        }
+    }
+    if !errors.is_empty() {
+        return Err(unprocessable(errors));
+    }
+    Ok(Removals {
+        album: clear,
+        tracks: track_clear,
+    })
 }
 
 /// `guard` is held until the pipeline returns, which is after the
@@ -87,9 +167,12 @@ pub async fn apply_stream(
     let mut f = Fields::required(parse_json_body(&body)?)?.with_order(KeyOrder::of_body(&body));
     let suggestions = f.str_map("suggestions");
     let track = f.str_map_map("track_suggestions");
+    let clear = f.opt_str_list("clear").unwrap_or_default();
+    let track_clear = f.str_list_map("track_clear");
     let cover_url = f.opt_str("cover_url");
     let dry_run = f.bool_or("dry_run", false);
     f.finish()?;
+    let removals = removals(&suggestions, &track, clear, track_clear)?;
     // An apply is refused while a restore runs, and
     // so is a dry run — it reads the database the restore swaps —
     // so it takes the gate like a real apply, which also keeps a restore
@@ -102,6 +185,7 @@ pub async fn apply_stream(
         library_dir: Some(st.library_dir().unwrap_or_default()),
         suggestions: sugg(suggestions),
         track_suggestions: track.into_iter().map(|(k, v)| (k, sugg(v))).collect(),
+        removals,
         cover_url,
         cover_bytes: None,
         cover_mime: None,
