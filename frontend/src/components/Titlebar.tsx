@@ -41,6 +41,12 @@ function abbreviateHome(path: string): string {
  * Titlebar — 36px tall, full-width chrome with brand, breadcrumb, search,
  * view toggle, rescan, theme toggle, settings.
  *
+ * Narrow windows: the header never makes the page wider than the window
+ * (`min-w-0` lets the app grid shrink it). The location crumb and the search
+ * box shrink first; below Tailwind's `lg` (1024 px) the tile-size slider is
+ * hidden and Rescan shows only its icon. The fingerprint pill already hides
+ * below `md`.
+ *
  * The Rescan button delegates to the Library page's `useScanStream.rescan`
  * via the rescanController module-level registry. When Library isn't
  * mounted, it falls back to a bare API call + toast pointing the user at
@@ -110,15 +116,15 @@ export default function Titlebar() {
     : "Rescan the library";
 
   return (
-    <header className="flex items-center gap-3 h-[var(--titlebar-h)] px-3.5 border-b border-line bg-panel-2 select-none relative z-10">
+    <header className="flex items-center gap-3 min-w-0 overflow-hidden h-[var(--titlebar-h)] px-3.5 border-b border-line bg-panel-2 select-none relative z-10">
       {/* Brand */}
-      <div className="flex items-center gap-2.5 font-semibold text-md tracking-tight">
+      <div className="flex items-center gap-2.5 font-semibold text-md tracking-tight shrink-0">
         <BrandMark />
         <span>Musaic</span>
       </div>
 
       {/* Breadcrumb / current location */}
-      <div className="flex items-center gap-1.5 mono text-sm text-fg-3 ml-2 truncate max-w-md">
+      <div className="flex items-center gap-1.5 mono text-sm text-fg-3 ml-2 min-w-0 truncate max-w-md">
         {onLibrary && libraryDir ? (
           <span className="text-fg-2 truncate" title={libraryDir}>
             {crumb}
@@ -135,17 +141,17 @@ export default function Titlebar() {
       <FingerprintPoolPill />
 
       {/* Search — writes ?q=… to the URL so Library page can filter */}
-      <div className="flex items-center gap-2 bg-panel border border-line rounded-md px-2.5 h-8 w-80 focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-soft)] transition">
-        <Search className="w-3.5 h-3.5 text-fg-3" />
+      <div className="flex items-center gap-2 bg-panel border border-line rounded-md px-2.5 h-8 w-80 min-w-32 shrink focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-soft)] transition">
+        <Search className="w-3.5 h-3.5 text-fg-3 shrink-0" />
         <input
           type="search"
           value={query}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder={onLibrary ? "Filter albums, artists, tracks…" : "Search…"}
           disabled={!onLibrary}
-          className="bg-transparent border-0 outline-0 flex-1 text-sm placeholder:text-fg-4 disabled:opacity-60"
+          className="bg-transparent border-0 outline-0 flex-1 min-w-0 text-sm placeholder:text-fg-4 disabled:opacity-60"
         />
-        <span className="mono text-xs text-fg-3 border border-line bg-bg-2 px-1.5 py-0.5 rounded-sm">/</span>
+        <span className="mono text-xs text-fg-3 border border-line bg-bg-2 px-1.5 py-0.5 rounded-sm shrink-0">/</span>
       </div>
 
       {/* Tile-size slider — only meaningful when viewing the Library
@@ -154,7 +160,7 @@ export default function Titlebar() {
       {onLibrary && view === "tiles" && <TileColumnsSlider />}
 
       {/* View toggle */}
-      <div className="inline-flex border border-line rounded-md h-8 overflow-hidden bg-panel">
+      <div className="inline-flex shrink-0 border border-line rounded-md h-8 overflow-hidden bg-panel">
         <button
           className={`px-2.5 text-sm flex items-center gap-1 ${view === "tiles" ? "bg-bg-3 text-fg" : "text-fg-3"}`}
           onClick={() => setView("tiles")}
@@ -174,8 +180,9 @@ export default function Titlebar() {
       {/* Rescan */}
       <button
         onClick={onRescan}
+        aria-label={scanning || rescanning ? "Scanning…" : "Rescan"}
         disabled={rescanDisabled}
-        className="inline-flex items-center gap-2 h-8 px-3 border border-line rounded-md bg-panel text-fg-2 text-sm hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 disabled:cursor-not-allowed"
+        className="inline-flex shrink-0 items-center gap-2 h-8 px-2.5 lg:px-3 border border-line rounded-md bg-panel text-fg-2 text-sm hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 disabled:cursor-not-allowed"
         title={rescanTitle}
       >
         {scanning || rescanning ? (
@@ -183,7 +190,7 @@ export default function Titlebar() {
         ) : (
           <RefreshCw className="w-3.5 h-3.5" />
         )}
-        <span>{scanning || rescanning ? "Scanning…" : "Rescan"}</span>
+        <span className="hidden lg:inline">{scanning || rescanning ? "Scanning…" : "Rescan"}</span>
       </button>
 
       {/* Theme toggle */}
@@ -192,8 +199,9 @@ export default function Titlebar() {
       {/* Settings */}
       <Link
         to="/settings"
-        className="inline-flex items-center justify-center w-8 h-8 border border-line rounded-md bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
+        className="inline-flex shrink-0 items-center justify-center w-8 h-8 border border-line rounded-md bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
         title="Settings"
+        aria-label="Settings"
       >
         <Settings className="w-3.5 h-3.5" />
       </Link>
@@ -215,7 +223,7 @@ function TileColumnsSlider() {
   const value = columns ?? 5;
 
   return (
-    <div className="inline-flex items-center gap-2 h-8 px-2.5 border border-line rounded-md bg-panel">
+    <div className="hidden lg:inline-flex shrink-0 items-center gap-2 h-8 px-2.5 border border-line rounded-md bg-panel">
       <button
         type="button"
         onDoubleClick={() => setTileColumns(null)}
@@ -260,7 +268,7 @@ function ThemeToggle() {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
   return (
     <button
-      className="inline-flex items-center justify-center w-6 h-6 border border-line rounded-[5px] bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
+      className="inline-flex shrink-0 items-center justify-center w-6 h-6 border border-line rounded-[5px] bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
       title="Toggle theme"
       onClick={() => {
         const root = document.documentElement;

@@ -11,6 +11,7 @@ vi.mock("@/lib/sse", () => ({ postSse: vi.fn() }));
 
 import { postSse } from "@/lib/sse";
 import { useApplyStream } from "@/hooks/useApplyStream";
+import { resetApplyRegistryForTests } from "@/lib/applyRegistry";
 import { useAnalyzeStream } from "@/hooks/useAnalyzeStream";
 import RewriteWarnings from "@/components/DetailSheet/RewriteWarnings";
 
@@ -27,6 +28,7 @@ const LINK = "This file had 1 other hard link.";
 
 beforeEach(() => {
   vi.mocked(postSse).mockReset();
+  resetApplyRegistryForTests();
 });
 
 describe("rewrite warnings", () => {
@@ -39,8 +41,8 @@ describe("rewrite warnings", () => {
       ["file_done", { filename: "02 - Two.flac", diffs: {}, art_changed: false, saved: true, error: null }],
       ["done", { saved_count: 2, errors: 0, art_changed_count: 0 }],
     ]);
-    const { result } = renderHook(() => useApplyStream());
-    await act(() => result.current.start("abc", { suggestions: {} } as never));
+    const { result } = renderHook(() => useApplyStream("abc"));
+    await act(() => result.current.start({ suggestions: {} } as never));
     expect(result.current.state.warnings).toEqual([`01 - One.flac: ${LINK}`]);
     expect(result.current.state.filesByIndex[0].warnings).toEqual([LINK]);
     expect(result.current.state.filesByIndex[1].warnings).toEqual([]);

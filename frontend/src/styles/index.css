@@ -191,16 +191,8 @@ html.dark {
   50%      { opacity: 1.0; }
 }
 
-/* Sheet + dialog enter/exit (used by Radix Dialog data-state attributes) */
-@keyframes sheet-fade-in   { from { opacity: 0; }  to { opacity: 1; } }
-@keyframes sheet-fade-out  { from { opacity: 1; }  to { opacity: 0; } }
-@keyframes sheet-slide-in  { from { transform: translateX(100%); } to { transform: translateX(0); } }
-@keyframes sheet-slide-out { from { transform: translateX(0); }    to { transform: translateX(100%); } }
-
 .spin { animation: spin 1s linear infinite; }
 
-/* Sheet (Radix Dialog) animations — targeted by classes the components add. */
-.sheet-overlay[data-state="open"]  { animation: sheet-fade-in  .18s cubic-bezier(.32,.72,.34,1); }
-.sheet-overlay[data-state="closed"]{ animation: sheet-fade-out .18s cubic-bezier(.32,.72,.34,1) forwards; }
-.sheet-content[data-state="open"]  { animation: sheet-slide-in  .22s cubic-bezier(.32,.72,.34,1); }
-.sheet-content[data-state="closed"]{ animation: sheet-slide-out .22s cubic-bezier(.32,.72,.34,1) forwards; }
+/* <main> receives focus programmatically when the album panel closes and
+   there is no tile to return to; it is not a visible control. */
+main[tabindex="-1"]:focus { outline: none; }

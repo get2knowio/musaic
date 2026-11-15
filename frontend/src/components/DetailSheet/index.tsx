@@ -1,7 +1,6 @@
-import * as Dialog from "@radix-ui/react-dialog";
 import { AlertTriangle, CloudOff, Image as ImageIcon, Loader2, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useId, useRef, useState, type Ref } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import AlbumHero from "./AlbumHero";
@@ -15,6 +14,8 @@ import MoreMenu from "./MoreMenu";
 import MyTagsSection from "./MyTagsSection";
 import Section from "./Section";
 import HintDialog from "./HintDialog";
+import { subscribePanelFocus, takePanelFocusRequest } from "./panelFocus";
+import { PANEL_MIN_WIDTH, panelFillsRow } from "./layout";
 
 import { useTracks } from "@/hooks/useTracks";
 import {
@@ -37,122 +38,173 @@ import {
 import { useApplyStream } from "@/hooks/useApplyStream";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { clearAlbumMbAnchor, removeAlbumFromLibrary } from "@/lib/api";
+import { isApplyInFlight } from "@/lib/applyRegistry";
 import { jobCoverPreviewUrl } from "@/lib/coverPreview";
 import type {
   Album,
+  ApplyPayload,
   CoverSuggestionResponse,
   JobConflictDetail,
   JobType,
   MetadataSuggestionResponse,
 } from "@/lib/types";
 
-interface DetailSheetProps {
-  /** The set of albums currently in state. The sheet looks up by URL :albumId. */
-  albums: Album[];
-  /** Called when the album mutates (apply succeeded) so the parent can update its tile. */
+export interface AlbumPanelProps {
+  /** The album to show. */
+  album: Album;
+  /** Close the panel (the owner decides where that leads). */
+  onClose: () => void;
+  /** Called when an apply rewrote the album, so the owner can update its list. */
   onAlbumUpdated?: (album: Album) => void;
+  /** Width of the row the panel is docked in, when known. */
+  availableWidth?: number | null;
+  /** Px the list beside the panel keeps however wide the panel is dragged. */
+  listMinWidth?: number;
+  /** The panel's `<aside>`, for the owner's F6 handling. */
+  ref?: Ref<HTMLElement>;
 }
 
+export const ALBUM_PANEL_ID = "album-panel";
+
 /**
- * Album detail sheet — slides in from the right when the URL is /library/:id.
- * On close, navigates back to /library.
+ * Album panel: a non-modal, resizable `<aside>` docked on the right of a
+ * list. The list beside it stays interactive; showing another album swaps
+ * the content. Knows nothing about routing — the owner passes the album and
+ * what closing means — so it can sit beside any album list.
+ *
+ * Esc closes it only while focus is inside it, and only when nothing inside
+ * (a menu, a tag picker, a dialog opened from it) has already used the key.
+ * Dialogs opened from the panel are ordinary Radix modals over the window.
+ *
+ * When the row is too narrow for both the list's minimum and the panel's,
+ * the panel covers the whole row (the owner positions the row `relative`
+ * and keeps the list mounted, inert, underneath) and has no resize handle.
  */
-export default function DetailSheet({ albums, onAlbumUpdated }: DetailSheetProps) {
-  const { albumId } = useParams<{ albumId: string }>();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const album = albumId ? albums.find((a) => a.id === albumId) : undefined;
-  const open = !!album;
+export default function AlbumPanel({
+  album,
+  onClose,
+  onAlbumUpdated,
+  availableWidth = null,
+  listMinWidth = 320,
+  ref,
+}: AlbumPanelProps) {
+  const headingId = useId();
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Drag-to-resize. Width persisted across sessions via localStorage.
-  const { width, resizing, onPointerDown } = useResizableWidth({
+  const { width, min, max, resizing, handleProps } = useResizableWidth({
     storageKey: "mm.sheet.width",
     defaultWidth: 480,
-    minWidth: 400,
+    minWidth: PANEL_MIN_WIDTH,
     maxWidth: 1200,
+    available: availableWidth,
+    reserve: listMinWidth,
   });
 
-  // Lifted apply-in-flight flag so the Dialog.Root can refuse close attempts
-  // while the apply stream is mid-write. Without this, a user who instinctively
-  // hits Escape or clicks outside loses the SSE stream and the album won't
-  // refresh until the next scan. SheetBody sets this via setIsApplying based
-  // on its own useApplyStream state.
-  const [isApplying, setIsApplying] = useState(false);
+  // Opened from the keyboard: move focus to the heading.
+  useEffect(() => {
+    if (takePanelFocusRequest(album.id)) headingRef.current?.focus();
+  }, [album.id]);
+  useEffect(
+    () =>
+      subscribePanelFocus((id) => {
+        if (id === album.id && takePanelFocusRequest(id)) headingRef.current?.focus();
+      }),
+    [album.id],
+  );
+
+  const fillsRow = panelFillsRow(availableWidth, listMinWidth);
+
+  // Covering the row inerts the list. Focus left on a tile there (a mouse
+  // open, or the window narrowed while the grid had focus) would be stranded
+  // where no key reaches the panel, so bring it to the heading.
+  useEffect(() => {
+    if (!fillsRow) return;
+    const heading = headingRef.current;
+    const active = document.activeElement;
+    if (!heading || heading.closest("aside")?.contains(active)) return;
+    if (active?.closest('[role="dialog"], [role="alertdialog"]')) return;
+    heading.focus({ preventScroll: true });
+  }, [fillsRow, album.id]);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Escape" || e.defaultPrevented) return;
+    // React bubbles events out of portals; a dialog opened from the panel
+    // is not inside it in the DOM.
+    if (!e.currentTarget.contains(e.target as Node)) return;
+    e.preventDefault();
+    onClose();
+  };
 
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(o) => {
-        if (o) return;
-        if (isApplying) {
-          // Don't close while writing — fire a one-time toast so the user
-          // understands why their click was ignored.
-          toast.warning("Hold on — Musaic is still writing changes.", {
-            description: "The sheet will stay open until apply finishes.",
-            duration: 3500,
-          });
-          return;
-        }
-        // Preserve any ?filter= / ?q= so closing the sheet returns the user
-        // to the same filtered/searched view they came from.
-        navigate(`/library${location.search}`);
-      }}
+    <aside
+      ref={ref}
+      id={ALBUM_PANEL_ID}
+      aria-labelledby={headingId}
+      data-fills-row={fillsRow ? "" : undefined}
+      className={`album-panel min-h-0 flex flex-col bg-panel ${
+        fillsRow ? "absolute inset-0 z-10" : "relative shrink-0 border-l border-line"
+      }`}
+      style={fillsRow ? undefined : { width: `${width}px` }}
+      onKeyDown={onKeyDown}
     >
-      <Dialog.Portal>
-        <Dialog.Overlay className="sheet-overlay fixed inset-0 z-40 bg-black/35 backdrop-blur-[1px]" />
-        <Dialog.Content
-          className="sheet-content fixed top-0 right-0 bottom-0 z-50 max-w-[95vw] bg-panel border-l border-line shadow-sheet outline-none flex flex-col"
-          style={{ width: `${width}px` }}
-          aria-describedby={undefined}
-          onEscapeKeyDown={(e) => { if (isApplying) e.preventDefault(); }}
-          onPointerDownOutside={(e) => { if (isApplying) e.preventDefault(); }}
-          onInteractOutside={(e) => { if (isApplying) e.preventDefault(); }}
-        >
-          {/* Drag handle on the left edge — anchored absolutely so it sits
-              on top of the border without affecting flex layout. Wider hit
-              area than the visual hairline so it's easy to grab. */}
-          <div
-            className={`absolute top-0 left-0 bottom-0 w-1.5 -translate-x-1/2 cursor-col-resize z-10 group ${
-              resizing ? "" : "transition-colors"
-            }`}
-            onPointerDown={onPointerDown}
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize panel"
-            title="Drag to resize"
-          >
-            {/* Hairline that highlights on hover / during drag */}
-            <div
-              className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px ${
-                resizing ? "bg-accent w-0.5" : "bg-transparent group-hover:bg-accent/60"
-              }`}
-            />
-          </div>
-          {album ? (
-            <SheetBody album={album} onAlbumUpdated={onAlbumUpdated} setIsApplying={setIsApplying} />
-          ) : (
-            <Dialog.Title className="sr-only">Album details</Dialog.Title>
-          )}
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+      {/* Resize handle on the left edge — anchored absolutely so it sits on
+          top of the border without affecting flex layout. Wider hit area
+          than the visual hairline so it's easy to grab. */}
+      {!fillsRow && <div
+        className={`absolute top-0 left-0 bottom-0 w-1.5 -translate-x-1/2 cursor-col-resize z-10 group outline-none ${
+          resizing ? "" : "transition-colors"
+        }`}
+        {...handleProps}
+        role="separator"
+        tabIndex={0}
+        aria-orientation="vertical"
+        aria-label="Resize album panel"
+        aria-controls={ALBUM_PANEL_ID}
+        aria-valuenow={Math.round(width)}
+        aria-valuemin={min}
+        aria-valuemax={Math.round(max)}
+        title="Drag to resize; double-click to reset"
+      >
+        {/* Hairline that highlights on hover / focus / during drag */}
+        <div
+          className={`absolute top-0 bottom-0 left-1/2 -translate-x-1/2 w-px ${
+            resizing
+              ? "bg-accent w-0.5"
+              : "bg-transparent group-hover:bg-accent/60 group-focus-visible:bg-accent group-focus-visible:w-0.5"
+          }`}
+        />
+      </div>}
+      <SheetBody
+        album={album}
+        onAlbumUpdated={onAlbumUpdated}
+        onClose={onClose}
+        headingId={headingId}
+        headingRef={headingRef}
+      />
+    </aside>
   );
 }
 
 function SheetBody({
   album,
   onAlbumUpdated,
-  setIsApplying,
+  onClose,
+  headingId,
+  headingRef,
 }: {
   album: Album;
   onAlbumUpdated?: (a: Album) => void;
-  setIsApplying: (v: boolean) => void;
+  onClose: () => void;
+  headingId: string;
+  headingRef: Ref<HTMLHeadingElement>;
 }) {
   const tracks = useTracks(album.id);
-  const apply = useApplyStream();
+  // Lives in the app-level apply registry: switching albums or closing the
+  // panel mid-write is safe (the server finishes the apply regardless), and
+  // the progress is back when this album is opened again.
+  const apply = useApplyStream(album.id);
   const enqueue = useEnqueueJob();
-  const navigate = useNavigate();
-  const location = useLocation();
   const markActedOn = useMarkJobActedOn();
   const deleteJob = useDeleteJob();
   const retryJob = useRetryJob();
@@ -199,29 +251,28 @@ function SheetBody({
   // Reset per-album local state when switching albums.
   useEffect(() => {
     setPendingType(null);
-    apply.reset();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [album.id]);
 
-  // When apply finishes successfully, propagate the updated album to the
-  // parent (so the tile re-renders with new cover/title/etc.) and mark the
-  // job as acted-on (action="applied") so it disappears from the active
-  // queue and the "needs review" badge.
+  // Start an apply. When it finishes successfully — even if the panel has
+  // since moved to another album or closed — propagate the updated album to
+  // the owner (so the tile re-renders with new cover/title/etc.) and mark
+  // the job that was active when it started as acted-on (action="applied")
+  // so it leaves the active queue and the "needs review" badge.
   //
   // Cache invalidation is handled by the App-level useLibraryEventsStream
-  // subscriber — services/apply.apply_album_changes_iter publishes
-  // AlbumTagsChanged (+ AlbumCoverChanged when art changed), which fans
-  // out to ["albums-snapshot"], ["tracks", id], ["album-resolution", id],
+  // subscriber — the apply pipeline publishes AlbumTagsChanged (+
+  // AlbumCoverChanged when art changed), which fans out to
+  // ["albums-snapshot"], ["tracks", id], ["album-resolution", id],
   // ["findings"], ["checks"] on its own.
-  useEffect(() => {
-    if (apply.state.status === "done" && apply.state.updatedAlbum) {
-      onAlbumUpdated?.(apply.state.updatedAlbum);
-      if (activeJob) {
-        markActedOn.mutate({ jobId: activeJob.id, action: "applied" });
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apply.state.status, apply.state.updatedAlbum, onAlbumUpdated, album.id]);
+  const startApply = (payload: ApplyPayload) => {
+    const jobId = activeJob?.id ?? null;
+    return apply.start(payload, {
+      onUpdatedAlbum: (updated) => {
+        onAlbumUpdated?.(updated);
+        if (jobId) markActedOn.mutate({ jobId, action: "applied" });
+      },
+    });
+  };
 
   // Map the active job's result back into the legacy AISuggestions component
   // shape. AISuggestions takes a metadata response + cover response separately.
@@ -254,15 +305,7 @@ function SheetBody({
       : null;
 
   // Mode derivation
-  const isApplying =
-    apply.state.status === "writing" || apply.state.status === "downloading_cover";
-  // Lift the in-flight flag so DetailSheet can refuse close attempts while
-  // the apply stream is mid-write. Reset on unmount so a never-finished apply
-  // doesn't strand the sheet open.
-  useEffect(() => {
-    setIsApplying(isApplying);
-    return () => setIsApplying(false);
-  }, [isApplying, setIsApplying]);
+  const isApplying = isApplyInFlight(apply.state);
   const isQueued = activeJob?.status === "queued" || activeJob?.status === "running";
   const showSuggestions = !isApplying && activeJob?.status === "completed" && (metaResult || coverResult);
   const showApplying = isApplying || apply.state.status === "done" || apply.state.status === "error";
@@ -363,12 +406,12 @@ function SheetBody({
         trackSuggestions[entry.filename] = entry.suggestions as Record<string, string>;
       }
     }
-    await apply.start(album.id, {
+    await startApply({
       suggestions: metaResult?.suggestions ?? {},
       track_suggestions: trackSuggestions,
       cover_url: coverResult?.cover_url ?? null,
     });
-    // Job is marked acted-on in the apply.state.status === "done" effect above.
+    // The job is marked acted-on when the apply reports the updated album.
   };
 
   const onDiscard = () => {
@@ -385,8 +428,7 @@ function SheetBody({
 
   // Explicit user-initiated removal — the only path that actually
   // drops the row + cascades fingerprints/tags/blocklists. After
-  // success, navigate back to /library (sheet closes naturally
-  // because the album is no longer in the snapshot).
+  // success, close the panel.
   const [removing, setRemoving] = useState(false);
   const onRemoveFromLibrary = async () => {
     if (removing) return;
@@ -405,9 +447,9 @@ function SheetBody({
       toast.success("Removed from library", { duration: 3000 });
       // The album_id is gone from the snapshot now; useLibraryEvents-
       // Stream's AlbumDeleted handler already invalidates ['albums-
-      // snapshot'], so navigating back to /library lands on the
-      // refreshed list with this album absent.
-      navigate(`/library${location.search}`);
+      // snapshot'], so closing lands on the refreshed list with this
+      // album absent.
+      onClose();
     } catch (err) {
       toast.error((err as Error).message || "Couldn't remove album");
     } finally {
@@ -443,26 +485,34 @@ function SheetBody({
 
   return (
     <>
-      {/* Sheet head */}
-      <div className="flex items-center justify-between px-4 h-11 border-b border-line shrink-0">
-        <div className="flex items-center gap-1.5 mono text-xs text-fg-3 truncate">
-          <span>Library</span>
-          <span className="text-fg-4">▸</span>
-          <span className="text-fg-2 truncate" title={displayAlbum.title ?? displayAlbum.dir_name}>
-            {displayAlbum.title || displayAlbum.dir_name}
-          </span>
-        </div>
-        <Dialog.Close asChild>
-          <button
-            className="w-8 h-8 grid place-items-center text-fg-3 hover:text-fg hover:bg-bg-3 rounded transition"
-            aria-label="Close"
+      {/* Panel head */}
+      <div className="flex items-center justify-between gap-2 px-4 h-11 border-b border-line shrink-0">
+        <div className="flex items-center gap-1.5 mono text-xs text-fg-3 min-w-0">
+          <span aria-hidden="true">Library</span>
+          <span className="text-fg-4" aria-hidden="true">▸</span>
+          <h2
+            id={headingId}
+            ref={headingRef}
+            tabIndex={-1}
+            data-panel-heading=""
+            className="text-fg-2 truncate font-normal rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            title={displayAlbum.title ?? displayAlbum.dir_name}
           >
-            <X className="w-4 h-4" />
-          </button>
-        </Dialog.Close>
+            {displayAlbum.title || displayAlbum.dir_name}
+          </h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-8 h-8 shrink-0 grid place-items-center text-fg-3 hover:text-fg hover:bg-bg-3 rounded transition"
+          aria-label="Close album panel"
+          title="Close (Esc)"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
-      {/* Sheet body — scrolls */}
+      {/* Panel body — scrolls */}
       <div className="flex-1 overflow-y-auto">
         <AlbumHero album={displayAlbum} />
 
@@ -608,7 +658,7 @@ function SheetBody({
                 hasActiveJob={!!activeJob}
                 applying={isApplying}
                 onApply={async (suggestions, trackSuggestions) => {
-                  await apply.start(album.id, {
+                  await startApply({
                     suggestions,
                     track_suggestions: trackSuggestions,
                     cover_url: null,
@@ -693,10 +743,12 @@ function SheetBody({
         onCancel={onHintCancel}
       />
 
-      {/* Sheet footer */}
+      {/* Panel footer */}
       <div className="flex items-center gap-2 h-12 px-3 border-t border-line bg-panel-2 shrink-0">
         {isApplying ? (
-          <span className="text-xs text-fg-3 mono">Writing — keep this panel open</span>
+          <span className="text-xs text-fg-3 mono truncate">
+            Writing — you can switch albums or close the panel
+          </span>
         ) : isMissing ? (
           // Missing albums get a single destructive affordance + a
           // hint about the no-op recovery path. Apply / AI / cover

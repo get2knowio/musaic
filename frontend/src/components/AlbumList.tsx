@@ -1,10 +1,11 @@
 import { Music } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { coverUrl } from "@/lib/api";
 import { displayArtist } from "@/lib/albumFields";
 import type { Album, Job } from "@/lib/types";
 import JobStatusBadge from "./JobStatusBadge";
+import { requestPanelFocus } from "./DetailSheet/panelFocus";
 
 interface AlbumListProps {
   albums: Album[];
@@ -16,8 +17,9 @@ interface AlbumListProps {
 
 /**
  * Dense list view of the library. Same data as TileGrid, columnar layout.
- * Click a row → opens the album detail sheet (URL preserves current
- * ?filter= / ?q= so the user returns to the same filtered view on close).
+ * Click a row → shows the album in the panel beside the list (URL preserves
+ * current ?filter= / ?q= so the user returns to the same filtered view on
+ * close). Same push/replace and keyboard-focus behaviour as Tile.
  */
 export default function AlbumList({ albums, skeletonCount = 0, activeJobs }: AlbumListProps) {
   return (
@@ -56,6 +58,8 @@ function ListHeader() {
 
 function Row({ album, activeJob }: { album: Album; activeJob: Job | null }) {
   const location = useLocation();
+  const { albumId: openAlbumId } = useParams<{ albumId: string }>();
+  const isOpen = openAlbumId === album.id;
   const artist = album.is_compilation
     ? "Various Artists"
     : displayArtist(album, "Unknown artist");
@@ -64,7 +68,17 @@ function Row({ album, activeJob }: { album: Album; activeJob: Job | null }) {
   return (
     <Link
       to={`/library/${encodeURIComponent(album.id)}${location.search}`}
-      className="grid gap-3 px-3 py-1.5 border-b border-line last:border-0 items-center text-sm hover:bg-bg-3 transition cursor-pointer"
+      replace={!!openAlbumId}
+      state={location.state}
+      onClick={(e) => {
+        // detail 0: activated from the keyboard, not a pointer.
+        if (e.detail === 0) requestPanelFocus(album.id);
+      }}
+      data-album-id={album.id}
+      aria-current={isOpen ? "true" : undefined}
+      className={`grid gap-3 px-3 py-1.5 border-b border-line last:border-0 items-center text-sm transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
+        isOpen ? "bg-accent-soft ring-2 ring-inset ring-accent" : "hover:bg-bg-3"
+      }`}
       style={{ gridTemplateColumns: ROW_TEMPLATE }}
       title={album.path}
     >
