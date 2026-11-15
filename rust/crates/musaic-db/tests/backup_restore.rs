@@ -129,6 +129,10 @@ fn backup_files_are_named_like_the_python_app() {
 
 /// Positive + malformed: the scripted snapshot sequence (same-second
 /// clashes, pruning, foreign files), name validation and delete, step by step.
+///
+/// Deliberate (issue #213, edited in the golden with a note): only names the
+/// app writes are snapshots, and same-second snapshots order by their clash
+/// suffix, so the Python app's listings and pruned lists differ.
 #[test]
 fn snapshot_sequence_matches_the_python_app() {
     let g = golden();
@@ -194,16 +198,18 @@ fn snapshot_sequence_matches_the_python_app() {
     }
     std::fs::remove_file(dir.join("library-escape.db")).unwrap();
 
+    // Deliberate (issue #213): the Python app deleted `plain-file`; a file
+    // whose name the app never writes is refused and left on disk.
     let d = &g["delete_snapshot"];
     let name = d["name"].as_str().unwrap();
-    assert_eq!(
-        backup::delete_snapshot(&dir, name).unwrap(),
-        d["first"].as_bool().unwrap()
-    );
-    assert_eq!(
-        backup::delete_snapshot(&dir, name).unwrap_err().to_string(),
-        d["again"]["restore_error"].as_str().unwrap()
-    );
+    for attempt in ["first", "again"] {
+        assert_eq!(
+            backup::delete_snapshot(&dir, name).unwrap_err().to_string(),
+            d[attempt]["restore_error"].as_str().unwrap(),
+            "{attempt}"
+        );
+    }
+    assert!(dir.join(name).is_file(), "a stray file is never deleted");
     assert_eq!(listing(&dir), python_listing(&d["listing_after"]));
     assert!(
         cfg.join("library.db").is_file(),
@@ -531,4 +537,130 @@ fn pre_v16_upload_is_accepted_and_migrated() {
             oldest: 1
         })
     ));
+}
+
+/// Issue #213: files in `backups/` that the app did not write, even ones that
+/// are valid Musaic databases under a `library-*.db` name, are not listed,
+/// not pruned, and cannot be restored from or deleted through the snapshot
+/// API.
+#[test]
+fn stray_files_in_the_backup_dir_are_left_alone() {
+    let (_t, cfg, db) = live("v16-empty.db");
+    let dir = cfg.join("backups");
+    std::fs::create_dir_all(&dir).unwrap();
+    let strays = [
+        "plain-file",
+        "library-old-copy.db",
+        "library-20260101-000000Z.db",
+        "library-20260101-000000Z-v16.db.bak",
+        "library-2026010-000000Z-v16.db",
+        "library-20260101-000000Z-v.db",
+        "library-20260101-000000Z-v16..db",
+        "library-20260101-000000Z-v16.x.db",
+    ];
+    for s in strays {
+        std::fs::copy(musaic_testdata::public("db/v16-empty.db"), dir.join(s)).unwrap();
+        set_mtime(&dir.join(s), 1_000_000_000);
+    }
+    for (i, tag) in ["20260101-000000Z", "20260102-000000Z", "20260103-000000Z"]
+        .iter()
+        .enumerate()
+    {
+        let s = backup::create_snapshot(&db, &dir, 1, tag, SystemTime::now()).unwrap();
+        set_mtime(&dir.join(&s.filename), 1_767_225_600 + i as i64 * 86_400);
+        assert!(
+            s.pruned.iter().all(|p| !strays.contains(&p.as_str())),
+            "{:?}",
+            s.pruned
+        );
+    }
+    for s in strays {
+        assert!(dir.join(s).is_file(), "{s} must survive pruning");
+    }
+    let names: Vec<String> = backup::list_snapshots(&dir)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.filename)
+        .collect();
+    assert_eq!(
+        names,
+        vec![format!("library-20260103-000000Z-v{SCHEMA_VERSION}.db")]
+    );
+    let age = backup::latest_snapshot_age_seconds(&dir, at(1_767_398_400)).unwrap();
+    assert_eq!(age, Some(0.0), "a stray file never counts as the newest");
+
+    let mut db = db;
+    for s in strays {
+        assert!(
+            matches!(
+                backup::resolve_snapshot(&dir, s),
+                Err(RestoreError::InvalidName(_))
+            ),
+            "{s}"
+        );
+        assert!(
+            matches!(
+                backup::delete_snapshot(&dir, s),
+                Err(RestoreError::InvalidName(_))
+            ),
+            "{s}"
+        );
+        let failed =
+            backup::restore_from_snapshot(db, &dir, s, "20260106-000000Z", SystemTime::now())
+                .err()
+                .unwrap_or_else(|| panic!("{s} restored"));
+        assert!(
+            matches!(failed.error, RestoreError::InvalidName(_)),
+            "{s}: {}",
+            failed.error
+        );
+        db = failed.db.expect("live database still open");
+        assert!(dir.join(s).is_file(), "{s}");
+        assert!(!cfg.join("library.db.bak-20260106-000000Z").exists());
+    }
+}
+
+/// Issue #213: same-second snapshots are newest by clash suffix (`.11` after
+/// `.10` after `.2` after the plain name), so retention prunes the oldest
+/// of them first; the suffix compares as a number, not as text.
+#[test]
+fn same_second_snapshots_prune_the_oldest_first() {
+    let (_t, cfg, db) = live("v16-empty.db");
+    let dir = cfg.join("backups");
+    let tag = "20260101-000000Z";
+    let mut made = Vec::new();
+    for _ in 0..12 {
+        let s = backup::create_snapshot(&db, &dir, 0, tag, SystemTime::now()).unwrap();
+        set_mtime(&dir.join(&s.filename), 1_767_225_600);
+        made.push(s.filename);
+    }
+    let base = format!("library-{tag}-v{SCHEMA_VERSION}");
+    assert_eq!(made[0], format!("{base}.db"));
+    assert_eq!(made[11], format!("{base}.11.db"));
+    let listed: Vec<String> = backup::list_snapshots(&dir)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.filename)
+        .collect();
+    let mut newest_first = made.clone();
+    newest_first.reverse();
+    assert_eq!(listed, newest_first);
+
+    // One more in the same second (same mtime): the 13 are pruned to 4.
+    let s = backup::create_snapshot(&db, &dir, 4, tag, SystemTime::now()).unwrap();
+    assert_eq!(s.filename, format!("{base}.12.db"));
+    set_mtime(&dir.join(&s.filename), 1_767_225_600);
+    let kept: Vec<String> = backup::list_snapshots(&dir)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.filename)
+        .collect();
+    assert_eq!(
+        kept,
+        [12, 11, 10, 9]
+            .iter()
+            .map(|n| format!("{base}.{n}.db"))
+            .collect::<Vec<_>>()
+    );
+    assert!(s.pruned.contains(&format!("{base}.db")), "{:?}", s.pruned);
 }

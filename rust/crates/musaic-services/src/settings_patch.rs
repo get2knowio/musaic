@@ -118,8 +118,15 @@ impl<'a> SecretWrites<'a> {
     }
 }
 
+/// The `ai_provider_id` the Python app stored by default. Still accepted
+/// (with "") although no provider of that id is listed, so a database the
+/// Python app wrote, and a client that saves the value it read back, keep
+/// working.
+pub const STORED_DEFAULT_PROVIDER_ID: &str = "claude";
+
 /// Apply one PATCH on `conn` (closed before the log line) and `store`,
-/// accepting `installed_providers` (and "") as `ai_provider_id`. Logs which
+/// accepting the `listed_providers` (the ids `GET /api/ai/providers` lists),
+/// [`STORED_DEFAULT_PROVIDER_ID`] and "" as `ai_provider_id`. Logs which
 /// settings changed (never a value). The caller holds the restore
 /// gate's work guard and, on success, wakes the AI queue and calls
 /// [`kick_fingerprint_pool`] when [`SettingsPatch::sets_acoustid_key`].
@@ -127,7 +134,7 @@ pub fn apply_patch(
     conn: Connection,
     store: &dyn musaic_secrets::SecretStore,
     patch: SettingsPatch,
-    installed_providers: &[&str],
+    listed_providers: &[&str],
     log: &dyn HostLog,
 ) -> Result<(), PatchError> {
     let SettingsPatch {
@@ -170,11 +177,14 @@ pub fn apply_patch(
         }
         if let Some(p) = provider {
             let pid = strip(&p).to_string();
-            if !pid.is_empty() && !installed_providers.contains(&pid.as_str()) {
+            let accepted = pid.is_empty()
+                || pid == STORED_DEFAULT_PROVIDER_ID
+                || listed_providers.contains(&pid.as_str());
+            if !accepted {
                 return Err(PatchError::Invalid(format!(
-                    "Unknown or not-installed provider {}. Installed: {}. Install its airframe extra to add more.",
+                    "Unknown or not-installed provider {}. Installed: {}.",
                     musaic_fsops::py_repr(&pid),
-                    installed_providers.join(", ")
+                    listed_providers.join(", ")
                 )));
             }
             set_raw(&tx, "ai_provider_id", &pid)?;
@@ -211,6 +221,13 @@ pub fn apply_patch(
             changed.push(format!("snapshot_retention_count={n}"));
         }
         if let Some(h) = interval {
+            // Infinity and NaN parse as floats but are not intervals (and
+            // infinity cannot be sent back as JSON).
+            if !h.is_finite() {
+                return Err(PatchError::Invalid(
+                    "snapshot_min_interval_hours must be a finite number".into(),
+                ));
+            }
             if h < 0.0 {
                 return Err(PatchError::Invalid(
                     "snapshot_min_interval_hours must be >= 0".into(),

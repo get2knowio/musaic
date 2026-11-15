@@ -35,7 +35,10 @@ pub mod view;
 
 pub use migrate::{MigrationReport, migrate_settings_secrets};
 pub use store::{MemoryStore, OsKeyring, SecretStore, StoreError};
-pub use view::{SecretStatus, all_settings, clear_all, secret, secret_status, set_secret};
+pub use view::{
+    SecretStatus, all_settings, clear_all, secret, secret_status, set_secret,
+    snapshot_min_interval_hours,
+};
 
 /// The settings keys that are secrets, as the Python app names them
 /// (`settings.py` KEY_AI_API_KEY, KEY_ACOUSTID_API_KEY, KEY_FIRECRAWL_API_KEY).

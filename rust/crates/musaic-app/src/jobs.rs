@@ -124,13 +124,24 @@ impl App {
         Ok(Py::dict([("queue_state", musaic_ai::queue_state(conn)?)]))
     }
 
+    /// The providers this build has, as `GET /api/ai/providers` lists them:
+    /// the one the worker uses. The one source of truth for which
+    /// `ai_provider_id` values `PATCH /api/settings` accepts (issue #199).
+    pub fn ai_provider_infos(&self) -> Vec<musaic_ai::provider::ProviderInfo> {
+        vec![self.0.ai.provider.info()]
+    }
+
+    /// The ids of [`App::ai_provider_infos`].
+    pub fn ai_provider_ids(&self) -> Vec<String> {
+        self.ai_provider_infos().into_iter().map(|p| p.id).collect()
+    }
+
     /// `GET /api/ai/providers` in this build: the selection as stored
     /// (`ai_provider_id` / `ai_model_id` with the Python app's defaults, whether
-    /// an `ai_api_key` is set), the one provider this build has, nothing
-    /// uninstalled.
+    /// an `ai_api_key` is set), the providers this build has
+    /// ([`App::ai_provider_infos`]), nothing uninstalled.
     pub fn ai_providers(&self, conn: &Connection) -> musaic_db::Result<Py> {
         let key_set = musaic_services::ai_jobs::api_key_set(self.0.secrets.as_ref());
-        let info = self.0.ai.provider.info();
         let (provider_id, model_id) = musaic_services::ai_jobs::selected_provider(conn)?;
         Ok(Py::dict([
             (
@@ -143,14 +154,21 @@ impl App {
             ),
             (
                 "providers",
-                Py::List(vec![Py::dict([
-                    ("id", Py::str(info.id)),
-                    ("accepts_api_key", Py::Bool(info.accepts_api_key)),
-                    ("auth_hint", Py::opt_str(info.auth_hint)),
-                    ("ready", Py::Bool(info.ready)),
-                    ("requirement", Py::opt_str(info.requirement)),
-                    ("remedy", Py::opt_str(info.remedy)),
-                ])]),
+                Py::List(
+                    self.ai_provider_infos()
+                        .into_iter()
+                        .map(|info| {
+                            Py::dict([
+                                ("id", Py::str(info.id)),
+                                ("accepts_api_key", Py::Bool(info.accepts_api_key)),
+                                ("auth_hint", Py::opt_str(info.auth_hint)),
+                                ("ready", Py::Bool(info.ready)),
+                                ("requirement", Py::opt_str(info.requirement)),
+                                ("remedy", Py::opt_str(info.remedy)),
+                            ])
+                        })
+                        .collect(),
+                ),
             ),
             ("uninstalled", Py::List(Vec::new())),
         ]))

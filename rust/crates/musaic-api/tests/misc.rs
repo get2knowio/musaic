@@ -281,3 +281,92 @@ async fn apply_refuses_a_missing_album() {
         200
     );
 }
+
+// Issue #213: `snapshot_min_interval_hours` must be a finite number >= 0. A
+// non-finite value is refused (400, nothing stored); one already stored
+// reads as the default 24 (never as JSON null, never as 0).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn snapshot_interval_must_be_finite() {
+    let sb = Sandbox::new();
+    let st = sb.state_no_lifespan();
+    let app = router(st.clone());
+    for v in ["inf", "-inf", "Infinity", "nan", "NaN", " inf "] {
+        let r = call(
+            &app,
+            "PATCH",
+            "/api/settings",
+            Some(&json!({"snapshot_min_interval_hours": v})),
+        )
+        .await;
+        assert_eq!(r.status, 400, "{v}: {}", r.text());
+        assert_eq!(
+            r.json()["detail"],
+            "snapshot_min_interval_hours must be a finite number",
+            "{v}"
+        );
+        let s = call(&app, "GET", "/api/settings", None).await.json();
+        assert_eq!(s["snapshot_min_interval_hours"], json!(24.0), "{v}");
+    }
+    let conn = rusqlite::Connection::open(st.db_path()).unwrap();
+    for raw in ["inf", "-inf", "infinity", "nan", "NaN", "1e999"] {
+        musaic_db::settings::set_raw(&conn, "snapshot_min_interval_hours", raw).unwrap();
+        let s = call(&app, "GET", "/api/settings", None).await.json();
+        assert_eq!(s["snapshot_min_interval_hours"], json!(24.0), "{raw}");
+    }
+    let r = call(
+        &app,
+        "PATCH",
+        "/api/settings",
+        Some(&json!({"snapshot_min_interval_hours": "1.5"})),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    let s = call(&app, "GET", "/api/settings", None).await.json();
+    assert_eq!(s["snapshot_min_interval_hours"], json!(1.5));
+}
+
+// Issue #199: every provider `GET /api/ai/providers` lists can be saved as
+// `ai_provider_id`, and a refused id's message names exactly those
+// providers. The stored default the Python app wrote ("claude") and ""
+// stay accepted so an existing database and older clients keep working.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn listed_providers_can_be_saved() {
+    let sb = Sandbox::new();
+    let app = router(sb.state_no_lifespan());
+    let p = call(&app, "GET", "/api/ai/providers", None).await.json();
+    let ids: Vec<String> = p["providers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["id"].as_str().unwrap().to_owned())
+        .collect();
+    assert!(!ids.is_empty());
+    for id in ids.iter().map(String::as_str).chain(["claude", ""]) {
+        let r = call(
+            &app,
+            "PATCH",
+            "/api/settings",
+            Some(&json!({"ai_provider_id": id})),
+        )
+        .await;
+        assert_eq!(r.status, 200, "{id:?}: {}", r.text());
+        let s = call(&app, "GET", "/api/settings", None).await.json();
+        let want = if id.is_empty() { "claude" } else { id };
+        assert_eq!(s["ai_provider_id"], want, "{id:?}");
+    }
+    let r = call(
+        &app,
+        "PATCH",
+        "/api/settings",
+        Some(&json!({"ai_provider_id": "bedrock"})),
+    )
+    .await;
+    assert_eq!(r.status, 400);
+    assert_eq!(
+        r.json()["detail"],
+        format!(
+            "Unknown or not-installed provider 'bedrock'. Installed: {}.",
+            ids.join(", ")
+        )
+    );
+}
