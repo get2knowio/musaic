@@ -167,7 +167,27 @@ fn decode_error_text(path: &Path, ours: &str) -> String {
 }
 
 /// `str(OSError)` for an error about `path`: `[Errno N] <strerror>: '<path>'`.
+///
+/// On Windows the OS reports Win32 codes; Python's `open()` there goes
+/// through the C runtime, which turns the common ones into errno values, so
+/// those are translated the same way (a read-only file is
+/// `[Errno 13] Permission denied`, as on every other platform).
 pub fn py_os_error_text(e: &io::Error, path: &Path) -> String {
+    if cfg!(windows) {
+        let crt = match e.raw_os_error() {
+            // ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND
+            Some(2 | 3) => Some((2, "No such file or directory")),
+            // ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION
+            Some(5 | 32 | 33) => Some((13, "Permission denied")),
+            _ => None,
+        };
+        if let Some((code, strerror)) = crt {
+            return format!(
+                "[Errno {code}] {strerror}: {}",
+                musaic_fsops::py_repr(&path.to_string_lossy())
+            );
+        }
+    }
     match e.raw_os_error() {
         Some(code) => {
             let full = e.to_string();

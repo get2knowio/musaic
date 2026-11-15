@@ -799,6 +799,13 @@ async fn api_offline_capture_replays() {
         }
         let got = run.record(method, &url, body.as_ref()).await;
         let mut want = rec["response"].clone();
+        if name.starts_with("004-") && cfg!(windows) {
+            // "/no/such/dir" has no drive on Windows; str(Path) there (and
+            // ours) spells it with backslashes, as Python does on Windows.
+            if let Some(d) = want["json"]["detail"].as_str() {
+                want["json"]["detail"] = Value::String(d.replace('/', "\\"));
+            }
+        }
         if name.starts_with("089-") {
             // body=False in the capture: status and type only.
             want["binary"] = got["binary"].clone();

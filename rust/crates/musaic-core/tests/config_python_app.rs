@@ -122,9 +122,19 @@ fn set_library_dir_matches_the_python_app() {
     for d in s["fs_setup"]["dirs"].as_array().unwrap() {
         std::fs::create_dir_all(fs.join(d.as_str().unwrap())).unwrap();
     }
-    #[cfg(unix)]
+    #[cfg_attr(not(windows), allow(unused_mut))]
+    let mut have_links = true;
     for (link, target) in s["fs_setup"]["symlinks"].as_object().unwrap() {
+        #[cfg(unix)]
         std::os::unix::fs::symlink(fs.join(target.as_str().unwrap()), fs.join(link)).unwrap();
+        // Needs a privilege (or developer mode) on Windows.
+        #[cfg(windows)]
+        if let Err(e) =
+            std::os::windows::fs::symlink_dir(fs.join(target.as_str().unwrap()), fs.join(link))
+        {
+            println!("skipped symlink cases: cannot create a symlink here ({e})");
+            have_links = false;
+        }
     }
     let fs_s = fs.to_str().unwrap();
     let cfg = ConfigDir::new(root.join("cfg"));
@@ -136,6 +146,9 @@ fn set_library_dir_matches_the_python_app() {
     .unwrap();
     for case in s["cases"].as_array().unwrap() {
         let label = case["label"].as_str().unwrap();
+        if !have_links && label.contains("symlink") {
+            continue;
+        }
         let arg = case["arg"].as_str().unwrap().replace("<FS>", fs_s);
         let got = cfg.set_library_dir(&arg, Some(&fs)).unwrap();
         assert_eq!(

@@ -319,8 +319,22 @@ async fn mutating_tag_routes_take_the_restore_gate() {
     // add/remove album tag, add/remove track tag, replace; vocabulary add,
     // patch, promote, rename, merge, delete.
     assert_eq!(routes.len(), 11, "{ops:#?}");
+    // Work the scan set off in the background (post-scan check reruns) may
+    // still hold the gate for a moment; a restore waits for it, as the
+    // route's caller would retry.
+    let restore = {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        loop {
+            match w.state.gate().begin_restore() {
+                Ok(g) => break g,
+                Err(_) if std::time::Instant::now() < deadline => {
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+                Err(e) => panic!("gate still busy after 30 s: {e}"),
+            }
+        }
+    };
     let before = state(&w, &g);
-    let restore = w.state.gate().begin_restore().unwrap();
     for r in &routes {
         let got = w.send(r).await;
         assert_eq!(got.status, 409, "{r}: {}", got.text());
