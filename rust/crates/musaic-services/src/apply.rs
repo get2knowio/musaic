@@ -69,6 +69,13 @@
 //!   (DISCNUMBER, TRACKNUMBER) order (`TrackOrder::DiscTrack`).
 //! - Cover bytes come from a [`CoverSource`]; the real one
 //!   (musaic-net) enforces the public-HTTPS, image type and 8 MiB rules.
+//! - A tag can be removed, by an explicit [`ApplyRequest::removals`] only
+//!   (musaic-tags [`Removals`]); a suggestion never removes one. A removal
+//!   shows in `file_done.diffs` with `new: null`, `start` / `done` carry
+//!   `cleared` (album-level fields) when there are any, and the cleared
+//!   album-level fields are listed in `AlbumTagsChanged.fields`. The
+//!   rescan + upsert that follows writes the now-absent fields to the row as
+//!   NULL. [`apply_direct`] (the check-fix path) never removes anything.
 
 use std::ops::ControlFlow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -76,7 +83,7 @@ use std::path::Path;
 
 use musaic_events::{Bus, Event as BusEvent};
 use musaic_scan::{TrackOrder, py_resolve};
-use musaic_tags::{Event as TagEvent, Suggestions, TrackSuggestions};
+use musaic_tags::{Event as TagEvent, Removals, Suggestions, TrackSuggestions};
 use rusqlite::Connection;
 
 use crate::albums::{self, album_to_json};
@@ -122,6 +129,8 @@ pub struct ApplyRequest {
     pub library_dir: Option<String>,
     pub suggestions: Suggestions,
     pub track_suggestions: TrackSuggestions,
+    /// Tags to remove: only an explicit user request fills this.
+    pub removals: Removals,
     pub cover_url: Option<String>,
     /// The upload path: bytes already in hand.
     pub cover_bytes: Option<Vec<u8>>,
@@ -239,6 +248,18 @@ fn path_str(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
 
+/// `cleared` is not in the Python app's payloads: added only when not empty,
+/// so an apply without removals sends exactly what it always did.
+fn with_cleared(mut j: Json, cleared: &[String]) -> Json {
+    if !cleared.is_empty() {
+        j.set(
+            "cleared",
+            Json::Arr(cleared.iter().map(|f| Json::from(f.as_str())).collect()),
+        );
+    }
+    j
+}
+
 fn str_map(pairs: &[(String, String)]) -> Json {
     Json::obj(
         pairs
@@ -266,16 +287,20 @@ pub fn tag_event_json(ev: &TagEvent) -> Json {
             dry_run,
             file_count,
             suggestions_applied,
+            cleared,
             has_cover_change,
             track_change_count,
-        } => Json::obj([
-            ("album_path", Json::from(path_str(album_path))),
-            ("dry_run", Json::from(*dry_run)),
-            ("file_count", Json::from(*file_count)),
-            ("suggestions_applied", str_map(suggestions_applied)),
-            ("has_cover_change", Json::from(*has_cover_change)),
-            ("track_change_count", Json::from(*track_change_count)),
-        ]),
+        } => with_cleared(
+            Json::obj([
+                ("album_path", Json::from(path_str(album_path))),
+                ("dry_run", Json::from(*dry_run)),
+                ("file_count", Json::from(*file_count)),
+                ("suggestions_applied", str_map(suggestions_applied)),
+                ("has_cover_change", Json::from(*has_cover_change)),
+                ("track_change_count", Json::from(*track_change_count)),
+            ]),
+            cleared,
+        ),
         TagEvent::FileStarted {
             index,
             filename,
@@ -296,7 +321,8 @@ pub fn tag_event_json(ev: &TagEvent) -> Json {
                             k.clone(),
                             Json::obj([
                                 ("old", Json::from(d.old.as_str())),
-                                ("new", Json::from(d.new.as_str())),
+                                // null: the tag is removed.
+                                ("new", Json::from(d.new.clone())),
                             ]),
                         )
                     })),
@@ -337,15 +363,19 @@ pub fn tag_event_json(ev: &TagEvent) -> Json {
             renamed_count,
             errors,
             suggestions_applied,
-        } => Json::obj([
-            ("album_path", Json::from(path_str(album_path))),
-            ("dry_run", Json::from(*dry_run)),
-            ("saved_count", Json::from(*saved_count)),
-            ("art_changed_count", Json::from(*art_changed_count)),
-            ("renamed_count", Json::from(*renamed_count)),
-            ("errors", Json::from(*errors)),
-            ("suggestions_applied", str_map(suggestions_applied)),
-        ]),
+            cleared,
+        } => with_cleared(
+            Json::obj([
+                ("album_path", Json::from(path_str(album_path))),
+                ("dry_run", Json::from(*dry_run)),
+                ("saved_count", Json::from(*saved_count)),
+                ("art_changed_count", Json::from(*art_changed_count)),
+                ("renamed_count", Json::from(*renamed_count)),
+                ("errors", Json::from(*errors)),
+                ("suggestions_applied", str_map(suggestions_applied)),
+            ]),
+            cleared,
+        ),
         TagEvent::CoverSaved { path, filename } => Json::obj([
             ("path", Json::from(path_str(path))),
             ("filename", Json::from(filename.as_str())),
@@ -353,10 +383,15 @@ pub fn tag_event_json(ev: &TagEvent) -> Json {
     }
 }
 
-/// `tuple(suggestions.keys())`: the caller's dict keys, first position kept.
-fn suggestion_keys(s: &Suggestions) -> Vec<String> {
+/// `tuple(suggestions.keys())`: the caller's dict keys, first position kept,
+/// then the album-level fields removed that are not among them.
+fn changed_fields(s: &Suggestions, removals: &Removals) -> Vec<String> {
     let mut keys: Vec<String> = Vec::new();
-    for (k, _) in s {
+    let removed = removals
+        .album
+        .iter()
+        .filter(|f| musaic_tags::is_removable_album_field(f));
+    for k in s.iter().map(|(k, _)| k).chain(removed) {
         if !keys.contains(k) {
             keys.push(k.clone());
         }
@@ -526,6 +561,7 @@ fn run(
         album_dir,
         &req.suggestions,
         &req.track_suggestions,
+        &req.removals,
         picture,
         dry_run,
         &mut callback,
@@ -598,7 +634,7 @@ fn run(
     // Publish before the final yield.
     env.bus.publish(&BusEvent::AlbumTagsChanged {
         album_id: req.album_id.clone(),
-        fields: suggestion_keys(&req.suggestions),
+        fields: changed_fields(&req.suggestions, &req.removals),
     });
     if had_art_change {
         env.bus.publish(&BusEvent::AlbumCoverChanged {
@@ -737,6 +773,8 @@ pub fn apply_direct(
         library_dir: Some(lib),
         suggestions: suggestions.clone(),
         track_suggestions: track_suggestions.clone(),
+        // A check fix applies what a source found; it never removes a tag.
+        removals: Removals::default(),
         cover_url: cover_url.map(str::to_string),
         cover_bytes: None,
         cover_mime: None,

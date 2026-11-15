@@ -142,7 +142,27 @@ async fn apply_keeps_payload_key_order() {
             .map(|kv| kv[0].as_str().unwrap().to_string())
             .collect();
     let ours = comment_keys(&sb.lib.join(ALBUM).join("01 - Dawn Chorus.flac"));
-    assert_eq!(ours, python_keys);
+    assert_eq!(ours, whitespace_skipped(python_keys));
+}
+
+/// Delta: deliberate change (issue #210). The body's `"artist_sort": "   "`
+/// is whitespace-only; the Python app wrote it as an empty `artistsort`
+/// comment at the end (deleting the file's `ARTISTSORT`). A suggestion no
+/// longer blanks a tag, so it is skipped and the file's own `ARTISTSORT`
+/// keeps its value and its place, right after `TRACKTOTAL` as in the
+/// input file. Every other key keeps the Python app's order.
+fn whitespace_skipped(python_keys: Vec<String>) -> Vec<String> {
+    assert!(
+        python_keys.iter().any(|k| k == "artistsort"),
+        "delta unused"
+    );
+    let mut keys: Vec<String> = python_keys
+        .into_iter()
+        .filter(|k| k != "artistsort")
+        .collect();
+    let at = keys.iter().position(|k| k == "TRACKTOTAL").unwrap() + 1;
+    keys.insert(at, "ARTISTSORT".into());
+    keys
 }
 
 /// Python dict semantics of the order itself — first-seen

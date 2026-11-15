@@ -561,19 +561,42 @@ export interface FilenameRenameResult {
 
 // ----- Apply (SSE) -----
 
+/** Album-level fields an apply can remove from the files (`clear`). */
+export type ClearableAlbumField =
+  | "title" | "album_artist" | "artist" | "year" | "genre"
+  | "album_artist_sort" | "artist_sort" | "album_sort";
+
+/** Per-track fields an apply can remove (`track_clear`). TRACKNUMBER cannot
+ *  be removed (the scanner orders tracks by it): set a number instead. */
+export type ClearableTrackField = "title" | "artist" | "artist_sort";
+
 export interface ApplyPayload {
+  /** Values to write. An empty or whitespace-only value means "no change":
+   *  a suggestion never removes a tag (use `clear`). */
   suggestions?: Partial<Record<"title" | "album_artist" | "artist" | "year" | "genre", string>>;
   /** Per-file overrides keyed by FLAC filename. Allowed inner keys:
    *  "title", "artist", "tracknumber". */
   track_suggestions?: Record<string, Partial<Record<"title" | "artist" | "tracknumber", string>>>;
+  /** Fields to remove from every FLAC of the album — only for an explicit
+   *  user request (a field the user blanked), never for a source's missing
+   *  data. A field may not be both suggested and cleared (422). */
+  clear?: ClearableAlbumField[];
+  /** Per-file fields to remove, keyed by FLAC filename. */
+  track_clear?: Record<string, ClearableTrackField[]>;
   cover_url?: string | null;
   dry_run?: boolean;
+}
+
+/** One tag's change in a file. `new: null` = the tag is removed. */
+export interface TagDiff {
+  old: string;
+  new: string | null;
 }
 
 export interface FileChange {
   path: string;
   filename: string;
-  diffs: Record<string, { old: string; new: string }>;
+  diffs: Record<string, TagDiff>;
   art_changed: boolean;
   saved: boolean;
   error: string | null;
@@ -585,10 +608,10 @@ export interface FileChange {
 export type ApplyEvent =
   | { type: "cover_downloading"; url: string }
   | { type: "cover_downloaded"; bytes: number; mime: string }
-  | { type: "start"; album_path: string; dry_run: boolean; file_count: number; suggestions_applied: Record<string, string>; has_cover_change: boolean }
+  | { type: "start"; album_path: string; dry_run: boolean; file_count: number; suggestions_applied: Record<string, string>; cleared?: string[]; has_cover_change: boolean }
   | { type: "file_started"; index: number; filename: string; path: string }
   | { type: "file_done"; change: FileChange }
-  | { type: "done"; saved_count: number; art_changed_count: number; errors: number; suggestions_applied: Record<string, string> }
+  | { type: "done"; saved_count: number; art_changed_count: number; errors: number; suggestions_applied: Record<string, string>; cleared?: string[] }
   | { type: "updated_album"; album: Album }
   | { type: "removed_album"; id: string; path: string }
   | { type: "error"; detail: string };

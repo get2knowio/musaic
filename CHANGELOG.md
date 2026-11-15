@@ -61,6 +61,13 @@ Security.
 - **Check runner** (#205): a check run that fails now reports the findings it recorded
   before failing instead of 0, and no-cover-art's 30-day "recent failed lookup" window
   is exact (it could count a lookup up to a day older as recent).
+- **A tag can now be removed through apply** (#210). The apply request takes `clear`
+  (album-level fields) and `track_clear` (per-file fields); every value and spelling of
+  the tag is removed, the dry-run diff shows the removal as `new: null`, and the album's
+  database row follows. An empty or whitespace-only suggestion still changes nothing, so
+  MusicBrainz, check fixes and suggestions never clear a tag because their data is
+  missing; a whitespace-only value is no longer written as an empty tag. No screen asks
+  for a removal yet; it is available in the API for inline tag editing.
 
 ## [0.2.0-rc.1] - 2026-11-14
 

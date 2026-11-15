@@ -15,6 +15,9 @@
 //! - everything else (tags in order with key casing, vendor, picture
 //!   metadata, block order, ID3 prefix, STREAMINFO MD5, audio bytes, sidecar
 //!   names) must be equal.
+//!
+//! Enumerated delta (deliberate change, see [`WHITESPACE_SKIPPED`]): the
+//! scenario `whitespace-only-value`.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -290,12 +293,17 @@ fn event_json(e: &Event, album: &Path) -> Value {
             dry_run,
             file_count,
             suggestions_applied,
+            cleared,
             has_cover_change,
             track_change_count,
-        } => json!({
+        } => {
+            // No golden scenario removes a tag (the Python app could not).
+            assert!(cleared.is_empty());
+            json!({
             "album_path": rel(album_path, album), "dry_run": dry_run, "file_count": file_count,
             "suggestions_applied": pairs(suggestions_applied), "has_cover_change": has_cover_change,
-            "track_change_count": track_change_count}),
+            "track_change_count": track_change_count})
+        }
         Event::FileStarted {
             index,
             filename,
@@ -328,10 +336,14 @@ fn event_json(e: &Event, album: &Path) -> Value {
             renamed_count,
             errors,
             suggestions_applied,
-        } => json!({
+            cleared,
+        } => {
+            assert!(cleared.is_empty());
+            json!({
             "album_path": rel(album_path, album), "dry_run": dry_run, "saved_count": saved_count,
             "art_changed_count": art_changed_count, "renamed_count": renamed_count, "errors": errors,
-            "suggestions_applied": pairs(suggestions_applied)}),
+            "suggestions_applied": pairs(suggestions_applied)})
+        }
         Event::CoverSaved { path, filename } => {
             json!({"path": rel(path, album), "filename": filename})
         }
@@ -397,6 +409,38 @@ fn psnr(a: &[u8], b: &[u8]) -> f64 {
     } else {
         10.0 * (255.0f64 * 255.0 / mse).log10()
     }
+}
+
+/// Delta: deliberate change (issue #210). The Python app tested a suggestion
+/// for "" before stripping it, so a whitespace-only value was written as an
+/// empty tag. A suggestion now never removes or blanks a tag (removal is an
+/// explicit request), so a whitespace-only value is skipped like "". For
+/// this scenario the expectation is the recorded one with every
+/// suggestion gone: no `suggestions_applied`, no diffs, nothing saved, and
+/// every file byte-identical to the input (`after_setup`).
+const WHITESPACE_SKIPPED: &str = "whitespace-only-value";
+
+fn whitespace_skipped(events: Vec<Value>) -> Vec<Value> {
+    events
+        .into_iter()
+        .map(|mut e| {
+            let name = e[0].as_str().unwrap().to_string();
+            let body = &mut e[1];
+            match name.as_str() {
+                "start" => body["suggestions_applied"] = json!([]),
+                "file_done" => {
+                    body["diffs"] = json!([]);
+                    body["saved"] = json!(false);
+                }
+                "done" => {
+                    body["suggestions_applied"] = json!([]);
+                    body["saved_count"] = json!(0);
+                }
+                _ => {}
+            }
+            e
+        })
+        .collect()
 }
 
 /// Vendor string the Python app (mutagen 1.48.1) gives a comment block it creates.
@@ -491,9 +535,15 @@ fn run_in(g: &Value, id: &str) {
             bytes,
             mime: cover_mime.as_deref(),
         });
-        apply_album_files(&album, &sugg, &track, cover, dry_run, &mut |e| {
-            events.push(e)
-        })
+        apply_album_files(
+            &album,
+            &sugg,
+            &track,
+            &musaic_tags::Removals::default(),
+            cover,
+            dry_run,
+            &mut |e| events.push(e),
+        )
         .unwrap();
 
         // Events, in order.
@@ -505,6 +555,11 @@ fn run_in(g: &Value, id: &str) {
             .cloned()
             .map(strip_error_text)
             .collect();
+        let theirs = if id == WHITESPACE_SKIPPED {
+            whitespace_skipped(theirs)
+        } else {
+            theirs
+        };
         let mask = |mut v: Vec<Value>| {
             for e in &mut v {
                 if e[0] == "cover_downloaded" && reencoded {
@@ -514,6 +569,15 @@ fn run_in(g: &Value, id: &str) {
             v
         };
         assert_eq!(mask(ours), mask(theirs), "{ctx}: events");
+        if id == WHITESPACE_SKIPPED {
+            // The delta: nothing written, so the album is the input.
+            assert_eq!(
+                Value::Array(brief(&album)),
+                sc["after_setup"],
+                "{ctx}: files changed although every suggestion was skipped"
+            );
+            continue;
+        }
 
         // Directory listing: the same names.
         let names = sorted_names(&album);
@@ -689,7 +753,7 @@ scenarios! {
     case_only_change => "case-only-change", "Vorbis comment writes";
     noop_empty_payload => "noop-empty-payload", "Vorbis comment writes";
     clear_empty_and_none => "clear-empty-and-none", "Vorbis comment writes (empty values skipped)";
-    whitespace_only_value => "whitespace-only-value", "Vorbis comment writes (malformed: whitespace-only written as empty)";
+    whitespace_only_value => "whitespace-only-value", "Vorbis comment writes (malformed: whitespace-only skipped; delta WHITESPACE_SKIPPED, the Python app wrote an empty tag)";
     genre_multi_value_first_match => "genre-multi-value-first-match", "Vorbis comment writes (multi-value)";
     genre_multi_value_replace => "genre-multi-value-replace", "Vorbis comment writes (multi-value)";
     non_ascii => "non-ascii", "Vorbis comment writes";

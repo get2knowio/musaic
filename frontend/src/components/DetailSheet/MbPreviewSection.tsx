@@ -260,6 +260,8 @@ function pushDiff(
   if (!fact) return;
   const proposed = String(fact.value ?? "").trim();
   const cur = String(current ?? "").trim();
+  // No canonical value is missing data, not a request to remove the tag:
+  // MusicBrainz never clears anything (the apply would skip it anyway).
   if (!proposed || normalize(proposed) === normalize(cur)) return;
   out.push({ field, current: cur, canonical: proposed, source: fact.source });
 }

@@ -74,6 +74,25 @@ pub fn err(ty: &str, loc: Vec<Value>, msg: &str, input: Value) -> Value {
     json!({"type": ty, "loc": loc, "msg": msg, "input": input})
 }
 
+/// pydantic's `literal_error` for `input` at `loc`, with `ctx.expected`
+/// (`'a' or 'b'`, `'a', 'b' or 'c'`).
+pub fn literal_err(loc: Vec<Value>, input: Value, allowed: &[&str]) -> Value {
+    let quoted: Vec<String> = allowed.iter().map(|a| format!("'{a}'")).collect();
+    let expected = match quoted.split_last() {
+        None => String::new(),
+        Some((last, [])) => last.clone(),
+        Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
+    };
+    let mut e = err(
+        "literal_error",
+        loc,
+        &format!("Input should be {expected}"),
+        input,
+    );
+    e["ctx"] = json!({ "expected": expected });
+    e
+}
+
 pub fn unprocessable(errors: Vec<Value>) -> ApiError {
     ApiError {
         status: 422,
@@ -389,20 +408,7 @@ impl Fields {
         {
             return Some(s.clone());
         }
-        let quoted: Vec<String> = allowed.iter().map(|a| format!("'{a}'")).collect();
-        let expected = match quoted.split_last() {
-            None => String::new(),
-            Some((last, [])) => last.clone(),
-            Some((last, rest)) => format!("{} or {last}", rest.join(", ")),
-        };
-        let mut e = err(
-            "literal_error",
-            Self::loc(name),
-            &format!("Input should be {expected}"),
-            v,
-        );
-        e["ctx"] = json!({ "expected": expected });
-        self.errors.push(e);
+        self.errors.push(literal_err(Self::loc(name), v, allowed));
         None
     }
 
@@ -458,6 +464,51 @@ impl Fields {
                             "string_type",
                             vec![json!("body"), json!(name), json!(k)],
                             "Input should be a valid string",
+                            other,
+                        )),
+                    }
+                }
+                out
+            }
+            Some(other) => {
+                self.errors.push(err(
+                    "dict_type",
+                    Self::loc(name),
+                    "Input should be a valid dictionary",
+                    other,
+                ));
+                Vec::new()
+            }
+        }
+    }
+
+    /// `dict[str, list[str]] = {}`: entries in body order.
+    pub fn str_list_map(&mut self, name: &str) -> Vec<(String, Vec<String>)> {
+        match self.present(name).cloned() {
+            None => Vec::new(),
+            Some(Value::Object(m)) => {
+                let mut out = Vec::new();
+                for (k, v) in self.order.child(name).entries(m) {
+                    match v {
+                        Value::Array(items) => {
+                            let mut row = Vec::new();
+                            for (i, x) in items.into_iter().enumerate() {
+                                match x {
+                                    Value::String(s) => row.push(s),
+                                    other => self.errors.push(err(
+                                        "string_type",
+                                        vec![json!("body"), json!(name), json!(k), json!(i)],
+                                        "Input should be a valid string",
+                                        other,
+                                    )),
+                                }
+                            }
+                            out.push((k, row));
+                        }
+                        other => self.errors.push(err(
+                            "list_type",
+                            vec![json!("body"), json!(name), json!(k)],
+                            "Input should be a valid list",
                             other,
                         )),
                     }
