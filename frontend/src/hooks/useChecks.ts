@@ -3,7 +3,7 @@
  *
  *   - `useChecks` / `useCheck` — registry + per-check detail
  *   - `useFindings` / `useFindingsForAlbum` / `useFindingsForCheck` — open findings
- *   - mutations for run / ignore / unignore / fix
+ *   - mutations for ignore / unignore / fix
  *
  * The `["checks"]` query is hydrated initially via REST, then kept fresh by
  * `useChecksStream` (App-level SSE subscriber). Findings live under
@@ -20,7 +20,6 @@ import {
   ignoreFinding,
   listChecks,
   listFindings,
-  runCheck,
   unignoreFinding,
 } from "@/lib/api";
 import { errorDetailText } from "@/lib/errors";
@@ -83,16 +82,6 @@ export function useFindingsForCheck(checkId: string | null | undefined): Finding
 }
 
 // ---- Mutations ----
-
-export function useRunCheck() {
-  return useMutation({
-    mutationFn: (args: { checkId: string; scope?: "all" | "incremental" | "albums"; albumIds?: string[] }) =>
-      runCheck(args.checkId, { scope: args.scope ?? "all", albumIds: args.albumIds }),
-    // No onSuccess: the checks runner calls notify_changed() at the end
-    // of every run, which wakes /api/checks/stream → useChecksStream
-    // refetches the affected caches automatically.
-  });
-}
 
 export function useIgnoreFinding() {
   return useMutation({

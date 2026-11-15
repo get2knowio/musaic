@@ -13,6 +13,17 @@ Security.
 
 ## [Unreleased]
 
+### Changed
+
+- Health no longer asks you to run checks one by one: the per-check "Run now" buttons,
+  the "Last run" / "Never run" column, the "Recent runs" list, the category column and
+  the check count are gone. Until every check runs automatically in the background, a
+  single "Check now" on the Health page runs the checks that do not run with a library
+  scan (the tag and filename comparisons), one after another
+  ([#187](https://github.com/get2knowio/musaic/issues/187)).
+- Fix is disabled, with the reason on hover, for a finding whose album is Missing
+  ([#186](https://github.com/get2knowio/musaic/issues/186)).
+
 ### Fixed
 
 - A library scan can be cancelled: the scan ribbon's Cancel button (and quitting the

@@ -9,9 +9,7 @@ import {
   Eye,
   EyeOff,
   Info,
-  Loader2,
   Music,
-  Sparkles,
   X,
   XCircle,
   Zap,
@@ -20,7 +18,6 @@ import { toast } from "sonner";
 import {
   streamQuickFixAll,
   useCheck,
-  useRunCheck,
   useUnignoreFinding,
   type QuickFixProgress,
   type QuickFixSummary,
@@ -31,11 +28,11 @@ import { useAiStatus } from "@/hooks/useAiStatus";
 import FindingFixButton from "@/components/FindingFixButton";
 import IgnoreFindingControl from "@/components/IgnoreFindingControl";
 import { displayArtist } from "@/lib/albumFields";
-import type { Album, CheckRun, Finding } from "@/lib/types";
+import type { Album, Finding } from "@/lib/types";
 
 /**
- * Drilldown for a single check. Open findings on the left (the bulk of the
- * page), recent runs in a small sidebar on the right.
+ * Drilldown for a single check: its open findings, with a per-check bulk
+ * action when the check offers one.
  */
 export default function HealthDetailPage() {
   const { checkId } = useParams<{ checkId: string }>();
@@ -49,7 +46,6 @@ export default function HealthDetailPage() {
   // newer-timestamped findings. The check-detail endpoint already
   // returns ALL open findings for this one check, scoped server-side.
   const findings = detail?.findings ?? [];
-  const runMutation = useRunCheck();
   // ALL hooks must run on every render (Rules of Hooks). Keep useState
   // above the early returns even though `bulkOpen` isn't used until later.
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -72,15 +68,6 @@ export default function HealthDetailPage() {
     );
   }
 
-  const onRun = () => {
-    runMutation.mutate(
-      { checkId: detail.meta.id, scope: "all" },
-      { onError: (e) => toast.error((e as Error).message || "Couldn't start check") },
-    );
-  };
-
-  const lastRun = detail.runs[0];
-  const isRunning = lastRun?.status === "running";
   const openCount = findings.filter((f) => !f.ignored_at).length;
 
   return (
@@ -112,20 +99,9 @@ export default function HealthDetailPage() {
             {detail.meta.bulk_action_label} ({openCount})
           </button>
         )}
-        <button
-          onClick={onRun}
-          disabled={isRunning || runMutation.isPending}
-          className="h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5"
-        >
-          {isRunning || runMutation.isPending ? (
-            <><Loader2 className="w-3 h-3 spin" /> Running…</>
-          ) : (
-            <><Sparkles className="w-3 h-3" /> Run now</>
-          )}
-        </button>
       </div>
 
-      <div className="grid grid-cols-[1fr_280px] gap-4 px-4 py-4 min-h-0">
+      <div className="px-4 py-4 min-h-0">
         <div className="min-w-0 space-y-3">
           <FindingsList
             checkId={detail.meta.id}
@@ -134,7 +110,6 @@ export default function HealthDetailPage() {
             description={detail.meta.description}
           />
         </div>
-        <RunsSidebar runs={detail.runs} />
       </div>
 
       <BulkQuickFixDialog
@@ -677,7 +652,21 @@ function FindingRow({
         </div>
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        <FindingFixButton finding={finding} fixKind={fixKind} siblings={siblings} />
+        {album?.missing_since && fixKind !== "none" && !finding.ignored_at ? (
+          // A Missing album's folder is not on disk, so no fix can touch
+          // its files; the album sheet hides findings for the same reason.
+          <button
+            type="button"
+            disabled
+            className="h-7 px-2 rounded border border-line text-xs text-fg-3 inline-flex items-center gap-1 cursor-not-allowed"
+            title="This album's folder is missing. Fix is available again once the album is back in the library."
+          >
+            <Zap className="w-3 h-3" />
+            Fix
+          </button>
+        ) : (
+          <FindingFixButton finding={finding} fixKind={fixKind} siblings={siblings} />
+        )}
         {finding.ignored_at ? (
           <button
             onClick={onUnignore}
@@ -688,49 +677,6 @@ function FindingRow({
           </button>
         ) : (
           <IgnoreFindingControl checkId={checkId} findingId={finding.id} />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RunsSidebar({ runs }: { runs: CheckRun[] }) {
-  return (
-    <div className="space-y-1.5">
-      <h3 className="mono text-[11px] uppercase tracking-[0.08em] text-fg-4 px-1">Recent runs</h3>
-      <div className="border border-line rounded-md bg-panel-2 divide-y divide-line">
-        {runs.length === 0 ? (
-          <div className="px-3 py-3 text-xs text-fg-4 italic">No runs yet</div>
-        ) : (
-          runs.map((r) => <RunRow key={r.id} run={r} />)
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RunRow({ run }: { run: CheckRun }) {
-  let StatusIcon = CheckCircle2;
-  let statusClass = "text-ok";
-  if (run.status === "running") { StatusIcon = Loader2; statusClass = "text-accent"; }
-  else if (run.status === "failed") { StatusIcon = XCircle; statusClass = "text-err"; }
-  else if (run.status === "cancelled") { StatusIcon = XCircle; statusClass = "text-fg-4"; }
-  return (
-    <div className="px-3 py-2 text-xs flex items-center gap-2">
-      <StatusIcon className={`w-3 h-3 shrink-0 ${statusClass} ${run.status === "running" ? "spin" : ""}`} />
-      <div className="flex-1 min-w-0">
-        <div className="mono tabular-nums">
-          {fmtRelative(run.completed_at || run.started_at)}
-          {run.duration_ms != null && (
-            <span className="text-fg-4"> · {run.duration_ms}ms</span>
-          )}
-        </div>
-        <div className="text-fg-4 truncate">
-          {run.scope === "all" ? "full" : run.scope === "incremental" ? "incremental" : "subset"} ·
-          {" "}<span className={run.issue_count > 0 ? "text-warn font-semibold" : ""}>{run.issue_count}</span> findings
-        </div>
-        {run.error && (
-          <div className="text-err truncate mt-0.5" title={run.error}>{run.error}</div>
         )}
       </div>
     </div>
