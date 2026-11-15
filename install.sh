@@ -12,7 +12,8 @@
 #   macOS  Musaic.app into /Applications (or ~/Applications when that is not writable)
 #   Linux  the AppImage as ~/.local/bin/musaic, plus a launcher entry
 # Re-running upgrades an existing install. Your library data (~/.musaic) is not
-# touched. Windows: download the -setup.exe from the Releases page instead.
+# touched. There is no Windows build yet: the automated tests do not pass on
+# Windows, so none is published until they do (see issue #178).
 #
 # Options:
 #   --prerelease        Install the newest release INCLUDING pre-releases
@@ -69,7 +70,7 @@ case "$os" in
       x86_64 | amd64) SUFFIX="_amd64.AppImage" ;;
       *) die "no Linux build for $arch yet (x86_64 only). Build from source: https://github.com/${REPO_SLUG}#build-from-source" ;;
     esac ;;
-  *) die "unsupported system: $os. On Windows, download the -setup.exe from https://github.com/${REPO_SLUG}/releases" ;;
+  *) die "unsupported system: $os. There is no Windows build yet: the automated tests do not pass on Windows, so none is published until they do (https://github.com/${REPO_SLUG}/issues/178)" ;;
 esac
 
 WORK="$(mktemp -d)"

@@ -5,6 +5,13 @@
 # CHANGELOG.md; a person reviews it (the notes say which builds were run by
 # hand) and publishes it. install.sh only sees published releases.
 #
+# Only platforms whose tests are required-green get an installer. The
+# `tests` job runs the same Rust gate as CI (rust-tests.yml) on every runner
+# the build matrix uses, for the tagged commit itself, and nothing is drafted
+# or built unless all of them pass. The build job refuses a runner that the
+# tests job does not cover, so adding a platform to the build matrix without
+# its tests fails the release instead of shipping an untested installer.
+#
 # Unsigned: no signing, notarisation or updater configuration, and no secret
 # is referenced. tauri.conf.json has `signingIdentity: null` and
 # `createUpdaterArtifacts: false`; `--no-sign` makes that explicit.
@@ -45,8 +52,21 @@ env:
   PYTHONUTF8: "1"
 
 jobs:
+  # Keep this list equal to the runners in the build matrix below
+  # (TESTED_RUNNERS enforces it).
+  tests:
+    name: tests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15]
+    uses: ./.github/workflows/rust-tests.yml
+    with:
+      os: ${{ matrix.os }}
+
   draft:
     name: draft release
+    needs: tests
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -120,11 +140,15 @@ jobs:
             os: macos-15
             target: x86_64-apple-darwin
             bundles: app,dmg
-          # NSIS only: the MSI bundler rejects non-numeric pre-release versions.
-          - name: windows-x64
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bundles: nsis
+          # No Windows build: the Rust tests do not pass on Windows yet (#178),
+          # and no installer is published for a platform whose tests are not
+          # required-green. Restore this entry only when the Windows job is
+          # required in ci.yml and green, and add windows-latest to the tests
+          # job and to TESTED_RUNNERS in the same change:
+          #   - name: windows-x64
+          #     os: windows-latest
+          #     target: x86_64-pc-windows-msvc
+          #     bundles: nsis   # the MSI bundler rejects pre-release versions
           # 22.04: an older glibc for a wider AppImage reach.
           - name: linux-x64
             os: ubuntu-22.04
@@ -133,7 +157,18 @@ jobs:
     defaults:
       run:
         shell: bash
+    env:
+      # The runners the tests job covers. The Intel Mac build is
+      # cross-compiled on macos-15 and is covered by the macOS test run.
+      TESTED_RUNNERS: "ubuntu-22.04 macos-15"
     steps:
+      - name: Refuse a platform without required tests
+        run: |
+          case " $TESTED_RUNNERS " in
+            *" ${{ matrix.os }} "*) ;;
+            *) echo "::error::${{ matrix.os }} is not covered by the tests job; no installer is built for it"; exit 1 ;;
+          esac
+
       # Windows runners default to core.autocrlf=true, which would rewrite
       # goldens, manifests and scripts byte-wise. Check out files as committed.
       - name: Keep line endings as committed
@@ -216,11 +251,13 @@ jobs:
             linux-x64)   want="_amd64.AppImage" ;;
             windows-x64) want="-setup.exe" ;;
           esac
-          ls dist | grep -q -- "${want}\$" || { echo "::error::no installer ending in $want"; exit 1; }
+          found=""
+          for f in dist/*"$want"; do [ -e "$f" ] && found="$f"; done
+          test -n "$found" || { echo "::error::no installer ending in $want"; exit 1; }
           cd dist
           if command -v sha256sum >/dev/null; then sum="sha256sum"; else sum="shasum -a 256"; fi
           # Git Bash's sha256sum marks binary mode with '*'; drop it.
-          $sum * | sed 's/ \*/  /' > "../SHA256SUMS-${{ matrix.name }}.txt"
+          $sum -- * | sed 's/ \*/  /' > "../SHA256SUMS-${{ matrix.name }}.txt"
           cat "../SHA256SUMS-${{ matrix.name }}.txt"
 
       - name: Attach to the draft release
