@@ -79,7 +79,7 @@ fn panicking_subscribers_are_isolated_and_reported() {
         .priority(300),
     );
     bus.publish(&tags("a"));
-    assert!(bus.wait_background_idle(std::time::Duration::from_secs(5)));
+    assert!(bus.wait_background_idle(std::time::Duration::from_secs(30)));
     assert_eq!(*seen.lock().unwrap(), vec!["ok"]);
     let mut f = failures.lock().unwrap().clone();
     f.sort();

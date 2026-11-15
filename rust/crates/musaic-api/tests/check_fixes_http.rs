@@ -493,6 +493,10 @@ async fn check_fix_routes_replay_the_python_app() {
                 other => panic!("unknown action {other}"),
             }
         }
+        let order = match st["args"]["check_id"].as_str() {
+            Some(c) if st["op"] == "quick_fix_all" => cf_deltas::walk_order(&run.w.conn(), c),
+            _ => Vec::new(),
+        };
         let got = run.w.send(&ids.request(&st["request"])).await;
         let mut body = if got.ctype().starts_with("text/event-stream") {
             json!({"sse": run.n(&ids.frames(&got.text()))})
@@ -592,7 +596,22 @@ async fn check_fix_routes_replay_the_python_app() {
                 musaic_services::check_fixes::UNRESOLVED_SKIP_MESSAGE,
             );
             *used.get_mut("no model backend").unwrap() += n;
-            want_body["sse"] = json!(text);
+            // Finding order: see cf_deltas::walk_order.
+            want_body["sse"] = json!(cf_deltas::progress_in_our_finding_order(&text, |p| {
+                cf_deltas::walk_pos(&order, ids.to_ours.get(&p).copied().unwrap_or(p))
+            }));
+            let check = st["args"]["check_id"].as_str().unwrap();
+            let conn = run.w.conn();
+            cf_deltas::events_in_walk_order(&mut want_events, &order, |e| {
+                let id = e.get("album_id")?.as_str()?;
+                let dir = id.strip_prefix("<ID:")?.strip_suffix('>')?;
+                conn.query_row(
+                    "SELECT MIN(id) FROM check_findings WHERE check_id = ?1 AND album_id = ?2",
+                    [check, run.w.id(dir).as_str()],
+                    |r| r.get(0),
+                )
+                .unwrap()
+            });
         }
         if want_body["dir_migration"]["albums"] == json!(1) {
             *used.get_mut("blocklist rows follow").unwrap() += 1;
@@ -654,6 +673,11 @@ async fn check_fix_routes_replay_the_python_app() {
     assert_eq!(used["no model backend"], 11, "skipped unidentified albums");
     assert_eq!(used["blocklist rows follow"], 1);
     assert_eq!(used["last copy keeps album"], 1);
+    // The last stream's work ends just after its final frame.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while run.w.state.gate().snapshot() != (0, false) && std::time::Instant::now() < deadline {
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
     assert_eq!(run.w.state.gate().snapshot(), (0, false), "gate released");
 }
 

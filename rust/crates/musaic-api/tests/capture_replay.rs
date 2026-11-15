@@ -260,6 +260,10 @@ const DELTAS: &[(&str, &str)] = &[
     ),
     ("nfd", "deliberate change: no NFC/NFD-only dir rename"),
     (
+        "scan_order",
+        "deliberate change: albums are discovered in name order, not in the filesystem's listing order (the capture's order is APFS's)",
+    ),
+    (
         "sort_cluster",
         "reproduced: representative album = smallest album id (path-dependent)",
     ),
@@ -341,6 +345,53 @@ fn sort_albums(arr: &mut [Value]) {
     });
 }
 
+/// The capture's album rows were stored in APFS listing order; this build
+/// stores them in discovery (name) order, so everything ordered by album
+/// row follows name order: ties in the album list (same sort key), the
+/// findings of one check run, and cluster members. All albums sit directly
+/// under the library, so name order is path order is `<ID:dir name>` order.
+fn scan_order(want: &mut Value, used: &mut BTreeMap<&'static str, usize>) {
+    let before = want.clone();
+    if let Some(albums) = want
+        .pointer_mut("/json/albums")
+        .and_then(Value::as_array_mut)
+    {
+        albums.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
+        sort_albums(albums);
+    }
+    if let Some(findings) = want
+        .pointer_mut("/json/findings")
+        .and_then(Value::as_array_mut)
+    {
+        for f in findings.iter_mut() {
+            if let Some(m) = f
+                .pointer_mut("/detail/members")
+                .and_then(Value::as_array_mut)
+            {
+                m.sort_by(|a, b| a["dir_name"].as_str().cmp(&b["dir_name"].as_str()));
+            }
+        }
+        // Within one check, in the slots that check's findings occupy.
+        let checks: std::collections::BTreeSet<String> = findings
+            .iter()
+            .filter_map(|f| f["check_id"].as_str().map(str::to_string))
+            .collect();
+        for c in checks {
+            let slots: Vec<usize> = (0..findings.len())
+                .filter(|&i| findings[i]["check_id"] == c.as_str())
+                .collect();
+            let mut vals: Vec<Value> = slots.iter().map(|&i| findings[i].clone()).collect();
+            vals.sort_by(|a, b| a["album_id"].as_str().cmp(&b["album_id"].as_str()));
+            for (&i, v) in slots.iter().zip(vals) {
+                findings[i] = v;
+            }
+        }
+    }
+    if *want != before {
+        use_delta(used, "scan_order");
+    }
+}
+
 fn apply_deltas(
     name: &str,
     want: &mut Value,
@@ -386,6 +437,7 @@ fn apply_deltas(
         want["json"] = album(&want["json"], &got["json"]);
         use_delta(used, "track_order");
     }
+    scan_order(want, used);
     // Thumbnails (default size=thumb): status and type only.
     let thumb = Regex::new(r"^\d{3}-cover-").unwrap();
     if thumb.is_match(name) && !name.contains("cover-full") && want["status"] == 200 {
@@ -676,6 +728,24 @@ async fn api_offline_capture_replays() {
                 .collect();
             let mut want_ev = run.extra.v(&json!(want_ev), None);
             let got_ev = run.extra.v(&run.norm.value(&json!(got_ev), None), None);
+            // The capture streamed albums in APFS listing order; this build
+            // discovers them in name order on every filesystem.
+            let slots: Vec<usize> = (0..want_ev.as_array().unwrap().len())
+                .filter(|&i| want_ev[i]["event"] == "album")
+                .collect();
+            let mut sorted: Vec<Value> = slots.iter().map(|&i| want_ev[i].clone()).collect();
+            sorted.sort_by(|a, b| {
+                a["data"]["path"]
+                    .as_str()
+                    .unwrap()
+                    .cmp(b["data"]["path"].as_str().unwrap())
+            });
+            if slots.iter().zip(&sorted).any(|(&i, w)| want_ev[i] != *w) {
+                for (&i, w) in slots.iter().zip(sorted) {
+                    want_ev[i] = w;
+                }
+                use_delta(&mut run.deltas_used, "scan_order");
+            }
             for (w, g) in want_ev
                 .as_array_mut()
                 .unwrap()
@@ -774,8 +844,6 @@ async fn api_offline_capture_replays() {
     }
 
     assert!(st.bus().wait_background_idle(Duration::from_secs(30)));
-    tokio::time::sleep(Duration::from_millis(200)).await;
-    listener.abort();
     // Library events: the Python app's minus the ones of unbuilt subsystems.
     let mut want: Vec<Value> = Vec::new();
     for l in read_jsonl("events/library-events.jsonl") {
@@ -785,6 +853,15 @@ async fn api_offline_capture_replays() {
         }
         want.push(json!({"event": l["event"], "data": l["data"]}));
     }
+    // Every event is queued for the stream by now; give the listener task
+    // time to read them all (generous: a loaded runner can be slow), then a
+    // little longer so an extra event would show up too.
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while events.lock().unwrap().len() < want.len() && std::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    listener.abort();
     let got: Vec<Value> = events
         .lock()
         .unwrap()

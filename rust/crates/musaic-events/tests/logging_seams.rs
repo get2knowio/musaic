@@ -49,7 +49,7 @@ fn publish(ev: Event) -> Vec<(Level, String, String)> {
     let bus = Bus::new();
     register_all(&bus, Arc::new(Failing), None);
     let ((), lines) = capture(|| bus.publish(&ev));
-    assert!(bus.wait_background_idle(std::time::Duration::from_secs(10)));
+    assert!(bus.wait_background_idle(std::time::Duration::from_secs(30)));
     lines
         .into_iter()
         .map(

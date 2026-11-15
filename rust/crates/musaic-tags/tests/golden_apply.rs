@@ -18,7 +18,6 @@
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -845,6 +844,7 @@ fn save_is_in_place_when_it_fits_and_replaces_otherwise() {
 #[cfg(unix)]
 #[test]
 fn read_only_file_and_directory_combinations() {
+    use std::io;
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
     let g = golden();
     let prepare = |id: &str| {

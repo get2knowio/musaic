@@ -33,6 +33,7 @@ musaic-testdata = { path = "../musaic-testdata" }
 base64 = "0.22"
 sha2 = "0.10"
 tempfile.workspace = true
+unicode-normalization = "0.1"
 
 [lints]
 workspace = true

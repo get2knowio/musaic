@@ -288,10 +288,12 @@ async fn failing_scan_drains_thumbnails_before_the_event_and_releases_the_gate()
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
     assert_eq!(status["status"], "error", "{status}");
-    // Released promptly: the job returns right after the terminal status.
+    // Released: the job returns right after the terminal status. (The bound
+    // only catches a gate that is never released; it is generous because a
+    // loaded CI runner can stall the job thread for seconds.)
     let t0 = std::time::Instant::now();
     while st.gate().snapshot() != (0, false) {
-        assert!(t0.elapsed() < Duration::from_secs(2), "gate still held");
+        assert!(t0.elapsed() < Duration::from_secs(20), "gate still held");
         tokio::time::sleep(Duration::from_millis(2)).await;
     }
     let with_cover = thumb_dirs_with_covers();

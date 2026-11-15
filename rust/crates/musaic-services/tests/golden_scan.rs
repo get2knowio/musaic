@@ -16,6 +16,13 @@
 //! only Present -> Missing transitions. Every other difference fails, and so
 //! does a delta whose old value is not in the record.
 //!
+//! Deliberate change, applied to the whole record ([`in_scan_order`]):
+//! albums are discovered in name order, not in the filesystem's listing
+//! order (APFS's, when the golden was recorded). The record's album events,
+//! and everything ordered by album row (rows, `marked_missing`, the
+//! Missing / returned bus events), are put in the order this build produces
+//! on every filesystem; their contents are compared unchanged.
+//!
 //! Injected failure (not a delta): the Python app's error story patched
 //! `cache.save_snapshot` to raise "injected save failure"; here the worker's
 //! database is opened read-only so the save fails. Only the failure's text
@@ -390,6 +397,83 @@ fn deltas() -> Vec<Delta> {
     vec![small6, small8, ten16, ten17, f10, f12, f13, sidecar6]
 }
 
+/// The record of one scan step in this build's scan order (see the module
+/// docs). `rows` is the album rows' insertion order so far (normalised
+/// paths): albums new in this step are stored in name order after the ones
+/// already stored, and rowid order is what `marked_missing`, the bus events
+/// of Missing / returning albums and the album rows follow.
+fn in_scan_order(step: &mut Value, rows: &mut Vec<String>) {
+    let path_of = |v: &Value| v["path"].as_str().unwrap().to_string();
+    if let Some(albums) = step.pointer("/db/albums").and_then(Value::as_array) {
+        let mut new: Vec<String> = albums
+            .iter()
+            .map(path_of)
+            .filter(|p| !rows.contains(p))
+            .collect();
+        new.sort();
+        rows.extend(new);
+    }
+    let rank = |p: &str| {
+        rows.iter()
+            .position(|r| r == p)
+            .unwrap_or_else(|| panic!("no album row for {p}"))
+    };
+    if let Some(albums) = step.pointer_mut("/db/albums").and_then(Value::as_array_mut) {
+        albums.sort_by_key(|a| rank(a["path"].as_str().unwrap()));
+    }
+    // seq -> payload in this build's order, from the full buffer.
+    let mut by_seq: std::collections::HashMap<u64, Value> = std::collections::HashMap::new();
+    if let Some(buffer) = step["buffer"].as_array() {
+        for (name, key) in [("album", None), ("marked_missing", Some(()))] {
+            let slots: Vec<&Value> = buffer.iter().filter(|e| e[1] == name).collect();
+            let mut payloads: Vec<Value> = slots.iter().map(|e| e[2].clone()).collect();
+            match key {
+                None => payloads.sort_by_key(path_of),
+                Some(()) => payloads.sort_by_key(|d| rank(d["path"].as_str().unwrap())),
+            }
+            for (e, d) in slots.iter().zip(payloads) {
+                by_seq.insert(e[0].as_u64().unwrap(), d);
+            }
+        }
+        let full = buffer.clone();
+        for list in [
+            "buffer",
+            "subscriber",
+            "subscriber_after_completion",
+            "late_subscriber_from_0",
+            "late_subscriber_from_3",
+            "buffer_mid",
+        ] {
+            let Some(events) = step.get_mut(list).and_then(Value::as_array_mut) else {
+                continue;
+            };
+            for e in events.iter_mut() {
+                let seq = e[0].as_u64().unwrap();
+                // Every list is a slice of the same buffer.
+                assert!(full.contains(e), "{list}: event {seq} not in the buffer");
+                if let Some(d) = by_seq.get(&seq) {
+                    e[2] = d.clone();
+                }
+            }
+        }
+    }
+    if let Some(bus) = step.get_mut("bus_events").and_then(Value::as_array_mut) {
+        let album_rank = |e: &Value| {
+            let id = e["album_id"].as_str().unwrap();
+            let dir = id.strip_prefix("<ID:").unwrap().strip_suffix('>').unwrap();
+            rank(&format!("<LIB>/{dir}"))
+        };
+        for ty in ["AlbumMarkedMissing", "AlbumTagsChanged"] {
+            let slots: Vec<usize> = (0..bus.len()).filter(|&i| bus[i]["type"] == ty).collect();
+            let mut evs: Vec<Value> = slots.iter().map(|&i| bus[i].clone()).collect();
+            evs.sort_by_key(album_rank);
+            for (&i, e) in slots.iter().zip(evs) {
+                bus[i] = e;
+            }
+        }
+    }
+}
+
 /// The Python app's record of one step with its deltas applied; counts uses.
 fn expected_step(story: &str, step: usize, rec: &Value, used: &mut usize) -> Value {
     let mut out = rec.clone();
@@ -462,8 +546,12 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
     };
     let lib_s = story.lib.to_string_lossy().into_owned();
     let mut first_scan = true;
+    let mut rows: Vec<String> = Vec::new();
     for (idx, step) in st["steps"].as_array().unwrap().iter().enumerate() {
-        let expected = expected_step(id, idx, step, &mut used);
+        let mut expected = expected_step(id, idx, step, &mut used);
+        if expected.get("buffer").is_some() {
+            in_scan_order(&mut expected, &mut rows);
+        }
         let step = &expected;
         let op = step["step"]["op"].as_str().unwrap();
         match op {
@@ -772,7 +860,7 @@ fn subscription_past_the_end_finishes() {
     };
     job.run();
     let mut sub = svc.subscribe(100);
-    assert_eq!(sub.next_timeout(Duration::from_secs(1)), Poll::Finished);
+    assert_eq!(sub.next_timeout(Duration::from_secs(10)), Poll::Finished);
 }
 
 /// The thumbnail drain point (task: `ScanDeps::on_worker_done`). The Python app

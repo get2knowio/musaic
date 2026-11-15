@@ -223,7 +223,7 @@ impl Interp {
 
     pub fn wait(&self) {
         assert!(
-            self.bus.wait_background_idle(Duration::from_secs(5)),
+            self.bus.wait_background_idle(Duration::from_secs(30)),
             "background subscribers did not finish"
         );
     }

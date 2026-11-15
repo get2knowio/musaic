@@ -80,13 +80,20 @@ fn find_cover_file(album_dir: &Path) -> Option<String> {
         }
     }
     // Case-insensitive fallback. When two names fold to the same lower-case
-    // form the Python app keeps whichever the directory listing yields last.
+    // form the Python app keeps whichever the directory listing yields last;
+    // deliberate change: names are taken in code point order, so the last in
+    // that order wins on every filesystem.
+    let mut names: Vec<std::ffi::OsString> = std::fs::read_dir(album_dir)
+        .ok()?
+        .flatten()
+        .filter(|e| std::fs::metadata(e.path()).is_ok_and(|m| m.is_file()))
+        .map(|e| e.file_name())
+        .collect();
+    names.sort();
     let mut existing = std::collections::HashMap::new();
-    for e in std::fs::read_dir(album_dir).ok()?.flatten() {
-        if std::fs::metadata(e.path()).is_ok_and(|m| m.is_file()) {
-            let name = e.file_name().to_string_lossy().into_owned();
-            existing.insert(name.to_lowercase(), name);
-        }
+    for n in names {
+        let name = n.to_string_lossy().into_owned();
+        existing.insert(name.to_lowercase(), name);
     }
     COVER_FILENAMES
         .iter()

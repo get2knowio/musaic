@@ -96,7 +96,9 @@ async fn scan(app: &axum::Router) -> String {
 }
 
 async fn eventually(what: &str, mut f: impl FnMut() -> bool) {
-    for _ in 0..1000 {
+    // Generous: only a condition that never comes true should fail here.
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while std::time::Instant::now() < deadline {
         if f() {
             return;
         }
@@ -576,9 +578,15 @@ async fn a_panicking_scan_ends_in_error_and_frees_everything() {
     assert_eq!(s["status"], "error");
     assert_eq!(s["error"], "scan worker panicked: injected scan failure");
     assert!(s["completed_at"].is_string());
-    assert_eq!(completed.load(Ordering::SeqCst), 1);
-    assert_eq!(st.gate().snapshot(), (0, false), "guard released");
+    // Published and released by the job right after the terminal status
+    // the stream ends on.
+    eventually("LibraryScanCompleted", || {
+        completed.load(Ordering::SeqCst) == 1
+    })
+    .await;
+    eventually("guard released", || st.gate().snapshot() == (0, false)).await;
     tokio::time::sleep(Duration::from_millis(50)).await;
+    assert_eq!(completed.load(Ordering::SeqCst), 1, "published once");
     assert_eq!(
         st.pool().state().status,
         PoolStatus::Idle,

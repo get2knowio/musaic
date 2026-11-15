@@ -482,6 +482,10 @@ fn check_fixes_replay_the_python_app() {
             let o = a[k].as_i64().unwrap();
             *to_ours.get(&o).unwrap_or(&o)
         };
+        let order = match a["check_id"].as_str() {
+            Some(c) if st["op"] == json!("quick_fix_all") => cf_deltas::walk_order(&conn, c),
+            _ => Vec::new(),
+        };
         let mut env = FixEnv {
             conn: &mut conn,
             bus: &w.bus,
@@ -669,7 +673,22 @@ fn check_fixes_replay_the_python_app() {
                 musaic_services::check_fixes::UNRESOLVED_SKIP_MESSAGE,
             );
             used_skip_message += n;
-            want_body["sse"] = json!(text);
+            want_body["sse"] = json!(cf_deltas::progress_in_our_finding_order(&text, |p| {
+                cf_deltas::walk_pos(&order, to_ours.get(&p).copied().unwrap_or(p))
+            }));
+            // The album events follow the same finding order.
+            let check = st["args"]["check_id"].as_str().unwrap();
+            let our_finding = |e: &Value| -> Option<i64> {
+                let id = e.get("album_id")?.as_str()?;
+                let dir = id.strip_prefix("<ID:")?.strip_suffix('>')?;
+                conn.query_row(
+                    "SELECT MIN(id) FROM check_findings WHERE check_id = ?1 AND album_id = ?2",
+                    [check, w.id(dir).as_str()],
+                    |r| r.get(0),
+                )
+                .unwrap()
+            };
+            cf_deltas::events_in_walk_order(&mut want_events, &order, our_finding);
         }
         if want_body["dir_migration"]["albums"] == json!(1) {
             used_blocklist_count = true;
@@ -1205,6 +1224,10 @@ fn replay_section(name: &str, expected: &dyn Fn(&Value) -> Value) {
     for step in sec["steps"].as_array().unwrap() {
         let label = step["label"].as_str().unwrap();
         let a = &step["args"];
+        let order = match a["check_id"].as_str() {
+            Some(c) if step["op"] == json!("quick_fix_all") => cf_deltas::walk_order(&conn, c),
+            _ => Vec::new(),
+        };
         let mut env = FixEnv {
             conn: &mut conn,
             bus: &bus,
@@ -1275,7 +1298,12 @@ fn replay_section(name: &str, expected: &dyn Fn(&Value) -> Value) {
             .drain(..)
             .map(|e| nv(&event_json(&e)))
             .collect();
-        let want = expected(step);
+        let mut want = expected(step);
+        if let Some(sse) = want["body"]["sse"].as_str() {
+            want["body"]["sse"] = json!(cf_deltas::progress_in_our_finding_order(sse, |p| {
+                cf_deltas::walk_pos(&order, to_ours.get(&p).copied().unwrap_or(p))
+            }));
+        }
         assert_eq!(body, want["body"], "{label}: body");
         assert_eq!(json!(events), want["events"], "{label}: events");
         assert_eq!(

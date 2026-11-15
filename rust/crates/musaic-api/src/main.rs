@@ -188,25 +188,50 @@ fn flush_log() {
 /// a system shutdown send): either starts the clean shutdown. Without the
 /// SIGTERM handler the process would die at once, with the fingerprint pool
 /// mid-pass and the database's write-ahead log not checkpointed.
-async fn stop_signal() {
+///
+/// The handlers are installed when this is called, not when the returned
+/// future is first polled: it is called before the "listening" line, so a
+/// signal sent as soon as that line appears already means a clean shutdown
+/// (otherwise the default action would end the process at once).
+fn stop_signal() -> impl std::future::Future<Output = ()> {
     #[cfg(unix)]
     {
         use tokio::signal::unix::{SignalKind, signal};
-        match signal(SignalKind::terminate()) {
-            Ok(mut term) => {
-                tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {}
-                    _ = term.recv() => {}
+        let int = signal(SignalKind::interrupt());
+        let term = signal(SignalKind::terminate());
+        async move {
+            match (int, term) {
+                (Ok(mut int), Ok(mut term)) => {
+                    tokio::select! {
+                        _ = int.recv() => {}
+                        _ = term.recv() => {}
+                    }
                 }
-            }
-            Err(_) => {
-                let _ = tokio::signal::ctrl_c().await;
+                (Ok(mut int), Err(_)) => {
+                    int.recv().await;
+                }
+                (Err(_), Ok(mut term)) => {
+                    term.recv().await;
+                }
+                (Err(_), Err(_)) => {
+                    let _ = tokio::signal::ctrl_c().await;
+                }
             }
         }
     }
     #[cfg(not(unix))]
     {
-        let _ = tokio::signal::ctrl_c().await;
+        let ctrl_c = tokio::signal::windows::ctrl_c();
+        async move {
+            match ctrl_c {
+                Ok(mut c) => {
+                    c.recv().await;
+                }
+                Err(_) => {
+                    let _ = tokio::signal::ctrl_c().await;
+                }
+            }
+        }
     }
 }
 
@@ -539,6 +564,7 @@ async fn main() {
     let addr = listener
         .local_addr()
         .map_or_else(|_| format!("{host}:{port}"), |a| a.to_string());
+    let stop = stop_signal();
     println!("[musaic] listening on http://{addr}");
     log.log(
         Level::Info,
@@ -548,7 +574,7 @@ async fn main() {
     let stopping = state.clone();
     let served = axum::serve(listener, router(state.clone()))
         .with_graceful_shutdown(async move {
-            stop_signal().await;
+            stop.await;
             // Open SSE streams end cleanly so the drain finishes.
             stopping.begin_shutdown();
         })

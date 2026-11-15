@@ -34,6 +34,17 @@ enum Change {
     /// The track-order change applied to the Night Mix album inside the SSE text or the
     /// album list at the pointer.
     TrackOrder(&'static str),
+    /// Albums in this build's discovery order (name order) instead of the
+    /// recording's APFS listing order: the `album` frames of the SSE text,
+    /// or the ties (same sort key) of the album list at the pointer.
+    ScanOrder(&'static str),
+    /// The findings at the pointer carry this run's ids: each recorded
+    /// finding takes the id of the finding with the same (check, album) in
+    /// this run's response, and the list is put in id order
+    /// (the recorded list was in id order; `last_seen_at` order is applied
+    /// afterwards, as for every finding list). Cluster members follow the
+    /// stored album order as well, so they are put in name order.
+    FindingIds(&'static str),
     /// The inconsistent-artist-sort finding at the pointer sits on the
     /// alphabetically first album id of its members. Album ids hash the
     /// library path, so which album that is depends on where the library
@@ -55,6 +66,8 @@ fn set(
 }
 
 const NFD_WHY: &str = "deliberate change: no rename is proposed when names differ only in NFC/NFD form, so the Cafe Orchestra dir finding does not exist";
+const SCAN_ORDER_WHY: &str = "deliberate change: albums are discovered in name order on every filesystem, not in the filesystem's listing order (the recording's is APFS's)";
+const SCAN_ORDER_FINDINGS_WHY: &str = "deliberate change (name-order discovery): a check run creates its findings album by album in stored order, so finding ids (and the id order of ties) follow name order, not the recording's APFS order";
 const TRACK_ORDER_WHY: &str = "deliberate change: album fields and track order follow DISCNUMBER/TRACKNUMBER; only Various Artists - Night Mix changes";
 
 fn deltas() -> Vec<Delta> {
@@ -64,6 +77,17 @@ fn deltas() -> Vec<Delta> {
     let trav = "deliberate change: the Python app's SPA fallback served a file outside the frontend dir; refused here (index.html)";
     let index = json!("<!doctype html><html><body><div id=\"root\"></div></body></html>\n");
     vec![
+        (
+            "scan stream first",
+            Change::ScanOrder("/sse"),
+            SCAN_ORDER_WHY,
+        ),
+        (
+            "scan stream again (new incremental scan)",
+            Change::ScanOrder("/sse"),
+            SCAN_ORDER_WHY,
+        ),
+        ("albums", Change::ScanOrder("/json/albums"), SCAN_ORDER_WHY),
         (
             "scan stream first",
             Change::TrackOrder("/sse"),
@@ -165,6 +189,16 @@ fn deltas() -> Vec<Delta> {
             "findings",
             Change::Representative("/json/findings/15"),
             "reproduced: representative = smallest album id; ids hash the library path, so it differs between the Python app's run and this one",
+        ),
+        (
+            "findings",
+            Change::FindingIds("/json/findings"),
+            SCAN_ORDER_FINDINGS_WHY,
+        ),
+        (
+            "findings by album",
+            Change::FindingIds("/json/findings"),
+            SCAN_ORDER_FINDINGS_WHY,
         ),
         set(
             "plan-preview 20",
@@ -680,6 +714,73 @@ fn apply_change(
                 "{label}: exactly one NFD finding ({why})"
             );
         }
+        Change::ScanOrder("/sse") => {
+            let w = want["sse"].as_str().unwrap().to_string();
+            let mut frames: Vec<String> = w.split("\n\n").map(str::to_string).collect();
+            let head = "event: album\ndata: ";
+            let slots: Vec<usize> = (0..frames.len())
+                .filter(|&i| frames[i].starts_with(head))
+                .collect();
+            let path = |f: &String| -> String {
+                let v: Value = serde_json::from_str(&f[head.len()..]).unwrap();
+                v["path"].as_str().unwrap().to_string()
+            };
+            let mut albums: Vec<String> = slots.iter().map(|&i| frames[i].clone()).collect();
+            albums.sort_by_key(path);
+            let mut changed = false;
+            for (&i, f) in slots.iter().zip(albums) {
+                changed |= frames[i] != f;
+                frames[i] = f;
+            }
+            assert!(
+                changed,
+                "{label}: the recording is already in name order ({why})"
+            );
+            want["sse"] = json!(frames.join("\n\n"));
+        }
+        Change::FindingIds(ptr) => {
+            let ours = rec
+                .pointer(ptr)
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let arr = want.pointer_mut(ptr).and_then(Value::as_array_mut).unwrap();
+            let mut changed = false;
+            // (check, album) is unique in these lists; the summary is not
+            // part of the key because the AI-wording rule rewrites some.
+            let key = |f: &Value| (f["check_id"].clone(), f["album_id"].clone());
+            for f in arr.iter_mut() {
+                let mut same = ours.iter().filter(|o| key(o) == key(f));
+                let o = same
+                    .next()
+                    .unwrap_or_else(|| panic!("{label}: no finding like {f} in this run ({why})"));
+                assert!(
+                    same.next().is_none(),
+                    "{label}: (check, album) not unique ({why})"
+                );
+                changed |= f["id"] != o["id"];
+                f["id"] = o["id"].clone();
+                // Cluster members are listed in stored album order too.
+                if let Some(m) = f
+                    .pointer_mut("/detail/members")
+                    .and_then(Value::as_array_mut)
+                {
+                    m.sort_by(|a, b| a["dir_name"].as_str().cmp(&b["dir_name"].as_str()));
+                }
+            }
+            arr.sort_by_key(|f| f["id"].as_i64());
+            assert!(changed, "{label}: ids already as recorded ({why})");
+        }
+        Change::ScanOrder(ptr) => {
+            let arr = want.pointer_mut(ptr).and_then(Value::as_array_mut).unwrap();
+            let before = arr.clone();
+            arr.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
+            arr.sort_by_key(sort_key);
+            assert_ne!(
+                *arr, before,
+                "{label}: the recording is already in name order ({why})"
+            );
+        }
         Change::TrackOrder("/sse") => {
             let w = want["sse"].as_str().unwrap().to_string();
             let r = rec["sse"].as_str().unwrap_or("").to_string();
@@ -727,15 +828,17 @@ fn apply_change(
                 .unwrap();
             arr[i] = first_file_order(&arr[i], r);
             // sort_albums: the artist moved, so may the album.
-            let key = |a: &Value| {
-                let s = |k: &str| a[k].as_str().unwrap_or("").to_string();
-                let aa = s("album_artist");
-                let artist = if aa.is_empty() { s("artist") } else { aa };
-                (artist.to_lowercase(), s("year"), s("title").to_lowercase())
-            };
-            arr.sort_by_key(key);
+            arr.sort_by_key(sort_key);
         }
     }
+}
+
+/// `sort_albums`' key (stable sort: ties keep the stored order).
+fn sort_key(a: &Value) -> (String, String, String) {
+    let s = |k: &str| a[k].as_str().unwrap_or("").to_string();
+    let aa = s("album_artist");
+    let artist = if aa.is_empty() { s("artist") } else { aa };
+    (artist.to_lowercase(), s("year"), s("title").to_lowercase())
 }
 
 /// The track-order change applied to the Python app's album dict: per-track lists in

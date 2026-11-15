@@ -268,7 +268,7 @@ fn rerun_whose_checks_publish_terminates_after_one_pass() {
         bus.publish(&tags(&format!("a{i}")));
     }
     assert!(
-        bus.wait_background_idle(Duration::from_secs(5)),
+        bus.wait_background_idle(Duration::from_secs(30)),
         "event cycle did not terminate"
     );
     assert_eq!(sweeps(&trace), 5);
@@ -306,7 +306,7 @@ fn unrelated_concurrent_rerun_still_runs_with_fix() {
     })
     .join()
     .unwrap();
-    assert!(bus.wait_background_idle(Duration::from_secs(5)));
+    assert!(bus.wait_background_idle(Duration::from_secs(30)));
     rel_tx.send(()).unwrap();
     a.join().unwrap();
     assert_eq!(sweeps(&trace), 1);

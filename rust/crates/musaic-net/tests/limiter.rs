@@ -192,8 +192,13 @@ fn an_abandoned_request_does_not_break_the_limiter() {
     );
 }
 
-/// MusicBrainz pacing on real time: four threads sharing a 50 ms limit never send two
-/// requests closer than 50 ms apart.
+/// MusicBrainz pacing on real time: four threads sharing a 200 ms limit never send two
+/// requests closer than that apart.
+///
+/// A stamp is taken after the slot is granted, so a thread preempted
+/// between the two (common on a loaded CI runner) shrinks the measured gap
+/// to the next send; the 50 ms of slack absorbs that while still proving the
+/// limit (unpaced, the gaps would be microseconds).
 #[test]
 fn real_time_pacing_across_threads() {
     #[derive(Default)]
@@ -210,7 +215,7 @@ fn real_time_pacing_across_threads() {
     }
     let stamps = Stamps::default();
     let policy = PacingPolicy {
-        min_interval: vec![("musicbrainz.org".into(), Duration::from_millis(50))],
+        min_interval: vec![("musicbrainz.org".into(), Duration::from_millis(200))],
     };
     let paced = Paced::with_policies(&stamps, SystemClock, policy, RetryPolicy::default());
     std::thread::scope(|s| {
@@ -227,9 +232,9 @@ fn real_time_pacing_across_threads() {
     t.sort();
     assert_eq!(t.len(), 8);
     for w in t.windows(2) {
-        // A little slack for timer granularity.
+        // Slack for timer granularity and preemption (see above).
         assert!(
-            w[1] - w[0] >= Duration::from_millis(48),
+            w[1] - w[0] >= Duration::from_millis(150),
             "{:?}",
             w[1] - w[0]
         );
@@ -396,20 +401,28 @@ fn a_busy_answer_holds_an_unpaced_host() {
 /// when caller A's busy answer arrives. B must see the push-back when it
 /// wakes and keep waiting, not send at its old slot. A's own retry waits
 /// too, and the two still leave one gap apart.
+///
+/// Timing is chosen for loaded machines: the busy answer comes ~30 ms after
+/// A's send, B's slot is 300 ms after it and the push-back 1 s after the busy
+/// answer, so scheduling delays of a few hundred ms cannot reorder them. The
+/// transport stamps the moment it returns the busy answer instead of
+/// assuming the 30 ms sleep took 30 ms.
 #[test]
 fn a_caller_already_waiting_sees_a_later_push_back() {
     use std::sync::mpsc;
     struct Slow {
         first: Mutex<Option<mpsc::Sender<()>>>,
         stamps: Mutex<Vec<Instant>>,
+        busy_at: Mutex<Option<Instant>>,
     }
     impl Transport for Slow {
         fn send(&self, _: &Request) -> Result<Response, TransportError> {
             self.stamps.lock().unwrap().push(Instant::now());
             if let Some(tx) = self.first.lock().unwrap().take() {
                 tx.send(()).unwrap();
-                // B is now inside acquire, asleep until the 50 ms slot.
+                // B is now inside acquire, asleep until the 300 ms slot.
                 std::thread::sleep(Duration::from_millis(30));
+                *self.busy_at.lock().unwrap() = Some(Instant::now());
                 return Ok(Response {
                     status: 503,
                     headers: vec![],
@@ -427,14 +440,15 @@ fn a_caller_already_waiting_sees_a_later_push_back() {
     let t = Slow {
         first: Mutex::new(Some(tx)),
         stamps: Mutex::new(Vec::new()),
+        busy_at: Mutex::new(None),
     };
     let policy = PacingPolicy {
-        min_interval: vec![("musicbrainz.org".into(), Duration::from_millis(50))],
+        min_interval: vec![("musicbrainz.org".into(), Duration::from_millis(300))],
     };
     let retry = RetryPolicy {
         max_attempts: 2,
-        base_backoff: Duration::from_millis(400),
-        max_backoff: Duration::from_millis(400),
+        base_backoff: Duration::from_millis(1000),
+        max_backoff: Duration::from_millis(1000),
     };
     let paced = Paced::with_policies(&t, SystemClock, policy, retry);
     std::thread::scope(|s| {
@@ -446,15 +460,22 @@ fn a_caller_already_waiting_sees_a_later_push_back() {
     });
     let st = t.stamps.lock().unwrap().clone();
     assert_eq!(st.len(), 3);
-    let busy_at = st[0] + Duration::from_millis(30);
+    let busy_at = t.busy_at.lock().unwrap().expect("a busy answer");
+    // Without the push-back B would have sent at its 300 ms slot, ~270 ms
+    // after the busy answer; with it, both later sends wait the full 1 s.
     for later in &st[1..] {
         assert!(
-            *later >= busy_at + Duration::from_millis(390),
+            *later >= busy_at + Duration::from_millis(990),
             "sent {:?} after the busy answer",
             later.saturating_duration_since(busy_at)
         );
     }
     let mut after = st[1..].to_vec();
     after.sort();
-    assert!(after[1] - after[0] >= Duration::from_millis(48));
+    // One 300 ms gap apart; slack for preemption between slot and stamp.
+    assert!(
+        after[1] - after[0] >= Duration::from_millis(250),
+        "{:?}",
+        after[1] - after[0]
+    );
 }

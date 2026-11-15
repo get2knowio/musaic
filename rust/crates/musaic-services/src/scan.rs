@@ -501,10 +501,17 @@ fn panic_text(p: &(dyn std::any::Any + Send)) -> String {
         .unwrap_or_else(|| "panic".to_string())
 }
 
-/// `scanner.discover_album_dirs(root)`: `os.walk` top-down in directory
-/// listing order, dot-directories pruned, symlinked directories listed but
-/// not entered; a directory counts when any non-directory entry's name ends
-/// in `.flac` (any case) and does not start with `._`. Resolved paths.
+/// `scanner.discover_album_dirs(root)`: `os.walk` top-down, dot-directories
+/// pruned, symlinked directories listed but not entered; a directory counts
+/// when any non-directory entry's name ends in `.flac` (any case) and does
+/// not start with `._`. Resolved paths.
+///
+/// Deliberate change: each directory's entries are taken in name order (code
+/// point order, as `list_flacs` does), not in the order the filesystem lists
+/// them. The Python app used `os.walk`'s listing order, so the scan stream,
+/// the order albums are stored in and everything ordered by insertion
+/// depended on the filesystem (APFS, ext4 and SMB shares all list
+/// differently).
 ///
 /// A name the filesystem lists more than once in one directory (some SMB
 /// shares return one folder twice, same name and same inode) is taken once,
@@ -519,8 +526,8 @@ pub fn discover_album_dirs(root: &Path) -> Vec<String> {
 }
 
 /// [`discover_album_dirs`] over `list`, which returns the entry names of a
-/// directory in listing order (`None`: unreadable). Tests pass a listing
-/// that repeats a name.
+/// directory in any order (`None`: unreadable). Tests pass a listing that
+/// repeats a name.
 #[doc(hidden)]
 pub fn discover_album_dirs_with(
     root: &Path,
@@ -531,9 +538,10 @@ pub fn discover_album_dirs_with(
         list: &dyn Fn(&Path) -> Option<Vec<std::ffi::OsString>>,
         found: &mut Vec<String>,
     ) {
-        let Some(names) = list(dir) else {
+        let Some(mut names) = list(dir) else {
             return;
         };
+        names.sort();
         let mut seen = std::collections::HashSet::new();
         let mut dirs = Vec::new();
         let mut has_flac = false;

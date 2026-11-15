@@ -293,7 +293,8 @@ fn a_failure_pauses_the_queue_until_resumed() {
     p.push(ok_script());
     let r = start(&env, p.clone(), Duration::from_secs(10));
     wait_for("failed", || status(&env, &a) == "failed");
-    assert!(paused(&env));
+    // The pause is written just after the failed status.
+    wait_for("paused", || paused(&env));
     assert_eq!(
         musaic_db::settings::get_raw(&env.open_db().unwrap(), "ai_queue_paused").unwrap(),
         Some("1".into())
@@ -354,7 +355,8 @@ fn a_configured_backend_not_ready_still_pauses() {
     });
     let r = start(&env, p.clone(), Duration::from_secs(10));
     wait_for("failed", || status(&env, &a) == "failed");
-    assert!(paused(&env));
+    // The pause is written just after the failed status.
+    wait_for("paused", || paused(&env));
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(status(&env, &b), "queued", "paused: not dispatched");
     drop(r);
@@ -377,7 +379,8 @@ fn the_wall_clock_cap_fails_and_pauses() {
         row.error.as_deref(),
         Some(musaic_ai::worker::timeout_message().as_str())
     );
-    assert!(paused(&env));
+    // The pause is written just after the failed status.
+    wait_for("paused", || paused(&env));
     drop(r);
 }
 
