@@ -171,6 +171,8 @@ fn the_extra_route_list_is_exactly_this() {
         got,
         [
             "GET /api/ai/jobs/{job_id}/cover-preview",
+            // Deliberate addition: a job-less cover preview (issues #183, #184).
+            "GET /api/albums/{album_id}/cover-preview",
             // Deliberate addition: cancelling a running scan (issue #193).
             "POST /api/scan/cancel",
         ]

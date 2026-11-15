@@ -94,9 +94,11 @@ app menu, so there only the close button, the last window and signals apply.
 - **Content-Security-Policy** on every response (`src/gate.rs`, `APP_CSP`):
   scripts, styles, fonts, images and connections from the app's own origin only
   (`img-src` also allows `data:` and `blob:`), no frames or objects. The IBM
-  Plex fonts are bundled with the UI. A job's suggested remote cover is shown
-  through the same-origin route `GET /api/ai/jobs/{job_id}/cover-preview`; the
-  server fetches the stored URL under the cover-download rules below.
+  Plex fonts are bundled with the UI. A proposed remote cover is shown through
+  a same-origin route: `GET /api/ai/jobs/{job_id}/cover-preview` (the URL the
+  job stored) or `GET /api/albums/{album_id}/cover-preview` (the Cover Art
+  Archive front of the album's MusicBrainz anchor). The request names a job or
+  an album, never a URL; the server fetches under the cover-download rules below.
 - **No IPC.** No capabilities, no `#[tauri::command]`s, `withGlobalTauri: false`.
   The dialog, opener and window-state plugins are registered but called from
   Rust only; the opener's own link-click script is switched off.

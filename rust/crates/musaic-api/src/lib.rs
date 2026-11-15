@@ -70,6 +70,11 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         "same-origin preview of a job's suggested remote cover (the desktop CSP allows img-src 'self' only); not a route of the Python app",
     ),
     (
+        "GET",
+        routes::preview::ALBUM_COVER_PREVIEW_ROUTE,
+        "same-origin preview of the Cover Art Archive cover the resolver proposes for an anchored album, with no job (issues #183, #184); not a route of the Python app",
+    ),
+    (
         "POST",
         SCAN_CANCEL_ROUTE,
         "cancel the running library scan (the Python app could not cancel a scan); not a route of the Python app",
@@ -342,10 +347,14 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             post(jobs::mark_job_acted_on),
         )
         .route("/api/ai/jobs/{job_id}/retry", post(jobs::retry_job))
-        // Not a Python app route: the cover preview proxy ([`EXTRA_ROUTES`]).
+        // Not Python app routes: the cover preview proxy ([`EXTRA_ROUTES`]).
         .route(
             preview::COVER_PREVIEW_ROUTE,
             get(preview::job_cover_preview),
+        )
+        .route(
+            preview::ALBUM_COVER_PREVIEW_ROUTE,
+            get(preview::album_cover_preview),
         )
         .route("/api/ai/queue/resume", post(jobs::resume_queue))
         .route("/api/ai/providers", get(jobs::ai_providers))
