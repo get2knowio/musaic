@@ -49,6 +49,9 @@
     "vitest": "^4.1.9"
   },
   "overrides": {
-    "shell-quote": "^1.9.0"
+    "shell-quote": "^1.9.0",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
   }
 }
