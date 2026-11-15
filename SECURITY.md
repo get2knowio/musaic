@@ -61,8 +61,13 @@ address, anyone who can reach that address can use the API — there is no login
 
 ### Outbound requests
 
-Musaic talks to MusicBrainz, AcoustID and the Cover Art Archive over HTTPS (rustls with
-bundled root certificates).
+Musaic talks to MusicBrainz, AcoustID and the Cover Art Archive over HTTPS (rustls).
+Server certificates are verified by the operating system (`rustls-platform-verifier`:
+the Security framework on macOS, the certificate store on Windows, the system CA bundle
+on Linux), so the system's trust decisions, including roots an administrator added or
+removed, apply. The Mozilla roots built into the app are used only when the system has no
+trust store at all. Verification cannot be turned off. A refused certificate is reported
+as such, naming the host only (`rust/crates/musaic-net/src/live.rs`).
 
 **Cover downloads** (`rust/crates/musaic-net/src/preview.rs`). Every remote image Musaic
 fetches — a cover URL you paste, a Cover Art Archive cover, a suggested cover — must:

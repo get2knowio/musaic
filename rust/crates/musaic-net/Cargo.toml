@@ -14,15 +14,22 @@ musaic-resolve = { path = "../musaic-resolve" }
 serde_json.workspace = true
 sha2 = "0.10"
 thiserror.workspace = true
-# Live HTTPS transport (blocking; rustls + ring + webpki-roots, gzip). See src/live.rs.
-ureq = { version = "3.5", default-features = false, features = ["rustls", "gzip"] }
-# Already in the tree through ureq; named only to recognise its errors.
-rustls = { version = "0.23", default-features = false }
+# Live HTTPS transport (blocking; rustls + ring, gzip). Certificates are
+# verified by the operating system (`platform-verifier`); the bundled Mozilla
+# roots (`rustls` brings webpki-roots) are used only when the system offers
+# none. See src/live.rs.
+ureq = { version = "3.5", default-features = false, features = ["rustls", "gzip", "platform-verifier"] }
+# Already in the tree through ureq; named to recognise its errors and to ask
+# whether the system has a trust store.
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+rustls-platform-verifier = "0.7"
 
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
 # Only to make the local test server send a TCP reset (SO_LINGER 0).
 socket2 = "0.6"
+# A certificate made at test time for the local TLS server (tests/tls.rs).
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring"] }
 musaic-scan = { path = "../musaic-scan" }
 
 [lints]

@@ -87,6 +87,16 @@ Security.
   (HTTPS, public hosts, every redirect checked, size cap, image types only). An album
   with no anchor, or none the archive has a front cover for, answers 404; a Missing
   album 409.
+- **HTTPS certificates are checked by your operating system.** MusicBrainz, AcoustID and
+  Cover Art Archive connections are verified against the system's trust store (Keychain
+  on macOS, the Windows certificate store, the system CA bundle on Linux) instead of a
+  list of root certificates built into the app, so a root certificate you or your
+  organisation installed (for example for a proxy that inspects HTTPS) is trusted, and
+  one the system distrusts is not. The built-in list is used only on a system that has
+  no trust store at all. When a certificate is refused, the log and the error shown say
+  so and name the server ("refused the connection to musicbrainz.org: the server's
+  certificate is not trusted (…)") instead of reading like a network outage
+  ([#214](https://github.com/get2knowio/musaic/issues/214)).
 
 ### Fixed
 

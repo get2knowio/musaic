@@ -26,6 +26,7 @@ fn variant(e: &TransportError) -> &'static str {
         TransportError::Connect { .. } => "Connect",
         TransportError::Timeout { .. } => "Timeout",
         TransportError::Tls { .. } => "Tls",
+        TransportError::UntrustedCertificate { .. } => "UntrustedCertificate",
         TransportError::Protocol { .. } => "Protocol",
         TransportError::TooManyRedirects { .. } => "TooManyRedirects",
         TransportError::BodyTooLarge { .. } => "BodyTooLarge",
@@ -147,6 +148,15 @@ fn no_error_message_contains_the_key() {
                 .send(&r)
                 .unwrap_err(),
         );
+        // UntrustedCertificate: a TLS server whose certificate no one trusts.
+        let untrusted = common::serve_tls(&common::pki(&["untrusted.example"]));
+        let mut r = base.clone();
+        r.origin = "https://untrusted.example".into();
+        transport_errors.push(
+            LiveTransport::with_static_dns(untrusted, &[])
+                .send(&r)
+                .unwrap_err(),
+        );
         let mut r = base.clone();
         r.origin = "http://plain.example".into();
         transport_errors.push(LiveTransport::new().send(&r).unwrap_err());
@@ -205,6 +215,7 @@ fn no_error_message_contains_the_key() {
             "Connect",
             "Timeout",
             "Tls",
+            "UntrustedCertificate",
             "Protocol",
             "TooManyRedirects",
             "BodyTooLarge",

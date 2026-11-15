@@ -1,7 +1,17 @@
 //! The live transport: blocking HTTPS over `ureq` 3 with rustls (ring
-//! provider, Mozilla roots from `webpki-roots`) and gzip.
+//! provider) and gzip.
 //!
 //! Policy, matching the Python app's `requests` calls unless noted:
+//! - Server certificates are verified by the operating system
+//!   (`rustls-platform-verifier`: the Security framework on macOS, the
+//!   CryptoAPI chain engine on Windows, the system CA bundle on Linux), so a
+//!   root the user or their organisation installed (a TLS-inspecting proxy)
+//!   is trusted and one the system distrusts is not. A deliberate change: the
+//!   Python app trusted only the Mozilla roots shipped with it. Those roots
+//!   (`webpki-roots`) remain only for a system that offers no trust store at
+//!   all ([`trust`]), where nothing would verify otherwise. Verification is
+//!   never turned off. A certificate that fails is
+//!   [`TransportError::UntrustedCertificate`], not an "offline" error.
 //! - Only HTTPS leaves the machine; plain HTTP is refused before any I/O
 //!   unless the host is loopback (tests). This is a deliberate change for
 //!   AcoustID (the Python app used `http://api.acoustid.org`) and holds for every
@@ -35,8 +45,11 @@
 //! ```
 
 use std::net::{IpAddr, SocketAddr};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use rustls::CertificateError;
+use ureq::tls::{RootCerts, TlsConfig};
 use ureq::unversioned::resolver::{DefaultResolver, ResolvedSocketAddrs, Resolver};
 use ureq::unversioned::transport::{DefaultConnector, NextTimeout};
 
@@ -52,6 +65,65 @@ pub const MAX_REDIRECTS: u32 = 30;
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// When a request sets no body limit.
 pub const DEFAULT_MAX_BODY: u64 = 32 * 1024 * 1024;
+
+/// Where server certificates are verified: the operating system's
+/// verifier, or (only when the system has no trust store, which
+/// `rustls-platform-verifier` reports by failing to build: a Linux system
+/// without a CA bundle) the Mozilla roots built into the app, as before. On
+/// macOS and Windows the verifier always builds. Decided once per process;
+/// the fallback is logged.
+pub fn trust() -> &'static Trust {
+    static TRUST: OnceLock<Trust> = OnceLock::new();
+    TRUST.get_or_init(|| {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        match rustls_platform_verifier::Verifier::new(provider) {
+            Ok(_) => Trust::System,
+            Err(e) => {
+                musaic_log::warning(
+                    "musaic.net",
+                    &format!(
+                        "the operating system offers no trusted root certificates ({e}); \
+                         verifying HTTPS against the Mozilla roots built into the app"
+                    ),
+                );
+                Trust::Bundled
+            }
+        }
+    })
+}
+
+/// Which roots verify server certificates ([`trust`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Trust {
+    /// The operating system's verifier and trust store.
+    System,
+    /// The Mozilla roots built into the app (no system trust store).
+    Bundled,
+}
+
+/// Why a certificate failed, in a fixed vocabulary: never the
+/// verifier's own text, which can carry certificate fields.
+fn untrusted_reason(e: &rustls::Error) -> Option<&'static str> {
+    let rustls::Error::InvalidCertificate(c) = e else {
+        return None;
+    };
+    Some(match c {
+        CertificateError::UnknownIssuer => {
+            "it was issued by an authority this computer does not trust"
+        }
+        CertificateError::Expired | CertificateError::ExpiredContext { .. } => "it has expired",
+        CertificateError::NotValidYet | CertificateError::NotValidYetContext { .. } => {
+            "it is not valid yet"
+        }
+        CertificateError::NotValidForName | CertificateError::NotValidForNameContext { .. } => {
+            "it was issued for a different name"
+        }
+        CertificateError::Revoked => "it has been revoked",
+        // The OS verifiers report most refusals (macOS: any untrusted
+        // chain) only as text, which can carry certificate fields.
+        _ => "the operating system rejected it",
+    })
+}
 
 /// Name resolution: the system's, or (tests) every name pinned to one
 /// address with some names made to fail. Any failure is `HostNotFound`.
@@ -202,7 +274,12 @@ impl LiveTransport {
 
     fn agent(pinned: Option<Pinned>, public_only: bool) -> ureq::Agent {
         let tests = pinned.is_some();
+        let roots = match trust() {
+            Trust::System => RootCerts::PlatformVerifier,
+            Trust::Bundled => RootCerts::WebPki,
+        };
         let mut config = ureq::Agent::config_builder()
+            .tls_config(TlsConfig::builder().root_certs(roots).build())
             .http_status_as_error(false)
             // Redirects are followed here, hop by hop, so each is checked.
             .max_redirects(0)
@@ -314,20 +391,20 @@ fn map_failure(f: Failure, url: &str, request: &Request) -> TransportError {
                 reason: io.get_ref().map(ToString::to_string).unwrap_or_default(),
             }
         }
+        ureq::Error::Io(io) if let Some(reason) = rustls_cause(&io).and_then(untrusted_reason) => {
+            untrusted(&url, reason)
+        }
+        ureq::Error::Rustls(r) if let Some(reason) = untrusted_reason(&r) => {
+            untrusted(&url, reason)
+        }
         ureq::Error::BodyExceedsLimit(limit) => TransportError::BodyTooLarge {
             url,
             limit: request.max_body.unwrap_or(limit),
         },
-        ureq::Error::Io(io)
-            if io
-                .get_ref()
-                .is_some_and(|inner| inner.downcast_ref::<rustls::Error>().is_some()) =>
-        {
-            TransportError::Tls {
-                url,
-                detail: detail(&io),
-            }
-        }
+        ureq::Error::Io(io) if rustls_cause(&io).is_some() => TransportError::Tls {
+            url,
+            detail: detail(&io),
+        },
         ureq::Error::Io(io) => match io.kind() {
             K::TimedOut | K::WouldBlock => timed_out(),
             K::ConnectionRefused
@@ -373,6 +450,21 @@ fn map_failure(f: Failure, url: &str, request: &Request) -> TransportError {
             limit: MAX_REDIRECTS,
         },
         other => TransportError::Other(format!("{url}: {}", detail(&other))),
+    }
+}
+
+/// The TLS error behind an I/O error (rustls reports a failed handshake
+/// as `io::Error` wrapping its own error).
+fn rustls_cause(io: &std::io::Error) -> Option<&rustls::Error> {
+    io.get_ref()?.downcast_ref::<rustls::Error>()
+}
+
+/// Names the host only: the URL's path and query (which can carry a key)
+/// stay out of it.
+fn untrusted(url: &str, reason: &'static str) -> TransportError {
+    TransportError::UntrustedCertificate {
+        host: host_of(url).to_string(),
+        reason,
     }
 }
 
@@ -524,6 +616,41 @@ mod tests {
         assert_eq!(
             resolve_location(b, "rel.jpg"),
             "https://coverartarchive.org/release-group/x/rel.jpg"
+        );
+    }
+
+    /// A certificate failure's reason is from a fixed list, whatever text
+    /// the verifier attached; any other TLS error is not a certificate one.
+    #[test]
+    fn untrusted_reasons() {
+        use rustls::{CertificateError as C, Error as E, OtherError};
+        let os = E::InvalidCertificate(C::Other(OtherError(Arc::new(std::io::Error::other(
+            "\u{201c}subject secret\u{201d} certificate is not trusted: -67843",
+        )))));
+        assert_eq!(
+            untrusted_reason(&os),
+            Some("the operating system rejected it")
+        );
+        assert_eq!(
+            untrusted_reason(&E::InvalidCertificate(C::UnknownIssuer)),
+            Some("it was issued by an authority this computer does not trust")
+        );
+        assert_eq!(
+            untrusted_reason(&E::InvalidCertificate(C::Expired)),
+            Some("it has expired")
+        );
+        assert_eq!(
+            untrusted_reason(&E::InvalidCertificate(C::NotValidForName)),
+            Some("it was issued for a different name")
+        );
+        assert_eq!(untrusted_reason(&E::DecryptError), None);
+        let e = untrusted(
+            "https://user:pw@api.example:443/v2/lookup?client=k",
+            "it has expired",
+        );
+        assert_eq!(
+            e.to_string(),
+            "refused the connection to api.example: the server's certificate is not trusted (it has expired)"
         );
     }
 
