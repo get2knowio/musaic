@@ -42,24 +42,25 @@ newest release, checks it against the release's `SHA256SUMS.txt`, and installs i
 On macOS this route should also avoid the "unidentified developer" prompt described
 below, because a file fetched by `curl` is not marked as an internet download.
 
-**Windows, or if you prefer to download by hand:** get the installer for your system
-from the [Releases](https://github.com/get2knowio/musaic/releases) page:
+**If you prefer to download by hand:** get the installer for your system from the
+[Releases](https://github.com/get2knowio/musaic/releases) page:
 
 | System | File |
 |---|---|
 | macOS, Apple Silicon | `.dmg` with `aarch64` in its name |
 | macOS, Intel | `.dmg` with `x64` in its name |
-| Windows (x64) | `-setup.exe` |
 | Linux (x64) | `.AppImage` or `.deb` |
 
 Each release lists the SHA-256 of every file in `SHA256SUMS.txt`.
 
+**Windows: no installer yet.** The automated tests do not yet pass on Windows, so no
+Windows build is published until they do (progress in
+[#178](https://github.com/get2knowio/musaic/issues/178)).
+
 **Tested so far:** only the macOS Apple Silicon build has been run by a person. The
-Windows, Linux and Intel Mac builds are produced by CI from the same source and have not
-yet been tested by hand. Reports of what works and what does not are very welcome.
-The automated tests pass on macOS and Linux. On Windows about one in six of them
-still fails (not yet investigated), so treat the Windows build as experimental and
-keep a backup of your music before letting it change files.
+Linux and Intel Mac builds are produced by CI from the same source and have not yet been
+tested by hand. Reports of what works and what does not are very welcome. The automated
+tests pass on macOS and Linux.
 
 ### The builds are not signed
 
@@ -82,11 +83,6 @@ Applications; macOS will then refuse to open it the first time. Either:
 The browser-download route has not been tested yet: we do not know whether current macOS
 offers **Open Anyway** for this build or reports the app as damaged (in which case the
 `xattr` command above is the way in). Reports welcome.
-
-**Windows.** Microsoft Defender SmartScreen shows "Windows protected your PC" when you run
-the installer. Choose **More info**, then **Run anyway**. Musaic needs the Microsoft Edge
-WebView2 runtime. Windows 11 includes it; on a system without it, the installer downloads
-it (this needs an internet connection).
 
 **Linux.** For the AppImage: `chmod +x Musaic_*.AppImage` and run it. For the `.deb`:
 `sudo apt install ./Musaic_*.deb`. Musaic uses WebKitGTK 4.1. Saving API keys needs a

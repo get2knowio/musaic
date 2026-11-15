@@ -224,9 +224,11 @@ Notes:
   carries only the linker's ad-hoc signature, so macOS warns about a downloaded
   copy (see the README for how to open it).
 
-Windows (NSIS installer) and Linux (AppImage, deb) bundles are built by
-`.github/workflows/release.yml` on each platform's own runner, with the same
-notices step and `cargo tauri build --no-sign`. Linux needs the WebKitGTK 4.1,
+Linux (AppImage, deb) bundles are built by `.github/workflows/release.yml` on
+the platform's own runner, with the same notices step and
+`cargo tauri build --no-sign`. No Windows installer is built or published until
+the automated tests pass on Windows (#178); the release workflow keeps the NSIS
+entry commented out. Linux needs the WebKitGTK 4.1,
 GTK 3 and libsoup 3 development packages (listed in the README); Windows needs
 the WebView2 runtime, which Windows 11 includes.
 
@@ -237,7 +239,8 @@ the WebView2 runtime, which Windows 11 includes.
   request, the quit routes, clean teardown). The clicks and keystrokes of the
   quit routes and the native dialogs in a shown window are not covered by the
   automated tests.
-- **macOS Intel, Windows, Linux:** built by CI only, not run by a person yet.
+- **macOS Intel, Linux:** built by CI only, not run by a person yet. Windows:
+  the automated tests do not pass yet, so no build is published (#178).
   Server-sent events and streamed responses in WebView2 and WebKitGTK, the
   Explorer / file-manager reveal paths, the Secret Service keyring and the
   installers themselves are untested there.

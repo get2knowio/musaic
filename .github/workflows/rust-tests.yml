@@ -1,0 +1,160 @@
+# The Rust gate for one platform: format, clippy and the whole test suite.
+# Called by ci.yml (every push to main and every pull request) and by
+# release.yml (before any installer is built), so a release is gated by
+# exactly the steps CI runs. Mirrors the commands in CONTRIBUTING.md.
+#
+# Tests run the public test tier only. Private test data is never fetched
+# here: MUSAIC_PRIVATE_TESTDATA is set to an empty value, so tests that need
+# it print "skipped: private test data not available (<test>)" and pass.
+name: rust-tests
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: "Runner label, e.g. ubuntu-22.04, macos-15, windows-latest"
+        required: true
+        type: string
+      allowed-to-fail:
+        description: >-
+          Do not fail the calling run when this platform fails. The job still
+          ends red, and the `outcome` output says what the tests did.
+        required: false
+        type: boolean
+        default: false
+    outputs:
+      outcome:
+        description: "success or failure of fmt + clippy + tests on this platform"
+        value: ${{ jobs.rust.outputs.outcome }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Test binaries without debug info: with it, the hosted Linux runner runs
+  # out of disk while linking the ~150 test executables.
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_INCREMENTAL: "0"
+  # The synthetic-library generator reads UTF-8 sources; Windows defaults to
+  # the ANSI code page otherwise.
+  PYTHONUTF8: "1"
+  NODE_VERSION: "22"
+  # The synthetic test library is byte-identical only with the tool versions
+  # recorded in rust/testdata/synthetic-library/library.manifest.json
+  # ("tool_versions"); keep these in step with it.
+  SYNTH_PYTHON_VERSION: "3.13"
+  SYNTH_PACKAGES: "numpy==2.5.4 soundfile==0.14.0 mutagen==1.48.1 Pillow==13.0.0"
+  # Empty = no private test data, and no fallback lookup either.
+  MUSAIC_PRIVATE_TESTDATA: ""
+
+jobs:
+  rust:
+    name: rust (${{ inputs.os }})
+    runs-on: ${{ inputs.os }}
+    continue-on-error: ${{ inputs.allowed-to-fail }}
+    timeout-minutes: 90
+    outputs:
+      # Set even when continue-on-error turns this job's failure into a
+      # passing run: a caller can still see (and report) what happened.
+      outcome: ${{ steps.result.outputs.outcome }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Windows runners default to core.autocrlf=true, which would rewrite
+      # goldens, manifests and scripts byte-wise. Check out files as committed.
+      - name: Keep line endings as committed
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+
+      # Exact toolchain from rust/rust-toolchain.toml. GitHub's runners ship
+      # rustup; installing explicitly (rather than relying on rustup's
+      # auto-install) works the same on every rustup version.
+      - name: Install Rust toolchain
+        run: |
+          channel="$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' rust/rust-toolchain.toml)"
+          test -n "$channel" || { echo "::error::no channel in rust/rust-toolchain.toml"; exit 1; }
+          rustup toolchain install "$channel" --profile minimal -c rustfmt -c clippy --no-self-update
+          (cd rust && rustc --version && cargo --version)
+
+      # WebKitGTK 4.1 + GTK 3 (Tauri, wry), libsoup 3, and the rest of what
+      # the desktop crate links against on Linux.
+      - name: Install Linux system packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev \
+            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+            libwayland-dev librsvg2-dev
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "rust -> target"
+
+      # The desktop crate's build script copies frontend/dist into the build,
+      # so the UI must be built before cargo touches the workspace.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the UI
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.SYNTH_PYTHON_VERSION }}
+      - name: Generate the synthetic test library
+        working-directory: rust
+        run: |
+          # shellcheck disable=SC2086 # SYNTH_PACKAGES is a list of arguments
+          python -m pip install --disable-pip-version-check $SYNTH_PACKAGES
+          manifest=testdata/synthetic-library/library.manifest.json
+          digest() { python -c 'import json,sys; print(json.load(open(sys.argv[1]))["library_digest"])' "$manifest"; }
+          before="$(digest)"
+          python testdata/synthetic-library/gen_fixture_library.py
+          after="$(digest)"
+          if [ "$before" != "$after" ]; then
+            echo "::warning::synthetic library differs from the committed manifest on ${{ runner.os }} ($before -> $after); tests that hash audio may fail"
+          fi
+          # The generator rewrites the manifest (at least its timestamp);
+          # keep the committed one so the tests compare against it.
+          git checkout -- "$manifest"
+
+      - name: Format
+        id: fmt
+        working-directory: rust
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        id: clippy
+        working-directory: rust
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      # --no-fail-fast: run every test binary and report every failure, not
+      # just the first failing binary's.
+      - name: Test
+        id: test
+        working-directory: rust
+        run: cargo test --workspace --locked --no-fail-fast
+
+      - name: Result
+        id: result
+        if: always()
+        env:
+          STATUS: ${{ job.status }}
+          ALLOWED: ${{ inputs.allowed-to-fail }}
+        run: |
+          if [ "$STATUS" = "success" ]; then outcome=success; else outcome=failure; fi
+          echo "outcome=$outcome" >> "$GITHUB_OUTPUT"
+          if [ "$outcome" != "success" ] && [ "$ALLOWED" = "true" ]; then
+            msg="Rust checks FAILED on ${{ inputs.os }}. This platform is not required, so the run can still pass; it is not a pass for ${{ inputs.os }}."
+            echo "::warning::$msg"
+            printf '### %s\n' "$msg" >> "$GITHUB_STEP_SUMMARY"
+          fi
