@@ -34,9 +34,32 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
   const myTags = tagsQuery.data?.album_tags ?? [];
 
   const [uploadOpen, setUploadOpen] = useState(false);
+  // Missing: the full-size cover is read from the files, and a cover
+  // upload is an apply (refused with 409), so show the stored thumbnail
+  // (a cache in the config folder, kept until the album is removed) with
+  // nothing to click. The resolution chip is left out too: the resolver
+  // reads the tracks from disk, and it only steers the actions a Missing
+  // album does not offer.
+  const isMissing = !!album.missing_since;
 
   return (
     <div className="flex gap-4 px-4 py-3.5 border-b border-line">
+      {isMissing ? (
+        <div className="relative w-24 h-24 shrink-0 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4 shadow-card">
+          {hasCover ? (
+            <img
+              src={coverUrl(album)}
+              alt=""
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          ) : (
+            <Music className="w-7 h-7" />
+          )}
+        </div>
+      ) : (
       <button
         type="button"
         onClick={() => setUploadOpen(true)}
@@ -61,11 +84,14 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
           {hasCover ? "Replace" : "Upload"}
         </span>
       </button>
-      <CoverUploadDialog
-        album={album}
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-      />
+      )}
+      {!isMissing && (
+        <CoverUploadDialog
+          album={album}
+          open={uploadOpen}
+          onClose={() => setUploadOpen(false)}
+        />
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mono text-[11px] uppercase tracking-[0.08em] text-fg-4 mb-1">
           <span>Album</span>
@@ -74,7 +100,7 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
               Compilation
             </span>
           )}
-          <ResolutionBadge albumId={album.id} />
+          {!isMissing && <ResolutionBadge albumId={album.id} />}
         </div>
         {/* Not a heading: the panel's header carries the album title as
             its h2 (the panel's label and keyboard focus target). */}

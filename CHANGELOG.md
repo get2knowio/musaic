@@ -21,6 +21,17 @@ Security.
   single "Check now" on the Health page runs the checks that do not run with a library
   scan (the tag and filename comparisons), one after another
   ([#187](https://github.com/get2knowio/musaic/issues/187)).
+- The panel of a Missing album says one thing and offers one action
+  ([#195](https://github.com/get2knowio/musaic/issues/195)). A single notice says the
+  folder was not found, where, and by which scan, and no longer promises that a moved
+  album comes back on its own: a folder back at the same path returns with its
+  MusicBrainz match, fingerprints and My Tags, while one moved or renamed inside the
+  library is added as a separate album. "Remove from library…" opens a dialog that lists
+  what is deleted from Musaic's database and says your music files are not touched,
+  instead of a browser prompt. Sections that need the files are hidden: the empty track
+  list (the header keeps the stored track count), job suggestions and retries that could
+  not be applied, the resolution chip, and the cover upload (the cached thumbnail still
+  shows).
 - Fix is disabled, with the reason on hover, for a finding whose album is Missing
   ([#186](https://github.com/get2knowio/musaic/issues/186)).
 - The filename and duplicate-track Resolve dialogs say what will happen to your files

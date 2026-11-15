@@ -14,6 +14,7 @@ import MoreMenu from "./MoreMenu";
 import MyTagsSection from "./MyTagsSection";
 import Section from "./Section";
 import HintDialog from "./HintDialog";
+import RemoveAlbumDialog from "./RemoveAlbumDialog";
 import { subscribePanelFocus, takePanelFocusRequest } from "./panelFocus";
 import { PANEL_MIN_WIDTH, panelFillsRow } from "./layout";
 
@@ -247,10 +248,13 @@ function SheetBody({
   // Hint dialog state. `pendingType` is the job type the user is about to
   // enqueue once they submit a hint.
   const [pendingType, setPendingType] = useState<JobType | null>(null);
+  // "Remove from library" confirmation (Missing albums only).
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   // Reset per-album local state when switching albums.
   useEffect(() => {
     setPendingType(null);
+    setConfirmRemove(false);
   }, [album.id]);
 
   // Start an apply. When it finishes successfully — even if the panel has
@@ -304,17 +308,27 @@ function SheetBody({
         }
       : null;
 
+  // Missing (`missing_since` set): the scan did not find the album's folder.
+  // The backend refuses every write to it (apply, cover, My Tags, analysis:
+  // 409) and reads tracks from disk, so the panel keeps only what is stored
+  // (hero, album info) plus "Remove from library".
+  const isMissing = !!(apply.state.updatedAlbum ?? album).missing_since;
+
   // Mode derivation
   const isApplying = isApplyInFlight(apply.state);
-  const isQueued = activeJob?.status === "queued" || activeJob?.status === "running";
-  const showSuggestions = !isApplying && activeJob?.status === "completed" && (metaResult || coverResult);
+  // A job's result for a Missing album could not be applied (apply answers
+  // 409), so neither its progress nor its suggestions are shown here; the
+  // Jobs page still lists it.
+  const isQueued = !isMissing && (activeJob?.status === "queued" || activeJob?.status === "running");
+  const showSuggestions =
+    !isMissing && !isApplying && activeJob?.status === "completed" && (metaResult || coverResult);
   const showApplying = isApplying || apply.state.status === "done" || apply.state.status === "error";
 
   // Most recent failed job for this album that hasn't been acted on. Surfaced
   // in the banner so the user can retry / inspect the error inline rather
   // than navigating to /jobs and hunting the row.
   const recentFailedJob =
-    !activeJob && !isApplying
+    !activeJob && !isApplying && !isMissing
       ? allJobs
           .filter((j) => j.album_id === album.id && j.status === "failed")
           .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
@@ -420,27 +434,12 @@ function SheetBody({
     }
   };
 
-  // v15 Missing-state — when the scanner doesn't see this album's
-  // dir on disk, `missing_since` is set. Sheet swaps in a banner +
-  // "Remove from library" footer; mutation affordances disable
-  // (every read/write would fail at the FS layer).
-  const isMissing = !!displayAlbum.missing_since;
-
-  // Explicit user-initiated removal — the only path that actually
-  // drops the row + cascades fingerprints/tags/blocklists. After
-  // success, close the panel.
+  // "Remove from library" (`DELETE /api/albums/{id}`): the only path that
+  // drops the album's row, with its fingerprints, My Tags and MusicBrainz
+  // blocklist. Confirmed in RemoveAlbumDialog; on success the panel closes.
   const [removing, setRemoving] = useState(false);
   const onRemoveFromLibrary = async () => {
     if (removing) return;
-    const ok = window.confirm(
-      `Remove "${displayAlbum.title || displayAlbum.dir_name}" from the library?\n\n` +
-      `This drops the cached metadata, MusicBrainz match, AcoustID fingerprints, ` +
-      `and any per-album blocklist entries. The FLAC files (if they ever return ` +
-      `to disk) will be re-scanned from scratch.\n\n` +
-      `If this is a transient disk issue, click Cancel and re-mount the drive ` +
-      `instead — the album will return automatically on the next scan.`,
-    );
-    if (!ok) return;
     setRemoving(true);
     try {
       await removeAlbumFromLibrary(album.id);
@@ -449,6 +448,7 @@ function SheetBody({
       // Stream's AlbumDeleted handler already invalidates ['albums-
       // snapshot'], so closing lands on the refreshed list with this
       // album absent.
+      setConfirmRemove(false);
       onClose();
     } catch (err) {
       toast.error((err as Error).message || "Couldn't remove album");
@@ -516,35 +516,12 @@ function SheetBody({
       <div className="flex-1 overflow-y-auto">
         <AlbumHero album={displayAlbum} />
 
-        {/* Missing-state banner — shown when the scanner didn't see
-            this album's dir on disk. The row + cached metadata are
-            still here (so the user can review what we knew); the
-            footer swaps to a single Remove button. If this is a
-            transient mount issue, the album will come back on its
-            own at the next scan. */}
-        {isMissing && (
-          <div className="mx-4 my-3 rounded-md border border-warn/40 bg-warn-soft p-3 text-sm flex items-start gap-2.5">
-            <CloudOff className="w-4 h-4 text-warn shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-fg">
-                Missing from disk
-                {displayAlbum.missing_since && (
-                  <span className="text-fg-3 font-normal ml-1">
-                    (since {formatMissingDate(displayAlbum.missing_since)})
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-fg-3 mt-1 leading-relaxed">
-                The album directory isn't on disk right now. The
-                cached metadata below is what we knew the last time
-                we saw it. If you moved the file, unmounted the
-                drive, or had a network blip, the album will come
-                back automatically on the next scan — no action
-                needed. If it's gone for good, "Remove from library"
-                drops the cached metadata.
-              </div>
-            </div>
-          </div>
+        {/* Missing: one message. What it says rests on the scan: a folder
+            back at the same path is the same album id, so its row (and
+            everything attached) is Present again; a folder at a new path
+            hashes to a new id and is scanned in as a separate album. */}
+        {isMissing && displayAlbum.missing_since && (
+          <MissingNotice since={displayAlbum.missing_since} path={displayAlbum.path} />
         )}
 
         {/* In-flight job banner — shown while a job for THIS album is queued
@@ -698,6 +675,9 @@ function SheetBody({
               </Section>
             )}
 
+            {/* Tracks are read from the files, so a Missing album has none
+                to show; the hero keeps the stored track count. */}
+            {!isMissing && (
             <Section
               id="tracks"
               title="Tracks"
@@ -719,6 +699,7 @@ function SheetBody({
                 <div className="px-4 py-3 text-xs text-fg-4">Loading tracks…</div>
               )}
             </Section>
+            )}
           </>
         )}
       </div>
@@ -750,26 +731,15 @@ function SheetBody({
             Writing — you can switch albums or close the panel
           </span>
         ) : isMissing ? (
-          // Missing albums get a single destructive affordance + a
-          // hint about the no-op recovery path. Apply / AI / cover
-          // upload would all fail at the FS layer for an album whose
-          // dir isn't on disk, so we don't even surface them.
           <>
-            <span className="text-xs text-fg-3 mono truncate">
-              Re-mount the drive to bring it back, or remove it for good.
-            </span>
             <div className="flex-1" />
             <button
-              onClick={onRemoveFromLibrary}
+              type="button"
+              onClick={() => setConfirmRemove(true)}
               disabled={removing}
               className="h-8 px-3 rounded border border-err/40 bg-err-soft text-err text-sm font-medium hover:bg-err/15 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              title="Drop this album from the cache. Cascades to its fingerprints + track tags + per-album blocklists."
             >
-              {removing ? (
-                <><Loader2 className="w-3.5 h-3.5 spin" /> Removing…</>
-              ) : (
-                <><Trash2 className="w-3.5 h-3.5" /> Remove from library</>
-              )}
+              <Trash2 className="w-3.5 h-3.5" /> Remove from library…
             </button>
           </>
         ) : (
@@ -831,7 +801,39 @@ function SheetBody({
         )}
       </div>
 
+      <RemoveAlbumDialog
+        open={confirmRemove}
+        albumTitle={displayAlbum.title || displayAlbum.dir_name}
+        removing={removing}
+        onConfirm={() => void onRemoveFromLibrary()}
+        onCancel={() => setConfirmRemove(false)}
+      />
     </>
+  );
+}
+
+function MissingNotice({ since, path }: { since: string; path: string }) {
+  return (
+    <div
+      role="status"
+      className="mx-4 my-3 rounded-md border border-warn/40 bg-warn-soft p-3 text-sm flex items-start gap-2.5"
+    >
+      <CloudOff className="w-4 h-4 text-warn shrink-0 mt-0.5" aria-hidden="true" />
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-fg">Folder not found</div>
+        <p className="text-xs text-fg-3 mt-1 leading-relaxed">
+          The library scan on {formatMissingDate(since)} did not find this album at{" "}
+          <code className="mono text-fg-2 break-all">{path}</code>. Musaic still has
+          what it recorded before then, shown below.
+        </p>
+        <p className="text-xs text-fg-3 mt-1.5 leading-relaxed">
+          If the folder is back at that path, the next scan brings the album back
+          with its MusicBrainz match, fingerprints and My Tags. A folder moved or
+          renamed inside the library is added as a separate album, and this one
+          stays here until you remove it.
+        </p>
+      </div>
+    </div>
   );
 }
 
