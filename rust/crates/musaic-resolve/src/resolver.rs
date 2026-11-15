@@ -62,9 +62,44 @@ use crate::resolution::{
 use crate::source::FlacTrack;
 use crate::source::{
     AlbumRecord, AlbumSource, AnchorStore, FingerprintLookups, FingerprintSource,
-    MusicBrainzSource, NetError, StoreError,
+    MusicBrainzSource, NetError, StoreError, StoredAnchor,
 };
 use crate::vote::{AlbumContext, Outcome, Rule, decide, matched_tracks};
+
+/// Tier 0a's anchor: the stored release group, unless it is empty or on the
+/// album's "Wrong match" blocklist (then the resolver searches instead).
+pub fn cached_anchor(
+    stored: Option<StoredAnchor>,
+    blocked: &BTreeSet<String>,
+) -> Option<StoredAnchor> {
+    stored.filter(|a| !a.release_group_mbid.is_empty() && !blocked.contains(&a.release_group_mbid))
+}
+
+/// The cover the resolver proposes for an album that Tier 0a anchors: the
+/// Cover Art Archive front of the anchored release group
+/// ([`find_release::cover_front_url`], which Tier 1 offers when the archive
+/// has one). `None` when the album has no usable anchor, or when the stored
+/// id is not shaped like an MBID, so a URL is only ever built on
+/// `coverartarchive.org` from 36 characters of hex and hyphens.
+pub fn anchored_cover_url(
+    store: &dyn AnchorStore,
+    album_id: &str,
+) -> Result<Option<String>, StoreError> {
+    let blocked = store.blocked(album_id)?;
+    Ok(cached_anchor(store.anchor(album_id)?, &blocked)
+        .map(|a| a.release_group_mbid)
+        .filter(|rg| is_mbid(rg))
+        .map(|rg| find_release::cover_front_url(&rg)))
+}
+
+/// `8-4-4-4-12` hex digits, the shape of every MusicBrainz id.
+pub fn is_mbid(s: &str) -> bool {
+    s.len() == 36
+        && s.bytes().enumerate().all(|(i, b)| match i {
+            8 | 13 | 18 | 23 => b == b'-',
+            _ => b.is_ascii_hexdigit(),
+        })
+}
 
 /// What a resolve needs from the outside world.
 pub struct Env<'a> {
@@ -302,9 +337,7 @@ impl Resolver {
 
         let stored = env.store.anchor(&album.id)?;
         let mut search_hit = None;
-        match stored.filter(|a| {
-            !a.release_group_mbid.is_empty() && !blocked.contains(&a.release_group_mbid)
-        }) {
+        match cached_anchor(stored, &blocked) {
             Some(a) => {
                 let score = a.score.unwrap_or(0);
                 res.anchor = Some(FieldFact::new(
@@ -824,5 +857,58 @@ mod tests {
         assert!(is_stale(Some("2000-01-01T00:00:00Z"), now));
         assert_eq!(days_from_civil(1970, 1, 1), 0);
         assert_eq!(parse_iso_utc("1970-01-02T01:00:00+01:00"), Some(86_400));
+    }
+
+    struct OneAnchor(Option<&'static str>, &'static [&'static str]);
+
+    impl AnchorStore for OneAnchor {
+        fn anchor(&self, _: &str) -> Result<Option<StoredAnchor>, StoreError> {
+            Ok(self.0.map(|rg| StoredAnchor {
+                release_group_mbid: rg.to_owned(),
+                release_mbid: None,
+                score: Some(95),
+                last_checked_at: None,
+            }))
+        }
+        fn set_anchor(&self, _: &str, _: &str, _: Option<&str>, _: i64) -> Result<(), StoreError> {
+            unreachable!("read only")
+        }
+        fn blocked(&self, _: &str) -> Result<BTreeSet<String>, StoreError> {
+            Ok(self.1.iter().map(|s| (*s).to_owned()).collect())
+        }
+        fn fingerprints(&self, _: &str) -> Result<Vec<crate::source::FingerprintRow>, StoreError> {
+            Ok(Vec::new())
+        }
+    }
+
+    // The cover follows Tier 0a's anchor choice, and only an MBID-shaped
+    // id is ever put into a URL.
+    #[test]
+    fn anchored_cover_url_follows_tier_0a() {
+        const RG: &str = "0d9e7b1c-2f4a-4b6e-9c3d-1a2b3c4d5e6f";
+        let url = |s: OneAnchor| anchored_cover_url(&s, "a1").unwrap();
+        assert_eq!(
+            url(OneAnchor(Some(RG), &[])).as_deref(),
+            Some(
+                "https://coverartarchive.org/release-group/0d9e7b1c-2f4a-4b6e-9c3d-1a2b3c4d5e6f/front"
+            )
+        );
+        assert_eq!(url(OneAnchor(None, &[])), None);
+        assert_eq!(url(OneAnchor(Some(""), &[])), None);
+        assert_eq!(
+            url(OneAnchor(Some(RG), &[RG])),
+            None,
+            "blocked: Wrong match"
+        );
+        for odd in [
+            "0d9e7b1c-2f4a-4b6e-9c3d-1a2b3c4d5e6",  // short
+            "0d9e7b1c-2f4a-4b6e-9c3d-1a2b3c4d5e6/", // path
+            "x@evil.example/0000-0000-0000-000000000",
+            "../../../../../../../../../../../../.",
+            "0d9e7b1c 2f4a-4b6e-9c3d-1a2b3c4d5e6f",
+        ] {
+            assert_eq!(url(OneAnchor(Some(odd), &[])), None, "{odd:?}");
+        }
+        assert!(is_mbid(&RG.to_ascii_uppercase()));
     }
 }

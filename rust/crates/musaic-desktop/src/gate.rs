@@ -98,9 +98,10 @@ pub const FILE_MANAGER: &str = if cfg!(target_os = "macos") {
 /// `style-src 'unsafe-inline'` is needed for the React/Radix inline style
 /// attributes; `data:` / `blob:` images for the cover-upload preview
 /// (`URL.createObjectURL`). The font is bundled
-/// (`frontend/public/fonts/`), and a job's suggested remote cover is shown
-/// through the same-origin `GET /api/ai/jobs/{job_id}/cover-preview`
-/// (musaic-api `routes::preview`), so neither needs a remote origin here.
+/// (`frontend/public/fonts/`), and a proposed remote cover is shown through
+/// the same-origin `GET /api/ai/jobs/{job_id}/cover-preview` or
+/// `GET /api/albums/{album_id}/cover-preview` (musaic-api
+/// `routes::preview`), so neither needs a remote origin here.
 pub const APP_CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self'; worker-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
 
 /// Injected into the main frame of every page (Tauri initialization

@@ -47,6 +47,15 @@ Security.
 - Applying changes no longer holds the album open: you can switch albums or close the
   panel while tags are written (the app finishes the write either way), and the
   progress, or the result, is shown again when you reopen that album.
+### Added
+
+- `GET /api/albums/{id}/cover-preview`: a preview of the Cover Art Archive cover the
+  resolver proposes for an album anchored to MusicBrainz, without queueing a job
+  (groundwork for #183 and #184). The request names only the album; the server derives
+  the address from the stored anchor and fetches it under the cover-download rules
+  (HTTPS, public hosts, every redirect checked, size cap, image types only). An album
+  with no anchor, or none the archive has a front cover for, answers 404; a Missing
+  album 409.
 
 ### Fixed
 

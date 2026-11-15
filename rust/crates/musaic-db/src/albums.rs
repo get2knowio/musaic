@@ -277,15 +277,23 @@ pub fn clear_album_missing(conn: &Connection, album_id: &str) -> Result<bool> {
     )? > 0)
 }
 
-pub fn missing_since(conn: &Connection, album_id: &str) -> Result<Option<String>> {
+/// `None` when no album row has this id; otherwise the row's
+/// `missing_since` (`None` while the album is Present).
+pub fn album_row_missing_since(
+    conn: &Connection,
+    album_id: &str,
+) -> Result<Option<Option<String>>> {
     Ok(conn
         .query_row(
             "SELECT missing_since FROM albums WHERE id = ?1",
             [album_id],
             |r| r.get(0),
         )
-        .optional()?
-        .flatten())
+        .optional()?)
+}
+
+pub fn missing_since(conn: &Connection, album_id: &str) -> Result<Option<String>> {
+    Ok(album_row_missing_since(conn, album_id)?.flatten())
 }
 
 /// Why a scan refused to write its result.
