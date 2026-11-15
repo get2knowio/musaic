@@ -612,7 +612,10 @@ fn check(id: &str) {
             assert_eq!(sc["exception"]["type"], "FileNotFoundError", "{id}");
             musaic_services::analyze::unreachable_album_detail(
                 Path::new(&format!("<LIB>/{}", sc["album"].as_str().unwrap())),
-                &std::io::Error::from_raw_os_error(2), // ENOENT
+                // The OS's error for listing a missing directory: ENOENT
+                // on Unix, ERROR_PATH_NOT_FOUND on Windows.
+                &std::fs::read_dir(std::env::temp_dir().join("musaic-golden-no-such-dir"))
+                    .unwrap_err(),
             )
         };
         assert_eq!(r.refused_detail_normalized, want_detail, "{id}");

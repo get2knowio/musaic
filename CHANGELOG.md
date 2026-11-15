@@ -13,6 +13,18 @@ Security.
 
 ## [Unreleased]
 
+### Fixed
+
+- Windows: API keys were left in the pre-migration database backup
+  (`library.v16.before-rust.db`), because the scrubbed copy could not be flushed to
+  disk there ("Access is denied"); it is now scrubbed as on macOS and Linux.
+- Windows: an album's id no longer depends on how the library folder's path was spelled
+  (short `8.3` names, letter case, a `\\?\` prefix); paths resolve to the folder's real
+  name, as the earlier Python app did on Windows.
+- Windows: `~\Music` is expanded to the home folder like `~/Music`.
+- Windows: file errors during BPM / ReplayGain analysis read "Permission denied" / "No
+  such file or directory", as on other platforms.
+
 ## [0.2.0-rc.1] - 2026-11-14
 
 A rewrite. The Python/FastAPI backend and the Electron shell are replaced by a Rust

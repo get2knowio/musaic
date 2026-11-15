@@ -375,7 +375,10 @@ fn assert_steps(id: &str, got: &[J], want: &[J]) {
     assert_eq!(got.len(), want.len(), "{id}: step count");
     for (i, (g, w)) in got.iter().zip(want).enumerate() {
         for k in ["result", "findings", "runs", "probe"] {
-            assert_eq!(g[k], w[k], "{id}: step {i} ({}) {k}", w["op"]);
+            // The recorded messages carry macOS's text for ENOENT.
+            let w_k: J =
+                serde_json::from_str(&musaic_testdata::os_error_text(&w[k].to_string())).unwrap();
+            assert_eq!(g[k], w_k, "{id}: step {i} ({}) {k}", w["op"]);
         }
     }
 }
