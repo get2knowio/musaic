@@ -45,6 +45,11 @@
 //! - Without a model backend: quick-fix-all's
 //!   unidentified-album skip messages lose ", or use the per-finding Fix to
 //!   escalate to AI": musaic-services tests/deltas/check_fixes.rs.
+//! - quick-fix-all reruns its check over the albums whose fix reported
+//!   success: `done` counts only the findings that are gone as `fixed` and
+//!   the rest as `still_open`, and the findings the rerun resolved (or
+//!   reopened under a new summary) are so from that step on:
+//!   musaic-services tests/deltas/check_fixes.rs (`STILL_OPEN`).
 //! - Harness step (reruns really run the checks): after an artist-sort bulk write the
 //!   test runs the scan-time check sweep the `BulkBatchCompleted`
 //!   subscriber runs in the app (subscribers are off here, as in the
@@ -482,6 +487,10 @@ async fn check_fix_routes_replay_the_python_app() {
     let mut prev_state = g["initial_state"].clone();
     let mut pauses_seen = 0;
     let total_re = Regex::new(r#""total": (\d+)"#).unwrap();
+    // quick-fix-all's rerun of its check: see the services replay.
+    let mut rerun_resolved: Vec<Value> = Vec::new();
+    let mut rerun_opened: Vec<Value> = Vec::new();
+    let mut used_rerun = 0;
 
     for st in g["steps"].as_array().unwrap() {
         let label = st["label"].as_str().unwrap();
@@ -497,6 +506,7 @@ async fn check_fix_routes_replay_the_python_app() {
             Some(c) if st["op"] == "quick_fix_all" => cf_deltas::walk_order(&run.w.conn(), c),
             _ => Vec::new(),
         };
+        let open_before = run.state()["open_findings"].as_array().unwrap().clone();
         let got = run.w.send(&ids.request(&st["request"])).await;
         let mut body = if got.ctype().starts_with("text/event-stream") {
             json!({"sse": run.n(&ids.frames(&got.text()))})
@@ -506,6 +516,16 @@ async fn check_fix_routes_replay_the_python_app() {
         // The generator records AI job ids as <JOB>.
         if body.get("job_id").is_some_and(Value::is_string) {
             body["job_id"] = json!("<JOB>");
+        }
+        let mut step_resolved: Vec<Value> = Vec::new();
+        if st["op"] == "quick_fix_all" {
+            let after = run.state()["open_findings"].as_array().unwrap().clone();
+            step_resolved = open_before
+                .iter()
+                .filter(|r| !after.contains(r))
+                .cloned()
+                .collect();
+            rerun_opened.extend(after.into_iter().filter(|r| !open_before.contains(r)));
         }
         let events = run.events();
         let bulk = events
@@ -596,6 +616,7 @@ async fn check_fix_routes_replay_the_python_app() {
                 musaic_services::check_fixes::UNRESOLVED_SKIP_MESSAGE,
             );
             *used.get_mut("no model backend").unwrap() += n;
+            let text = cf_deltas::done_with_still_open(&text, cf_deltas::still_open_for(label));
             // Finding order: see cf_deltas::walk_order.
             want_body["sse"] = json!(cf_deltas::progress_in_our_finding_order(&text, |p| {
                 cf_deltas::walk_pos(&order, ids.to_ours.get(&p).copied().unwrap_or(p))
@@ -625,6 +646,15 @@ async fn check_fix_routes_replay_the_python_app() {
             }
         }
 
+        for r in &step_resolved {
+            assert!(
+                want_state["open_findings"].as_array().unwrap().contains(r),
+                "{label}: {r} was open in the Python app's record"
+            );
+        }
+        used_rerun += step_resolved.len();
+        rerun_resolved.extend(step_resolved);
+        cf_deltas::rerun_open_findings(&mut want_state, &rerun_resolved, &rerun_opened);
         assert_eq!(json!(got.status), want_status, "{label}: status ({body})");
         assert_eq!(body, want_body, "{label}: body");
         assert_eq!(json!(events), want_events, "{label}: events");
@@ -673,6 +703,7 @@ async fn check_fix_routes_replay_the_python_app() {
     assert_eq!(used["no model backend"], 11, "skipped unidentified albums");
     assert_eq!(used["blocklist rows follow"], 1);
     assert_eq!(used["last copy keeps album"], 1);
+    assert!(used_rerun > 0, "quick-fix-all rerun delta unused");
     // The last stream's work ends just after its final frame.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
     while run.w.state.gate().snapshot() != (0, false) && std::time::Instant::now() < deadline {

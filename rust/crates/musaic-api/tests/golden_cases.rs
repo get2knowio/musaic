@@ -284,8 +284,23 @@ fn rules() -> Vec<Rule> {
                 assert!(ai_wording_response(r) > 0);
             },
         },
+        Rule {
+            why: "deliberate change: an ARTIST-only album is an album-level member of its \
+              inconsistent-artist-sort cluster (tests/common/artist_only.rs)",
+            count: ARTIST_ONLY_RESPONSES,
+            applies: |c| {
+                let mut r = c["response"].clone();
+                common::artist_only::apply(&mut r) > 0
+            },
+            apply: |r| {
+                assert!(common::artist_only::apply(r) > 0);
+            },
+        },
     ]
 }
+
+/// Responses of cases.json that list the Mono Harbor artist-sort cluster.
+const ARTIST_ONLY_RESPONSES: usize = 1;
 
 /// Responses of cases.json the AI-wording rule rewrites.
 const AI_WORDING_RESPONSES: usize = 4;

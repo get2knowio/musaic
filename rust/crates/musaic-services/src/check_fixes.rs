@@ -70,6 +70,8 @@
 //!   as the anchor only after the track-count and duration check.
 //! - A panicking fix in quick-fix-all is an `error` outcome and the loop
 //!   goes on; `BulkBatchCompleted` is published whatever happens.
+//! - quick-fix-all reruns its check over the albums it fixed and reports
+//!   only the findings that are gone as `fixed` (`still_open` for the rest).
 //!
 //! Golden: testdata/golden/services/check_fixes.json (recorded from the
 //! Python app); test: tests/golden_check_fixes.rs.
@@ -1102,9 +1104,17 @@ pub fn apply_cluster_sort(
 /// (before anything streams); else `start {total}`, one `progress
 /// {finding_id, outcome, message}` per open finding (outcome `fixed` |
 /// `skipped` | `error` | `not-applicable`), then `done {total, fixed,
-/// skipped, errors, not_applicable}`. The loop runs with `in_bulk_run` set;
+/// skipped, errors, not_applicable, still_open}`. The loop runs with `in_bulk_run` set;
 /// afterwards, if there was at least one finding, `BulkBatchCompleted` is
 /// published, also when the sink stopped reading (`Break`) early.
+///
+/// Deliberate change: before `done`, the check is rerun over the albums
+/// whose fix reported success, and `done.fixed` counts only the findings
+/// that are gone; the others are `still_open` (a partial fix). A `progress`
+/// outcome `fixed` still means "the fix wrote what it could". The Python app
+/// counted every successful fix as fixed and left the findings as they were
+/// until the check's next run (not part of the post-scan sweep for
+/// tags-out-of-sync).
 ///
 /// A finding whose album is Missing is
 /// reported `not-applicable` ([`missing_album_not_applicable`]) without
@@ -1145,7 +1155,7 @@ pub fn quick_fix_all(
     .collect();
     let total = ids.len();
     let run = catch_unwind(AssertUnwindSafe(|| {
-        musaic_events::context::with_bulk_run(|| quick_fix_loop(env, &ids, between, sink))
+        musaic_events::context::with_bulk_run(|| quick_fix_loop(env, check_id, &ids, between, sink))
     }));
     if let Err(p) = run {
         let detail = format!("panic: {}", panic_text(p.as_ref()));
@@ -1162,9 +1172,75 @@ pub fn quick_fix_all(
     Ok(())
 }
 
+/// Which of the `applied` findings (id, album) are still open after their
+/// fix reported success. A fix can succeed while writing only part of
+/// what the finding asks for (tags-out-of-sync fills only the fields
+/// MusicBrainz has), and not every check runs in the sweep that
+/// `BulkBatchCompleted` triggers, so the check itself is rerun here, scoped to
+/// the touched albums, and the findings are read back. A finding counts as
+/// still open when its row is open or the rerun opened a new row for the same
+/// album (its summary changed). Empty when there is nothing to verify, no
+/// library is configured or the rerun did not complete; those are counted as
+/// the fix reported them.
+fn still_open_after_fix(
+    env: &mut FixEnv<'_>,
+    check_id: &str,
+    applied: &[(i64, Option<String>)],
+) -> Vec<i64> {
+    let mut albums: Vec<String> = applied.iter().filter_map(|(_, a)| a.clone()).collect();
+    albums.sort();
+    albums.dedup();
+    let Some(lib) = env.resolved_library() else {
+        return Vec::new();
+    };
+    if albums.is_empty() {
+        return Vec::new();
+    }
+    let conn: &Connection = env.conn;
+    let Ok(max_before) =
+        conn.query_row("SELECT COALESCE(MAX(id), 0) FROM check_findings", [], |r| {
+            r.get::<_, i64>(0)
+        })
+    else {
+        return Vec::new();
+    };
+    match musaic_checks::run_check(
+        conn,
+        env.checks,
+        check_id,
+        &lib,
+        musaic_checks::ScopeKind::Albums,
+        Some(&albums),
+    ) {
+        Ok(run) if run.status == "completed" => {}
+        _ => return Vec::new(),
+    }
+    applied
+        .iter()
+        .filter(|(fid, album)| {
+            let row_open = findings::get_finding(conn, *fid)
+                .ok()
+                .flatten()
+                .is_some_and(|f| f.resolved_at.is_none());
+            let reopened = album.as_deref().is_some_and(|a| {
+                conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM check_findings WHERE check_id = ?1 \
+                     AND album_id = ?2 AND id > ?3 AND resolved_at IS NULL)",
+                    rusqlite::params![check_id, a, max_before],
+                    |r| r.get::<_, bool>(0),
+                )
+                .unwrap_or(false)
+            });
+            row_open || reopened
+        })
+        .map(|(fid, _)| *fid)
+        .collect()
+}
+
 /// The body of [`quick_fix_all`] between the bulk-run flag's set and reset.
 fn quick_fix_loop(
     env: &mut FixEnv<'_>,
+    check_id: &str,
     ids: &[i64],
     between: &mut dyn FnMut(),
     sink: &mut dyn FnMut(QuickFixItem) -> ControlFlow<()>,
@@ -1180,6 +1256,7 @@ fn quick_fix_loop(
             return;
         }
         let (mut fixed, mut skipped, mut errors, mut na) = (0usize, 0usize, 0usize, 0usize);
+        let mut applied: Vec<(i64, Option<String>)> = Vec::new();
         for (i, fid) in ids.iter().enumerate() {
             if i > 0 {
                 between();
@@ -1214,6 +1291,7 @@ fn quick_fix_loop(
                     }
                     Ok(Some(r)) if r.ok => {
                         fixed += 1;
+                        applied.push((*fid, album.clone()));
                         ("fixed", r.message)
                     }
                     Ok(Some(r)) => {
@@ -1234,6 +1312,10 @@ fn quick_fix_loop(
                 return;
             }
         }
+        // `fixed` counts only findings that are gone; a fix that reported
+        // success but left its finding open is `still_open`.
+        let still_open = still_open_after_fix(env, check_id, &applied).len();
+        fixed -= still_open;
         let _ = sink(QuickFixItem {
             event: "done",
             data: Json::obj([
@@ -1242,6 +1324,7 @@ fn quick_fix_loop(
                 ("skipped", Json::from(skipped)),
                 ("errors", Json::from(errors)),
                 ("not_applicable", Json::from(na)),
+                ("still_open", Json::from(still_open)),
             ]),
         });
     }

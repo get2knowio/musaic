@@ -7,10 +7,14 @@
 //! Finding ids in paths and SSE frames are mapped through the golden's
 //! `findings_after_checks` by (check, album, summary) (album masked for the
 //! artist-sort cluster: the finding sits on the cluster's smallest album id).
-//! Every difference from the Python app is an
+//! The ARTIST-only album that joins the Mono Harbor artist-sort cluster
+//! (a deliberate change) is applied to the record by
+//! tests/common/artist_only.rs. Every other difference from the Python app is an
 //! entry of `deltas()` (case, JSON pointer, Python value, Rust value, why)
 //! and must be used; anything else fails.
 
+#[path = "../../musaic-services/tests/deltas/check_fixes.rs"]
+mod cf_deltas;
 mod common;
 
 use std::collections::HashMap;
@@ -27,13 +31,24 @@ fn deltas() -> Vec<(
     Option<Value>,
     &'static str,
 )> {
-    let mut v = vec![(
-        "rename dir",
-        "/json/dir_migration/album_blocked_mb_release_groups",
-        Value::Null,
-        Some(json!(0)),
-        "deliberate change: the directory rename also repoints the blocklist rows and counts them",
-    )];
+    let mut v = vec![
+        (
+            "rename dir",
+            "/json/dir_migration/album_blocked_mb_release_groups",
+            Value::Null,
+            Some(json!(0)),
+            "deliberate change: the directory rename also repoints the blocklist rows and counts them",
+        ),
+        (
+            "apply-sort",
+            "/json/cluster_size",
+            json!(4),
+            Some(json!(5)),
+            "deliberate change: the ARTIST-only Mono Harbor - Gaps is also an album-level \
+             member of the cluster (its track-level member stays), so the cluster has 5 \
+             members over the same 4 albums",
+        ),
+    ];
     // No model backend in this build, so where
     // the Python app queued an AI job the fix answers ok:false with the job's
     // not-available message and no job id.
@@ -98,6 +113,8 @@ async fn wired_routes_replay_the_python_app() {
     let mut checked = false;
     // How often the no-provider wording delta applied.
     let mut ai_wording_hits = 0;
+    let mut artist_only_hits = 0;
+    let mut still_open_hits = 0;
     let path_id = Regex::new(r"/findings/(\d+)/").unwrap();
     let frame_id = Regex::new(r#""finding_id": (\d+)"#).unwrap();
 
@@ -164,6 +181,8 @@ async fn wired_routes_replay_the_python_app() {
                 // is ready, so the summaries are shown in the neutral wording.
                 let mut shown = json!({"check_id": f[1], "summary": f[3]});
                 ai_wording_hits += common::ai_wording::json(&mut shown);
+                // The Mono Harbor cluster gains its ARTIST-only album.
+                artist_only_hits += common::artist_only::apply(&mut shown);
                 // No NFC/NFD dir finding here.
                 if let Some(o) = by_key.get(&finding_key(&f[1], &f[2], &shown["summary"])) {
                     ids.to_ours.insert(f[0].as_i64().unwrap(), *o);
@@ -240,11 +259,18 @@ async fn wired_routes_replay_the_python_app() {
         // The Python app's response in the no-provider wording.
         if let Some(j) = want.get_mut("json") {
             ai_wording_hits += common::ai_wording::json(j);
+            artist_only_hits += common::artist_only::apply(j);
         }
         if let Some(Value::String(t)) = want.get_mut("sse") {
             let (t2, n) = common::ai_wording::text(t);
             *t = t2;
             ai_wording_hits += n;
+            // quick-fix-all's `done` gains `still_open` (deliberate change);
+            // nothing here is fixed, so 0.
+            if t.contains("event: done\n") {
+                *t = cf_deltas::done_with_still_open(t, 0);
+                still_open_hits += 1;
+            }
         }
         for (i, (l, ptr, python, rust, why)) in deltas.iter().enumerate() {
             if *l != label {
@@ -299,10 +325,22 @@ async fn wired_routes_replay_the_python_app() {
                 a.sort_by_key(|x| x.to_string());
                 json!(a)
             };
-            if project(&rec) != project(&want) {
+            // The cluster apply also wrote ALBUMARTISTSORT on the ARTIST-only
+            // Mono Harbor - Gaps, now an album-level member (deliberate change).
+            let mut want_rows = project(&want);
+            let gaps = want_rows
+                .as_array_mut()
+                .unwrap()
+                .iter_mut()
+                .find(|r| r[1] == "Mono Harbor - Gaps [FLAC]")
+                .unwrap();
+            assert_eq!(gaps[2], Value::Null, "Python app record");
+            gaps[2] = json!("Harbor, Mono");
+            artist_only_hits += 1;
+            if project(&rec) != want_rows {
                 failures.push(format!(
                     "== {label}\n-- python: {}\n-- rust:   {}",
-                    project(&want),
+                    want_rows,
                     project(&rec)
                 ));
             }
@@ -320,6 +358,11 @@ async fn wired_routes_replay_the_python_app() {
         assert!(used[i], "unused delta: {} {} ({})", d.0, d.1, d.4);
     }
     assert!(ai_wording_hits > 0, "AI-wording delta unused");
+    assert!(
+        artist_only_hits > 0,
+        "ARTIST-only cluster member delta unused"
+    );
+    assert!(still_open_hits > 0, "quick-fix-all still_open delta unused");
     assert!(
         failures.is_empty(),
         "{} of {} cases differ:\n{}",

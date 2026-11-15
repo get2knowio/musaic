@@ -40,6 +40,27 @@ Security.
   snapshot uses the same reading as the Settings page. (#213)
 - Settings accepts every AI provider that `GET /api/ai/providers` lists, and a refused
   provider's message names those providers. (#199)
+- **Quick-fix-all no longer reports findings as resolved while they stay open**
+  (#216). After the run the check is rerun over the albums it fixed; the summary counts
+  only the findings that are gone as fixed and shows the rest as "still open" (for
+  example a fix that could fill only some of the missing fields). The `done` event
+  gains `still_open`.
+- **Checks run for a few albums now look only at those albums.** "Tags don't match
+  canonical" read and looked up every album in the library (MusicBrainz requests for
+  each identified album) even when run for one album, and the duplicate-tracks check
+  loaded every album's fingerprints. Both now read only the albums asked for; a
+  library-wide run is unchanged.
+- **Fixing one album of an inconsistent-artist-sort cluster now clears the finding**
+  even when the finding is listed on another album of the cluster (#206). Before, it
+  stayed open until the next library-wide check run.
+- **Albums tagged with ARTIST but no ALBUMARTIST now take part in
+  inconsistent-artist-sort at album level** (#207), credited with their ARTIST, so a
+  conflicting album artist sort on them is reported. Multi-artist albums and
+  compilations without ALBUMARTIST are left out. Expect some new or reworded findings
+  on existing libraries.
+- **Check runner** (#205): a check run that fails now reports the findings it recorded
+  before failing instead of 0, and no-cover-art's 30-day "recent failed lookup" window
+  is exact (it could count a lookup up to a day older as recent).
 
 ## [0.2.0-rc.1] - 2026-11-14
 

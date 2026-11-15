@@ -37,6 +37,13 @@
 //!   per-finding Fix to escalate to AI" (the Fix queues no AI job without a
 //!   model backend): tests/deltas/check_fixes.rs.
 //!
+//! - quick-fix-all reruns its check over the albums whose fix reported
+//!   success; `done` counts only the findings that are gone as `fixed` and
+//!   the rest as `still_open` (tests/deltas/check_fixes.rs, `STILL_OPEN`).
+//!   The findings that rerun resolved (or reopened under a new summary) are
+//!   so in every later state, where the Python app left them open until the
+//!   check's next run; a later run row's id counts the rerun's row.
+//!
 //! The `per-track-artist` section (its own library and database) is
 //! replayed by [`tags_out_of_sync_applies_per_track_artist`], with no delta.
 //!
@@ -463,6 +470,13 @@ fn check_fixes_replay_the_python_app() {
     let mut prev_state = g["initial_state"].clone();
     let lib_dir = lib_s.clone();
     let mut replayed = 0;
+    // What a quick-fix-all's rerun of its check changed (the Python app left
+    // the findings as they were until the check's next run): the rows it
+    // resolved are dropped from every later recorded state, the rows it
+    // opened (a partly fixed album's new summary) added.
+    let mut rerun_resolved: Vec<Value> = Vec::new();
+    let mut rerun_opened: Vec<Value> = Vec::new();
+    let mut used_verified = 0;
 
     for st in g["steps"].as_array().unwrap() {
         let label = st["label"].as_str().unwrap();
@@ -500,6 +514,19 @@ fn check_fixes_replay_the_python_app() {
             model_unavailable: None,
         };
         let mut sweep = false;
+        let open_rows = |conn: &Connection, check: &str| -> Vec<Value> {
+            w.rows(
+                conn,
+                &format!(
+                    "SELECT check_id, album_id, summary FROM check_findings WHERE check_id = '{check}' \
+                     AND resolved_at IS NULL AND ignored_at IS NULL"
+                ),
+            )
+        };
+        let open_before = match a["check_id"].as_str() {
+            Some(c) if st["op"] == json!("quick_fix_all") => open_rows(env.conn, c),
+            _ => Vec::new(),
+        };
         let res: Result<Value, HttpError> = match st["op"].as_str().unwrap() {
             "fix_finding" => check_fixes::fix_finding(
                 &mut env,
@@ -572,6 +599,16 @@ fn check_fixes_replay_the_python_app() {
             }
             other => panic!("unknown op {other}"),
         };
+        let mut step_resolved: Vec<Value> = Vec::new();
+        if !open_before.is_empty() {
+            let after = open_rows(&conn, a["check_id"].as_str().unwrap());
+            step_resolved = open_before
+                .iter()
+                .filter(|r| !after.contains(r))
+                .cloned()
+                .collect();
+            rerun_opened.extend(after.into_iter().filter(|r| !open_before.contains(r)));
+        }
         let events = w.take_events();
         // The sweep the BulkBatchCompleted subscriber runs after a
         // cluster apply that wrote something (the Python app ran it inside
@@ -673,6 +710,7 @@ fn check_fixes_replay_the_python_app() {
                 musaic_services::check_fixes::UNRESOLVED_SKIP_MESSAGE,
             );
             used_skip_message += n;
+            let text = cf_deltas::done_with_still_open(&text, cf_deltas::still_open_for(label));
             want_body["sse"] = json!(cf_deltas::progress_in_our_finding_order(&text, |p| {
                 cf_deltas::walk_pos(&order, to_ours.get(&p).copied().unwrap_or(p))
             }));
@@ -707,6 +745,18 @@ fn check_fixes_replay_the_python_app() {
             }
         }
 
+        if !step_resolved.is_empty() {
+            // The delta changes the record: Python left these open.
+            for r in &step_resolved {
+                assert!(
+                    want_state["open_findings"].as_array().unwrap().contains(r),
+                    "{label}: {r} was open in the Python app's record"
+                );
+            }
+            used_verified += step_resolved.len();
+            rerun_resolved.extend(step_resolved);
+        }
+        cf_deltas::rerun_open_findings(&mut want_state, &rerun_resolved, &rerun_opened);
         assert_eq!(json!(status), want_status, "{label}: status");
         assert_eq!(body, want_body, "{label}: body");
         assert_eq!(json!(events), want_events, "{label}: events");
@@ -734,6 +784,7 @@ fn check_fixes_replay_the_python_app() {
         "unused delta"
     );
     assert_eq!(used_skip_message, 11, "the skipped unidentified albums");
+    assert!(used_verified > 0, "unused verified-fix delta");
     assert!(replayed >= 35, "{replayed}");
 }
 
@@ -1221,9 +1272,13 @@ fn replay_section(name: &str, expected: &dyn Fn(&Value) -> Value) {
     let trash_root = root.join("trash");
     let now = || NOW.to_string();
     let stamp = || "x".to_string();
+    // quick-fix-all's rerun of the check (see the main replay).
+    let mut rerun_resolved: Vec<Value> = Vec::new();
+    let mut rerun_opened: Vec<Value> = Vec::new();
     for step in sec["steps"].as_array().unwrap() {
         let label = step["label"].as_str().unwrap();
         let a = &step["args"];
+        let open_before = state(&conn)["open_findings"].as_array().unwrap().clone();
         let order = match a["check_id"].as_str() {
             Some(c) if step["op"] == json!("quick_fix_all") => cf_deltas::walk_order(&conn, c),
             _ => Vec::new(),
@@ -1299,8 +1354,37 @@ fn replay_section(name: &str, expected: &dyn Fn(&Value) -> Value) {
             .map(|e| nv(&event_json(&e)))
             .collect();
         let mut want = expected(step);
+        if step["op"] == json!("quick_fix_all") {
+            let after = state(&conn)["open_findings"].as_array().unwrap().clone();
+            for r in open_before.iter().filter(|r| !after.contains(r)) {
+                assert!(
+                    want["state"]["open_findings"]
+                        .as_array()
+                        .unwrap()
+                        .contains(r),
+                    "{label}: {r} was open in the Python app's record"
+                );
+                rerun_resolved.push(r.clone());
+            }
+            rerun_opened.extend(after.into_iter().filter(|r| !open_before.contains(r)));
+        }
+        cf_deltas::rerun_open_findings(&mut want["state"], &rerun_resolved, &rerun_opened);
+        if step["op"] == json!("run_check") {
+            // Each quick-fix-all rerun of the check (album-scoped) took a
+            // run row before this one.
+            let reruns: i64 = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM check_runs WHERE scope LIKE '[%'",
+                    [],
+                    |r| r.get(0),
+                )
+                .unwrap();
+            assert!(reruns > 0, "{label}: no quick-fix-all rerun before");
+            want["body"]["id"] = json!(want["body"]["id"].as_i64().unwrap() + reruns);
+        }
         if let Some(sse) = want["body"]["sse"].as_str() {
-            want["body"]["sse"] = json!(cf_deltas::progress_in_our_finding_order(sse, |p| {
+            let sse = cf_deltas::done_with_still_open(sse, 0);
+            want["body"]["sse"] = json!(cf_deltas::progress_in_our_finding_order(&sse, |p| {
                 cf_deltas::walk_pos(&order, to_ours.get(&p).copied().unwrap_or(p))
             }));
         }

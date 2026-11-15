@@ -89,6 +89,30 @@ const DELTAS: &[CaseDelta] = &[
             drop_other_library_findings(r, f, "a2");
         },
     ),
+    (
+        "ias-artist-only-album",
+        "an album with ARTIST but no ALBUMARTIST joins its cluster at album level \
+         (credited with its ARTIST, the shared display-artist cascade)",
+        "the finding gains x1 (ARTIST 'Harold Mansell', no ALBUMARTIST) as its first \
+         member, so it is stored on x1 (smallest id) instead of x2 and reads \
+         '3 credit instances' instead of '2'",
+        |_r, f| {
+            let row = &mut f[0];
+            assert_eq!(row["album_id"], "x2");
+            row["album_id"] = json!("x1");
+            let old = "2 credit instances for 'Harold Mansell' / 'Harold Mansell & His Orchestra'";
+            assert_eq!(row["summary"], old);
+            row["summary"] = json!(old.replacen('2', "3", 1));
+            let detail = row["detail_json"].as_str().unwrap().to_string();
+            let first = "\"members\": [{\"kind\": \"album\", \"album_id\": \"x2\"";
+            assert!(detail.contains(first), "{detail}");
+            row["detail_json"] = json!(detail.replace(
+                "\"members\": [",
+                "\"members\": [{\"kind\": \"album\", \"album_id\": \"x1\", \"dir_name\": \
+                 \"Harold Mansell - A\", \"album_artist\": \"Harold Mansell\", \"sort\": \"\"}, ",
+            ));
+        },
+    ),
 ];
 
 /// Each case's run row and findings equal the Python app's,

@@ -268,6 +268,10 @@ const DELTAS: &[(&str, &str)] = &[
         "reproduced: representative album = smallest album id (path-dependent)",
     ),
     (
+        "artist_only",
+        "deliberate change: the ARTIST-only Mono Harbor - Gaps is an album-level member of the Mono Harbor artist-sort cluster (tests/common/artist_only.rs)",
+    ),
+    (
         "ai_wording",
         "no AI provider is ready, so check descriptions, the unanchored trace note and unanchored tags-out-of-sync summaries are shown without AI wording",
     ),
@@ -407,6 +411,9 @@ fn apply_deltas(
     }
     if n > 0 {
         use_delta(used, "ai_wording");
+    }
+    if common::artist_only::apply(want) > 0 {
+        use_delta(used, "artist_only");
     }
     // Settings bodies.
     if (name.contains("settings") && !name.contains("db"))

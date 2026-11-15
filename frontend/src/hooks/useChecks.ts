@@ -176,10 +176,14 @@ export interface QuickFixProgress {
 
 export interface QuickFixSummary {
   total: number;
+  /** Findings that are gone after the run (the backend reruns the check
+   *  over the albums it fixed). */
   fixed: number;
   skipped: number;
   errors: number;
   not_applicable: number;
+  /** Fixes that wrote what they could but left their finding open. */
+  still_open: number;
 }
 
 /**

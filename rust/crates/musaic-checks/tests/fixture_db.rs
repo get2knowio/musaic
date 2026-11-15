@@ -23,10 +23,27 @@ use musaic_db::Db;
 use musaic_db::findings::{FindingFilter, FindingRow, list_findings};
 
 /// (check_id, album_id, why): the Python app's findings the Rust checks must NOT keep.
-const ALLOWED: &[(&str, &str, &str)] = &[(
-    "filename-mismatch",
-    "76386d46b26c9798", // Café Orchestra - Été [FLAC] (NFD directory name)
-    "deliberate change: the proposed dir rename differs only by NFC/NFD form",
+const ALLOWED: &[(&str, &str, &str)] = &[
+    (
+        "filename-mismatch",
+        "76386d46b26c9798", // Café Orchestra - Été [FLAC] (NFD directory name)
+        "deliberate change: the proposed dir rename differs only by NFC/NFD form",
+    ),
+    (
+        "inconsistent-artist-sort",
+        "0c97baca60f74928", // Mono Harbor - Gaps [FLAC], the cluster's smallest id
+        "deliberate change: the ARTIST-only Mono Harbor - Gaps joins the cluster at \
+         album level, so its summary (part of the row's identity) changes: ADDED",
+    ),
+];
+
+/// (check_id, album_id, summary, why): rows the Rust checks add.
+const ADDED: &[(&str, &str, &str, &str)] = &[(
+    "inconsistent-artist-sort",
+    "0c97baca60f74928", // Mono Harbor - Gaps [FLAC]
+    "4 album-level + 1 track-level (4 tracks) for 'Mono Harbor'",
+    "deliberate change: an ARTIST-only album is an album-level member \
+     (was '3 album-level + 1 track-level (4 tracks)')",
 )];
 
 fn copy_dir(src: &Path, dst: &Path) {
@@ -91,10 +108,20 @@ fn checks_on_the_fixture_library_match_the_python() {
     }
     let rust = open_set(conn);
 
-    // No new rows: every Rust finding upserted onto an Python app row.
-    assert!(
-        rust.iter().all(|f| f.id <= max_id),
-        "new finding rows: {rust:#?}"
+    // No new rows but ADDED: every other Rust finding upserted onto a Python
+    // app row.
+    let is_added = |f: &FindingRow| {
+        ADDED.iter().any(|(c, a, s, _)| {
+            f.check_id == *c && f.album_id.as_deref() == Some(*a) && f.summary == *s
+        })
+    };
+    let (added, rust): (Vec<FindingRow>, Vec<FindingRow>) =
+        rust.into_iter().partition(|f| f.id > max_id);
+    assert!(added.iter().all(is_added), "new finding rows: {added:#?}");
+    assert_eq!(
+        added.len(),
+        ADDED.len(),
+        "every ADDED row appears: {added:#?}"
     );
     let key = |f: &FindingRow| {
         (
@@ -132,10 +159,10 @@ fn checks_on_the_fixture_library_match_the_python() {
             "{why}: Rust still reports it"
         );
     }
-    // Every check produced at least one of the compared findings.
+    // Every check produced at least one of the compared (or added) findings.
     for meta in env.registry.all_meta() {
         assert!(
-            got.iter().any(|k| k.1 == meta.id),
+            got.iter().any(|k| k.1 == meta.id) || added.iter().any(|f| f.check_id == meta.id),
             "{} has no finding",
             meta.id
         );

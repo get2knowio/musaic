@@ -112,17 +112,20 @@ pub fn complete_run(
     Ok(())
 }
 
-/// Mark a run failed. `issue_count` is left as it was (0), as in the Python app.
+/// Mark a run failed, with the number of findings it upserted before
+/// failing (they stay recorded). The Python app left `issue_count` at 0.
 pub fn fail_run(
     conn: &Connection,
     run_id: i64,
     completed_at: &str,
     error: &str,
+    issue_count: i64,
     duration_ms: i64,
 ) -> Result<()> {
     conn.execute(
-        "UPDATE check_runs SET status='failed', completed_at=?1, error=?2, duration_ms=?3 WHERE id=?4",
-        params![completed_at, error, duration_ms, run_id],
+        "UPDATE check_runs SET status='failed', completed_at=?1, error=?2, issue_count=?3, \
+         duration_ms=?4 WHERE id=?5",
+        params![completed_at, error, issue_count, duration_ms, run_id],
     )?;
     Ok(())
 }
