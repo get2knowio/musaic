@@ -23,6 +23,7 @@ import {
   runCheck,
   unignoreFinding,
 } from "@/lib/api";
+import { errorDetailText } from "@/lib/errors";
 import type {
   CheckDetail,
   CheckSummary,
@@ -211,7 +212,15 @@ export function streamQuickFixAll(
         headers: { "Accept": "text/event-stream" },
       });
       if (!resp.ok || !resp.body) {
-        callbacks.onError?.(`HTTP ${resp.status}`);
+        // Show the server's reason (e.g. the 409 while a restore runs),
+        // not just the status.
+        let reason: string | null = null;
+        try {
+          reason = errorDetailText(((await resp.json()) as { detail?: unknown })?.detail);
+        } catch {
+          reason = null;
+        }
+        callbacks.onError?.(reason ?? `HTTP ${resp.status}`);
         return;
       }
       const reader = resp.body.getReader();

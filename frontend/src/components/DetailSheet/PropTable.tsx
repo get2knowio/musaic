@@ -2,11 +2,15 @@ import { useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
+import RevealInFileManager from "@/components/RevealInFileManager";
 import { clearAlbumMbAnchor } from "@/lib/api";
 import type { Album } from "@/lib/types";
 
 interface PropTableProps {
   album: Album;
+  /** A model backend can run (lib/aiGating.ts). Without one the row and
+   *  the confirm text don't name AI or hints. */
+  aiReady?: boolean;
 }
 
 /**
@@ -17,7 +21,7 @@ interface PropTableProps {
  * (assumes all tracks share the same audio format, which holds for
  * CD-rips and LP-rips).
  */
-export default function PropTable({ album }: PropTableProps) {
+export default function PropTable({ album, aiReady = false }: PropTableProps) {
   return (
     <dl className="grid grid-cols-[110px_1fr] gap-y-2 gap-x-3 px-4 py-3 text-sm">
       <Row label="format">{formatString(album)}</Row>
@@ -37,10 +41,15 @@ export default function PropTable({ album }: PropTableProps) {
           <span className="text-fg-4">none</span>
         )}
       </Row>
-      <Row label="MusicBrainz"><MusicBrainzCell album={album} /></Row>
-      <Row label="AI reviewed">{aiReviewedCell(album)}</Row>
+      <Row label="MusicBrainz"><MusicBrainzCell album={album} aiReady={aiReady} /></Row>
+      <Row label={aiReady ? "AI reviewed" : "Reviewed"}>{aiReviewedCell(album)}</Row>
       <Row label="folder">
         <code className="mono text-xs text-fg-3 break-all">{album.path}</code>
+        {/* Desktop window only; a Missing album's folder is
+            not on disk, so nothing to show. */}
+        {!album.missing_since && (
+          <RevealInFileManager target={{ kind: "album", albumId: album.id }} className="ml-2 align-baseline" />
+        )}
       </Row>
     </dl>
   );
@@ -58,7 +67,7 @@ export default function PropTable({ album }: PropTableProps) {
  * wrong release-group. Inlined here so the user can clear without first
  * having to run an AI job to surface the post-suggestion control.
  */
-function MusicBrainzCell({ album }: { album: Album }) {
+function MusicBrainzCell({ album, aiReady }: { album: Album; aiReady: boolean }) {
   const [clearing, setClearing] = useState(false);
 
   const mbid = album.mb_release_group_mbid ?? null;
@@ -73,8 +82,10 @@ function MusicBrainzCell({ album }: { album: Album }) {
       `Clear MusicBrainz match for this album?\n\n` +
       `${mbid}\n\n` +
       `This release-group will be added to the album's blocklist so ` +
-      `automatic resolution can't pick it again. You can re-identify ` +
-      `the album with a hint via "Suggest fixes".`,
+      `automatic resolution can't pick it again. ` +
+      (aiReady
+        ? `You can re-identify the album with a hint via "Suggest fixes".`
+        : `The next lookup searches MusicBrainz again.`),
     );
     if (!ok) return;
     setClearing(true);

@@ -21,6 +21,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
 import { useTracks } from "@/hooks/useTracks";
+import { useAiStatus } from "@/hooks/useAiStatus";
 import type { Album, AlbumResolution, FieldFact } from "@/lib/types";
 import Section from "./Section";
 
@@ -115,6 +116,9 @@ export default function MbPreviewSection({
   album, hasActiveJob, applying, onApply, bare = false,
 }: Props) {
   const { albumDiffs, trackDiffs, resolution, isLoading } = useMbPreviewDiffs(album);
+  // "no AI quota" only means something when a model can run.
+  const ai = useAiStatus();
+  const quotaNote = ai.ready ? "deterministic · no AI quota" : "deterministic";
 
   // User-deselected row keys. Default-on: a row is included unless its
   // key is in this set. Lets the user skip individual MB diffs they
@@ -164,7 +168,7 @@ export default function MbPreviewSection({
       {bare && (
         <div className="flex items-center justify-between gap-2 -mx-1">
           <div className="mono text-[10.5px] uppercase tracking-[0.06em] text-emerald-400">
-            MusicBrainz corrections ({totalChanges}) · deterministic · no AI quota
+            MusicBrainz corrections ({totalChanges}) · {quotaNote}
           </div>
         </div>
       )}
@@ -235,7 +239,7 @@ export default function MbPreviewSection({
       defaultOpen
       meta={
         <span className="mono text-[10.5px] text-emerald-400">
-          deterministic · no AI quota
+          {quotaNote}
         </span>
       }
     >

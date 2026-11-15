@@ -1,0 +1,13 @@
+{
+  "elapsed_ms": 0.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/library/some-album-id"
+  },
+  "response": {
+    "content_type": "text/html; charset=utf-8",
+    "status": 200
+  }
+}

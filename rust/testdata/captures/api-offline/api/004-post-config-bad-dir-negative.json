@@ -1,0 +1,18 @@
+{
+  "elapsed_ms": 0.5,
+  "request": {
+    "json": {
+      "library_dir": "/no/such/dir"
+    },
+    "method": "POST",
+    "params": null,
+    "path": "/api/config"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "detail": "Not a directory: /no/such/dir"
+    },
+    "status": 400
+  }
+}

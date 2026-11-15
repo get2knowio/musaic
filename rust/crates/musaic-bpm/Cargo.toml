@@ -1,0 +1,19 @@
+[package]
+name = "musaic-bpm"
+description = "Tempo detection: port of librosa's onset-envelope tempo estimator as the Python app uses it"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+musaic-dsp = { path = "../musaic-dsp" }
+realfft = "3.5.0"
+thiserror = "2"
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+serde_json = { version = "1", features = ["float_roundtrip"] }
+
+[lints]
+workspace = true

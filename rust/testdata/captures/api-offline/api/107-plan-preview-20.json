@@ -1,0 +1,57 @@
+{
+  "elapsed_ms": 2.7,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/filename-mismatch/findings/20/plan-preview"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+      "dir_name": "Various Artists - Night Mix [FLAC]",
+      "dir_rename": null,
+      "dir_template": "Various Artists - {album} [FLAC]",
+      "headline": "Various Artists - Night Mix [FLAC]",
+      "is_compilation": true,
+      "is_empty": false,
+      "renames": [
+        {
+          "artist": "Sable & The Static",
+          "collides_with": null,
+          "expected": "02 - Sable & The Static - Something Electric.flac",
+          "filename": "02 - something.flac",
+          "title": "Something Electric",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Orbit Society",
+          "collides_with": null,
+          "expected": "04 - Orbit Society - Last Train.flac",
+          "filename": "04.flac",
+          "title": "Last Train",
+          "tracknumber": "4"
+        },
+        {
+          "artist": "Kite Theory",
+          "collides_with": null,
+          "expected": "03 - Kite Theory - Velvet Signal.flac",
+          "filename": "Night Mix 3.flac",
+          "title": "Velvet Signal",
+          "tracknumber": "3"
+        },
+        {
+          "artist": "Lumen Drift",
+          "collides_with": null,
+          "expected": "01 - Lumen Drift - Neon Tide.flac",
+          "filename": "trackA.flac",
+          "title": "Neon Tide",
+          "tracknumber": "1"
+        }
+      ],
+      "template": "{tracknumber:02} - {artist} - {title}"
+    },
+    "status": 200
+  }
+}

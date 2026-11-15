@@ -1,0 +1,25 @@
+{
+  "elapsed_ms": 1.6,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/scan/status"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "cached_count": 0,
+      "completed_at": "2026-11-09T17:39:06Z",
+      "error": null,
+      "force": false,
+      "library_dir": "<LIB>",
+      "removed_count": 0,
+      "scanned": 13,
+      "started_at": "2026-11-09T17:39:06Z",
+      "status": "done",
+      "total": 13
+    },
+    "status": 200
+  }
+}

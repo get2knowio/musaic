@@ -1,0 +1,42 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Hidden.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Hidden",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Mono Harbor",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Visible.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Visible",
+          "tracknumber": "2"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

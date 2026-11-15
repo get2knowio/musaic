@@ -1,0 +1,19 @@
+{
+  "elapsed_ms": 1.1,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": {
+      "size": "full"
+    },
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "699ec0491da4c31e62462c402410a6a36e65f1e814a36a7f03fbf9ab74cde121",
+      "size": 21412
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

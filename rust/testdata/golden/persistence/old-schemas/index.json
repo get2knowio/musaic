@@ -1,0 +1,166 @@
+{
+ "python_commit": "6902c2324d401dc4845811a3fcb8289764382b8d",
+ "python_schema_version": 16,
+ "versions": [
+  {
+   "version": 1,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "0a2225104b7eb7f3be73d02682f12b48f4b0bc8c3830400d587d74a69b1a5505",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 2,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "659f011cd0cfbaab604dfa71a3e689c7a7b237cb8b9cb251a54cb53ce2d095fa",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 3,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "0aeba425ca305ffb3eff16037962e5959dfa2c63345058e4d1bf846c77233625",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 4,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "76669924e07da9483c94174912fcde64c69ff7467acc7c3309f14ba221d41eb9",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 5,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "bee7b97932463a3b012ee020ae023a4be05f2ff6eb4f3c843db5aac004182bf5",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 6,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "903761ff8d7984172660cb6bb021415a91a30bb6eeef96906b923b527e9d1461",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 7,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "73eb7b3b62b3de56c6c39d0bc97c0ec12a249268734f75bb00edc31d87da6c28",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 8,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "67c812f92ceec978257f2cfc93c4bc3d9785910d77b26e12cd6287c5b906717a",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 9,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "57fd31c42dba301664a929d8af8bf5adf6b8aca9745ab14856a0c8720f3a3b12",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 10,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "f19f6da4b3955aebf7e445f78debef4a93902b20ca2d207f23dd5a63a87b7b0d",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 11,
+   "kind": "CONSTRUCTED",
+   "commit": null,
+   "package": null,
+   "fixture_sha256": "e70099f0ae6a8c95413dcb207f5b2a754af65f10885f39f9bacbac82775c02c5",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 12,
+   "kind": "GENUINE",
+   "commit": "4975eea",
+   "package": "media_manager",
+   "fixture_sha256": "9a764a33c8feefc4f1cc5842636e44b73676cb4cbd60bfb1fa1f29cc9249bc80",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 13,
+   "kind": "GENUINE",
+   "commit": "9725807",
+   "package": "musaic",
+   "fixture_sha256": "bc4de46fe13de24899f640779adc8d9f5ab462ed5d07dc1ac2c545799df3cbeb",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 14,
+   "kind": "GENUINE",
+   "commit": "94aaca6",
+   "package": "musaic",
+   "fixture_sha256": "62cc16943d44871c1d25fbca8c192f033cc01149f76c9027ecb909af2d4600b8",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 15,
+   "kind": "GENUINE",
+   "commit": "b3c1807",
+   "package": "musaic",
+   "fixture_sha256": "c702724791b9754224fba0ffe44bde04c742ef44a28e12bb377b11f01216fe62",
+   "python_result_version": [
+    16
+   ]
+  },
+  {
+   "version": 16,
+   "kind": "GENUINE",
+   "commit": "8e37ca7",
+   "package": "musaic",
+   "fixture_sha256": "6c4af168018e2506dcc6d5d849c9e2227aae439ff3edc1e3463a5862b0155235",
+   "python_result_version": [
+    16
+   ]
+  }
+ ]
+}

@@ -1,0 +1,54 @@
+{
+  "elapsed_ms": 1.3,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+      "tracks": [
+        {
+          "artist": "The Lanterns",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Screen Door.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Screen Door",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "The Lanterns",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Fireflies.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Fireflies",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "The Lanterns",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "03 - Gravel Road.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Gravel Road",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

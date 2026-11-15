@@ -1,0 +1,143 @@
+{
+  "elapsed_ms": 0.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/filename-mismatch"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "findings": [
+        {
+          "album_id": "<ID:Legacy Folder Name>",
+          "check_id": "filename-mismatch",
+          "detail": {
+            "dir_name": "Legacy Folder Name",
+            "dir_rename": {
+              "new": "Quiet Atlas - Old Rips [FLAC]",
+              "old": "Legacy Folder Name"
+            },
+            "dir_template": "{albumartist} - {album} [FLAC]",
+            "headline": "Legacy Folder Name",
+            "is_compilation": false,
+            "renames": [],
+            "template": "{tracknumber:02} - {title}"
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 19,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Album dir 'Legacy Folder Name' doesn't match the template"
+        },
+        {
+          "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+          "check_id": "filename-mismatch",
+          "detail": {
+            "dir_name": "Various Artists - Night Mix [FLAC]",
+            "dir_rename": null,
+            "dir_template": "Various Artists - {album} [FLAC]",
+            "headline": "Various Artists - Night Mix [FLAC]",
+            "is_compilation": true,
+            "renames": [
+              {
+                "artist": "Sable & The Static",
+                "collides_with": null,
+                "expected": "02 - Sable & The Static - Something Electric.flac",
+                "filename": "02 - something.flac",
+                "title": "Something Electric",
+                "tracknumber": "2"
+              },
+              {
+                "artist": "Orbit Society",
+                "collides_with": null,
+                "expected": "04 - Orbit Society - Last Train.flac",
+                "filename": "04.flac",
+                "title": "Last Train",
+                "tracknumber": "4"
+              },
+              {
+                "artist": "Kite Theory",
+                "collides_with": null,
+                "expected": "03 - Kite Theory - Velvet Signal.flac",
+                "filename": "Night Mix 3.flac",
+                "title": "Velvet Signal",
+                "tracknumber": "3"
+              },
+              {
+                "artist": "Lumen Drift",
+                "collides_with": null,
+                "expected": "01 - Lumen Drift - Neon Tide.flac",
+                "filename": "trackA.flac",
+                "title": "Neon Tide",
+                "tracknumber": "1"
+              }
+            ],
+            "template": "{tracknumber:02} - {artist} - {title}"
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 20,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "4 files in 'Various Artists - Night Mix [FLAC]' don't match the template"
+        },
+        {
+          "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+          "check_id": "filename-mismatch",
+          "detail": {
+            "dir_name": "Café Orchestra - Été [FLAC]",
+            "dir_rename": {
+              "new": "Café Orchestra - Été [FLAC]",
+              "old": "Café Orchestra - Été [FLAC]"
+            },
+            "dir_template": "{albumartist} - {album} [FLAC]",
+            "headline": "Café Orchestra - Été [FLAC]",
+            "is_compilation": false,
+            "renames": [],
+            "template": "{tracknumber:02} - {title}"
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 21,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "Album dir 'Café Orchestra - Été [FLAC]' doesn't match the template"
+        }
+      ],
+      "meta": {
+        "bulk_action_label": null,
+        "category": "files",
+        "cost": "medium",
+        "description": "Albums where one or more FLAC filenames don't match your configured filename template (Settings → Filename templates). Filenames drift over time: different rippers use different conventions, metadata edits happen after the rip, you change your preferred format. The Resolve dialog shows current → expected for every track and renames in one safe two-pass operation.",
+        "fix_kind": "deterministic",
+        "id": "filename-mismatch",
+        "label": "Filename doesn't match template",
+        "runs_during_scan": false
+      },
+      "runs": [
+        {
+          "check_id": "filename-mismatch",
+          "completed_at": "2026-11-09T17:39:25Z",
+          "duration_ms": 8,
+          "error": null,
+          "id": 7,
+          "issue_count": 3,
+          "library_path": "<LIB>",
+          "scope": "all",
+          "started_at": "2026-11-09T17:39:25Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

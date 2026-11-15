@@ -1,0 +1,835 @@
+{
+  "dns_fault_host": "dns-fault.invalid",
+  "fake_key": "test-key-not-real",
+  "generator": "tools/gen_net_fault_golden.py",
+  "python_functions": {
+    "acoustid": "musaic/fingerprint.py:204-247: acoustid.lookup(key, fp, duration, meta='recordings') then _best_recording",
+    "caa_head": "musaic/mb_lookup.py:651 _head_cover(timeout=1)",
+    "cover_get": "musaic/ai.py:1483 _verify_cover_url(timeout=1) and musaic/tags.py:373 download_cover(timeout=1)",
+    "mb_recording": "musaic/mb_lookup.py:491 get_recording_release_groups(timeout=1), lru_cache bypassed",
+    "mb_search": "musaic/mb_lookup.py:126 find_release(fetch_cover=False, fetch_tracklist=False, timeout=1)"
+  },
+  "scenarios": [
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_search_503_then_200",
+      "python_app": {
+        "confident": false,
+        "mbid": null,
+        "notes": "HTTP 503 from MusicBrainz",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/release-group/"
+          }
+        ],
+        "score": 0,
+        "source": "MusicBrainz (HTTP error)",
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false,
+        "year": null
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "busy"
+          },
+          "headers": {
+            "Retry-After": "0"
+          },
+          "status": 503
+        },
+        {
+          "body": {
+            "replay": "35b87b244f6609e3515ee3bb4f36f706398808cf4725988e1b279f00e2bb50a8"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "mb_search"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_search_429_retry_after",
+      "python_app": {
+        "confident": false,
+        "mbid": null,
+        "notes": "HTTP 429 from MusicBrainz",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/release-group/"
+          }
+        ],
+        "score": 0,
+        "source": "MusicBrainz (HTTP error)",
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false,
+        "year": null
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "slow down"
+          },
+          "headers": {
+            "Retry-After": "2"
+          },
+          "status": 429
+        },
+        {
+          "body": {
+            "replay": "35b87b244f6609e3515ee3bb4f36f706398808cf4725988e1b279f00e2bb50a8"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "mb_search"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_search_500",
+      "python_app": {
+        "confident": false,
+        "mbid": null,
+        "notes": "HTTP 500 from MusicBrainz",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/release-group/"
+          }
+        ],
+        "score": 0,
+        "source": "MusicBrainz (HTTP error)",
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false,
+        "year": null
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "oops"
+          },
+          "status": 500
+        },
+        {
+          "body": {
+            "replay": "35b87b244f6609e3515ee3bb4f36f706398808cf4725988e1b279f00e2bb50a8"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "mb_search"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_search_slow",
+      "python_app": {
+        "confident": false,
+        "mbid": null,
+        "notes": "ReadTimeout: HTTPConnectionPool(host='127.0.0.1', port={port}): Read timed out. (read timeout=1)",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/release-group/"
+          }
+        ],
+        "score": 0,
+        "source": "MusicBrainz (network error)",
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false,
+        "year": null
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "replay": "35b87b244f6609e3515ee3bb4f36f706398808cf4725988e1b279f00e2bb50a8"
+          },
+          "delay_s": 2.5,
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "mb_search"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_search_reset",
+      "python_app": {
+        "confident": false,
+        "mbid": null,
+        "notes": "ConnectionError: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/release-group/"
+          }
+        ],
+        "score": 0,
+        "source": "MusicBrainz (network error)",
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false,
+        "year": null
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "action": "reset"
+        }
+      ],
+      "target": "mb_search"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_search_truncated_json",
+      "python_app": {
+        "confident": false,
+        "mbid": null,
+        "notes": "Search response was not valid JSON",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/release-group/"
+          }
+        ],
+        "score": 0,
+        "source": "MusicBrainz (parse error)",
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false,
+        "year": null
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "replay": "35b87b244f6609e3515ee3bb4f36f706398808cf4725988e1b279f00e2bb50a8",
+            "truncate": 100
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "mb_search"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_search_short_body",
+      "python_app": {
+        "confident": false,
+        "mbid": null,
+        "notes": "ChunkedEncodingError: ('Connection broken: IncompleteRead(1770 bytes read, 100 more expected)', IncompleteRead(1770 bytes read, 100 more expected))",
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/release-group/"
+          }
+        ],
+        "score": 0,
+        "source": "MusicBrainz (network error)",
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false,
+        "year": null
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "action": "short_body",
+          "body": {
+            "replay": "35b87b244f6609e3515ee3bb4f36f706398808cf4725988e1b279f00e2bb50a8"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "mb_search"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_recording_404",
+      "python_app": {
+        "release_groups": null,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/recording/11111111-2222-4333-8444-555555555555"
+          }
+        ],
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "{\"error\": \"Not Found\"}"
+          },
+          "status": 404
+        }
+      ],
+      "target": "mb_recording"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "mb_recording_503_then_200",
+      "python_app": {
+        "release_groups": null,
+        "requests": [
+          {
+            "method": "GET",
+            "path": "/ws/2/recording/11111111-2222-4333-8444-555555555555"
+          }
+        ],
+        "user_agents": [
+          "musaic/0.1 (https://github.com/get2knowio/musaic)"
+        ],
+        "waited_for_slow_server": false
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "busy"
+          },
+          "headers": {
+            "Retry-After": "0"
+          },
+          "status": 503
+        },
+        {
+          "body": {
+            "replay": "0c7bc0bf3bf4acf57547bd1f7401c499f725ec578b71c1c67383453c530a739f"
+          },
+          "status": 200
+        }
+      ],
+      "target": "mb_recording"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "cover_redirect_then_image",
+      "python_app": {
+        "download_cover": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            },
+            {
+              "method": "GET",
+              "path": "/img/front.jpg"
+            }
+          ],
+          "result": {
+            "bytes": 2048,
+            "mime": "image/jpeg"
+          },
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        },
+        "verify": {
+          "ok": true,
+          "reason": "ok",
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            },
+            {
+              "method": "GET",
+              "path": "/img/front.jpg"
+            }
+          ],
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        }
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "headers": {
+            "Location": "{alt_origin}/img/front.jpg"
+          },
+          "status": 302
+        },
+        {
+          "body": {
+            "fill": "j",
+            "len": 2048
+          },
+          "headers": {
+            "Content-Type": "image/jpeg"
+          },
+          "status": 200
+        }
+      ],
+      "target": "cover_get"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "cover_wrong_content_type",
+      "python_app": {
+        "download_cover": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "result": {
+            "bytes": 25,
+            "mime": "text/html"
+          },
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        },
+        "verify": {
+          "ok": false,
+          "reason": "content-type text/html",
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        }
+      },
+      "repeat_last": true,
+      "script": [
+        {
+          "body": {
+            "text": "<html>landing page</html>"
+          },
+          "headers": {
+            "Content-Type": "text/html; charset=utf-8"
+          },
+          "status": 200
+        }
+      ],
+      "target": "cover_get"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "cover_no_content_type",
+      "python_app": {
+        "download_cover": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "result": {
+            "bytes": 2048,
+            "mime": "image/jpeg"
+          },
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        },
+        "verify": {
+          "ok": true,
+          "reason": "ok",
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        }
+      },
+      "repeat_last": true,
+      "script": [
+        {
+          "body": {
+            "fill": "j",
+            "len": 2048
+          },
+          "status": 200
+        }
+      ],
+      "target": "cover_get"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "cover_oversized",
+      "python_app": {
+        "download_cover": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "result": {
+            "bytes": 8388609,
+            "mime": "image/png"
+          },
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        },
+        "verify": {
+          "ok": false,
+          "reason": "image too large (8388609 bytes)",
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        }
+      },
+      "repeat_last": true,
+      "script": [
+        {
+          "body": {
+            "fill": "x",
+            "len": 8388609
+          },
+          "headers": {
+            "Content-Type": "image/png"
+          },
+          "status": 200
+        }
+      ],
+      "target": "cover_get"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "cover_404",
+      "python_app": {
+        "download_cover": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "result": null,
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        },
+        "verify": {
+          "ok": false,
+          "reason": "HTTP 404",
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        }
+      },
+      "repeat_last": true,
+      "script": [
+        {
+          "body": {
+            "text": "nope"
+          },
+          "status": 404
+        }
+      ],
+      "target": "cover_get"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "cover_206_partial",
+      "python_app": {
+        "download_cover": {
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "result": null,
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        },
+        "verify": {
+          "ok": true,
+          "reason": "ok",
+          "requests": [
+            {
+              "method": "GET",
+              "path": "/cover/front.jpg"
+            }
+          ],
+          "user_agents": [
+            "musaic/0.1"
+          ],
+          "waited_for_slow_server": false
+        }
+      },
+      "repeat_last": true,
+      "script": [
+        {
+          "body": {
+            "fill": "j",
+            "len": 2048
+          },
+          "headers": {
+            "Content-Type": "image/jpeg"
+          },
+          "status": 206
+        }
+      ],
+      "target": "cover_get"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "acoustid_error_answer",
+      "python_app": {
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/v2/lookup"
+          }
+        ],
+        "result_count": 0,
+        "status": "error",
+        "stored": {
+          "acoustid_recording_mbid": null,
+          "acoustid_score": null
+        },
+        "user_agents": [
+          "python-requests/2.34.2"
+        ],
+        "waited_for_slow_server": false
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "{\"status\": \"error\", \"error\": {\"code\": 4, \"message\": \"invalid API key\"}}"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "acoustid"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "acoustid_error_echoes_key",
+      "python_app": {
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/v2/lookup"
+          }
+        ],
+        "result_count": 0,
+        "status": "error",
+        "stored": {
+          "acoustid_recording_mbid": null,
+          "acoustid_score": null
+        },
+        "user_agents": [
+          "python-requests/2.34.2"
+        ],
+        "waited_for_slow_server": false
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "{\"status\": \"error\", \"error\": {\"code\": 4, \"message\": \"invalid API key test-key-not-real\"}}"
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "acoustid"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "acoustid_500_html",
+      "python_app": {
+        "message": "response is not valid JSON",
+        "raised": "WebServiceError",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/v2/lookup"
+          }
+        ],
+        "stored": {
+          "acoustid_recording_mbid": null,
+          "acoustid_score": null
+        },
+        "user_agents": [
+          "python-requests/2.34.2"
+        ],
+        "waited_for_slow_server": false
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "text": "<html>500</html>"
+          },
+          "headers": {
+            "Content-Type": "text/html"
+          },
+          "status": 500
+        }
+      ],
+      "target": "acoustid"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "acoustid_truncated_json",
+      "python_app": {
+        "message": "response is not valid JSON",
+        "raised": "WebServiceError",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/v2/lookup"
+          }
+        ],
+        "stored": {
+          "acoustid_recording_mbid": null,
+          "acoustid_score": null
+        },
+        "user_agents": [
+          "python-requests/2.34.2"
+        ],
+        "waited_for_slow_server": false
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "body": {
+            "replay": "096454c18060e74d27347bc1ecc4f5fb54c8ad34640f6bf33cc3fe021bfe9f39",
+            "truncate": 120
+          },
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "status": 200
+        }
+      ],
+      "target": "acoustid"
+    },
+    {
+      "closed_port": false,
+      "dns_fault": false,
+      "id": "acoustid_reset",
+      "python_app": {
+        "message": "HTTP request failed: ('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+        "raised": "WebServiceError",
+        "requests": [
+          {
+            "method": "POST",
+            "path": "/v2/lookup"
+          }
+        ],
+        "stored": {
+          "acoustid_recording_mbid": null,
+          "acoustid_score": null
+        },
+        "user_agents": [
+          "python-requests/2.34.2"
+        ],
+        "waited_for_slow_server": false
+      },
+      "repeat_last": false,
+      "script": [
+        {
+          "action": "reset"
+        }
+      ],
+      "target": "acoustid"
+    }
+  ],
+  "short_timeout_s": 1,
+  "slow_server_delay_s": 2.5
+}

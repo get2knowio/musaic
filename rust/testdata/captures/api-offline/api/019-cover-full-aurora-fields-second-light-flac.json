@@ -1,0 +1,18 @@
+{
+  "elapsed_ms": 1.0,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": {
+      "size": "full"
+    },
+    "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/cover"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "detail": "No cover art for this album"
+    },
+    "status": 404
+  }
+}

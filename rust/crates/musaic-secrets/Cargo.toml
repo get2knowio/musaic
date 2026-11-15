@@ -1,0 +1,25 @@
+[package]
+name = "musaic-secrets"
+description = "Secrets (API keys) in the OS keyring, migrated out of the settings table"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+musaic-core = { path = "../musaic-core" }
+musaic-db = { path = "../musaic-db" }
+rusqlite.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# The default `v1` feature picks the platform store: macOS Keychain, Windows
+# Credential Manager, and the freedesktop Secret Service on Linux/BSD through
+# zbus (pure Rust: no libdbus needed at build or run time).
+keyring = "4.2"
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+tempfile.workspace = true
+
+[lints]
+workspace = true

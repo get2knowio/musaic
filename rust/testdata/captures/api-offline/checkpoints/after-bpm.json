@@ -1,0 +1,3624 @@
+{
+  "db": {
+    "tables": {
+      "ai_jobs": {
+        "columns": [
+          "id",
+          "album_id",
+          "album_path",
+          "album_title",
+          "job_type",
+          "hint",
+          "status",
+          "result_json",
+          "error",
+          "acted_on_action",
+          "created_at",
+          "started_at",
+          "completed_at",
+          "acted_on_at",
+          "attach_cover"
+        ],
+        "has_rowid": true,
+        "row_count": 0,
+        "rows": []
+      },
+      "album_blocked_mb_release_groups": {
+        "columns": [
+          "album_id",
+          "release_group_mbid",
+          "blocked_at"
+        ],
+        "has_rowid": true,
+        "row_count": 0,
+        "rows": []
+      },
+      "albums": {
+        "columns": [
+          "id",
+          "library_path",
+          "path",
+          "dir_name",
+          "title",
+          "artist",
+          "album_artist",
+          "year",
+          "genre",
+          "track_count",
+          "total_seconds",
+          "has_embedded_cover",
+          "cover_file",
+          "sample_track",
+          "dir_mtime",
+          "dir_artist",
+          "dir_album",
+          "is_compilation",
+          "disc_number",
+          "disc_total",
+          "sample_rate",
+          "bits_per_sample",
+          "channels",
+          "track_numbers_json",
+          "mb_release_group_mbid",
+          "mb_release_mbid",
+          "mb_match_score",
+          "mb_last_checked_at",
+          "album_artist_sort",
+          "artist_sort",
+          "album_sort",
+          "track_artists_json",
+          "metadata_ai_acted_on_at",
+          "missing_since"
+        ],
+        "has_rowid": true,
+        "row_count": 13,
+        "rows": [
+          {
+            "__rowid__": 1,
+            "album_artist": "Aurora Fields",
+            "album_artist_sort": "Aurora Fields",
+            "album_sort": null,
+            "artist": "Aurora Fields",
+            "artist_sort": "Aurora Fields",
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": null,
+            "dir_album": "Twin",
+            "dir_artist": "Aurora Fields",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+            "disc_number": 2,
+            "disc_total": 2,
+            "genre": "Electronic",
+            "has_embedded_cover": 1,
+            "id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac",
+            "title": "Twin",
+            "total_seconds": 30.0,
+            "track_artists_json": "[{\"filename\": \"01 - Reflection.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"02 - Doppler.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"03 - Return.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}]",
+            "track_count": 3,
+            "track_numbers_json": "[1, 2, 3]",
+            "year": "2023"
+          },
+          {
+            "__rowid__": 2,
+            "album_artist": "Aurora Fields",
+            "album_artist_sort": "Aurora Fields",
+            "album_sort": null,
+            "artist": "Aurora Fields",
+            "artist_sort": "Aurora Fields",
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": null,
+            "dir_album": "Second Light",
+            "dir_artist": "Aurora Fields",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Aurora Fields - Second Light [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Ambient",
+            "has_embedded_cover": 0,
+            "id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac",
+            "title": "Second Light",
+            "total_seconds": 40.0,
+            "track_artists_json": "[{\"filename\": \"01 - Blue Hour.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"02 - Cirrus.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"03 - Halation.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"04 - Nightfall.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}]",
+            "track_count": 4,
+            "track_numbers_json": "[1, 2, 3, 4]",
+            "year": "2021"
+          },
+          {
+            "__rowid__": 3,
+            "album_artist": "Mono Harbor",
+            "album_artist_sort": null,
+            "album_sort": null,
+            "artist": "Mono Harbor",
+            "artist_sort": null,
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": null,
+            "dir_album": "Dupes",
+            "dir_artist": "Mono Harbor",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Mono Harbor - Dupes [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Shoegaze",
+            "has_embedded_cover": 1,
+            "id": "<ID:Mono Harbor - Dupes [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Mono Harbor - Dupes [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac",
+            "title": "Dupes",
+            "total_seconds": 40.0,
+            "track_artists_json": "[{\"filename\": \"01 - Static Bloom.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"\"}, {\"filename\": \"02 - Feedback Garden.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"\"}, {\"filename\": \"03 - Static Bloom (Reprise).flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"\"}, {\"filename\": \"04 - Wall of Sound.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"\"}]",
+            "track_count": 4,
+            "track_numbers_json": "[1, 2, 3, 4]",
+            "year": "2019"
+          },
+          {
+            "__rowid__": 4,
+            "album_artist": "Quiet Atlas",
+            "album_artist_sort": null,
+            "album_sort": null,
+            "artist": "Quiet Atlas",
+            "artist_sort": null,
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": null,
+            "dir_artist": null,
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Legacy Folder Name",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Folk",
+            "has_embedded_cover": 0,
+            "id": "<ID:Legacy Folder Name>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Legacy Folder Name",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Legacy Folder Name/01 - Kitchen Radio.flac",
+            "title": "Old Rips",
+            "total_seconds": 20.0,
+            "track_artists_json": "[{\"filename\": \"01 - Kitchen Radio.flac\", \"artist\": \"Quiet Atlas\", \"artist_sort\": \"\"}, {\"filename\": \"02 - Porch Light.flac\", \"artist\": \"Quiet Atlas\", \"artist_sort\": \"\"}]",
+            "track_count": 2,
+            "track_numbers_json": "[1, 2]",
+            "year": "2009"
+          },
+          {
+            "__rowid__": 5,
+            "album_artist": null,
+            "album_artist_sort": null,
+            "album_sort": null,
+            "artist": "Sable & The Static",
+            "artist_sort": null,
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": "Night Mix",
+            "dir_artist": null,
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Various Artists - Night Mix [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "House; Electronic; Downtempo",
+            "has_embedded_cover": 0,
+            "id": "<ID:Various Artists - Night Mix [FLAC]>",
+            "is_compilation": 1,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Various Artists - Night Mix [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Various Artists - Night Mix [FLAC]/02 - something.flac",
+            "title": "Night Mix",
+            "total_seconds": 40.0,
+            "track_artists_json": "[{\"filename\": \"02 - something.flac\", \"artist\": \"Sable & The Static\", \"artist_sort\": \"\"}, {\"filename\": \"04.flac\", \"artist\": \"Orbit Society\", \"artist_sort\": \"\"}, {\"filename\": \"Night Mix 3.flac\", \"artist\": \"Kite Theory\", \"artist_sort\": \"\"}, {\"filename\": \"trackA.flac\", \"artist\": \"Lumen Drift\", \"artist_sort\": \"\"}]",
+            "track_count": 4,
+            "track_numbers_json": "[2, 4, 3, 1]",
+            "year": "2017"
+          },
+          {
+            "__rowid__": 6,
+            "album_artist": "Aurora Fields",
+            "album_artist_sort": "Aurora Fields",
+            "album_sort": null,
+            "artist": "Aurora Fields",
+            "artist_sort": "Aurora Fields",
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "folder.jpg",
+            "dir_album": "Folder Art",
+            "dir_artist": "Aurora Fields",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Aurora Fields - Folder Art [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Post-Rock",
+            "has_embedded_cover": 0,
+            "id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Aurora Fields - Folder Art [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac",
+            "title": "Folder Art",
+            "total_seconds": 20.0,
+            "track_artists_json": "[{\"filename\": \"01 - Canvas.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"02 - Easel.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}]",
+            "track_count": 2,
+            "track_numbers_json": "[1, 2]",
+            "year": "2022"
+          },
+          {
+            "__rowid__": 7,
+            "album_artist": "Mono Harbor",
+            "album_artist_sort": "Harbor, Mono",
+            "album_sort": null,
+            "artist": "Mono Harbor",
+            "artist_sort": "Harbor, Mono",
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": "Sorted",
+            "dir_artist": "Mono Harbor",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Mono Harbor - Sorted [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Indie Rock",
+            "has_embedded_cover": 0,
+            "id": "<ID:Mono Harbor - Sorted [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Mono Harbor - Sorted [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Mono Harbor - Sorted [FLAC]/01 - Ordered.flac",
+            "title": "Sorted",
+            "total_seconds": 30.0,
+            "track_artists_json": "[{\"filename\": \"01 - Ordered.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"Harbor, Mono\"}, {\"filename\": \"02 - Indexed.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"Harbor, Mono\"}, {\"filename\": \"03 - Filed.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"Harbor, Mono\"}]",
+            "track_count": 3,
+            "track_numbers_json": "[1, 2, 3]",
+            "year": "2018"
+          },
+          {
+            "__rowid__": 8,
+            "album_artist": "The Lanterns",
+            "album_artist_sort": null,
+            "album_sort": null,
+            "artist": "The Lanterns",
+            "artist_sort": null,
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": "Porchlight",
+            "dir_artist": "The Lanterns",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "The Lanterns - Porchlight [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Americana",
+            "has_embedded_cover": 0,
+            "id": "<ID:The Lanterns - Porchlight [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac",
+            "title": "Porchlight",
+            "total_seconds": 30.0,
+            "track_artists_json": "[{\"filename\": \"01 - Screen Door.flac\", \"artist\": \"The Lanterns\", \"artist_sort\": \"\"}, {\"filename\": \"02 - Fireflies.flac\", \"artist\": \"The Lanterns\", \"artist_sort\": \"\"}, {\"filename\": \"03 - Gravel Road.flac\", \"artist\": \"The Lanterns\", \"artist_sort\": \"\"}]",
+            "track_count": 3,
+            "track_numbers_json": "[1, 2, 3]",
+            "year": "2012"
+          },
+          {
+            "__rowid__": 9,
+            "album_artist": "Aurora Fields",
+            "album_artist_sort": "Aurora Fields",
+            "album_sort": null,
+            "artist": "Aurora Fields",
+            "artist_sort": "Aurora Fields",
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": "First Light",
+            "dir_artist": "Aurora Fields",
+            "dir_mtime": 1794245975.8837638,
+            "dir_name": "Aurora Fields - First Light [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Drone",
+            "has_embedded_cover": 1,
+            "id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac",
+            "title": "First Light",
+            "total_seconds": 50.0,
+            "track_artists_json": "[{\"filename\": \"01 - Dawn Chorus.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"02 - Low Sun.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"03 - Meridian.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"04 - Long Shadows.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"05 - Afterglow.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}]",
+            "track_count": 5,
+            "track_numbers_json": "[1, 2, 3, 4, 5]",
+            "year": "2019"
+          },
+          {
+            "__rowid__": 10,
+            "album_artist": "Aurora Fields",
+            "album_artist_sort": "Aurora Fields",
+            "album_sort": null,
+            "artist": "Aurora Fields",
+            "artist_sort": "Aurora Fields",
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": null,
+            "dir_album": "Twin",
+            "dir_artist": "Aurora Fields",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+            "disc_number": 1,
+            "disc_total": 2,
+            "genre": "Electronic",
+            "has_embedded_cover": 1,
+            "id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac",
+            "title": "Twin",
+            "total_seconds": 30.0,
+            "track_artists_json": "[{\"filename\": \"01 - Mirror.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"02 - Parallax.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}, {\"filename\": \"03 - Echo.flac\", \"artist\": \"Aurora Fields\", \"artist_sort\": \"Aurora Fields\"}]",
+            "track_count": 3,
+            "track_numbers_json": "[1, 2, 3]",
+            "year": "2023"
+          },
+          {
+            "__rowid__": 11,
+            "album_artist": "Café Orchestra",
+            "album_artist_sort": null,
+            "album_sort": null,
+            "artist": "Café Orchestra",
+            "artist_sort": null,
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": "Été",
+            "dir_artist": "Café Orchestra",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Café Orchestra - Été [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Jazz",
+            "has_embedded_cover": 1,
+            "id": "<ID:Café Orchestra - Été [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Café Orchestra - Été [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Café Orchestra - Été [FLAC]/01 - Soirée.flac",
+            "title": "Été",
+            "total_seconds": 30.0,
+            "track_artists_json": "[{\"filename\": \"01 - Soir\\u00e9e.flac\", \"artist\": \"Caf\\u00e9 Orchestra\", \"artist_sort\": \"\"}, {\"filename\": \"02 - Terrasse.flac\", \"artist\": \"Caf\\u00e9 Orchestra\", \"artist_sort\": \"\"}, {\"filename\": \"03 - Cr\\u00e8me.flac\", \"artist\": \"Caf\\u00e9 Orchestra\", \"artist_sort\": \"\"}]",
+            "track_count": 3,
+            "track_numbers_json": "[1, 2, 3]",
+            "year": "2014"
+          },
+          {
+            "__rowid__": 12,
+            "album_artist": "Mono Harbor",
+            "album_artist_sort": null,
+            "album_sort": null,
+            "artist": "Mono Harbor",
+            "artist_sort": null,
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": "Dotfiles",
+            "dir_artist": "Mono Harbor",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Lo-Fi",
+            "has_embedded_cover": 0,
+            "id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac",
+            "title": "Dotfiles",
+            "total_seconds": 20.0,
+            "track_artists_json": "[{\"filename\": \"01 - Hidden.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"\"}, {\"filename\": \"02 - Visible.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"\"}]",
+            "track_count": 2,
+            "track_numbers_json": "[1, 2]",
+            "year": "2020"
+          },
+          {
+            "__rowid__": 13,
+            "album_artist": null,
+            "album_artist_sort": null,
+            "album_sort": null,
+            "artist": "Mono Harbor",
+            "artist_sort": "Mono Harbor",
+            "bits_per_sample": 16,
+            "channels": 2,
+            "cover_file": "cover.jpg",
+            "dir_album": "Gaps",
+            "dir_artist": "Mono Harbor",
+            "dir_mtime": 1704067200.0,
+            "dir_name": "Mono Harbor - Gaps [FLAC]",
+            "disc_number": null,
+            "disc_total": null,
+            "genre": "Indie Rock",
+            "has_embedded_cover": 0,
+            "id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "is_compilation": 0,
+            "library_path": "<LIB>",
+            "mb_last_checked_at": null,
+            "mb_match_score": null,
+            "mb_release_group_mbid": null,
+            "mb_release_mbid": null,
+            "metadata_ai_acted_on_at": null,
+            "missing_since": null,
+            "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+            "sample_rate": 44100,
+            "sample_track": "<LIB>/Mono Harbor - Gaps [FLAC]/01 - Pier One.flac",
+            "title": "Gaps",
+            "total_seconds": 40.0,
+            "track_artists_json": "[{\"filename\": \"01 - Pier One.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"Mono Harbor\"}, {\"filename\": \"02 - Breakwater.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"Mono Harbor\"}, {\"filename\": \"04 - Tidewater.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"Mono Harbor\"}, {\"filename\": \"05 - Lighthouse.flac\", \"artist\": \"Mono Harbor\", \"artist_sort\": \"Mono Harbor\"}]",
+            "track_count": 4,
+            "track_numbers_json": "[1, 2, 4, 5]",
+            "year": "2016"
+          }
+        ]
+      },
+      "check_findings": {
+        "columns": [
+          "id",
+          "check_id",
+          "album_id",
+          "severity",
+          "summary",
+          "detail_json",
+          "first_seen_at",
+          "last_seen_at",
+          "resolved_at",
+          "ignored_at",
+          "ignored_reason"
+        ],
+        "has_rowid": true,
+        "row_count": 21,
+        "rows": [
+          {
+            "__rowid__": 1,
+            "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Aurora Fields - Twin (disc 2 of 2) [FLAC]\", \"dir_artist\": \"Aurora Fields\", \"dir_album\": \"Twin\", \"track_count\": 3, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 1,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 2,
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Aurora Fields - Second Light [FLAC]\", \"dir_artist\": \"Aurora Fields\", \"dir_album\": \"Second Light\", \"track_count\": 4, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 2,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 3,
+            "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Mono Harbor - Dupes [FLAC]\", \"dir_artist\": \"Mono Harbor\", \"dir_album\": \"Dupes\", \"track_count\": 4, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 3,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 4,
+            "album_id": "<ID:Legacy Folder Name>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Legacy Folder Name\", \"dir_artist\": null, \"dir_album\": null, \"track_count\": 2, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 4,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 5,
+            "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Various Artists - Night Mix [FLAC]\", \"dir_artist\": null, \"dir_album\": \"Night Mix\", \"track_count\": 4, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 5,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 6,
+            "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Aurora Fields - Folder Art [FLAC]\", \"dir_artist\": \"Aurora Fields\", \"dir_album\": \"Folder Art\", \"track_count\": 2, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 6,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 7,
+            "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Mono Harbor - Sorted [FLAC]\", \"dir_artist\": \"Mono Harbor\", \"dir_album\": \"Sorted\", \"track_count\": 3, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 7,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 8,
+            "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"The Lanterns - Porchlight [FLAC]\", \"dir_artist\": \"The Lanterns\", \"dir_album\": \"Porchlight\", \"track_count\": 3, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 8,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 9,
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Aurora Fields - First Light [FLAC]\", \"dir_artist\": \"Aurora Fields\", \"dir_album\": \"First Light\", \"track_count\": 5, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 9,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 10,
+            "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Aurora Fields - Twin (disc 1 of 2) [FLAC]\", \"dir_artist\": \"Aurora Fields\", \"dir_album\": \"Twin\", \"track_count\": 3, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 10,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 11,
+            "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Cafe\\u0301 Orchestra - E\\u0301te\\u0301 [FLAC]\", \"dir_artist\": \"Cafe\\u0301 Orchestra\", \"dir_album\": \"E\\u0301te\\u0301\", \"track_count\": 3, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 11,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 12,
+            "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Mono Harbor - Dotfiles [FLAC]\", \"dir_artist\": \"Mono Harbor\", \"dir_album\": \"Dotfiles\", \"track_count\": 2, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 12,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 13,
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "check_id": "unidentified-album",
+            "detail_json": "{\"dir_name\": \"Mono Harbor - Gaps [FLAC]\", \"dir_artist\": \"Mono Harbor\", \"dir_album\": \"Gaps\", \"track_count\": 4, \"needs_fingerprints\": false, \"needs_anchor\": true, \"previously_attempted\": false, \"mb_last_checked_at\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 13,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Not yet identified on MusicBrainz"
+          },
+          {
+            "__rowid__": 14,
+            "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+            "check_id": "tags-out-of-sync",
+            "detail_json": "{\"dir_name\": \"The Lanterns - Porchlight [FLAC]\", \"is_compilation\": false, \"headline\": \"The Lanterns - Porchlight [FLAC]\", \"has_anchor\": false, \"missing_core\": [], \"album_diffs\": [], \"track_diffs\": [], \"sort_proposals\": {\"album_artist_sort\": \"Lanterns, The\", \"artist_sort\": \"Lanterns, The\"}, \"ai_fallback_fields\": []}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 14,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "2 sort tag (no MB anchor — AI required)"
+          },
+          {
+            "__rowid__": 15,
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "check_id": "track-gaps",
+            "detail_json": "{\"present\": [1, 2, 4, 5], \"missing\": [3], \"expected_total\": 4}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 15,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "warn",
+            "summary": "Track-number gaps: missing 3"
+          },
+          {
+            "__rowid__": 16,
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "check_id": "inconsistent-artist-sort",
+            "detail_json": "{\"primary_token\": \"mono harbor\", \"state\": \"conflicting\", \"canonical_sort\": null, \"headline\": \"Mono Harbor\", \"members\": [{\"kind\": \"album\", \"album_id\": \"<ID:Mono Harbor - Dupes [FLAC]>\", \"dir_name\": \"Mono Harbor - Dupes [FLAC]\", \"album_artist\": \"Mono Harbor\", \"sort\": \"\"}, {\"kind\": \"album\", \"album_id\": \"<ID:Mono Harbor - Sorted [FLAC]>\", \"dir_name\": \"Mono Harbor - Sorted [FLAC]\", \"album_artist\": \"Mono Harbor\", \"sort\": \"Harbor, Mono\"}, {\"kind\": \"album\", \"album_id\": \"<ID:Mono Harbor - Dotfiles [FLAC]>\", \"dir_name\": \"Mono Harbor - Dotfiles [FLAC]\", \"album_artist\": \"Mono Harbor\", \"sort\": \"\"}, {\"kind\": \"track\", \"album_id\": \"<ID:Mono Harbor - Gaps [FLAC]>\", \"dir_name\": \"Mono Harbor - Gaps [FLAC]\", \"filenames\": [\"01 - Pier One.flac\", \"02 - Breakwater.flac\", \"04 - Tidewater.flac\", \"05 - Lighthouse.flac\"], \"artist\": \"Mono Harbor\", \"sort\": \"Mono Harbor\"}]}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 16,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+          },
+          {
+            "__rowid__": 17,
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "check_id": "no-cover-art",
+            "detail_json": "{\"dir_name\": \"Aurora Fields - Second Light [FLAC]\", \"dir_artist\": \"Aurora Fields\", \"dir_album\": \"Second Light\"}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 17,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "No cover art (embedded or sidecar)"
+          },
+          {
+            "__rowid__": 18,
+            "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+            "check_id": "duplicate-tracks",
+            "detail_json": "{\"recording_mbid\": null, \"filenames\": [\"01 - Static Bloom.flac\", \"03 - Static Bloom (Reprise).flac\"], \"durations_s\": [10.0, 10.0], \"duplicate_count\": 2, \"recommended_keep\": null, \"recommended_reason\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 18,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "warn",
+            "summary": "Duplicate audio: \"Static Bloom\" (2 copies)"
+          },
+          {
+            "__rowid__": 19,
+            "album_id": "<ID:Legacy Folder Name>",
+            "check_id": "filename-mismatch",
+            "detail_json": "{\"dir_name\": \"Legacy Folder Name\", \"is_compilation\": false, \"template\": \"{tracknumber:02} - {title}\", \"dir_template\": \"{albumartist} - {album} [FLAC]\", \"headline\": \"Legacy Folder Name\", \"renames\": [], \"dir_rename\": {\"old\": \"Legacy Folder Name\", \"new\": \"Quiet Atlas - Old Rips [FLAC]\"}}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 19,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Album dir 'Legacy Folder Name' doesn't match the template"
+          },
+          {
+            "__rowid__": 20,
+            "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+            "check_id": "filename-mismatch",
+            "detail_json": "{\"dir_name\": \"Various Artists - Night Mix [FLAC]\", \"is_compilation\": true, \"template\": \"{tracknumber:02} - {artist} - {title}\", \"dir_template\": \"Various Artists - {album} [FLAC]\", \"headline\": \"Various Artists - Night Mix [FLAC]\", \"renames\": [{\"filename\": \"02 - something.flac\", \"expected\": \"02 - Sable & The Static - Something Electric.flac\", \"tracknumber\": \"2\", \"title\": \"Something Electric\", \"artist\": \"Sable & The Static\", \"collides_with\": null}, {\"filename\": \"04.flac\", \"expected\": \"04 - Orbit Society - Last Train.flac\", \"tracknumber\": \"4\", \"title\": \"Last Train\", \"artist\": \"Orbit Society\", \"collides_with\": null}, {\"filename\": \"Night Mix 3.flac\", \"expected\": \"03 - Kite Theory - Velvet Signal.flac\", \"tracknumber\": \"3\", \"title\": \"Velvet Signal\", \"artist\": \"Kite Theory\", \"collides_with\": null}, {\"filename\": \"trackA.flac\", \"expected\": \"01 - Lumen Drift - Neon Tide.flac\", \"tracknumber\": \"1\", \"title\": \"Neon Tide\", \"artist\": \"Lumen Drift\", \"collides_with\": null}], \"dir_rename\": null}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 20,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "4 files in 'Various Artists - Night Mix [FLAC]' don't match the template"
+          },
+          {
+            "__rowid__": 21,
+            "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+            "check_id": "filename-mismatch",
+            "detail_json": "{\"dir_name\": \"Cafe\\u0301 Orchestra - E\\u0301te\\u0301 [FLAC]\", \"is_compilation\": false, \"template\": \"{tracknumber:02} - {title}\", \"dir_template\": \"{albumartist} - {album} [FLAC]\", \"headline\": \"Cafe\\u0301 Orchestra - E\\u0301te\\u0301 [FLAC]\", \"renames\": [], \"dir_rename\": {\"old\": \"Cafe\\u0301 Orchestra - E\\u0301te\\u0301 [FLAC]\", \"new\": \"Caf\\u00e9 Orchestra - E\\u0301te\\u0301 [FLAC]\"}}",
+            "first_seen_at": "2026-11-09T17:39:25Z",
+            "id": 21,
+            "ignored_at": null,
+            "ignored_reason": null,
+            "last_seen_at": "2026-11-09T17:39:25Z",
+            "resolved_at": null,
+            "severity": "info",
+            "summary": "Album dir 'Café Orchestra - Été [FLAC]' doesn't match the template"
+          }
+        ]
+      },
+      "check_runs": {
+        "columns": [
+          "id",
+          "check_id",
+          "started_at",
+          "completed_at",
+          "status",
+          "library_path",
+          "scope",
+          "issue_count",
+          "error",
+          "duration_ms"
+        ],
+        "has_rowid": true,
+        "row_count": 7,
+        "rows": [
+          {
+            "__rowid__": 1,
+            "check_id": "unidentified-album",
+            "completed_at": "2026-11-09T17:39:25Z",
+            "duration_ms": 20,
+            "error": null,
+            "id": 1,
+            "issue_count": 13,
+            "library_path": "<LIB>",
+            "scope": "all",
+            "started_at": "2026-11-09T17:39:25Z",
+            "status": "completed"
+          },
+          {
+            "__rowid__": 2,
+            "check_id": "tags-out-of-sync",
+            "completed_at": "2026-11-09T17:39:25Z",
+            "duration_ms": 5,
+            "error": null,
+            "id": 2,
+            "issue_count": 1,
+            "library_path": "<LIB>",
+            "scope": "all",
+            "started_at": "2026-11-09T17:39:25Z",
+            "status": "completed"
+          },
+          {
+            "__rowid__": 3,
+            "check_id": "track-gaps",
+            "completed_at": "2026-11-09T17:39:25Z",
+            "duration_ms": 4,
+            "error": null,
+            "id": 3,
+            "issue_count": 1,
+            "library_path": "<LIB>",
+            "scope": "all",
+            "started_at": "2026-11-09T17:39:25Z",
+            "status": "completed"
+          },
+          {
+            "__rowid__": 4,
+            "check_id": "inconsistent-artist-sort",
+            "completed_at": "2026-11-09T17:39:25Z",
+            "duration_ms": 2,
+            "error": null,
+            "id": 4,
+            "issue_count": 1,
+            "library_path": "<LIB>",
+            "scope": "all",
+            "started_at": "2026-11-09T17:39:25Z",
+            "status": "completed"
+          },
+          {
+            "__rowid__": 5,
+            "check_id": "no-cover-art",
+            "completed_at": "2026-11-09T17:39:25Z",
+            "duration_ms": 2,
+            "error": null,
+            "id": 5,
+            "issue_count": 1,
+            "library_path": "<LIB>",
+            "scope": "all",
+            "started_at": "2026-11-09T17:39:25Z",
+            "status": "completed"
+          },
+          {
+            "__rowid__": 6,
+            "check_id": "duplicate-tracks",
+            "completed_at": "2026-11-09T17:39:25Z",
+            "duration_ms": 4,
+            "error": null,
+            "id": 6,
+            "issue_count": 1,
+            "library_path": "<LIB>",
+            "scope": "all",
+            "started_at": "2026-11-09T17:39:25Z",
+            "status": "completed"
+          },
+          {
+            "__rowid__": 7,
+            "check_id": "filename-mismatch",
+            "completed_at": "2026-11-09T17:39:25Z",
+            "duration_ms": 8,
+            "error": null,
+            "id": 7,
+            "issue_count": 3,
+            "library_path": "<LIB>",
+            "scope": "all",
+            "started_at": "2026-11-09T17:39:25Z",
+            "status": "completed"
+          }
+        ]
+      },
+      "libraries": {
+        "columns": [
+          "path",
+          "scanned_at"
+        ],
+        "has_rowid": true,
+        "row_count": 1,
+        "rows": [
+          {
+            "__rowid__": 1,
+            "path": "<LIB>",
+            "scanned_at": "2026-11-09T17:39:06Z"
+          }
+        ]
+      },
+      "schema_version": {
+        "columns": [
+          "version"
+        ],
+        "has_rowid": true,
+        "row_count": 1,
+        "rows": [
+          {
+            "__rowid__": 16,
+            "version": 16
+          }
+        ]
+      },
+      "settings": {
+        "columns": [
+          "key",
+          "value"
+        ],
+        "has_rowid": true,
+        "row_count": 1,
+        "rows": [
+          {
+            "__rowid__": 1,
+            "key": "acoustid_api_key",
+            "value": "<REDACTED>"
+          }
+        ]
+      },
+      "tag_vocabulary": {
+        "columns": [
+          "tag",
+          "description",
+          "color",
+          "sort_order",
+          "created_at"
+        ],
+        "has_rowid": true,
+        "row_count": 0,
+        "rows": []
+      },
+      "track_fingerprints": {
+        "columns": [
+          "album_id",
+          "filename",
+          "fingerprint",
+          "duration_s",
+          "acoustid_recording_mbid",
+          "acoustid_score",
+          "last_computed_at"
+        ],
+        "has_rowid": true,
+        "row_count": 42,
+        "rows": [
+          {
+            "__rowid__": 1,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Reflection.flac",
+            "fingerprint": "AQAAO0mSREuSWEvwAwfw4zh-4EcPHHyy4zkTov1S4TgOHA-hg8cREfjx4yfcoz9y_Phf6M6Bsjn8AwAAAAAAAADohJEEBglIw4QJAVBzCDEOC0hMIaCcURQARJAwAg",
+            "last_computed_at": "2026-11-09T17:39:06Z"
+          },
+          {
+            "__rowid__": 2,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Doppler.flac",
+            "fingerprint": "AQAAO0mSREwSRZEAAAAAAAAAAAAAAAAAAABwHDiCH8fx4zhOPOhJAPmN5wCVknIkIaIQ5sIopQA",
+            "last_computed_at": "2026-11-09T17:39:07Z"
+          },
+          {
+            "__rowid__": 3,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Return.flac",
+            "fingerprint": "AQAAO0mUaEkSJYkOHIdwBDeA48JxNCd-HP8R_hAPAMdxHAAO-OiB48fRPBd-PMBx_AAOHDjwBf12_Hhv4AAggCmzWxiApcIIISk7gWSlHHMkCaAZWlGRAq4RlBGCAQ",
+            "last_computed_at": "2026-11-09T17:39:07Z"
+          },
+          {
+            "__rowid__": 4,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Blue Hour.flac",
+            "fingerprint": "AQAAO8kSLUmiKBIOQD4QHDiOC8cd9PiRF7-hoN8B4MiPYz8OHD9--OhxID_eo3WyaPABHAGA4z1w_DjQ48eFPNgBFEwRoENFtHiEEAm4W44cIYlTijxBgFAnA1ACWsyCxQE",
+            "last_computed_at": "2026-11-09T17:39:08Z"
+          },
+          {
+            "__rowid__": 5,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Cirrus.flac",
+            "fingerprint": "AQAAO0mSREuSTNGIA8IRHD8O3DgK4OCDLkS-EzoO_Ah-AAd__LiBw-hxA3mOH-XhA3igA9GBF8eD8_DQHxcuXMR3NH0AKAzRLqR1iKFOIsgAFASCN4IikACBiDoyIcEYQctQCg",
+            "last_computed_at": "2026-11-09T17:39:08Z"
+          },
+          {
+            "__rowid__": 6,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Halation.flac",
+            "fingerprint": "AQAAO4mSiEmiKNJwHD-OH8cP5PiOHwd6Ii9-4TrWJZPBAMDBQ8UO_Dh-HO5RnNA140SN_3B8HNCR4_jx4wnw4_iB4jhyyCGmCjQAQcpB5AxRyFohgiBQIXQgQVYpZIgBwjkGkIJAFMQV0gAq",
+            "last_computed_at": "2026-11-09T17:39:08Z"
+          },
+          {
+            "__rowid__": 7,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "04 - Nightfall.flac",
+            "fingerprint": "AQAAO0mUaEkSRVEFAAAAAAAAAMAP_MiBAz-AH0bPC8fx49WOkIeBA_iB49hx4PBxwy9x9NnREyGAIKV464QCpDIhAAuebInW4oALIQA",
+            "last_computed_at": "2026-11-09T17:39:09Z"
+          },
+          {
+            "__rowid__": 8,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Static Bloom.flac",
+            "fingerprint": "AQAAO4mSiEmiKNJwHC9w5MePv_jx4PhwBz3xF9HBV9gTFAAAAAAAAAAAAAAAAAAAAJWSAhRZAZBAxEJBpAMC",
+            "last_computed_at": "2026-11-09T17:39:09Z"
+          },
+          {
+            "__rowid__": 9,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Feedback Garden.flac",
+            "fingerprint": "AQAAO0mUaEkSRVEFHMeH_BiO47vw4_B79MdxvDpuIfzw6jAAAAAAAAAAAAAAAAAAAACJlHEAEYqYW0QpBAOjhgg",
+            "last_computed_at": "2026-11-09T17:39:10Z"
+          },
+          {
+            "__rowid__": 10,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Static Bloom (Reprise).flac",
+            "fingerprint": "AQAAO4mSiEmiKNJwHC9w5MePv_jx4PhwBz3xF9HBV9gTFAAAAAAAAAAAAAAAAAAAAJWSAhRZAZBAxEJBpAMC",
+            "last_computed_at": "2026-11-09T17:39:10Z"
+          },
+          {
+            "__rowid__": 11,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "04 - Wall of Sound.flac",
+            "fingerprint": "AQAAO0mUaEkSRREDHMFxHPhxAT_QA8eXC-EDf3CMAzh0_IhwHMePHz7648DxHOEhHsAhBCeOJxdxHD-OX6hxIB-PD8oD14IUARxvqiHIOmSQg0khLoFSDikpGIXCFMdmCEhRCgQBAA",
+            "last_computed_at": "2026-11-09T17:39:10Z"
+          },
+          {
+            "__rowid__": 12,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Legacy Folder Name>",
+            "duration_s": 10.0,
+            "filename": "01 - Kitchen Radio.flac",
+            "fingerprint": "AQAAO4mSiEmiKFIE_Djw4QdyXMdz4DvOBP0RveCFWUlR9wBwyMhxHM8LHAeO4vgRPfHxZ4I2XbjxAMfxIwcO_AB--OgvHD9-4z0AiZBCDhOBlBVUGI8EZIEVSWZMwRhAFNBMCiBIKV4MpRQDlgLBAA",
+            "last_computed_at": "2026-11-09T17:39:11Z"
+          },
+          {
+            "__rowid__": 13,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Legacy Folder Name>",
+            "duration_s": 10.0,
+            "filename": "02 - Porch Light.flac",
+            "fingerprint": "AQAAO0mUaEkSRVEF_MCPHDjwA8dh9Dx-4viP6wh5GDjw4QdwHAd89ALe43vwHL0uONuHA4eOHDh-48ePA__RDz8uBE-h9QUhgCCleHmFA5YKIxgE0ARLMFiGEIOkQQI5SAI7kGBAXkAMWwQFAQ",
+            "last_computed_at": "2026-11-09T17:39:11Z"
+          },
+          {
+            "__rowid__": 14,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - something.flac",
+            "fingerprint": "AQAAO8kSLUnCREqAA8FxAAfgpyguHPnRq_B13DgAAAAAAAAAAMcDATlw4Dn2g8JQG40R4tAJFshI3CmllAAOIVKSEgyB",
+            "last_computed_at": "2026-11-09T17:39:12Z"
+          },
+          {
+            "__rowid__": 15,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "04.flac",
+            "fingerprint": "AQAAO0mSREuSTNEIHA90RAcOXMePw-gvnLg_nDnaIH2hGwdw_MhP_PgHHBf2nKCO6cCRH82Eh7lw4Dhw6ECAH8eBO-iJH_nxi1AAhJg6hCuEGEKKEEiRk8g6pChyogigFHkCAavSYEQKEBXRFjkC",
+            "last_computed_at": "2026-11-09T17:39:12Z"
+          },
+          {
+            "__rowid__": 16,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "Night Mix 3.flac",
+            "fingerprint": "AQAAO8kSLUmiKBIO4BB-BMBz_DgelEdw42egoN8B4CAXYMBxPMNhFAc-9If5FAcgBD9-HCd-nDg-_CjwI9CVY3IPNCASEgrOBXiIEGSQQIgQgJxkyrIkAkgEcSgBEgA",
+            "last_computed_at": "2026-11-09T17:39:12Z"
+          },
+          {
+            "__rowid__": 17,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "trackA.flac",
+            "fingerprint": "AQAAO0mUaEkSJpoCHMixA8CP44aP8vpw_MjJqPjRTjJ8HcDxQAgOHPixB9Qx1EZjFDl09Mdx4AkO5MQPHFfwHT96_MBlHNETAum8CAYsIdgDgiIhEDIlMWENWMpElQCSoAhimSKGgQE",
+            "last_computed_at": "2026-11-09T17:39:13Z"
+          },
+          {
+            "__rowid__": 18,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Canvas.flac",
+            "fingerprint": "AQAAO0mUaEkSLVIk4Dhy7AB-HMdr-Ecv_Djy4c_Ry_B1AAcO4QgOHAeOXgx-5LihoD8OHA8hAdGBAz8-uEeRH19xC7qL1t0GCZ8HpIiLHNgEMCKAEQJFUwrohmgWljAJKYMYUcYSSAA",
+            "last_computed_at": "2026-11-09T17:39:13Z"
+          },
+          {
+            "__rowid__": 19,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Easel.flac",
+            "fingerprint": "AQAAO8kSLUliLQEeHAo4DMHx4zjC4B-OJ4N-Db1UOD-OA8dx5DgOHD92UMd0HGiOEE9RH8CRAzhw48dx4ChOID_2PQCETGIKIWAVQYoJ5lxLYiGklFBKZATUOVkEMGXzwgg",
+            "last_computed_at": "2026-11-09T17:39:14Z"
+          },
+          {
+            "__rowid__": 20,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Ordered.flac",
+            "fingerprint": "AQAAO0mUaEkSRREDAAAAAAAAAABy_DiAB_9x4AfQ7-iRC6bzwTEO_ICKI8eBA8ePH4ePHz_engA2GRBRCAMpccIDJ7B5ZYbiCaEAWKqEAA",
+            "last_computed_at": "2026-11-09T17:39:14Z"
+          },
+          {
+            "__rowid__": 21,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Indexed.flac",
+            "fingerprint": "AQAAO0mUaEmSKVoCAAAAAAAAAMDxH_8BHMdx4Pjxoj-OByVF4lse_MBxHMRJ4L2F4cdx-PhxA6YfPAM0hAJCkUNECI4KIZgBTrqBBACIGnSZRIIB",
+            "last_computed_at": "2026-11-09T17:39:15Z"
+          },
+          {
+            "__rowid__": 22,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Filed.flac",
+            "fingerprint": "AQAAO0mSREuSWEuA4wiAF8cP3EB4HAd_4jl6Kfhx4MBxCD9wnMbx44eP4rpwHto9HAaAHwd-XDj-Aj-KGye-ojO8A9fOCIU88ojRgDLhoCnFwqyuo4w0RZSyAqADAYwCkIomAA",
+            "last_computed_at": "2026-11-09T17:39:15Z"
+          },
+          {
+            "__rowid__": 23,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Screen Door.flac",
+            "fingerprint": "AQAAO0mUaEkSLVIk4Dhy7MBx_MBr-EePHz9i8_iDXjJ8HcAPHDqO4HgAHOhJHEd-6Ef_AQAAAAAAAAAJnweyQIsc2cQ5QYQQQmhATslgAA8gUooA",
+            "last_computed_at": "2026-11-09T17:39:16Z"
+          },
+          {
+            "__rowid__": 24,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Fireflies.flac",
+            "fingerprint": "AQAAO8kSLUliLQBy4MBx7AeA6-DRU_hzhGfx4zgAAAAAAAAAAMcDHRGAA8cP9-hxHA_xCyEAFczYAiMpnBAKUOYQYjMppBlSDEk",
+            "last_computed_at": "2026-11-09T17:39:16Z"
+          },
+          {
+            "__rowid__": 25,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Gravel Road.flac",
+            "fingerprint": "AQAAO8kSLUmiKBIAAAAAAAAAAMcD4TiC47iwg-qx40azIcdzBzp6HDiOAy8OXDhxHB_64MSPE3skAYSgOaQQpZA6CiyTBgKIKASsZIIQAQ",
+            "last_computed_at": "2026-11-09T17:39:16Z"
+          },
+          {
+            "__rowid__": 26,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Dawn Chorus.flac",
+            "fingerprint": "AQAAO4mSiEmiKNJwHMeLH8FP4MRx4Th6Hj_i48e6ZAIDHMeBAwcuABd64Ljwm-g_3McBCPlx4Dt-HMcvnOgvHB_Cozm0pQA0AFIOOaSIhYIRaRCErgUCrnKMCAaAcwCbwAmWMhJ0BKCaAg",
+            "last_computed_at": "2026-11-09T17:39:17Z"
+          },
+          {
+            "__rowid__": 27,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Low Sun.flac",
+            "fingerprint": "AQAAO0mUaEkSRVEFHMeH_BhwXLvw44KfEj3OAxduIWQz-AcOCDmOH9clARd-HM9RHMjHQx_2oD8O4AQPRACu48fxH_5R8TiODweJlHEIUMRcEkEragQEykjiXFIsYQoEAEqYhYBHTCFFFNHKIhA",
+            "last_computed_at": "2026-11-09T17:39:17Z"
+          },
+          {
+            "__rowid__": 28,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Meridian.flac",
+            "fingerprint": "AQAAO0mUaEkSRRHxQwiO4_hxHDh6AEeeHPrRHjcO_DjOI8OB95h_HMcFn-iPH3-B6wh5GDjw4ziO4ziOG8aJLQ36fPhEHf0BCFkwxJMZTlUCSACcRCopBQAESHYlLDIAMQIE8CaRtBJaVAiBmAA",
+            "last_computed_at": "2026-11-09T17:39:18Z"
+          },
+          {
+            "__rowid__": 29,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "04 - Long Shadows.flac",
+            "fingerprint": "AQAAO0mUaEmSKRqAAz-IGziOExeOnsSB4dSN1nkAHDkOYPjxAThw9Ed_5CH4DT8O4ICQ4zhw_DiOoz-K__APCR02RHMvXBGAtTYCmJtQYTRl0KEXjSwOwiKFUUJA",
+            "last_computed_at": "2026-11-09T17:39:18Z"
+          },
+          {
+            "__rowid__": 30,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "05 - Afterglow.flac",
+            "fingerprint": "AQAAO4mSSEmSbFoCHMchIC-O_cBxhMCHH7oK5pOC48cBHMeRA8dx4hmM3seFE-cRvgMM4AcOfPhx4MNx9AeO49QB1xIZmyCYmMOOOQBNSQOGVY1BhQkmESRHExG6Uo4RAQ",
+            "last_computed_at": "2026-11-09T17:39:18Z"
+          },
+          {
+            "__rowid__": 31,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Mirror.flac",
+            "fingerprint": "AQAAO0mUaEkSRdEBHIeOAfjxFz98FAcOHb0OHwAeHDgCDD8OqkeI48EU6-iLH_2AA_hxQf_w4fhx4cePHseOK9BvPACATshKAusQLBEJihBJTAFEnUOOQGTVcYIkZZAWRmkWBUAA",
+            "last_computed_at": "2026-11-09T17:39:19Z"
+          },
+          {
+            "__rowid__": 32,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Parallax.flac",
+            "fingerprint": "AQAAO0mUaEkSZSpw4PiJA_9xHD56A_hxWxp6ZilMXwBw_DiAAwcOfEe_BT_eG8eN_jgAAAAAAAAAaaJxhxgilmKOCIEiQ6WAKwxlhDCmhAM",
+            "last_computed_at": "2026-11-09T17:39:19Z"
+          },
+          {
+            "__rowid__": 33,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Echo.flac",
+            "fingerprint": "AQAAO0mUaEkSJpoC_MCPAzjw4wR89ARuHJ_QK4YPHABPHD-OHzt0HEaP3ziN9gz0HQYOAAcOHA-gH_0xA1eCQ7sSAIkgQ_E4LJVjhlgJUCYGMRHAIAIBJCASYBCgHAIL",
+            "last_computed_at": "2026-11-09T17:39:20Z"
+          },
+          {
+            "__rowid__": 34,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Soirée.flac",
+            "fingerprint": "AQAAO0mSREqSxFoC4PiB48BxHMdR3zhzgOkTvMGPAwAAAAAAAABwHMBxBccB_KiAHy8eHi0ABJ05hIQEBSGGM-igQAGG66BkwgA",
+            "last_computed_at": "2026-11-09T17:39:20Z"
+          },
+          {
+            "__rowid__": 35,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Terrasse.flac",
+            "fingerprint": "AQAAO0mSREwSRZFw4MCHHD9w4fiBO0dP_MiN4zmYHwAeQgdPHEeO48cH90WPHMd96Cdah9HgA8dxAj-CHziO40BPID5-kEsOlBRJjiikIFCEe4SYIohwF9VBjABlFBHEKDSAcsghhcCQyCo",
+            "last_computed_at": "2026-11-09T17:39:20Z"
+          },
+          {
+            "__rowid__": 36,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "03 - Crème.flac",
+            "fingerprint": "AQAAO0mUaEkSRdFxAAJyHD-OH0cv_DhwHc34Izd0GDjw4wCO4_jgHz1-_HiOo7Q8nDqMA8dx4MABHB_6Lcfx_jgOAFUqnIWhGoWcKWGklBCRQ8RWSGFEFQXOCLRSJAVcAyghgGU",
+            "last_computed_at": "2026-11-09T17:39:21Z"
+          },
+          {
+            "__rowid__": 37,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Hidden.flac",
+            "fingerprint": "AQAAO8kSLUmiKBJwHDoB5Diu4Di242BSY96JHL8h9Adw_DiO4ziO68XhHjd8Yrrw62AVrNNkFAAOxACAAz56Az_y4-hHAKQIMQWBDBk7TBEBCFoQkU2EAiBYIBgbSzmiHFYA",
+            "last_computed_at": "2026-11-09T17:39:21Z"
+          },
+          {
+            "__rowid__": 38,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Visible.flac",
+            "fingerprint": "AQAAO0mSREuSTNEIAAJfRDhw4PDRHwd-HOEP8S0OAAAAAAAAAAcOHMKB4HhwHA_KSwhu_AwUAE9mWMqRx5giwKk0IBkgcgEeAg",
+            "last_computed_at": "2026-11-09T17:39:22Z"
+          },
+          {
+            "__rowid__": 39,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "01 - Pier One.flac",
+            "fingerprint": "AQAAO4mSSEmSKNMS4DgOAS9y7Ad-HOFxXMEJfQTzMTgOAAeQAz9wHP7Q4z-O_EAPA3hw_CBxAN_xAz6H_ULx4x56ANeSCZsgTTZGIDvmICEezGIKQa5giyaSUDgClRFIERE",
+            "last_computed_at": "2026-11-09T17:39:22Z"
+          },
+          {
+            "__rowid__": 40,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "02 - Breakwater.flac",
+            "fingerprint": "AQAAO4mSiEmiKBIO4MRx_IAu_PjxQ3fQ7_iB_Xh6MAdw_MAPHAd-Aodv9FbwEf-P8ri2wwAAAAAAAAAAlJRJDiiKlFWMCSKEQoILQCAihyBLhQVCACoE",
+            "last_computed_at": "2026-11-09T17:39:23Z"
+          },
+          {
+            "__rowid__": 41,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "04 - Tidewater.flac",
+            "fingerprint": "AQAAO0mUaEkSRdFxAIeM48dxvECX44PwovCPEz4O_DgOHDhwFccPn-gV_DiAPjL8A8cP4DiOAz8BH3-G3sf1oMe1HQBRO5qwUKhBDiw0FYryjFCUYkQ4YoQAxERyCFJMGAEIFwI",
+            "last_computed_at": "2026-11-09T17:39:23Z"
+          },
+          {
+            "__rowid__": 42,
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "duration_s": 10.0,
+            "filename": "05 - Lighthouse.flac",
+            "fingerprint": "AQAAO0mUaEkSZSoOAACOA-jxAcePU0Uf_MBx5Dhw4Dj-4jjg7-iFI_jRMjp8ANBxITiAH3_hoz8APEf4A0hAo5BYKi2B00R5RHGwJeMdccCIEjOTQCknBRMA",
+            "last_computed_at": "2026-11-09T17:39:23Z"
+          }
+        ]
+      },
+      "track_tags": {
+        "columns": [
+          "album_id",
+          "filename",
+          "tag",
+          "created_at"
+        ],
+        "has_rowid": true,
+        "row_count": 0,
+        "rows": []
+      }
+    },
+    "user_version": 0
+  },
+  "library": {
+    "files": {
+      "Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "357b87b1e0478d90714cdf90697c7a1d",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+              "size": 23289,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "First Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "bpm": [
+              "143.55"
+            ],
+            "date": [
+              "2019-04-12"
+            ],
+            "genre": [
+              "Drone"
+            ],
+            "replaygain_album_gain": [
+              "-2.07 dB"
+            ],
+            "replaygain_album_peak": [
+              "0.365356"
+            ],
+            "replaygain_reference_loudness": [
+              "-18.00 LUFS"
+            ],
+            "replaygain_track_gain": [
+              "-2.43 dB"
+            ],
+            "replaygain_track_peak": [
+              "0.365356"
+            ],
+            "title": [
+              "Dawn Chorus"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "5"
+            ]
+          }
+        },
+        "sha256": "c845b399f38d75356b0fcfee0bd3713fc2eb11c8d95a439dbc063c2b482539d1",
+        "size": 984900
+      },
+      "Aurora Fields - First Light [FLAC]/02 - Low Sun.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "8c4209f2fc46d8986e4173b90f12b499",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+              "size": 23289,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "First Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "bpm": [
+              "152.00"
+            ],
+            "date": [
+              "2019-04-12"
+            ],
+            "genre": [
+              "Drone"
+            ],
+            "replaygain_album_gain": [
+              "-2.07 dB"
+            ],
+            "replaygain_album_peak": [
+              "0.365356"
+            ],
+            "replaygain_reference_loudness": [
+              "-18.00 LUFS"
+            ],
+            "replaygain_track_gain": [
+              "-1.59 dB"
+            ],
+            "replaygain_track_peak": [
+              "0.356049"
+            ],
+            "title": [
+              "Low Sun"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "5"
+            ]
+          }
+        },
+        "sha256": "8c2726d219e8af235fdab036098f43f0a1e3619f5f55764367bd83c90bf4de95",
+        "size": 969310
+      },
+      "Aurora Fields - First Light [FLAC]/03 - Meridian.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "e4c472ed098a5622034ddddd96f06014",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+              "size": 23289,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "First Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "bpm": [
+              "136.00"
+            ],
+            "date": [
+              "2019-04-12"
+            ],
+            "genre": [
+              "Drone"
+            ],
+            "replaygain_album_gain": [
+              "-2.07 dB"
+            ],
+            "replaygain_album_peak": [
+              "0.365356"
+            ],
+            "replaygain_reference_loudness": [
+              "-18.00 LUFS"
+            ],
+            "replaygain_track_gain": [
+              "-2.45 dB"
+            ],
+            "replaygain_track_peak": [
+              "0.344116"
+            ],
+            "title": [
+              "Meridian"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "5"
+            ]
+          }
+        },
+        "sha256": "4475b4b0d764bbaaf4fb040d07d3cd99602554001f1eb584629e6f249ff52fa8",
+        "size": 965671
+      },
+      "Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "14a04b780bd7b3207e2bc8b94235bb8b",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+              "size": 23289,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "First Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "bpm": [
+              "95.70"
+            ],
+            "date": [
+              "2019-04-12"
+            ],
+            "genre": [
+              "Drone"
+            ],
+            "replaygain_album_gain": [
+              "-2.07 dB"
+            ],
+            "replaygain_album_peak": [
+              "0.365356"
+            ],
+            "replaygain_reference_loudness": [
+              "-18.00 LUFS"
+            ],
+            "replaygain_track_gain": [
+              "-1.49 dB"
+            ],
+            "replaygain_track_peak": [
+              "0.323761"
+            ],
+            "title": [
+              "Long Shadows"
+            ],
+            "tracknumber": [
+              "4"
+            ],
+            "tracktotal": [
+              "5"
+            ]
+          }
+        },
+        "sha256": "9b41f7245effc82731834a6a229458e04d23b38ac68d5ab0c4c4037010e9dc6f",
+        "size": 975363
+      },
+      "Aurora Fields - First Light [FLAC]/05 - Afterglow.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "d1598a2ead7949ea223b10e9b107d819",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+              "size": 23289,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "First Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "bpm": [
+              "123.05"
+            ],
+            "date": [
+              "2019-04-12"
+            ],
+            "genre": [
+              "Drone"
+            ],
+            "replaygain_album_gain": [
+              "-2.07 dB"
+            ],
+            "replaygain_album_peak": [
+              "0.365356"
+            ],
+            "replaygain_reference_loudness": [
+              "-18.00 LUFS"
+            ],
+            "replaygain_track_gain": [
+              "-2.27 dB"
+            ],
+            "replaygain_track_peak": [
+              "0.331116"
+            ],
+            "title": [
+              "Afterglow"
+            ],
+            "tracknumber": [
+              "5"
+            ],
+            "tracktotal": [
+              "5"
+            ]
+          }
+        },
+        "sha256": "21c01e65e9ea33c0a785d8c6c88f6b7c05f98cc7a0e756aff11b70bd7a312937",
+        "size": 970419
+      },
+      "Aurora Fields - First Light [FLAC]/cover.jpg": {
+        "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+        "size": 23289
+      },
+      "Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "9209b1b5748d7fde8c25c27a92fd3d82",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Folder Art"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2022"
+            ],
+            "genre": [
+              "Post-Rock"
+            ],
+            "title": [
+              "Canvas"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "2"
+            ]
+          }
+        },
+        "sha256": "274ab55f3cbc3f1552229550e8a96e898606d73cf0f92fa002b2feddbe3fe91a",
+        "size": 950619
+      },
+      "Aurora Fields - Folder Art [FLAC]/02 - Easel.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "b638aac662eb6b5695d8b94e6c3182af",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Folder Art"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2022"
+            ],
+            "genre": [
+              "Post-Rock"
+            ],
+            "title": [
+              "Easel"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "2"
+            ]
+          }
+        },
+        "sha256": "695bba5f2d1fdf347eaa2caec62d1043be2c4681f3fa82bf76b09fe5d7b7a38f",
+        "size": 943663
+      },
+      "Aurora Fields - Folder Art [FLAC]/folder.jpg": {
+        "sha256": "f41bd7e1edd0c1980cf149eb63b9e4ae1c90395be02ab16d0730756d1b6289f2",
+        "size": 17961
+      },
+      "Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "67c84ce6cdb051f46e52f0f65166789f",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Second Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2021"
+            ],
+            "genre": [
+              "Ambient"
+            ],
+            "title": [
+              "Blue Hour"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "97c30b2aaf88ab4a42ddf3b4b3af3495c68ba841ab429c3f46db6f873d3acc64",
+        "size": 978122
+      },
+      "Aurora Fields - Second Light [FLAC]/02 - Cirrus.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "a787c236efb10431b159675565a0f5d1",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Second Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2021"
+            ],
+            "genre": [
+              "Ambient"
+            ],
+            "title": [
+              "Cirrus"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "eb7c551cf43adf35bb7387d4852c5d65f3e9246a59b4f04c08a0faf309ceb153",
+        "size": 962267
+      },
+      "Aurora Fields - Second Light [FLAC]/03 - Halation.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "7d5f82e17517a64f3cad9bc74027c545",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Second Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2021"
+            ],
+            "genre": [
+              "Ambient"
+            ],
+            "title": [
+              "Halation"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "2b187e7204643c960f8d528a97726dde93307dcbfe2a1e439af34692d93df9a6",
+        "size": 979826
+      },
+      "Aurora Fields - Second Light [FLAC]/04 - Nightfall.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "978957b9342b52f4fd2ebb1e04a51aa6",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Second Light"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2021"
+            ],
+            "genre": [
+              "Ambient"
+            ],
+            "title": [
+              "Nightfall"
+            ],
+            "tracknumber": [
+              "4"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "50d8e32cc8175e2123a8506c092967a25fb3e7b3f5de9488e19003c317d27aa7",
+        "size": 970347
+      },
+      "Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "be9ae46e0db3212ceccba3fbc126e11b",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "e74e5b87d82e31d96b41e55ef97abbf52144fd5fc7a1810188960daa7a108b48",
+              "size": 20477,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Twin"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2023"
+            ],
+            "discnumber": [
+              "1"
+            ],
+            "disctotal": [
+              "2"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Mirror"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "ac861fb37114742487d34eb2be6f880f77a663811c9cc50faf7b58a82398a7df",
+        "size": 965861
+      },
+      "Aurora Fields - Twin (disc 1 of 2) [FLAC]/02 - Parallax.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "88de00c1b266e726f5c05b99c903e21d",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "e74e5b87d82e31d96b41e55ef97abbf52144fd5fc7a1810188960daa7a108b48",
+              "size": 20477,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Twin"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2023"
+            ],
+            "discnumber": [
+              "1"
+            ],
+            "disctotal": [
+              "2"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Parallax"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "acd7b094d47e74cb71e081598889c96494c369c68dd761a6ecbec6cafe609ab3",
+        "size": 978120
+      },
+      "Aurora Fields - Twin (disc 1 of 2) [FLAC]/03 - Echo.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "d71781a252f703d94c1b7709773e0060",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "e74e5b87d82e31d96b41e55ef97abbf52144fd5fc7a1810188960daa7a108b48",
+              "size": 20477,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Twin"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2023"
+            ],
+            "discnumber": [
+              "1"
+            ],
+            "disctotal": [
+              "2"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Echo"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "1c6d9a1760b0f06eeff7489121778f9fdd2499d7a2a0a421021a5a890224cf3e",
+        "size": 994622
+      },
+      "Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "9e9b006f8b0d58c105d192618776f1c3",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "699ec0491da4c31e62462c402410a6a36e65f1e814a36a7f03fbf9ab74cde121",
+              "size": 21412,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Twin"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2023"
+            ],
+            "discnumber": [
+              "2"
+            ],
+            "disctotal": [
+              "2"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Reflection"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "78a786ad3f996a189e2b0246ee23f8aab7518fe8b135e430f87ddc873013a35a",
+        "size": 983242
+      },
+      "Aurora Fields - Twin (disc 2 of 2) [FLAC]/02 - Doppler.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "0c70c3053785a2f9756098c3e08b9829",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "699ec0491da4c31e62462c402410a6a36e65f1e814a36a7f03fbf9ab74cde121",
+              "size": 21412,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Twin"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2023"
+            ],
+            "discnumber": [
+              "2"
+            ],
+            "disctotal": [
+              "2"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Doppler"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "766304bce0094eed2f8249a6e852b213bad4c40477bc9db1f812dc70269a7050",
+        "size": 999210
+      },
+      "Aurora Fields - Twin (disc 2 of 2) [FLAC]/03 - Return.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "a70fb153576f072cc717acbeb542e999",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "699ec0491da4c31e62462c402410a6a36e65f1e814a36a7f03fbf9ab74cde121",
+              "size": 21412,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Twin"
+            ],
+            "albumartist": [
+              "Aurora Fields"
+            ],
+            "albumartistsort": [
+              "Aurora Fields"
+            ],
+            "artist": [
+              "Aurora Fields"
+            ],
+            "artistsort": [
+              "Aurora Fields"
+            ],
+            "date": [
+              "2023"
+            ],
+            "discnumber": [
+              "2"
+            ],
+            "disctotal": [
+              "2"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Return"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "07b42d410f4cc46583ab912592762e3dbffa4b0dd7337dfc840e6693cd724cc2",
+        "size": 994611
+      },
+      "Café Orchestra - Été [FLAC]/01 - Soirée.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "ee5c339e77d3b3eed1b270f429151f19",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "0d95ee0ce10358d316839d59e1b886c888b629ebb2fad30ebb6a1155bd0d3ba6",
+              "size": 30089,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Été"
+            ],
+            "albumartist": [
+              "Café Orchestra"
+            ],
+            "artist": [
+              "Café Orchestra"
+            ],
+            "date": [
+              "2014"
+            ],
+            "genre": [
+              "Jazz"
+            ],
+            "title": [
+              "Soirée"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "38bf0f821274a3783ab5b8dc40e39d6d4666335471fb6fe7de3c59d9a1f78cc1",
+        "size": 1000801
+      },
+      "Café Orchestra - Été [FLAC]/02 - Terrasse.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "0a996ccdfc97ddfa992d516972a5f2b1",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "0d95ee0ce10358d316839d59e1b886c888b629ebb2fad30ebb6a1155bd0d3ba6",
+              "size": 30089,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Été"
+            ],
+            "albumartist": [
+              "Café Orchestra"
+            ],
+            "artist": [
+              "Café Orchestra"
+            ],
+            "date": [
+              "2014"
+            ],
+            "genre": [
+              "Jazz"
+            ],
+            "title": [
+              "Terrasse"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "630c075b820edd46cf94a09a34ab641d0839e5ce2b4fde3f78358f4c5e43067a",
+        "size": 1005551
+      },
+      "Café Orchestra - Été [FLAC]/03 - Crème.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "6435463de021cc83bfef5ab5460b8525",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "0d95ee0ce10358d316839d59e1b886c888b629ebb2fad30ebb6a1155bd0d3ba6",
+              "size": 30089,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Été"
+            ],
+            "albumartist": [
+              "Café Orchestra"
+            ],
+            "artist": [
+              "Café Orchestra"
+            ],
+            "date": [
+              "2014"
+            ],
+            "genre": [
+              "Jazz"
+            ],
+            "title": [
+              "Crème"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "a8fa9142d0933f66d753a6ca71be61959997a95a0d0217f5e7dfb0d9d6958ada",
+        "size": 999895
+      },
+      "Café Orchestra - Été [FLAC]/cover.jpg": {
+        "sha256": "0d95ee0ce10358d316839d59e1b886c888b629ebb2fad30ebb6a1155bd0d3ba6",
+        "size": 30089
+      },
+      "Legacy Folder Name/01 - Kitchen Radio.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "81f8ec21b8eb30db30136a0c682775d7",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Old Rips"
+            ],
+            "albumartist": [
+              "Quiet Atlas"
+            ],
+            "artist": [
+              "Quiet Atlas"
+            ],
+            "date": [
+              "2009"
+            ],
+            "genre": [
+              "Folk"
+            ],
+            "title": [
+              "Kitchen Radio"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "2"
+            ]
+          }
+        },
+        "sha256": "6e8dfdf7f547edc7c1b933155589393c7ef38388efcf106b59bb1e2baec6cd6a",
+        "size": 980218
+      },
+      "Legacy Folder Name/02 - Porch Light.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "dc3b8386b2dfa5a8b01b79a0218bda8e",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Old Rips"
+            ],
+            "albumartist": [
+              "Quiet Atlas"
+            ],
+            "artist": [
+              "Quiet Atlas"
+            ],
+            "date": [
+              "2009"
+            ],
+            "genre": [
+              "Folk"
+            ],
+            "title": [
+              "Porch Light"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "2"
+            ]
+          }
+        },
+        "sha256": "9d701d49b7266e68f12fb9cfe3da61ff0f417d963b03be8e75ff1a5eaa0912d6",
+        "size": 968551
+      },
+      "Legacy Folder Name/cover.jpg": {
+        "sha256": "192f85c319f1fe8afd370ba32c414d047a409d396d0baecc4f0cf2f3af6d9493",
+        "size": 26324
+      },
+      "Mono Harbor - Dotfiles [FLAC]/._01 - Ghost.flac": {
+        "sha256": "17c88df6b56c6e2b4ddd1bc6c576159af8197e8ada88bd97105f55e21213a763",
+        "size": 26
+      },
+      "Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "094855487356b41648872e0b009d9d25",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Dotfiles"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2020"
+            ],
+            "genre": [
+              "Lo-Fi"
+            ],
+            "title": [
+              "Hidden"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "2"
+            ]
+          }
+        },
+        "sha256": "f56e9588fa4415dd1dd3085f0189c67c79ac89a53f02c782b4d5db6edcb79e90",
+        "size": 971118
+      },
+      "Mono Harbor - Dotfiles [FLAC]/02 - Visible.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "2ef4a51f6823c08c042932176bf0f40b",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Dotfiles"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2020"
+            ],
+            "genre": [
+              "Lo-Fi"
+            ],
+            "title": [
+              "Visible"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "2"
+            ]
+          }
+        },
+        "sha256": "a7a320c35feb77d332e2a6a1f4d1274d39f023d4391f9ecd646ff991bf9407b0",
+        "size": 968606
+      },
+      "Mono Harbor - Dotfiles [FLAC]/cover.jpg": {
+        "sha256": "15391109b120052d53e610ae50fde42f7a8dbd6da684f1551a357de1e559968d",
+        "size": 25786
+      },
+      "Mono Harbor - Dotfiles [FLAC]/notes.txt": {
+        "sha256": "8fe9b9fc98397682e8484e837045943cee55badb2b9af3a404a19604454d1087",
+        "size": 65
+      },
+      "Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "dab49dd9f27600f98fc74b52130ec0fd",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "e063992a7c0f05323732c7de76cef2e07d9fd577a6db7bffaee7f9075edc3850",
+              "size": 29135,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Dupes"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2019"
+            ],
+            "genre": [
+              "Shoegaze"
+            ],
+            "title": [
+              "Static Bloom"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "1a085dcbab9a8662bc6b18484ab164579fb9d915184654c8ee897de4fafba51b",
+        "size": 987829
+      },
+      "Mono Harbor - Dupes [FLAC]/02 - Feedback Garden.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "fbdd6b2295038fdd5c5eec6fd5523f3c",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "e063992a7c0f05323732c7de76cef2e07d9fd577a6db7bffaee7f9075edc3850",
+              "size": 29135,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Dupes"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2019"
+            ],
+            "genre": [
+              "Shoegaze"
+            ],
+            "title": [
+              "Feedback Garden"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "0f4b8729c8795c7032d26e5974f7737478d862d8306bd3dfaf04007b8ab928e5",
+        "size": 982444
+      },
+      "Mono Harbor - Dupes [FLAC]/03 - Static Bloom (Reprise).flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "dab49dd9f27600f98fc74b52130ec0fd",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "e063992a7c0f05323732c7de76cef2e07d9fd577a6db7bffaee7f9075edc3850",
+              "size": 29135,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Dupes"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2019"
+            ],
+            "genre": [
+              "Shoegaze"
+            ],
+            "title": [
+              "Static Bloom (Reprise)"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "20d9c3697f3f17588b8e9cab334ffb43e970e5060bd021f0ffa809c427578e67",
+        "size": 987839
+      },
+      "Mono Harbor - Dupes [FLAC]/04 - Wall of Sound.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "cdbbf5d569497a10d068c7b597b563bc",
+            "sample_rate": 44100
+          },
+          "pictures": [
+            {
+              "height": 600,
+              "mime": "image/jpeg",
+              "sha256": "e063992a7c0f05323732c7de76cef2e07d9fd577a6db7bffaee7f9075edc3850",
+              "size": 29135,
+              "type": 3,
+              "width": 600
+            }
+          ],
+          "tags": {
+            "album": [
+              "Dupes"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2019"
+            ],
+            "genre": [
+              "Shoegaze"
+            ],
+            "title": [
+              "Wall of Sound"
+            ],
+            "tracknumber": [
+              "4"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "dc0b4ca2367748e5f96191bce81fdae30631c3bac63184bc8247950d6a07cda9",
+        "size": 973864
+      },
+      "Mono Harbor - Gaps [FLAC]/01 - Pier One.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "9ff88895ae10dba200678bf34d59fa58",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Gaps"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "artistsort": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2016"
+            ],
+            "genre": [
+              "Indie Rock"
+            ],
+            "title": [
+              "Pier One"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "9e1eb740b55dad92933f19dd90ef705201f158919fcf96d1eb12896593a2d884",
+        "size": 944259
+      },
+      "Mono Harbor - Gaps [FLAC]/02 - Breakwater.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "4e3e3f22184f4d51131e3ce3e1ecb44f",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Gaps"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "artistsort": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2016"
+            ],
+            "genre": [
+              "Indie Rock"
+            ],
+            "title": [
+              "Breakwater"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "cff26eebf1410953fdd3e7efdebec6df7389298e13d08a4b9646fe38ad6172aa",
+        "size": 956294
+      },
+      "Mono Harbor - Gaps [FLAC]/04 - Tidewater.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "5d0c812719c1c57361f7cb5f39590177",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Gaps"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "artistsort": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2016"
+            ],
+            "genre": [
+              "Indie Rock"
+            ],
+            "title": [
+              "Tidewater"
+            ],
+            "tracknumber": [
+              "4"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "4510c034027934e518d913b384f5906f811f838a39ae479dfbe0c6249f7ae6fb",
+        "size": 947038
+      },
+      "Mono Harbor - Gaps [FLAC]/05 - Lighthouse.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "d822171fbdb32d080c7443e31a6fc766",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Gaps"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "artistsort": [
+              "Mono Harbor"
+            ],
+            "date": [
+              "2016"
+            ],
+            "genre": [
+              "Indie Rock"
+            ],
+            "title": [
+              "Lighthouse"
+            ],
+            "tracknumber": [
+              "5"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "2b5028572ffc29cb63d908da31f158b386627dd2dc0725b6340704629f1af023",
+        "size": 961680
+      },
+      "Mono Harbor - Gaps [FLAC]/cover.jpg": {
+        "sha256": "78c7f5e7d46b89b70ffdb7b3e57617f55e16d6204e0b3a89319f1c661276dc17",
+        "size": 26508
+      },
+      "Mono Harbor - Sorted [FLAC]/01 - Ordered.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "66f1c6d2f05ad4be1f08a82b32cb46bc",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Sorted"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "albumartistsort": [
+              "Harbor, Mono"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "artistsort": [
+              "Harbor, Mono"
+            ],
+            "date": [
+              "2018"
+            ],
+            "genre": [
+              "Indie Rock"
+            ],
+            "title": [
+              "Ordered"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "20bdbed37bf81b411888d34165f32e447a519cf7cd42d9c6d1bca5da3a8add90",
+        "size": 958948
+      },
+      "Mono Harbor - Sorted [FLAC]/02 - Indexed.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "4855e15a9de1ed9658be6721e8af0bcf",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Sorted"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "albumartistsort": [
+              "Harbor, Mono"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "artistsort": [
+              "Harbor, Mono"
+            ],
+            "date": [
+              "2018"
+            ],
+            "genre": [
+              "Indie Rock"
+            ],
+            "title": [
+              "Indexed"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "43980c4592d8b5ad0fb771e6f1d9a387e599ce463597f47e3e5174089a0301f3",
+        "size": 975540
+      },
+      "Mono Harbor - Sorted [FLAC]/03 - Filed.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "7dd9a31b40b92e44fae76e66de0a61d2",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Sorted"
+            ],
+            "albumartist": [
+              "Mono Harbor"
+            ],
+            "albumartistsort": [
+              "Harbor, Mono"
+            ],
+            "artist": [
+              "Mono Harbor"
+            ],
+            "artistsort": [
+              "Harbor, Mono"
+            ],
+            "date": [
+              "2018"
+            ],
+            "genre": [
+              "Indie Rock"
+            ],
+            "title": [
+              "Filed"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "ef9b731b2b510388aae0b9d142848a9e252d5788bebdca56a94fd5962b2843d5",
+        "size": 962495
+      },
+      "Mono Harbor - Sorted [FLAC]/cover.jpg": {
+        "sha256": "434923508cc2d3e93d4349e0da12fdba407721cd0fa23e7203c70992aa543ca4",
+        "size": 24601
+      },
+      "The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "0ffed5f764177725efc09c96752ce0b0",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Porchlight"
+            ],
+            "albumartist": [
+              "The Lanterns"
+            ],
+            "artist": [
+              "The Lanterns"
+            ],
+            "date": [
+              "2012"
+            ],
+            "genre": [
+              "Americana"
+            ],
+            "title": [
+              "Screen Door"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "44bc0e74c5c0045900250bac612fcaf8cf93d67b1435f743215785540054d13c",
+        "size": 952678
+      },
+      "The Lanterns - Porchlight [FLAC]/02 - Fireflies.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "d0859b3a8dd12966cdc1626f42e55b6e",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Porchlight"
+            ],
+            "albumartist": [
+              "The Lanterns"
+            ],
+            "artist": [
+              "The Lanterns"
+            ],
+            "date": [
+              "2012"
+            ],
+            "genre": [
+              "Americana"
+            ],
+            "title": [
+              "Fireflies"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "fee3e85b3bcef56ebb7846b268183f3f9ef47bb4fdb3fcc9a676aef37d20ba06",
+        "size": 944711
+      },
+      "The Lanterns - Porchlight [FLAC]/03 - Gravel Road.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "d03fbb9849d715c72de65dcf23d925c9",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Porchlight"
+            ],
+            "albumartist": [
+              "The Lanterns"
+            ],
+            "artist": [
+              "The Lanterns"
+            ],
+            "date": [
+              "2012"
+            ],
+            "genre": [
+              "Americana"
+            ],
+            "title": [
+              "Gravel Road"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "3"
+            ]
+          }
+        },
+        "sha256": "0fbfd09f6189ec2fa580c546177ff02e3600cb5498e3c95aca51471d924ddf83",
+        "size": 950198
+      },
+      "The Lanterns - Porchlight [FLAC]/cover.jpg": {
+        "sha256": "63777c3a9c7fe272b4be6f91b51ff1677a61219872a47be8a4f8c2043770c615",
+        "size": 17947
+      },
+      "Various Artists - Night Mix [FLAC]/02 - something.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "1685632c4aecbecf5ffd5edcd3596a61",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Night Mix"
+            ],
+            "artist": [
+              "Sable & The Static"
+            ],
+            "compilation": [
+              "1"
+            ],
+            "date": [
+              "2017"
+            ],
+            "genre": [
+              "House"
+            ],
+            "title": [
+              "Something Electric"
+            ],
+            "tracknumber": [
+              "2"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "d00788d05c4c898f490b15fe28dee0e2e523c7e31b64cea326c5fd1d678325e3",
+        "size": 968691
+      },
+      "Various Artists - Night Mix [FLAC]/04.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "d3994996c65ca2937516ec8009bc902b",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Night Mix"
+            ],
+            "artist": [
+              "Orbit Society"
+            ],
+            "compilation": [
+              "1"
+            ],
+            "date": [
+              "2017"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Last Train"
+            ],
+            "tracknumber": [
+              "4"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "cbfa058c010f0f1a0144694cf1ec2be3f6ca4d38bfb92c1d1dad406fc11a74fd",
+        "size": 969171
+      },
+      "Various Artists - Night Mix [FLAC]/Night Mix 3.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "e8a88a2daaa1b31274f3f20b82b54964",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Night Mix"
+            ],
+            "artist": [
+              "Kite Theory"
+            ],
+            "compilation": [
+              "1"
+            ],
+            "date": [
+              "2017"
+            ],
+            "genre": [
+              "Downtempo",
+              "electronic"
+            ],
+            "title": [
+              "Velvet Signal"
+            ],
+            "tracknumber": [
+              "3"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "00021a6b4a2012c7c2593af9f32582b894175078ebb6b016d20424526eab47a4",
+        "size": 978082
+      },
+      "Various Artists - Night Mix [FLAC]/cover.jpg": {
+        "sha256": "1bdc61d015dbd5ddd66476755965eaa75fcf761f3bff7882ef85c4bde0fbe92c",
+        "size": 23169
+      },
+      "Various Artists - Night Mix [FLAC]/trackA.flac": {
+        "flac": {
+          "info": {
+            "bits_per_sample": 16,
+            "channels": 2,
+            "length": 10.0,
+            "md5_signature": "c07d96c7df78abf6955e9bb7855503d2",
+            "sample_rate": 44100
+          },
+          "pictures": [],
+          "tags": {
+            "album": [
+              "Night Mix"
+            ],
+            "artist": [
+              "Lumen Drift"
+            ],
+            "compilation": [
+              "1"
+            ],
+            "date": [
+              "2017"
+            ],
+            "genre": [
+              "Electronic"
+            ],
+            "title": [
+              "Neon Tide"
+            ],
+            "tracknumber": [
+              "1"
+            ],
+            "tracktotal": [
+              "4"
+            ]
+          }
+        },
+        "sha256": "cf2ccc762d2bce5c450b88b3ea054e81b8cb9b3671076804ece823bde401d93c",
+        "size": 969555
+      }
+    }
+  },
+  "name": "after-bpm",
+  "taken_at": "2026-11-09T17:39:37.922119+00:00"
+}

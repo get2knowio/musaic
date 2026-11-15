@@ -1,0 +1,74 @@
+{
+  "elapsed_ms": 1.0,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Gaps [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": null,
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Mono Harbor",
+      "artist_sort": "Mono Harbor",
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": "Gaps",
+      "dir_artist": "Mono Harbor",
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Mono Harbor - Gaps [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Indie Rock",
+      "has_embedded_cover": false,
+      "id": "<ID:Mono Harbor - Gaps [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Mono Harbor - Gaps [FLAC]/01 - Pier One.flac",
+      "title": "Gaps",
+      "total_seconds": 40.0,
+      "track_artists": [
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "Mono Harbor",
+          "filename": "01 - Pier One.flac"
+        },
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "Mono Harbor",
+          "filename": "02 - Breakwater.flac"
+        },
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "Mono Harbor",
+          "filename": "04 - Tidewater.flac"
+        },
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "Mono Harbor",
+          "filename": "05 - Lighthouse.flac"
+        }
+      ],
+      "track_count": 4,
+      "track_numbers": [
+        1,
+        2,
+        4,
+        5
+      ],
+      "year": "2016"
+    },
+    "status": 200
+  }
+}

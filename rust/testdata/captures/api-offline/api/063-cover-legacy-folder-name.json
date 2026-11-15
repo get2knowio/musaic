@@ -1,0 +1,17 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Legacy Folder Name>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "ce3b782cc5f1d227ebec489be77dbe98674af612344e2842994a44b8d911e589",
+      "size": 9051
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

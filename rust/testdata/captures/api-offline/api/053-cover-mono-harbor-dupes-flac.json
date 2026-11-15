@@ -1,0 +1,17 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Dupes [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "13b65b87864b5477bffec87629fae5274f13704874b2a3435477b0f430ff6635",
+      "size": 9986
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

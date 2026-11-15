@@ -1,0 +1,24 @@
+{
+  "elapsed_ms": 1.3,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/fingerprint-pool/status"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "completed": 13,
+      "completed_at": "2026-11-09T17:39:24Z",
+      "current_album_id": null,
+      "errors": 0,
+      "library_dir": "<LIB>",
+      "skip_reason": null,
+      "started_at": "2026-11-09T17:39:06Z",
+      "status": "done",
+      "total": 13
+    },
+    "status": 200
+  }
+}

@@ -1,0 +1,2498 @@
+{
+  "_meta": {
+    "frontend_dist": true,
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "tool": "tools.gen_route_order_golden"
+  },
+  "probes": [
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/health",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/health",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/health",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/health",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/health",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/config",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/config",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/config",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/config",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/albums",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/scan/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/scan/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/scan/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/scan/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/scan/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/library-events/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/library-events/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/library-events/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/library-events/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/library-events/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/fingerprint-pool/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/fingerprint-pool/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/fingerprint-pool/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/fingerprint-pool/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/fingerprint-pool/status",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/fingerprint-pool/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/fingerprint-pool/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/fingerprint-pool/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/fingerprint-pool/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/fingerprint-pool/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/scan/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/scan/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/scan/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/scan/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/scan/stream",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/scan/rescan",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/scan/rescan",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/scan/rescan",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/scan/rescan",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/albums/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums/x/cover",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/cover",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/cover",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/cover",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/albums/x/cover",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/albums/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/mb-anchor/clear",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/mb-anchor/clear",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/mb-anchor/clear",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/mb-anchor/clear",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums/x/resolution",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/resolution",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/resolution",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/resolution",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/albums/x/resolution",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/albums/x/tags",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/tags/x",
+      "status": 404
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums/x/tags/x",
+      "status": 405
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/tags/x",
+      "status": 405
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/tags/x",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/tracks/x/tags",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/tracks/x/tags",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/tracks/x/tags",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/tracks/x/tags",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/tracks/x/tags/x",
+      "status": 404
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums/x/tracks/x/tags/x",
+      "status": 405
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/tracks/x/tags/x",
+      "status": 405
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/tracks/x/tags/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/tags/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/tags/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/tags/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/tags/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/tags/x/tracks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/vocabulary",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/vocabulary",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/vocabulary",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/vocabulary",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/vocabulary/x",
+      "status": 404
+    },
+    {
+      "allow": "PATCH",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/vocabulary/x",
+      "status": 405
+    },
+    {
+      "allow": "PATCH",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/vocabulary/x",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/vocabulary/x/rename",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/vocabulary/x/rename",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/vocabulary/x/rename",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/vocabulary/x/rename",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/vocabulary/x/merge",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/vocabulary/x/merge",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/vocabulary/x/merge",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/vocabulary/x/merge",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/vocabulary/orphans/x/promote",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/vocabulary/orphans/x/promote",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/vocabulary/orphans/x/promote",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/vocabulary/orphans/x/promote",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/jobs",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/jobs",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/ai/jobs",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/ai/jobs/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/jobs/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/jobs/stream",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Job not found\"}",
+      "method": "DELETE",
+      "path": "/api/ai/jobs/stream",
+      "status": 404
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/ai/jobs/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/ai/jobs/active/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/jobs/active/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/jobs/active/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/ai/jobs/active/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/ai/jobs/active/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/ai/jobs/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/jobs/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/jobs/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/ai/jobs/x",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/ai/jobs/x/acted-on",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/jobs/x/acted-on",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/jobs/x/acted-on",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/ai/jobs/x/acted-on",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/ai/jobs/x/retry",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/jobs/x/retry",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/jobs/x/retry",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/ai/jobs/x/retry",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/ai/queue/resume",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/queue/resume",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/queue/resume",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/ai/queue/resume",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/settings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/settings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/settings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/settings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/ai/providers",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/ai/providers",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/ai/providers",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/ai/providers",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/ai/providers",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/db/info",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/db/info",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/db/info",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/db/info",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/db/info",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/db/backup",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/db/backup",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/db/backup",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/db/backup",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/db/backup",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/db/restore",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/db/restore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/db/restore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/db/restore",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/db/snapshots",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/db/snapshots",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/db/snapshots",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/db/snapshots",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/db/snapshots/x",
+      "status": 404
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/db/snapshots/x",
+      "status": 405
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/db/snapshots/x",
+      "status": 405
+    },
+    {
+      "allow": "DELETE",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/db/snapshots/x",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/db/snapshots/x/restore",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/db/snapshots/x/restore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/db/snapshots/x/restore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/db/snapshots/x/restore",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/checks/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/checks/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/checks/findings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/findings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/findings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/findings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/checks/findings",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/checks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/checks",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/checks/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/checks/x",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/x/run",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/x/run",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/x/run",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/x/run",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/x/findings/x/ignore",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/x/findings/x/ignore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/x/findings/x/ignore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/x/findings/x/ignore",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/x/findings/x/unignore",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/x/findings/x/unignore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/x/findings/x/unignore",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/x/findings/x/unignore",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/x/findings/x/fix",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/x/findings/x/fix",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/x/findings/x/fix",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/x/findings/x/fix",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/checks/duplicate-tracks/findings/x/canonical",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/duplicate-tracks/findings/x/canonical",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/duplicate-tracks/findings/x/canonical",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/duplicate-tracks/findings/x/canonical",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/checks/duplicate-tracks/findings/x/canonical",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/inconsistent-artist-sort/findings/x/apply-sort",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/inconsistent-artist-sort/findings/x/apply-sort",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/inconsistent-artist-sort/findings/x/apply-sort",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/inconsistent-artist-sort/findings/x/apply-sort",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/checks/filename-mismatch/findings/x/plan-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/filename-mismatch/findings/x/plan-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/filename-mismatch/findings/x/plan-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/filename-mismatch/findings/x/plan-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/checks/filename-mismatch/findings/x/plan-preview",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/filename-mismatch/findings/x/apply",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/filename-mismatch/findings/x/apply",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/filename-mismatch/findings/x/apply",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/filename-mismatch/findings/x/apply",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/checks/duplicate-tracks/findings/x/cluster-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/duplicate-tracks/findings/x/cluster-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/duplicate-tracks/findings/x/cluster-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/duplicate-tracks/findings/x/cluster-preview",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/api/checks/duplicate-tracks/findings/x/cluster-preview",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/duplicate-tracks/findings/x/delete-file",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/duplicate-tracks/findings/x/delete-file",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/duplicate-tracks/findings/x/delete-file",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/duplicate-tracks/findings/x/delete-file",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/checks/x/quick-fix-all",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/checks/x/quick-fix-all",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/checks/x/quick-fix-all",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/checks/x/quick-fix-all",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/apply/stream",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/apply/stream",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/apply/stream",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/apply/stream",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/cover/upload",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/cover/upload",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/cover/upload",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/cover/upload",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/analyze/stream",
+      "status": 404
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/api/albums/x/analyze/stream",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/albums/x/analyze/stream",
+      "status": 405
+    },
+    {
+      "allow": "POST",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/analyze/stream",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/x",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/db/snapshots/..%2Fescape.db/restore",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/db/snapshots/..%2Fescape.db",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/albums/x/tracks/a%2Fb.flac/tags",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/tracks/a%2Fb.flac/tags/t",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "DELETE",
+      "path": "/api/albums/x/tags/a%2Fb",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PATCH",
+      "path": "/api/vocabulary/a%2Fb",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Not Found\"}",
+      "method": "GET",
+      "path": "/api/albums/x/tracks/a%2Fb.flac/tags",
+      "status": 404
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/%68ealth",
+      "status": 405
+    },
+    {
+      "allow": "GET, HEAD",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/assets/app.js",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "PUT",
+      "path": "/some/spa/route",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/",
+      "status": 405
+    },
+    {
+      "allow": "GET",
+      "body": "",
+      "method": "HEAD",
+      "path": "/some/spa/route",
+      "status": 405
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Job not found\"}",
+      "method": "DELETE",
+      "path": "/api/ai/jobs/stream",
+      "status": 404
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":\"Job not found\"}",
+      "method": "POST",
+      "path": "/api/ai/jobs/active/retry",
+      "status": 404
+    },
+    {
+      "allow": null,
+      "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\"],\"msg\":\"Field required\",\"input\":null}]}",
+      "method": "POST",
+      "path": "/api/ai/jobs/active/acted-on",
+      "status": 422
+    },
+    {
+      "allow": "GET",
+      "body": "{\"detail\":\"Method Not Allowed\"}",
+      "method": "POST",
+      "path": "/api/ai/jobs/active/other",
+      "status": 405
+    }
+  ],
+  "routes": [
+    {
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "path": "/openapi.json",
+      "type": "Route"
+    },
+    {
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "path": "/docs",
+      "type": "Route"
+    },
+    {
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "path": "/docs/oauth2-redirect",
+      "type": "Route"
+    },
+    {
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "path": "/redoc",
+      "type": "Route"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/health",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/config",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/config",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/albums",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/scan/status",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/library-events/stream",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/fingerprint-pool/status",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/fingerprint-pool/stream",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/scan/stream",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/scan/rescan",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/albums/{album_id}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/albums/{album_id}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/albums/{album_id}/cover",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/albums/{album_id}/tracks",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/albums/{album_id}/mb-anchor/clear",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/albums/{album_id}/resolution",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/albums/{album_id}/tags",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "PUT"
+      ],
+      "path": "/api/albums/{album_id}/tags",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/albums/{album_id}/tags",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/albums/{album_id}/tags/{tag}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/albums/{album_id}/tracks/{filename}/tags",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/albums/{album_id}/tracks/{filename}/tags/{tag}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/tags/{tag}/tracks",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/vocabulary",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/vocabulary",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "PATCH"
+      ],
+      "path": "/api/vocabulary/{tag}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/vocabulary/{tag}/rename",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/vocabulary/{tag}/merge",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/vocabulary/{tag}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/vocabulary/orphans/{tag}/promote",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/ai/jobs",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/ai/jobs",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/ai/jobs/stream",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/ai/jobs/active/{album_id}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/ai/jobs/{job_id}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/ai/jobs/{job_id}/acted-on",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/ai/jobs/{job_id}/retry",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/ai/queue/resume",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/ai/jobs/{job_id}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/ai/jobs",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/settings",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "PATCH"
+      ],
+      "path": "/api/settings",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/ai/providers",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/db/info",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/db/backup",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/db/restore",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/db/snapshots",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/db/snapshots",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "DELETE"
+      ],
+      "path": "/api/db/snapshots/{name}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/db/snapshots/{name}/restore",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/checks/stream",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/checks/findings",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/checks",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/checks/{check_id}",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/{check_id}/run",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/{check_id}/findings/{finding_id}/ignore",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/{check_id}/findings/{finding_id}/unignore",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/{check_id}/findings/{finding_id}/fix",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/checks/duplicate-tracks/findings/{finding_id}/canonical",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/inconsistent-artist-sort/findings/{finding_id}/apply-sort",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/checks/filename-mismatch/findings/{finding_id}/plan-preview",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/filename-mismatch/findings/{finding_id}/apply",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/api/checks/duplicate-tracks/findings/{finding_id}/cluster-preview",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/duplicate-tracks/findings/{finding_id}/delete-file",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/checks/{check_id}/quick-fix-all",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/albums/{album_id}/apply/stream",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/albums/{album_id}/cover/upload",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "POST"
+      ],
+      "path": "/api/albums/{album_id}/analyze/stream",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [],
+      "path": "/assets",
+      "type": "Mount"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/",
+      "type": "APIRoute"
+    },
+    {
+      "methods": [
+        "GET"
+      ],
+      "path": "/{full_path:path}",
+      "type": "APIRoute"
+    }
+  ]
+}

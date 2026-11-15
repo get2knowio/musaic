@@ -1,0 +1,27 @@
+{
+  "elapsed_ms": 10.4,
+  "request": {
+    "json": {
+      "scope": "all"
+    },
+    "method": "POST",
+    "params": null,
+    "path": "/api/checks/filename-mismatch/run"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "check_id": "filename-mismatch",
+      "completed_at": "2026-11-09T17:39:25Z",
+      "duration_ms": 8,
+      "error": null,
+      "id": 7,
+      "issue_count": 3,
+      "library_path": "<LIB>",
+      "scope": "all",
+      "started_at": "2026-11-09T17:39:25Z",
+      "status": "completed"
+    },
+    "status": 200
+  }
+}

@@ -1,0 +1,225 @@
+{
+  "generator": "tools/gen_symlink_root_golden.py",
+  "library_manifest_digest": "d2730b9d9e90768b48e21d4aadcaaac161bdc168852e84332ca6670637b09efc",
+  "linked_album": "Aurora Fields - First Light [FLAC]",
+  "note": "paths are relative to python_repo_root; ids hash the absolute resolved path (python_repo_root + '/' + path). Non-UTF-8 names are impossible on APFS and not covered.",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "roots": [
+    {
+      "discover_album_dirs": [
+        "fixtures/library/Aurora Fields - First Light [FLAC]",
+        "fixtures/library/Aurora Fields - Folder Art [FLAC]",
+        "fixtures/library/Aurora Fields - Second Light [FLAC]",
+        "fixtures/library/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+        "fixtures/library/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+        "fixtures/library/Café Orchestra - Été [FLAC]",
+        "fixtures/library/Legacy Folder Name",
+        "fixtures/library/Mono Harbor - Dotfiles [FLAC]",
+        "fixtures/library/Mono Harbor - Dupes [FLAC]",
+        "fixtures/library/Mono Harbor - Gaps [FLAC]",
+        "fixtures/library/Mono Harbor - Sorted [FLAC]",
+        "fixtures/library/The Lanterns - Porchlight [FLAC]",
+        "fixtures/library/Various Artists - Night Mix [FLAC]"
+      ],
+      "incremental_discovered": {
+        "library_dir": "fixtures/library",
+        "total": 13
+      },
+      "root": "abs-link",
+      "root_is_symlink": true,
+      "scan_albums": [
+        {
+          "dir_name": "Aurora Fields - First Light [FLAC]",
+          "id": "b8153e6739d5d489",
+          "path": "fixtures/library/Aurora Fields - First Light [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Folder Art [FLAC]",
+          "id": "2533828f08b2275a",
+          "path": "fixtures/library/Aurora Fields - Folder Art [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Second Light [FLAC]",
+          "id": "d1550a3a6693e775",
+          "path": "fixtures/library/Aurora Fields - Second Light [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "id": "1e6a4de5f5567069",
+          "path": "fixtures/library/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "id": "d83594b081d2e79a",
+          "path": "fixtures/library/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac"
+        },
+        {
+          "dir_name": "Café Orchestra - Été [FLAC]",
+          "id": "f9e1c11a16f5f8f7",
+          "path": "fixtures/library/Café Orchestra - Été [FLAC]",
+          "sample_track": "fixtures/library/Café Orchestra - Été [FLAC]/01 - Soirée.flac"
+        },
+        {
+          "dir_name": "Legacy Folder Name",
+          "id": "46f8399e0c6bc659",
+          "path": "fixtures/library/Legacy Folder Name",
+          "sample_track": "fixtures/library/Legacy Folder Name/01 - Kitchen Radio.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+          "id": "802d94888446a43c",
+          "path": "fixtures/library/Mono Harbor - Dotfiles [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Dupes [FLAC]",
+          "id": "ef0f3dd3615087b4",
+          "path": "fixtures/library/Mono Harbor - Dupes [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Gaps [FLAC]",
+          "id": "bf35b213dff20a08",
+          "path": "fixtures/library/Mono Harbor - Gaps [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Gaps [FLAC]/01 - Pier One.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Sorted [FLAC]",
+          "id": "266bc48101dcf9cc",
+          "path": "fixtures/library/Mono Harbor - Sorted [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Sorted [FLAC]/01 - Ordered.flac"
+        },
+        {
+          "dir_name": "The Lanterns - Porchlight [FLAC]",
+          "id": "e1a75a00634ecd34",
+          "path": "fixtures/library/The Lanterns - Porchlight [FLAC]",
+          "sample_track": "fixtures/library/The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac"
+        },
+        {
+          "dir_name": "Various Artists - Night Mix [FLAC]",
+          "id": "f5c5f9b2463b98e1",
+          "path": "fixtures/library/Various Artists - Night Mix [FLAC]",
+          "sample_track": "fixtures/library/Various Artists - Night Mix [FLAC]/02 - something.flac"
+        }
+      ]
+    },
+    {
+      "discover_album_dirs": [
+        "fixtures/library/Aurora Fields - First Light [FLAC]",
+        "fixtures/library/Aurora Fields - Folder Art [FLAC]",
+        "fixtures/library/Aurora Fields - Second Light [FLAC]",
+        "fixtures/library/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+        "fixtures/library/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+        "fixtures/library/Café Orchestra - Été [FLAC]",
+        "fixtures/library/Legacy Folder Name",
+        "fixtures/library/Mono Harbor - Dotfiles [FLAC]",
+        "fixtures/library/Mono Harbor - Dupes [FLAC]",
+        "fixtures/library/Mono Harbor - Gaps [FLAC]",
+        "fixtures/library/Mono Harbor - Sorted [FLAC]",
+        "fixtures/library/The Lanterns - Porchlight [FLAC]",
+        "fixtures/library/Various Artists - Night Mix [FLAC]"
+      ],
+      "incremental_discovered": {
+        "library_dir": "fixtures/library",
+        "total": 13
+      },
+      "root": "chain",
+      "root_is_symlink": true,
+      "scan_albums": [
+        {
+          "dir_name": "Aurora Fields - First Light [FLAC]",
+          "id": "b8153e6739d5d489",
+          "path": "fixtures/library/Aurora Fields - First Light [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Folder Art [FLAC]",
+          "id": "2533828f08b2275a",
+          "path": "fixtures/library/Aurora Fields - Folder Art [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Second Light [FLAC]",
+          "id": "d1550a3a6693e775",
+          "path": "fixtures/library/Aurora Fields - Second Light [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "id": "1e6a4de5f5567069",
+          "path": "fixtures/library/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac"
+        },
+        {
+          "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "id": "d83594b081d2e79a",
+          "path": "fixtures/library/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "sample_track": "fixtures/library/Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac"
+        },
+        {
+          "dir_name": "Café Orchestra - Été [FLAC]",
+          "id": "f9e1c11a16f5f8f7",
+          "path": "fixtures/library/Café Orchestra - Été [FLAC]",
+          "sample_track": "fixtures/library/Café Orchestra - Été [FLAC]/01 - Soirée.flac"
+        },
+        {
+          "dir_name": "Legacy Folder Name",
+          "id": "46f8399e0c6bc659",
+          "path": "fixtures/library/Legacy Folder Name",
+          "sample_track": "fixtures/library/Legacy Folder Name/01 - Kitchen Radio.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+          "id": "802d94888446a43c",
+          "path": "fixtures/library/Mono Harbor - Dotfiles [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Dupes [FLAC]",
+          "id": "ef0f3dd3615087b4",
+          "path": "fixtures/library/Mono Harbor - Dupes [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Gaps [FLAC]",
+          "id": "bf35b213dff20a08",
+          "path": "fixtures/library/Mono Harbor - Gaps [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Gaps [FLAC]/01 - Pier One.flac"
+        },
+        {
+          "dir_name": "Mono Harbor - Sorted [FLAC]",
+          "id": "266bc48101dcf9cc",
+          "path": "fixtures/library/Mono Harbor - Sorted [FLAC]",
+          "sample_track": "fixtures/library/Mono Harbor - Sorted [FLAC]/01 - Ordered.flac"
+        },
+        {
+          "dir_name": "The Lanterns - Porchlight [FLAC]",
+          "id": "e1a75a00634ecd34",
+          "path": "fixtures/library/The Lanterns - Porchlight [FLAC]",
+          "sample_track": "fixtures/library/The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac"
+        },
+        {
+          "dir_name": "Various Artists - Night Mix [FLAC]",
+          "id": "f5c5f9b2463b98e1",
+          "path": "fixtures/library/Various Artists - Night Mix [FLAC]",
+          "sample_track": "fixtures/library/Various Artists - Night Mix [FLAC]/02 - something.flac"
+        }
+      ]
+    },
+    {
+      "discover_album_dirs": [],
+      "incremental_discovered": {
+        "library_dir": "work/symlink-root-golden/real-root",
+        "total": 0
+      },
+      "root": "real-root",
+      "root_is_symlink": false,
+      "scan_albums": []
+    }
+  ]
+}

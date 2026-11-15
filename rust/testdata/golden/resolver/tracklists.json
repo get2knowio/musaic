@@ -1,0 +1,458 @@
+{
+  "cases": [
+    {
+      "name": "no releases",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFtdfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "",
+        "tracks": []
+      }
+    },
+    {
+      "name": "earliest dated release wins; undated sort last",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImlkIjogInItdW5kYXRlZCIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMSwgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDEwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVTEifV19XX0sIHsiZGF0ZSI6ICIxOTkwIiwgImlkIjogInItMTk5MCIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMSwgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDEwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiQTEifV19XX0sIHsiZGF0ZSI6ICIxOTg1LTAyIiwgImlkIjogInItMTk4NSIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMSwgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDIwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiQjEifV19XX1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-1985",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 2000,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "B1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ties keep input order",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4NSIsICJpZCI6ICJyLWEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDEsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIkEifV19XX0sIHsiZGF0ZSI6ICIxOTg1IiwgImlkIjogInItYiIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMSwgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDIsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiQiJ9XX1dfV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-a",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 1,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "A"
+          }
+        ]
+      }
+    },
+    {
+      "name": "release without media is skipped",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEifSwgeyJkYXRlIjogIjE5ODEiLCAiaWQiOiAici0yIiwgIm1lZGlhIjogW3sicG9zaXRpb24iOiAxLCAidHJhY2stY291bnQiOiAxLCAidHJhY2tzIjogW3sibGVuZ3RoIjogMTUwMCwgInJlY29yZGluZyI6IHsiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJUd28ifV19XX1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-2",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 1500,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "Two"
+          }
+        ]
+      }
+    },
+    {
+      "name": "release with an empty medium is skipped",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDEsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIkEifV19LCB7InBvc2l0aW9uIjogMiwgInRyYWNrLWNvdW50IjogMCwgInRyYWNrcyI6IFtdfV19LCB7ImRhdGUiOiAiMTk4MSIsICJpZCI6ICJyLTIiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDEsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxNTAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlR3byJ9XX1dfV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-2",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 1500,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "Two"
+          }
+        ]
+      }
+    },
+    {
+      "name": "track without any title makes the release unusable",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDIsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIkEifSwgeyJsZW5ndGgiOiAyLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifX1dfV19LCB7ImRhdGUiOiAiMTk4MSIsICJpZCI6ICJyLTIiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDEsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAzLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIloifV19XX1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-2",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 3,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "whitespace title is unusable",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDEsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMiLCAidGl0bGUiOiAiUmVjIn0sICJ0aXRsZSI6ICIgICJ9XX1dfSwgeyJkYXRlIjogIjE5ODEiLCAiaWQiOiAici0yIiwgIm1lZGlhIjogW3sicG9zaXRpb24iOiAxLCAidHJhY2stY291bnQiOiAxLCAidHJhY2tzIjogW3sibGVuZ3RoIjogMywgInJlY29yZGluZyI6IHsiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJaIn1dfV19XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-2",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 3,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "Z"
+          }
+        ]
+      }
+    },
+    {
+      "name": "recording title and length fill in; title stripped",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDIsICJ0cmFja3MiOiBbeyJyZWNvcmRpbmciOiB7ImlkIjogInJlYyIsICJsZW5ndGgiOiAxMjM0NTYsICJ0aXRsZSI6ICIgUmVjIFRpdGxlICJ9fSwgeyJsZW5ndGgiOiAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMiLCAibGVuZ3RoIjogOTk5fSwgInRpdGxlIjogIiBUMiAifV19XX1dfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-1",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 123456,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "Rec Title"
+          },
+          {
+            "artist": null,
+            "length_ms": 999,
+            "position": 2,
+            "recording_mbid": "rec",
+            "title": "T2"
+          }
+        ]
+      }
+    },
+    {
+      "name": "multi-disc positions run on",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDIsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxMDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIkQxVDEifSwgeyJsZW5ndGgiOiAyMDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIkQxVDIifV19LCB7InBvc2l0aW9uIjogMiwgInRyYWNrLWNvdW50IjogMSwgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDMwMDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiRDJUMSJ9XX1dfV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-1",
+        "tracks": [
+          {
+            "artist": null,
+            "length_ms": 1000,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "D1T1"
+          },
+          {
+            "artist": null,
+            "length_ms": 2000,
+            "position": 2,
+            "recording_mbid": "rec",
+            "title": "D1T2"
+          },
+          {
+            "artist": null,
+            "length_ms": 3000,
+            "position": 3,
+            "recording_mbid": "rec",
+            "title": "D2T1"
+          }
+        ]
+      }
+    },
+    {
+      "name": "artist credit with joinphrases",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDQsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxMDAwLCAicmVjb3JkaW5nIjogeyJhcnRpc3QtY3JlZGl0IjogW3siam9pbnBocmFzZSI6ICIgJiAiLCAibmFtZSI6ICJYIn0sIHsiam9pbnBocmFzZSI6ICIgZmVhdC4gIiwgIm5hbWUiOiAiWSJ9LCB7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiWiJ9XSwgImlkIjogInJlYyJ9LCAidGl0bGUiOiAiQSJ9LCB7Imxlbmd0aCI6IDEwMDAsICJyZWNvcmRpbmciOiB7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiAmICIsICJuYW1lIjogIiAgIn0sIHsiam9pbnBocmFzZSI6ICIiLCAibmFtZSI6ICJTb2xvIn1dLCAiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJCIn0sIHsibGVuZ3RoIjogMTAwMCwgInJlY29yZGluZyI6IHsiYXJ0aXN0LWNyZWRpdCI6IFtdLCAiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJDIn0sIHsibGVuZ3RoIjogMTAwMCwgInJlY29yZGluZyI6IHt9LCAidGl0bGUiOiAiRCJ9XX1dfV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "r-1",
+        "tracks": [
+          {
+            "artist": "X & Y feat. Z",
+            "length_ms": 1000,
+            "position": 1,
+            "recording_mbid": "rec",
+            "title": "A"
+          },
+          {
+            "artist": "Solo",
+            "length_ms": 1000,
+            "position": 2,
+            "recording_mbid": "rec",
+            "title": "B"
+          },
+          {
+            "artist": null,
+            "length_ms": 1000,
+            "position": 3,
+            "recording_mbid": "rec",
+            "title": "C"
+          },
+          {
+            "artist": null,
+            "length_ms": 1000,
+            "position": 4,
+            "recording_mbid": null,
+            "title": "D"
+          }
+        ]
+      }
+    },
+    {
+      "name": "no usable release at all",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk4MCIsICJpZCI6ICJyLTEiLCAibWVkaWEiOiBbeyJwb3NpdGlvbiI6IDEsICJ0cmFjay1jb3VudCI6IDEsICJ0cmFja3MiOiBbeyJsZW5ndGgiOiAxLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifX1dfV19XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "release_mbid": "",
+        "tracks": []
+      }
+    },
+    {
+      "name": "HTTP 503",
+      "overlay": [
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "status": 503,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "release_group": "44444444-4444-4444-4444-444444444444",
+      "requests": [
+        {
+          "key": "054c9ffa95d6754842e9ce6335e40cdf643e989e1db6df5bf4328c8936bdeb3a",
+          "method": "GET",
+          "served": "constructed",
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=44444444-4444-4444-4444-444444444444"
+        }
+      ],
+      "result": {
+        "error": "RuntimeError"
+      }
+    }
+  ],
+  "provenance": {
+    "fresh_timestamp": "2999-01-01T00:00:00Z",
+    "network": "replay (fixtures/replay) + constructed overlay per case",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "stale_timestamp": "2000-01-01T00:00:00Z",
+    "tool": "gen_resolver_golden"
+  }
+}

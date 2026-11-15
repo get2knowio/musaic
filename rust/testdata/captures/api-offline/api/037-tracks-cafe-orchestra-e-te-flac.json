@@ -1,0 +1,54 @@
+{
+  "elapsed_ms": 1.3,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Café Orchestra",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "01 - Soirée.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Soirée",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "Café Orchestra",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - Terrasse.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Terrasse",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Café Orchestra",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "03 - Crème.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Crème",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

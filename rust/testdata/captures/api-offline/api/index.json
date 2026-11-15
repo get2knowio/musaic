@@ -1,0 +1,800 @@
+[
+  {
+    "error": null,
+    "file": "api/001-get-openapi-json.json",
+    "method": "GET",
+    "path": "/openapi.json",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/002-get-api-health.json",
+    "method": "GET",
+    "path": "/api/health",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/003-get-config-unset.json",
+    "method": "GET",
+    "path": "/api/config",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/004-post-config-bad-dir-negative.json",
+    "method": "POST",
+    "path": "/api/config",
+    "status": 400
+  },
+  {
+    "error": null,
+    "file": "api/005-get-albums-unconfigured-negative.json",
+    "method": "GET",
+    "path": "/api/albums",
+    "status": 409
+  },
+  {
+    "error": null,
+    "file": "api/006-post-config-lib.json",
+    "method": "POST",
+    "path": "/api/config",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/007-patch-settings-acoustid-key.json",
+    "method": "PATCH",
+    "path": "/api/settings",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/008-get-config-set.json",
+    "method": "GET",
+    "path": "/api/config",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/009-get-api-scan-status.json",
+    "method": "GET",
+    "path": "/api/scan/status",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/010-get-api-albums.json",
+    "method": "GET",
+    "path": "/api/albums",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/011-album-aurora-fields-first-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/012-tracks-aurora-fields-first-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/013-cover-aurora-fields-first-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/014-cover-full-aurora-fields-first-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/015-tags-aurora-fields-first-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/016-album-aurora-fields-second-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/017-tracks-aurora-fields-second-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/018-cover-aurora-fields-second-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/cover",
+    "status": 404
+  },
+  {
+    "error": null,
+    "file": "api/019-cover-full-aurora-fields-second-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/cover",
+    "status": 404
+  },
+  {
+    "error": null,
+    "file": "api/020-tags-aurora-fields-second-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Second Light [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/021-album-aurora-fields-folder-art-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/022-tracks-aurora-fields-folder-art-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/023-cover-aurora-fields-folder-art-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/024-cover-full-aurora-fields-folder-art-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/025-tags-aurora-fields-folder-art-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/026-album-aurora-fields-twin-disc-2-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/027-tracks-aurora-fields-twin-disc-2-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/028-cover-aurora-fields-twin-disc-2-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/029-cover-full-aurora-fields-twin-disc-2-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/030-tags-aurora-fields-twin-disc-2-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/031-album-aurora-fields-twin-disc-1-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/032-tracks-aurora-fields-twin-disc-1-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/033-cover-aurora-fields-twin-disc-1-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/034-cover-full-aurora-fields-twin-disc-1-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/035-tags-aurora-fields-twin-disc-1-of-2-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/036-album-cafe-orchestra-e-te-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/037-tracks-cafe-orchestra-e-te-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/038-cover-cafe-orchestra-e-te-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/039-cover-full-cafe-orchestra-e-te-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/040-tags-cafe-orchestra-e-te-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/041-album-mono-harbor-gaps-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Gaps [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/042-tracks-mono-harbor-gaps-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Gaps [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/043-cover-mono-harbor-gaps-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Gaps [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/044-cover-full-mono-harbor-gaps-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Gaps [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/045-tags-mono-harbor-gaps-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Gaps [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/046-album-mono-harbor-sorted-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Sorted [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/047-tracks-mono-harbor-sorted-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Sorted [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/048-cover-mono-harbor-sorted-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Sorted [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/049-cover-full-mono-harbor-sorted-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Sorted [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/050-tags-mono-harbor-sorted-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Sorted [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/051-album-mono-harbor-dupes-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dupes [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/052-tracks-mono-harbor-dupes-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dupes [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/053-cover-mono-harbor-dupes-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dupes [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/054-cover-full-mono-harbor-dupes-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dupes [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/055-tags-mono-harbor-dupes-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dupes [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/056-album-mono-harbor-dotfiles-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/057-tracks-mono-harbor-dotfiles-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/058-cover-mono-harbor-dotfiles-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/059-cover-full-mono-harbor-dotfiles-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/060-tags-mono-harbor-dotfiles-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/061-album-legacy-folder-name.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Legacy Folder Name>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/062-tracks-legacy-folder-name.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Legacy Folder Name>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/063-cover-legacy-folder-name.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Legacy Folder Name>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/064-cover-full-legacy-folder-name.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Legacy Folder Name>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/065-tags-legacy-folder-name.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Legacy Folder Name>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/066-album-various-artists-night-mix-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/067-tracks-various-artists-night-mix-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/068-cover-various-artists-night-mix-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/069-cover-full-various-artists-night-mix-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/070-tags-various-artists-night-mix-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/071-album-the-lanterns-porchlight-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/072-tracks-the-lanterns-porchlight-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/073-cover-the-lanterns-porchlight-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/074-cover-full-the-lanterns-porchlight-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>/cover",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/075-tags-the-lanterns-porchlight-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:The Lanterns - Porchlight [FLAC]>/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/076-album-unknown-id-negative.json",
+    "method": "GET",
+    "path": "/api/albums/0000000000000000",
+    "status": 404
+  },
+  {
+    "error": null,
+    "file": "api/077-resolution-aurora-fields-first-light-flac.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/resolution",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/078-get-api-checks.json",
+    "method": "GET",
+    "path": "/api/checks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/079-get-api-checks-findings.json",
+    "method": "GET",
+    "path": "/api/checks/findings",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/080-get-api-settings.json",
+    "method": "GET",
+    "path": "/api/settings",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/081-get-api-ai-providers.json",
+    "method": "GET",
+    "path": "/api/ai/providers",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/082-get-api-ai-jobs.json",
+    "method": "GET",
+    "path": "/api/ai/jobs",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/083-get-api-db-info.json",
+    "method": "GET",
+    "path": "/api/db/info",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/084-get-api-db-snapshots.json",
+    "method": "GET",
+    "path": "/api/db/snapshots",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/085-get-api-tags.json",
+    "method": "GET",
+    "path": "/api/tags",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/086-get-api-vocabulary.json",
+    "method": "GET",
+    "path": "/api/vocabulary",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/087-get-api-fingerprint-pool-status.json",
+    "method": "GET",
+    "path": "/api/fingerprint-pool/status",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/088-api-404-negative.json",
+    "method": "GET",
+    "path": "/api/this-does-not-exist",
+    "status": 404
+  },
+  {
+    "error": null,
+    "file": "api/089-spa-fallback.json",
+    "method": "GET",
+    "path": "/library/some-album-id",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/090-run-check-unidentified-album.json",
+    "method": "POST",
+    "path": "/api/checks/unidentified-album/run",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/091-check-detail-unidentified-album.json",
+    "method": "GET",
+    "path": "/api/checks/unidentified-album",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/092-run-check-tags-out-of-sync.json",
+    "method": "POST",
+    "path": "/api/checks/tags-out-of-sync/run",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/093-check-detail-tags-out-of-sync.json",
+    "method": "GET",
+    "path": "/api/checks/tags-out-of-sync",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/094-run-check-track-gaps.json",
+    "method": "POST",
+    "path": "/api/checks/track-gaps/run",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/095-check-detail-track-gaps.json",
+    "method": "GET",
+    "path": "/api/checks/track-gaps",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/096-run-check-inconsistent-artist-sort.json",
+    "method": "POST",
+    "path": "/api/checks/inconsistent-artist-sort/run",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/097-check-detail-inconsistent-artist-sort.json",
+    "method": "GET",
+    "path": "/api/checks/inconsistent-artist-sort",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/098-run-check-no-cover-art.json",
+    "method": "POST",
+    "path": "/api/checks/no-cover-art/run",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/099-check-detail-no-cover-art.json",
+    "method": "GET",
+    "path": "/api/checks/no-cover-art",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/100-run-check-duplicate-tracks.json",
+    "method": "POST",
+    "path": "/api/checks/duplicate-tracks/run",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/101-check-detail-duplicate-tracks.json",
+    "method": "GET",
+    "path": "/api/checks/duplicate-tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/102-run-check-filename-mismatch.json",
+    "method": "POST",
+    "path": "/api/checks/filename-mismatch/run",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/103-check-detail-filename-mismatch.json",
+    "method": "GET",
+    "path": "/api/checks/filename-mismatch",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/104-findings-after-run.json",
+    "method": "GET",
+    "path": "/api/checks/findings",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/105-cluster-preview-18.json",
+    "method": "GET",
+    "path": "/api/checks/duplicate-tracks/findings/18/cluster-preview",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/106-plan-preview-19.json",
+    "method": "GET",
+    "path": "/api/checks/filename-mismatch/findings/19/plan-preview",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/107-plan-preview-20.json",
+    "method": "GET",
+    "path": "/api/checks/filename-mismatch/findings/20/plan-preview",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/108-plan-preview-21.json",
+    "method": "GET",
+    "path": "/api/checks/filename-mismatch/findings/21/plan-preview",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/109-checks-after-run.json",
+    "method": "GET",
+    "path": "/api/checks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/110-album-after-apply.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/111-tracks-after-apply.json",
+    "method": "GET",
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/tracks",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/112-findings-after-apply.json",
+    "method": "GET",
+    "path": "/api/checks/findings",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/113-scan-status-end.json",
+    "method": "GET",
+    "path": "/api/scan/status",
+    "status": 200
+  },
+  {
+    "error": null,
+    "file": "api/114-fingerprint-pool-end.json",
+    "method": "GET",
+    "path": "/api/fingerprint-pool/status",
+    "status": 200
+  }
+]

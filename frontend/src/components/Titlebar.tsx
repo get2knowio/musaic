@@ -16,6 +16,8 @@ import {
   triggerRescan,
 } from "@/lib/rescanController";
 import FingerprintPoolPill from "./FingerprintPoolPill";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import { jobsPageLabel } from "@/lib/aiGating";
 
 type ViewMode = "tiles" | "list";
 
@@ -25,7 +27,8 @@ function readView(params: URLSearchParams): ViewMode {
 
 const ROUTE_LABELS: { match: (path: string) => boolean; label: string }[] = [
   { match: (p) => p === "/" || p.startsWith("/library"), label: "Library" },
-  { match: (p) => p.startsWith("/jobs"), label: "AI Jobs" },
+  // "AI Jobs" when AI is ready (jobsPageLabel).
+  { match: (p) => p.startsWith("/jobs"), label: "Jobs" },
   { match: (p) => p.startsWith("/health"), label: "Health" },
   { match: (p) => p.startsWith("/settings"), label: "Settings" },
 ];
@@ -92,8 +95,10 @@ export default function Titlebar() {
   // Breadcrumb: prefer the abbreviated configured library_dir, fall back to
   // the current route name. Hardcoded "~/Music/Library" was misleading.
   const libraryDir = config.data?.library_dir ?? null;
-  const routeLabel =
+  const ai = useAiStatus();
+  const matchedLabel =
     ROUTE_LABELS.find((r) => r.match(location.pathname))?.label ?? "";
+  const routeLabel = matchedLabel === "Jobs" ? jobsPageLabel(ai) : matchedLabel;
   const crumb =
     onLibrary && libraryDir ? abbreviateHome(libraryDir) : routeLabel;
 

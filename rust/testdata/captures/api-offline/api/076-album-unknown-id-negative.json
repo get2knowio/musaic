@@ -1,0 +1,16 @@
+{
+  "elapsed_ms": 7.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/0000000000000000"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "detail": "Album not found"
+    },
+    "status": 404
+  }
+}

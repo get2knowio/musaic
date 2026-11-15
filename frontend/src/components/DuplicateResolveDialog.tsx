@@ -20,6 +20,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Database, Files, Loader2, Music, ShieldCheck, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import RevealInFileManager from "@/components/RevealInFileManager";
 import { fetchDuplicateClusterPreview } from "@/lib/api";
 import {
   useDeleteDuplicateFile,
@@ -107,8 +108,8 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
       }
     }
     // Require a meaningful match — if every filename scores poorly
-    // we'd rather not lie. Threshold lets "Theme From Mahogany"
-    // (ratio ~1.0) win cleanly while rejecting "All I Ask Of You" (~0.0).
+    // we'd rather not lie. Threshold lets "Theme From Harbor Lights"
+    // (ratio ~1.0) win cleanly while rejecting "All I Want Tonight" (~0.0).
     return bestRatio >= 0.6 ? best : null;
   }, [canonical?.title, filenames]);
 
@@ -242,6 +243,8 @@ export default function DuplicateResolveDialog({ finding, open, onClose }: Props
               (<code className="mono text-fg-3">~/.musaic/trash/</code>),
               not unlinked. Restore by moving them back, or empty the
               folder once you're sure.
+              {/* Desktop window only. */}
+              <RevealInFileManager target={{ kind: "trash" }} className="ml-1.5 align-baseline" />
             </p>
           </div>
 

@@ -24,6 +24,13 @@ interface AISuggestionsProps {
    *  the button + shows progress. */
   clearingAnchor: boolean;
   applying: boolean;
+  /** Same-origin URL that serves the suggested cover (the
+   *  backend fetches the job's stored `cover_url`; the desktop CSP blocks
+   *  remote images). `null`: no preview image is shown. */
+  coverPreviewSrc?: string | null;
+  /** A model backend can run (lib/aiGating.ts). Without one nothing here
+   *  names Claude or suggests a hint. */
+  aiReady?: boolean;
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -55,6 +62,8 @@ export default function AISuggestions({
   onClearAnchor,
   clearingAnchor,
   applying,
+  coverPreviewSrc = null,
+  aiReady = false,
 }: AISuggestionsProps) {
   // We need the live track listing to compute "before" values for per-track diffs.
   const tracksQuery = useTracks(album.id);
@@ -115,7 +124,9 @@ export default function AISuggestions({
     } else if (metadataWasRequested) {
       primary = mbidStatus === "identified"
         ? "No tag corrections needed — current metadata looks accurate. The album was identified on MusicBrainz; the unidentified-album finding will clear momentarily."
-        : "No high-confidence corrections, and Claude couldn't identify this on MusicBrainz either. Try editing the directory name or adding a hint.";
+        : aiReady
+          ? "No high-confidence corrections, and Claude couldn't identify this on MusicBrainz either. Try editing the directory name or adding a hint."
+          : "No high-confidence corrections, and the album couldn't be identified on MusicBrainz either. Try editing the directory name.";
     } else {
       primary = "Couldn't identify a cover for this album.";
     }
@@ -123,11 +134,11 @@ export default function AISuggestions({
       <div className="px-4 py-4 space-y-3">
         <div className="border border-line rounded-md bg-panel-2 p-3 text-sm">
           <div className="mono text-xs uppercase tracking-[0.06em] text-fg-4 mb-2">
-            Claude's review
+            {aiReady ? "Claude's review" : "Review"}
           </div>
           <p className="text-fg-3 italic text-sm">{primary}</p>
           {mbidStatus !== "n/a" && (
-            <MbidStatusLine status={mbidStatus} mbid={mbid} />
+            <MbidStatusLine status={mbidStatus} mbid={mbid} aiReady={aiReady} />
           )}
           {metadataWasRequested && metadata?.notes && (
             <p className="mt-2 text-xs text-fg-2 leading-relaxed">
@@ -147,7 +158,7 @@ export default function AISuggestions({
           >
             Discard
           </button>
-          <ClearAnchorButton onClick={onClearAnchor} busy={clearingAnchor} />
+          <ClearAnchorButton onClick={onClearAnchor} busy={clearingAnchor} aiReady={aiReady} />
         </div>
       </div>
     );
@@ -161,7 +172,7 @@ export default function AISuggestions({
           so the user can see the unidentified-album side-effect happened. */}
       {mbidStatus !== "n/a" && (
         <div className="border border-line rounded-md bg-panel-2 p-3 text-sm">
-          <MbidStatusLine status={mbidStatus} mbid={mbid} />
+          <MbidStatusLine status={mbidStatus} mbid={mbid} aiReady={aiReady} />
         </div>
       )}
 
@@ -253,14 +264,16 @@ export default function AISuggestions({
       {/* Cover suggestion */}
       {hasCover && cover && (
         <div className="border border-line rounded-md bg-panel-2 p-3 text-sm flex gap-3">
-          <img
-            src={cover.cover_url ?? ""}
-            alt="proposed cover"
-            className="w-20 h-20 rounded object-cover bg-bg-2 shrink-0"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-            }}
-          />
+          {coverPreviewSrc && (
+            <img
+              src={coverPreviewSrc}
+              alt="proposed cover"
+              className="w-20 h-20 rounded object-cover bg-bg-2 shrink-0"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
+            />
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between mb-1">
               <span className="mono text-xs uppercase tracking-[0.06em] text-fg-3">
@@ -292,7 +305,7 @@ export default function AISuggestions({
         >
           Discard
         </button>
-        <ClearAnchorButton onClick={onClearAnchor} busy={clearingAnchor} disabled={applying} />
+        <ClearAnchorButton onClick={onClearAnchor} busy={clearingAnchor} disabled={applying} aiReady={aiReady} />
         <button
           onClick={onAccept}
           disabled={applying}
@@ -310,17 +323,22 @@ export default function AISuggestions({
  *  next AI run isn't short-circuited by a synthesizer that keeps
  *  returning the same wrong cover/title from a stale release-group. */
 function ClearAnchorButton({
-  onClick, busy, disabled = false,
+  onClick, busy, disabled = false, aiReady,
 }: {
   onClick: () => void;
   busy: boolean;
   disabled?: boolean;
+  aiReady: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       disabled={busy || disabled}
-      title="Wipe the cached MusicBrainz match so a new AI run can search again. Use when the wrong release-group has been locked in (common for compilations). Tip: re-run with a hint to bias the search."
+      title={
+        aiReady
+          ? "Wipe the cached MusicBrainz match so a new AI run can search again. Use when the wrong release-group has been locked in (common for compilations). Tip: re-run with a hint to bias the search."
+          : "Wipe the cached MusicBrainz match so the next lookup can search again. Use when the wrong release-group has been locked in (common for compilations)."
+      }
       className="h-8 px-3 border border-amber-500/40 text-amber-300 rounded text-sm hover:bg-amber-500/10 transition disabled:opacity-60"
     >
       {busy ? "Clearing…" : "Wrong match"}
@@ -449,9 +467,11 @@ function ConfidenceBadge({ confidence }: { confidence: string }) {
 function MbidStatusLine({
   status,
   mbid,
+  aiReady,
 }: {
   status: "identified" | "not-identified" | "n/a";
   mbid: string | null;
+  aiReady: boolean;
 }) {
   if (status === "n/a") return null;
   if (status === "identified" && mbid) {
@@ -482,9 +502,18 @@ function MbidStatusLine({
         MusicBrainz:
       </span>
       <span>
-        not identified. The unidentified-album finding stays open — try editing the
-        directory name to canonical "Artist - Album" form, or click Fix again
-        with a hint.
+        {aiReady ? (
+          <>
+            not identified. The unidentified-album finding stays open — try editing the
+            directory name to canonical "Artist - Album" form, or click Fix again
+            with a hint.
+          </>
+        ) : (
+          <>
+            not identified. The unidentified-album finding stays open — try editing the
+            directory name to canonical "Artist - Album" form.
+          </>
+        )}
       </span>
     </div>
   );

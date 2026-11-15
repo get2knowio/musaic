@@ -1,0 +1,62 @@
+{
+  "elapsed_ms": 1.1,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - Folder Art [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": "Aurora Fields",
+      "album_artist_sort": "Aurora Fields",
+      "album_sort": null,
+      "artist": "Aurora Fields",
+      "artist_sort": "Aurora Fields",
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "folder.jpg",
+      "dir_album": "Folder Art",
+      "dir_artist": "Aurora Fields",
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Aurora Fields - Folder Art [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Post-Rock",
+      "has_embedded_cover": false,
+      "id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Aurora Fields - Folder Art [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac",
+      "title": "Folder Art",
+      "total_seconds": 20.0,
+      "track_artists": [
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "01 - Canvas.flac"
+        },
+        {
+          "artist": "Aurora Fields",
+          "artist_sort": "Aurora Fields",
+          "filename": "02 - Easel.flac"
+        }
+      ],
+      "track_count": 2,
+      "track_numbers": [
+        1,
+        2
+      ],
+      "year": "2022"
+    },
+    "status": 200
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "elapsed_ms": 1.1,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Dotfiles [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": "Mono Harbor",
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Mono Harbor",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": "Dotfiles",
+      "dir_artist": "Mono Harbor",
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Lo-Fi",
+      "has_embedded_cover": false,
+      "id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac",
+      "title": "Dotfiles",
+      "total_seconds": 20.0,
+      "track_artists": [
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "",
+          "filename": "01 - Hidden.flac"
+        },
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "",
+          "filename": "02 - Visible.flac"
+        }
+      ],
+      "track_count": 2,
+      "track_numbers": [
+        1,
+        2
+      ],
+      "year": "2020"
+    },
+    "status": 200
+  }
+}

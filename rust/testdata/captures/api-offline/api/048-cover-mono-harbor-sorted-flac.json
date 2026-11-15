@@ -1,0 +1,17 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Sorted [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "52472dac9b850a913d4bdf1a9cd9c95404bb5d575c9187ab4be06bd202150890",
+      "size": 8990
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

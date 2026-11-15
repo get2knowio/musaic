@@ -1,0 +1,18 @@
+{
+  "elapsed_ms": 1.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>/tags"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+      "album_tags": [],
+      "track_tags": {}
+    },
+    "status": 200
+  }
+}

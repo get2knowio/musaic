@@ -1,0 +1,4158 @@
+{
+  "_meta": {
+    "clock": "jobs._now_iso / cache._now_iso: 2026-01-01T00:00:00Z + 1 s per call (recorded as <NOW>)",
+    "ids": "jobs._new_id: 0000000000000001, 2, ... (recorded as <JOB:n>)",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "thumb_b64": "/9j/4GZha2UtdGh1bWItZm9yLWdvbGRlbv/Z",
+    "thumb_sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329",
+    "tool": "tools.gen_ai_jobs_golden"
+  },
+  "album_dicts": {
+    "Alpha - One [FLAC]": {
+      "album_artist": "Alpha",
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Alpha",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": null,
+      "dir_album": "One",
+      "dir_artist": "Alpha",
+      "dir_mtime": "<MTIME>",
+      "dir_name": "Alpha - One [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": null,
+      "has_embedded_cover": false,
+      "id": "<ID:Alpha - One [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Alpha - One [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Alpha - One [FLAC]/01 a.flac",
+      "title": "One",
+      "total_seconds": 6.0,
+      "track_artists": [
+        {
+          "artist": "Alpha",
+          "artist_sort": "",
+          "filename": "01 a.flac"
+        },
+        {
+          "artist": "Alpha",
+          "artist_sort": "",
+          "filename": "02 b.flac"
+        }
+      ],
+      "track_count": 2,
+      "track_numbers": [
+        1,
+        2
+      ],
+      "year": "2019"
+    },
+    "Bravo - Two [FLAC]": {
+      "album_artist": "Bravo",
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Bravo",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": "Two",
+      "dir_artist": "Bravo",
+      "dir_mtime": "<MTIME>",
+      "dir_name": "Bravo - Two [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Jazz",
+      "has_embedded_cover": false,
+      "id": "<ID:Bravo - Two [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Bravo - Two [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Bravo - Two [FLAC]/01 x.flac",
+      "title": "Two",
+      "total_seconds": 6.0,
+      "track_artists": [
+        {
+          "artist": "Bravo",
+          "artist_sort": "",
+          "filename": "01 x.flac"
+        },
+        {
+          "artist": "Bravo",
+          "artist_sort": "",
+          "filename": "02 y.flac"
+        }
+      ],
+      "track_count": 2,
+      "track_numbers": [
+        1,
+        2
+      ],
+      "year": "2019"
+    },
+    "Delta four": {
+      "album_artist": "Delta",
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Delta",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": null,
+      "dir_album": null,
+      "dir_artist": null,
+      "dir_mtime": "<MTIME>",
+      "dir_name": "Delta four",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": null,
+      "has_embedded_cover": false,
+      "id": "<ID:Delta four>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Delta four",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Delta four/track.flac",
+      "title": "Four",
+      "total_seconds": 3.0,
+      "track_artists": [
+        {
+          "artist": "Delta",
+          "artist_sort": "",
+          "filename": "track.flac"
+        }
+      ],
+      "track_count": 1,
+      "track_numbers": [
+        1
+      ],
+      "year": "2019"
+    },
+    "Various Artists - Mix [FLAC]": {
+      "album_artist": "Various Artists",
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Various Artists",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": null,
+      "dir_album": "Mix",
+      "dir_artist": null,
+      "dir_mtime": "<MTIME>",
+      "dir_name": "Various Artists - Mix [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": null,
+      "has_embedded_cover": false,
+      "id": "<ID:Various Artists - Mix [FLAC]>",
+      "is_compilation": true,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Various Artists - Mix [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Various Artists - Mix [FLAC]/01 m.flac",
+      "title": "Mix",
+      "total_seconds": 6.0,
+      "track_artists": [
+        {
+          "artist": "Mike",
+          "artist_sort": "",
+          "filename": "01 m.flac"
+        },
+        {
+          "artist": "Nora",
+          "artist_sort": "",
+          "filename": "02 n.flac"
+        }
+      ],
+      "track_count": 2,
+      "track_numbers": [
+        1,
+        2
+      ],
+      "year": "2001"
+    }
+  },
+  "albums": [
+    {
+      "dir": "Alpha - One [FLAC]",
+      "files": [
+        {
+          "name": "01 a.flac",
+          "padding": 0,
+          "seconds": 3,
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "Uno"
+            ],
+            [
+              "ALBUMARTIST",
+              "Alpha"
+            ],
+            [
+              "ARTIST",
+              "Alpha"
+            ],
+            [
+              "ALBUM",
+              "One"
+            ],
+            [
+              "DATE",
+              "2019"
+            ]
+          ]
+        },
+        {
+          "name": "02 b.flac",
+          "padding": 0,
+          "seconds": 3,
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "2"
+            ],
+            [
+              "TITLE",
+              "Dos"
+            ],
+            [
+              "ALBUMARTIST",
+              "Alpha"
+            ],
+            [
+              "ARTIST",
+              "Alpha"
+            ],
+            [
+              "ALBUM",
+              "One"
+            ],
+            [
+              "DATE",
+              "2019"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "dir": "Bravo - Two [FLAC]",
+      "files": [
+        {
+          "name": "01 x.flac",
+          "padding": 0,
+          "seconds": 3,
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "Ex"
+            ],
+            [
+              "ALBUMARTIST",
+              "Bravo"
+            ],
+            [
+              "ARTIST",
+              "Bravo"
+            ],
+            [
+              "ALBUM",
+              "Two"
+            ],
+            [
+              "DATE",
+              "2019"
+            ],
+            [
+              "GENRE",
+              "Jazz"
+            ]
+          ]
+        },
+        {
+          "name": "02 y.flac",
+          "padding": 0,
+          "seconds": 3,
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "2"
+            ],
+            [
+              "TITLE",
+              "Why"
+            ],
+            [
+              "ALBUMARTIST",
+              "Bravo"
+            ],
+            [
+              "ARTIST",
+              "Bravo"
+            ],
+            [
+              "ALBUM",
+              "Two"
+            ],
+            [
+              "DATE",
+              "2019"
+            ],
+            [
+              "GENRE",
+              "Jazz"
+            ]
+          ]
+        },
+        {
+          "b64": "/9j/4GZha2UtY292ZXItZmlsZf/Z",
+          "name": "cover.jpg"
+        }
+      ]
+    },
+    {
+      "dir": "Various Artists - Mix [FLAC]",
+      "files": [
+        {
+          "name": "01 m.flac",
+          "padding": 0,
+          "seconds": 3,
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "Em"
+            ],
+            [
+              "ALBUMARTIST",
+              "Various Artists"
+            ],
+            [
+              "ALBUM",
+              "Mix"
+            ],
+            [
+              "DATE",
+              "2001"
+            ],
+            [
+              "ARTIST",
+              "Mike"
+            ]
+          ]
+        },
+        {
+          "name": "02 n.flac",
+          "padding": 0,
+          "seconds": 3,
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "2"
+            ],
+            [
+              "TITLE",
+              "En"
+            ],
+            [
+              "ALBUMARTIST",
+              "Various Artists"
+            ],
+            [
+              "ALBUM",
+              "Mix"
+            ],
+            [
+              "DATE",
+              "2001"
+            ],
+            [
+              "ARTIST",
+              "Nora"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "dir": "Delta four",
+      "files": [
+        {
+          "name": "track.flac",
+          "padding": 0,
+          "seconds": 3,
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "Solo"
+            ],
+            [
+              "ALBUMARTIST",
+              "Delta"
+            ],
+            [
+              "ARTIST",
+              "Delta"
+            ],
+            [
+              "ALBUM",
+              "Four"
+            ],
+            [
+              "DATE",
+              "2019"
+            ]
+          ]
+        }
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "skip-synth-changes",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:8>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "high",
+            "mb_release_group_mbid": "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+            "notes": "Derived from MusicBrainz; no AI call needed.",
+            "suggestions": {
+              "genre": "Rock",
+              "title": "One (Deluxe)",
+              "year": "2018"
+            },
+            "tracks": [
+              {
+                "filename": "02 b.flac",
+                "suggestions": {
+                  "artist": "Alpha feat. B",
+                  "title": "Dos!"
+                }
+              }
+            ]
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:8>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One (Deluxe)\", \"year\": \"2018\", \"genre\": \"Rock\"}, \"tracks\": [{\"filename\": \"02 b.flac\", \"suggestions\": {\"title\": \"Dos!\", \"artist\": \"Alpha feat. B\"}}], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "anchor 0.95, every track aligned: synthesizer, no provider call",
+      "provider_calls": [],
+      "resolution": {
+        "anchor": [
+          "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+          "musicbrainz",
+          0.95
+        ],
+        "anchor_strategy": "cache",
+        "canonical_album_artist": [
+          "Alpha",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_genre": [
+          "Rock",
+          "musicbrainz",
+          0.55
+        ],
+        "canonical_title": [
+          "One (Deluxe)",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_year": [
+          "2018",
+          "musicbrainz",
+          0.95
+        ],
+        "notes": [
+          "Tier 0a: cache hit"
+        ],
+        "tracks": [
+          {
+            "canonical_title": [
+              "Uno",
+              "musicbrainz",
+              0.95
+            ],
+            "canonical_tracknumber": [
+              "1",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "01 a.flac"
+          },
+          {
+            "canonical_artist": [
+              "Alpha feat. B",
+              "musicbrainz",
+              0.95
+            ],
+            "canonical_title": [
+              "Dos!",
+              "musicbrainz",
+              0.95
+            ],
+            "canonical_tracknumber": [
+              "2",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 0
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One (Deluxe)\", \"year\": \"2018\", \"genre\": \"Rock\"}, \"tracks\": [{\"filename\": \"02 b.flac\", \"suggestions\": {\"title\": \"Dos!\", \"artist\": \"Alpha feat. B\"}}], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}}",
+      "scripts": [],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "skip-synth-noop-autoack",
+      "job": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:9>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "high",
+            "mb_release_group_mbid": "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+            "notes": "Derived from MusicBrainz; no AI call needed.",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_row": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:9>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}}",
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "nothing differs: auto-acknowledged",
+      "provider_calls": [],
+      "resolution": {
+        "anchor": [
+          "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+          "musicbrainz",
+          1.0
+        ],
+        "anchor_strategy": "dir-search",
+        "canonical_album_artist": [
+          "Alpha",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_title": [
+          "One",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_year": [
+          "2019",
+          "musicbrainz",
+          0.95
+        ],
+        "tracks": [
+          {
+            "canonical_title": [
+              "Uno",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "01 a.flac"
+          },
+          {
+            "canonical_title": [
+              "Dos",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 0
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}}",
+      "scripts": [],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "skip-edge-0.85",
+      "job": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:10>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "high",
+            "mb_release_group_mbid": "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+            "notes": "Derived from MusicBrainz; no AI call needed.",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_row": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:10>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}}",
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [],
+      "resolution": {
+        "anchor": [
+          "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+          "musicbrainz",
+          0.85
+        ],
+        "anchor_strategy": "dir-search",
+        "canonical_album_artist": [
+          "Alpha",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_title": [
+          "One",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_year": [
+          "2019",
+          "musicbrainz",
+          0.95
+        ],
+        "tracks": [
+          {
+            "canonical_title": [
+              "Uno",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "01 a.flac"
+          },
+          {
+            "canonical_title": [
+              "Dos",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 0
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}}",
+      "scripts": [],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": 88,
+          "mb_release_group_mbid": "9b03c15f-f0ac-3205-8327-8b7e91a923cf",
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [
+        {
+          "album_id": "<ID:Alpha - One [FLAC]>",
+          "source": "ai",
+          "type": "AlbumMbAnchorSet"
+        }
+      ],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "low-confidence-anchor-goes-to-provider",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:11>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "high",
+            "mb_release_group_mbid": "9b03c15f-f0ac-3205-8327-8b7e91a923cf",
+            "notes": "found",
+            "suggestions": {
+              "title": "One"
+            },
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:11>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One\"}, \"tracks\": [], \"notes\": \"found\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"9b03c15f-f0ac-3205-8327-8b7e91a923cf\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata",
+      "mb_status": {
+        "9b03c15f-f0ac-3205-8327-8b7e91a923cf": 200
+      },
+      "no_cli": false,
+      "notes": "anchor 0.7, 0 unresolved: provider called; its MBID verified (200) and persisted at 88",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": {\n    \"release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\",\n    \"strategy\": \"dir-search\",\n    \"confidence\": 0.7,\n    \"notes\": []\n  },\n  \"resolver_canonical\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"album_artist_sort\": null\n  }\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "anchor": [
+          "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+          "musicbrainz",
+          0.7
+        ],
+        "anchor_strategy": "dir-search",
+        "canonical_album_artist": [
+          "Alpha",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_title": [
+          "One",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_year": [
+          "2019",
+          "musicbrainz",
+          0.95
+        ],
+        "tracks": [
+          {
+            "canonical_title": [
+              "Uno",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "01 a.flac"
+          },
+          {
+            "canonical_title": [
+              "Dos",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 0
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One\"}, \"tracks\": [], \"notes\": \"found\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"9b03c15f-f0ac-3205-8327-8b7e91a923cf\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"suggestions\": {\n    \"title\": \"One\"\n  },\n  \"tracks\": [],\n  \"notes\": \"found\",\n  \"confidence\": \"high\",\n  \"mb_release_group_mbid\": \"9B03C15F-F0AC-3205-8327-8B7E91A923CF\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"suggestions\": {\n    \"title\": \"One\"\n  },\n  \"tracks\": [],\n  \"notes\": \"found\",\n  \"confidence\": \"high\",\n  \"mb_release_group_mbid\": \"9B03C15F-F0AC-3205-8327-8B7E91A923CF\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "  look at the 2019 one  ",
+      "id": "unresolved-goes-to-provider",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "  look at the 2019 one  ",
+        "id": "<JOB:12>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "medium",
+            "mb_release_group_mbid": null,
+            "notes": "Matched the 2019 release.",
+            "suggestions": {
+              "album_artist_sort": "Alpha",
+              "album_sort": "7",
+              "genre": "Pop",
+              "title": "One (Remastered)"
+            },
+            "tracks": [
+              {
+                "filename": "01 a.flac",
+                "suggestions": {
+                  "title": "Uno!",
+                  "tracknumber": "1"
+                }
+              }
+            ]
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "  look at the 2019 one  ",
+        "id": "<JOB:12>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One (Remastered)\", \"genre\": \"Pop\", \"album_artist_sort\": \"Alpha\", \"album_sort\": \"7\"}, \"tracks\": [{\"filename\": \"01 a.flac\", \"suggestions\": {\"title\": \"Uno!\", \"tracknumber\": \"1\"}}], \"notes\": \"Matched the 2019 release.\", \"confidence\": \"medium\", \"mb_release_group_mbid\": null}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "anchor 0.95, 1 unresolved: provider called with the resolution embedded; no MBID back: lookup failure recorded",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<hint>\nlook at the 2019 one\n</hint>\n\n<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0,\n      \"fingerprint\": {\n        \"recording_mbid\": \"rec-1\",\n        \"score\": 0.9,\n        \"mb_canonical_title\": \"Uno\"\n      }\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": {\n    \"release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\",\n    \"strategy\": \"fingerprint-vote\",\n    \"confidence\": 0.95,\n    \"notes\": [\n      \"Tier 0c: vote 2/2\"\n    ]\n  },\n  \"resolver_canonical\": {\n    \"title\": \"One\",\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "anchor": [
+          "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+          "fingerprint",
+          0.95
+        ],
+        "anchor_strategy": "fingerprint-vote",
+        "canonical_title": [
+          "One",
+          "musicbrainz",
+          0.95
+        ],
+        "notes": [
+          "Tier 0c: vote 2/2"
+        ],
+        "tracks": [
+          {
+            "canonical_title": [
+              "Uno",
+              "fingerprint+mb",
+              0.95
+            ],
+            "filename": "01 a.flac",
+            "fingerprint_score": 0.9,
+            "fingerprinted": true,
+            "recording_mbid": "rec-1"
+          },
+          {
+            "filename": "02 b.flac",
+            "fingerprinted": true
+          }
+        ],
+        "unresolved_track_count": 1
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One (Remastered)\", \"genre\": \"Pop\", \"album_artist_sort\": \"Alpha\", \"album_sort\": \"7\"}, \"tracks\": [{\"filename\": \"01 a.flac\", \"suggestions\": {\"title\": \"Uno!\", \"tracknumber\": \"1\"}}], \"notes\": \"Matched the 2019 release.\", \"confidence\": \"medium\", \"mb_release_group_mbid\": null}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "```json\n{\n  \"suggestions\": {\n    \"title\": \"One (Remastered)\",\n    \"genre\": \"Pop\",\n    \"bogus\": \"x\",\n    \"year\": \"\",\n    \"artist\": null,\n    \"album_artist_sort\": \"Alpha\",\n    \"album_sort\": 7\n  },\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"suggestions\": {\n        \"title\": \" Uno! \",\n        \"tracknumber\": 1,\n        \"genre\": \"x\"\n      }\n    },\n    {\n      \"filename\": \"\",\n      \"suggestions\": {\n        \"title\": \"nameless\"\n      }\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"suggestions\": {\n        \"artist\": \"\"\n      }\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"suggestions\": \"not a dict\"\n    },\n    \"junk\"\n  ],\n  \"notes\": \"Matched the 2019 release.\",\n  \"confidence\": \"medium\"\n}\n```\ntrailing prose",
+              "type": "text"
+            },
+            {
+              "text": "```json\n{\n  \"suggestions\": {\n    \"title\": \"One (Remastered)\",\n    \"genre\": \"Pop\",\n    \"bogus\": \"x\",\n    \"year\": \"\",\n    \"artist\": null,\n    \"album_artist_sort\": \"Alpha\",\n    \"album_sort\": 7\n  },\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"suggestions\": {\n        \"title\": \" Uno! \",\n        \"tracknumber\": 1,\n        \"genre\": \"x\"\n      }\n    },\n    {\n      \"filename\": \"\",\n      \"suggestions\": {\n        \"title\": \"nameless\"\n      }\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"suggestions\": {\n        \"artist\": \"\"\n      }\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"suggestions\": \"not a dict\"\n    },\n    \"junk\"\n  ],\n  \"notes\": \"Matched the 2019 release.\",\n  \"confidence\": \"medium\"\n}\n```\ntrailing prose",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": 88,
+          "mb_release_group_mbid": "9b03c15f-f0ac-3205-8327-8b7e91a923cf",
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [
+        {
+          "album_id": "<ID:Alpha - One [FLAC]>",
+          "source": "ai",
+          "type": "AlbumMbAnchorSet"
+        }
+      ],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "provider-noop-identified-autoack",
+      "job": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:13>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "high",
+            "mb_release_group_mbid": "9b03c15f-f0ac-3205-8327-8b7e91a923cf",
+            "notes": "already right",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_row": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:13>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"already right\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"9b03c15f-f0ac-3205-8327-8b7e91a923cf\"}}",
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_type": "metadata",
+      "mb_status": {
+        "9b03c15f-f0ac-3205-8327-8b7e91a923cf": 200
+      },
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"already right\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"9b03c15f-f0ac-3205-8327-8b7e91a923cf\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"suggestions\": {},\n  \"tracks\": [],\n  \"notes\": \"already right\",\n  \"confidence\": \"high\",\n  \"mb_release_group_mbid\": \"9b03c15f-f0ac-3205-8327-8b7e91a923cf\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"suggestions\": {},\n  \"tracks\": [],\n  \"notes\": \"already right\",\n  \"confidence\": \"high\",\n  \"mb_release_group_mbid\": \"9b03c15f-f0ac-3205-8327-8b7e91a923cf\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "provider-mbid-404",
+      "job": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:14>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "unknown",
+            "mb_release_group_mbid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "notes": "",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_row": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:14>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": \"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\"}}",
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_type": "metadata",
+      "mb_status": {
+        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": 404
+      },
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": \"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"mb_release_group_mbid\": \"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"mb_release_group_mbid\": \"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "provider-mbid-network-error",
+      "job": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:15>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "unknown",
+            "mb_release_group_mbid": "00000000-1111-2222-3333-444444444444",
+            "notes": "",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_row": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:15>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": \"00000000-1111-2222-3333-444444444444\"}}",
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_type": "metadata",
+      "mb_status": {
+        "00000000-1111-2222-3333-444444444444": "error"
+      },
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": \"00000000-1111-2222-3333-444444444444\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"mb_release_group_mbid\": \"00000000-1111-2222-3333-444444444444\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"mb_release_group_mbid\": \"00000000-1111-2222-3333-444444444444\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [
+        "11111111-2222-3333-4444-555555555555"
+      ],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "provider-mbid-blocklisted",
+      "job": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:16>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "unknown",
+            "mb_release_group_mbid": "11111111-2222-3333-4444-555555555555",
+            "notes": "",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_row": {
+        "acted_on_action": "applied",
+        "acted_on_at": "<NOW>",
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:16>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": \"11111111-2222-3333-4444-555555555555\"}}",
+        "started_at": "<NOW>",
+        "status": "acted_on"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": \"11111111-2222-3333-4444-555555555555\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"mb_release_group_mbid\": \"11111111-2222-3333-4444-555555555555\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"mb_release_group_mbid\": \"11111111-2222-3333-4444-555555555555\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "fc-test-key",
+      "hint": "",
+      "id": "cover-attached-firecrawl",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:17>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "low",
+            "mb_release_group_mbid": null,
+            "notes": "",
+            "suggestions": {
+              "genre": "Pop"
+            },
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:17>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {\"genre\": \"Pop\"}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"low\", \"mb_release_group_mbid\": null}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "unresolved album; thumb present and attach_cover on: image part; FireCrawl key: hint + MCP server",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [
+            {
+              "name": "firecrawl",
+              "transport": "sse",
+              "url": "https://mcp.firecrawl.dev/fc-test-key/v2/mcp"
+            }
+          ],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata+firecrawl",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  }\n}\n</album>"
+        }
+      ],
+      "resolution": null,
+      "result_json": "{\"metadata\": {\"suggestions\": {\"genre\": \"Pop\"}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"low\", \"mb_release_group_mbid\": null}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "{\n  \"suggestions\": {\n    \"genre\": \"Pop\"\n  },\n  \"confidence\": \"low\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"suggestions\": {\n    \"genre\": \"Pop\"\n  },\n  \"confidence\": \"low\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": false,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-not-attached",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": false,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:18>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "unknown",
+            "mb_release_group_mbid": null,
+            "notes": "x",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 0,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:18>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"x\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  }\n}\n</album>"
+        }
+      ],
+      "resolution": null,
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"x\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "{\n  \"notes\": \"x\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"notes\": \"x\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-from-file-no-thumb",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:19>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "unknown",
+            "mb_release_group_mbid": null,
+            "notes": "",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:19>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "no thumb; the album's cover.jpg is not a decodable image, so make_thumbnail fails and no image is sent",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  }\n}\n</album>"
+        }
+      ],
+      "resolution": null,
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "{}",
+              "type": "text"
+            },
+            {
+              "text": "{}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Various Artists - Mix [FLAC]",
+      "album_id": "<ID:Various Artists - Mix [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Various Artists - Mix [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "garbage-output",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Various Artists - Mix [FLAC]>",
+        "album_path": "<LIB>/Various Artists - Mix [FLAC]",
+        "album_title": "Various Artists - Mix [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:20>",
+        "job_type": "metadata",
+        "result": {
+          "metadata": {
+            "confidence": "unknown",
+            "mb_release_group_mbid": null,
+            "notes": "",
+            "suggestions": {},
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Various Artists - Mix [FLAC]>",
+        "album_path": "<LIB>/Various Artists - Mix [FLAC]",
+        "album_title": "Various Artists - Mix [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:20>",
+        "job_type": "metadata",
+        "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Various Artists - Mix [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": null,\n    \"dir_album\": \"Mix\",\n    \"is_compilation\": true,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Mix\",\n    \"album_artist\": \"Various Artists\",\n    \"artist\": \"Various Artists\",\n    \"year\": \"2001\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 m.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Em\",\n      \"artist\": \"Mike\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 n.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"En\",\n      \"artist\": \"Nora\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "I could not find this album.",
+              "type": "text"
+            },
+            {
+              "text": "I could not find this album.",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "auth-error-with-transcript",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend ('claude') rejected the credentials. Check the auth for your selected provider (for Claude: CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY, or the Claude Code credential file).",
+        "hint": "",
+        "id": "<JOB:21>",
+        "job_type": "metadata",
+        "result": {
+          "failure_excerpt": "💭 Thinking about the album name.\nSearching MusicBrainz for Alpha.\n→ WebSearch  query='Alpha \"One\"'\n←  musicbrainz.org/release-group/x <image> raw\n→ WebFetch  {\"url\": \"https://musicbrainz.org/ws/2/x\"\n← ERROR  HTTP 503 Service Unavailable\n→ mcp__firecrawl__firecrawl_search  {\"limit\": 3, \"sources\": [\"web\"], \"q2\": \"é\"}\n←  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx … [100 ch] … xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n→ Agent  url='https://a.b/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp … [64 ch] … ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp'\n←  (empty)\n←  {'k': [1, 2]}\nFinal thoughts\n[final] partial answer"
+        },
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend ('claude') rejected the credentials. Check the auth for your selected provider (for Claude: CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY, or the Claude Code credential file).",
+        "hint": "",
+        "id": "<JOB:21>",
+        "job_type": "metadata",
+        "result_json": "{\"failure_excerpt\": \"\\ud83d\\udcad Thinking about the album name.\\nSearching MusicBrainz for Alpha.\\n\\u2192 WebSearch  query='Alpha \\\"One\\\"'\\n\\u2190  musicbrainz.org/release-group/x <image> raw\\n\\u2192 WebFetch  {\\\"url\\\": \\\"https://musicbrainz.org/ws/2/x\\\"\\n\\u2190 ERROR  HTTP 503 Service Unavailable\\n\\u2192 mcp__firecrawl__firecrawl_search  {\\\"limit\\\": 3, \\\"sources\\\": [\\\"web\\\"], \\\"q2\\\": \\\"\\u00e9\\\"}\\n\\u2190  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \\u2026 [100 ch] \\u2026 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n\\u2192 Agent  url='https://a.b/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp \\u2026 [64 ch] \\u2026 ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp'\\n\\u2190  (empty)\\n\\u2190  {'k': [1, 2]}\\nFinal thoughts\\n[final] partial answer\"}",
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"failure_excerpt\": \"\\ud83d\\udcad Thinking about the album name.\\nSearching MusicBrainz for Alpha.\\n\\u2192 WebSearch  query='Alpha \\\"One\\\"'\\n\\u2190  musicbrainz.org/release-group/x <image> raw\\n\\u2192 WebFetch  {\\\"url\\\": \\\"https://musicbrainz.org/ws/2/x\\\"\\n\\u2190 ERROR  HTTP 503 Service Unavailable\\n\\u2192 mcp__firecrawl__firecrawl_search  {\\\"limit\\\": 3, \\\"sources\\\": [\\\"web\\\"], \\\"q2\\\": \\\"\\u00e9\\\"}\\n\\u2190  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \\u2026 [100 ch] \\u2026 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n\\u2192 Agent  url='https://a.b/ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp \\u2026 [64 ch] \\u2026 ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp'\\n\\u2190  (empty)\\n\\u2190  {'k': [1, 2]}\\nFinal thoughts\\n[final] partial answer\"}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Thinking about ",
+              "type": "reasoning"
+            },
+            {
+              "text": "the album\nname.",
+              "type": "reasoning"
+            },
+            {
+              "text": "Searching MusicBrainz",
+              "type": "text"
+            },
+            {
+              "text": " for Alpha.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha \\\"One\\\"\"}",
+              "id": "a",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "a",
+              "is_error": false,
+              "output": [
+                {
+                  "text": "musicbrainz.org/release-group/x",
+                  "type": "text"
+                },
+                {
+                  "type": "image"
+                },
+                "raw"
+              ],
+              "type": "tool_result"
+            },
+            {
+              "args": "{\"url\": \"https://musicbrainz.org/ws/2/x\"",
+              "id": "b",
+              "name": "WebFetch",
+              "type": "tool_start"
+            },
+            {
+              "id": "b",
+              "is_error": true,
+              "output": "HTTP 503 Service Unavailable",
+              "type": "tool_result"
+            },
+            {
+              "args": "{\"limit\": 3, \"sources\": [\"web\"], \"q2\": \"\\u00e9\"}",
+              "id": "c",
+              "name": "mcp__firecrawl__firecrawl_search",
+              "type": "tool_start"
+            },
+            {
+              "id": "c",
+              "is_error": false,
+              "output": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+              "type": "tool_result"
+            },
+            {
+              "args": "{\"url\": \"https://a.b/pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\"}",
+              "id": "d",
+              "name": "Agent",
+              "type": "tool_start"
+            },
+            {
+              "id": "d",
+              "is_error": false,
+              "output": [],
+              "type": "tool_result"
+            },
+            {
+              "id": "e",
+              "is_error": false,
+              "output": {
+                "k": [
+                  1,
+                  2
+                ]
+              },
+              "type": "tool_result"
+            },
+            {
+              "text": "  ",
+              "type": "text"
+            },
+            {
+              "text": "Final thoughts",
+              "type": "text"
+            },
+            {
+              "text": "partial answer",
+              "type": "complete"
+            }
+          ],
+          "raise": {
+            "kind": "auth",
+            "message": "invalid x-api-key"
+          }
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "transient-error-no-transcript",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend reported a transient failure — most often a rate-limit hit (subscriptions have shared rolling windows), a brief upstream outage, or a model/tool incompatibility. Hit Retry on the AI Jobs page after a moment. To triage, run `.venv/bin/python diagnose_claude.py <album_id>`.",
+        "hint": "",
+        "id": "<JOB:22>",
+        "job_type": "metadata",
+        "result": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend reported a transient failure — most often a rate-limit hit (subscriptions have shared rolling windows), a brief upstream outage, or a model/tool incompatibility. Hit Retry on the AI Jobs page after a moment. To triage, run `.venv/bin/python diagnose_claude.py <album_id>`.",
+        "hint": "",
+        "id": "<JOB:22>",
+        "job_type": "metadata",
+        "result_json": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": null,
+      "scripts": [
+        {
+          "events": [],
+          "raise": {
+            "kind": "transient",
+            "message": "429 rate limited"
+          }
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "other-error-with-cause",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "boom (caused by KeyError: 'k')",
+        "hint": "",
+        "id": "<JOB:23>",
+        "job_type": "metadata",
+        "result": {
+          "failure_excerpt": "partial"
+        },
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "boom (caused by KeyError: 'k')",
+        "hint": "",
+        "id": "<JOB:23>",
+        "job_type": "metadata",
+        "result_json": "{\"failure_excerpt\": \"partial\"}",
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"failure_excerpt\": \"partial\"}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "partial",
+              "type": "text"
+            }
+          ],
+          "raise": {
+            "cause": [
+              "KeyError",
+              "k"
+            ],
+            "kind": "other",
+            "message": "boom"
+          }
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "timeout-with-transcript",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "AI call exceeded the 4-minute wall-clock cap and was cancelled. Almost always means an upstream tool (MusicBrainz / Cover Art Archive / FireCrawl) is slow or down — the Claude subprocess sits idle waiting for a tool response that never returns. Hit Retry once the affected service is responsive, or skip this album and come back to it later.",
+        "hint": "",
+        "id": "<JOB:24>",
+        "job_type": "metadata",
+        "result": {
+          "failure_excerpt": "Checking MusicBrainz\n→ WebFetch  url='https://musicbrainz.org/ws/2/release?query=x'\n← ERROR  HTTP 503\n→ WebFetch  url='https://musicbrainz.org/artist/abc'\nwaiting (never flushed)"
+        },
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "AI call exceeded the 4-minute wall-clock cap and was cancelled. Almost always means an upstream tool (MusicBrainz / Cover Art Archive / FireCrawl) is slow or down — the Claude subprocess sits idle waiting for a tool response that never returns. Hit Retry once the affected service is responsive, or skip this album and come back to it later.",
+        "hint": "",
+        "id": "<JOB:24>",
+        "job_type": "metadata",
+        "result_json": "{\"failure_excerpt\": \"Checking MusicBrainz\\n\\u2192 WebFetch  url='https://musicbrainz.org/ws/2/release?query=x'\\n\\u2190 ERROR  HTTP 503\\n\\u2192 WebFetch  url='https://musicbrainz.org/artist/abc'\\nwaiting (never flushed)\"}",
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "the generator raises TimeoutError from the stream; the Python app's timeout branch runs",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"failure_excerpt\": \"Checking MusicBrainz\\n\\u2192 WebFetch  url='https://musicbrainz.org/ws/2/release?query=x'\\n\\u2190 ERROR  HTTP 503\\n\\u2192 WebFetch  url='https://musicbrainz.org/artist/abc'\\nwaiting (never flushed)\"}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Checking MusicBrainz",
+              "type": "text"
+            },
+            {
+              "args": "{\"url\": \"https://musicbrainz.org/ws/2/release?query=x\"}",
+              "id": "f1",
+              "name": "WebFetch",
+              "type": "tool_start"
+            },
+            {
+              "id": "f1",
+              "is_error": true,
+              "output": "HTTP 503",
+              "type": "tool_result"
+            },
+            {
+              "args": "{\"url\": \"https://musicbrainz.org/artist/abc\"}",
+              "id": "f2",
+              "name": "WebFetch",
+              "type": "tool_start"
+            },
+            {
+              "text": "waiting (never flushed)",
+              "type": "text"
+            }
+          ],
+          "raise": {
+            "kind": "timeout"
+          }
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "timeout-silent",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "AI call exceeded the 4-minute wall-clock cap and was cancelled. Almost always means an upstream tool (MusicBrainz / Cover Art Archive / FireCrawl) is slow or down — the Claude subprocess sits idle waiting for a tool response that never returns. Hit Retry once the affected service is responsive, or skip this album and come back to it later.",
+        "hint": "",
+        "id": "<JOB:25>",
+        "job_type": "metadata",
+        "result": {
+          "failure_excerpt": "(no SDK messages received in 4 minutes — the Claude subprocess was completely silent until the wall-clock cap fired. Usually this means the subprocess was wedged before the first model response: Anthropic API not reachable, FireCrawl MCP server failing to connect, or the subprocess itself failed to initialize. Check ~/.musaic/server.log for any related warnings around the job's start time.)"
+        },
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "AI call exceeded the 4-minute wall-clock cap and was cancelled. Almost always means an upstream tool (MusicBrainz / Cover Art Archive / FireCrawl) is slow or down — the Claude subprocess sits idle waiting for a tool response that never returns. Hit Retry once the affected service is responsive, or skip this album and come back to it later.",
+        "hint": "",
+        "id": "<JOB:25>",
+        "job_type": "metadata",
+        "result_json": "{\"failure_excerpt\": \"(no SDK messages received in 4 minutes \\u2014 the Claude subprocess was completely silent until the wall-clock cap fired. Usually this means the subprocess was wedged before the first model response: Anthropic API not reachable, FireCrawl MCP server failing to connect, or the subprocess itself failed to initialize. Check ~/.musaic/server.log for any related warnings around the job's start time.)\"}",
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": {
+            "first": true,
+            "media_type": "image/jpeg",
+            "sha256": "983b9af82c476e9846a20a4e0a2da7c4d5a6556ee3dd0d6dc9fd95b5f7427329"
+          },
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Alpha - One [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Alpha\",\n    \"dir_album\": \"One\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"One\",\n    \"album_artist\": \"Alpha\",\n    \"artist\": \"Alpha\",\n    \"year\": \"2019\",\n    \"genre\": null\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 a.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Uno\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 b.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Dos\",\n      \"artist\": \"Alpha\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"failure_excerpt\": \"(no SDK messages received in 4 minutes \\u2014 the Claude subprocess was completely silent until the wall-clock cap fired. Usually this means the subprocess was wedged before the first model response: Anthropic API not reachable, FireCrawl MCP server failing to connect, or the subprocess itself failed to initialize. Check ~/.musaic/server.log for any related warnings around the job's start time.)\"}",
+      "scripts": [
+        {
+          "events": [],
+          "raise": {
+            "kind": "timeout"
+          }
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Alpha - One [FLAC]",
+      "album_id": "<ID:Alpha - One [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Alpha - One [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "provider-not-ready",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "AI provider 'claude' isn't ready — it needs the `claude` CLI. Install the Claude CLI (`npm i -g @anthropic-ai/claude-code`) and make sure it's on PATH, or switch to an API-key provider in Settings. Deterministic MusicBrainz matching keeps working without it.",
+        "hint": "",
+        "id": "<JOB:26>",
+        "job_type": "metadata",
+        "result": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Alpha - One [FLAC]>",
+        "album_path": "<LIB>/Alpha - One [FLAC]",
+        "album_title": "Alpha - One [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "AI provider 'claude' isn't ready — it needs the `claude` CLI. Install the Claude CLI (`npm i -g @anthropic-ai/claude-code`) and make sure it's on PATH, or switch to an API-key provider in Settings. Deterministic MusicBrainz matching keeps working without it.",
+        "hint": "",
+        "id": "<JOB:26>",
+        "job_type": "metadata",
+        "result_json": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": true,
+      "notes": "no `claude` CLI: the preflight fails before any model call",
+      "provider_calls": [],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": null,
+      "scripts": [],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "<gone>",
+      "album_id": "0000ffff0000ffff",
+      "album_row": [],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "album-gone",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "0000ffff0000ffff",
+        "album_path": "/gone",
+        "album_title": "Gone",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "Album '0000ffff0000ffff' no longer in cache",
+        "hint": "",
+        "id": "<JOB:27>",
+        "job_type": "metadata",
+        "result": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "0000ffff0000ffff",
+        "album_path": "/gone",
+        "album_title": "Gone",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "Album '0000ffff0000ffff' no longer in cache",
+        "hint": "",
+        "id": "<JOB:27>",
+        "job_type": "metadata",
+        "result_json": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [],
+      "resolution": null,
+      "result_json": null,
+      "scripts": [],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-job-resolver-cover",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:28>",
+        "job_type": "cover",
+        "result": {
+          "cover": {
+            "confidence": "high",
+            "cover_url": "https://caa.example/rg/front",
+            "notes": "Derived from MusicBrainz; no AI call needed.",
+            "source": "Cover Art Archive (anchored release-group)"
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:28>",
+        "job_type": "cover",
+        "result_json": "{\"cover\": {\"cover_url\": \"https://caa.example/rg/front\", \"source\": \"Cover Art Archive (anchored release-group)\", \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [],
+      "resolution": {
+        "cover_url": [
+          "https://caa.example/rg/front",
+          "musicbrainz",
+          0.95
+        ],
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"cover\": {\"cover_url\": \"https://caa.example/rg/front\", \"source\": \"Cover Art Archive (anchored release-group)\", \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\"}}",
+      "scripts": [],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-job-low-conf-provider-verified",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:29>",
+        "job_type": "cover",
+        "result": {
+          "cover": {
+            "confidence": "high",
+            "cover_url": "https://good.example/front.jpg",
+            "notes": "front",
+            "source": "CAA"
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:29>",
+        "job_type": "cover",
+        "result_json": "{\"cover\": {\"cover_url\": \"https://good.example/front.jpg\", \"source\": \"CAA\", \"notes\": \"front\", \"confidence\": \"high\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "cover",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "cover_url": [
+          "https://caa.example/rg/front",
+          "musicbrainz",
+          0.5
+        ],
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"cover\": {\"cover_url\": \"https://good.example/front.jpg\", \"source\": \"CAA\", \"notes\": \"front\", \"confidence\": \"high\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"cover_url\": \"https://good.example/front.jpg\",\n  \"source\": \"CAA\",\n  \"notes\": \"front\",\n  \"confidence\": \"high\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"cover_url\": \"https://good.example/front.jpg\",\n  \"source\": \"CAA\",\n  \"notes\": \"front\",\n  \"confidence\": \"high\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {
+        "https://good.example/front.jpg": [
+          true,
+          "ok"
+        ]
+      }
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": {
+        "confidence": "high",
+        "cover_url": "https://caa.example/mb.jpg",
+        "notes": "Matched release-group.",
+        "source": "MusicBrainz (score 100)"
+      },
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-job-bad-url-mb-found",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:30>",
+        "job_type": "cover",
+        "result": {
+          "cover": {
+            "confidence": "high",
+            "cover_url": "https://caa.example/mb.jpg",
+            "notes": "guess\n\nClaude's suggested URL didn't resolve to an image (content-type text/html).\n\nFell back to MusicBrainz: Matched release-group.",
+            "source": "MusicBrainz (score 100)"
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:30>",
+        "job_type": "cover",
+        "result_json": "{\"cover\": {\"cover_url\": \"https://caa.example/mb.jpg\", \"source\": \"MusicBrainz (score 100)\", \"notes\": \"guess\\n\\nClaude's suggested URL didn't resolve to an image (content-type text/html).\\n\\nFell back to MusicBrainz: Matched release-group.\", \"confidence\": \"high\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "cover",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"cover\": {\"cover_url\": \"https://caa.example/mb.jpg\", \"source\": \"MusicBrainz (score 100)\", \"notes\": \"guess\\n\\nClaude's suggested URL didn't resolve to an image (content-type text/html).\\n\\nFell back to MusicBrainz: Matched release-group.\", \"confidence\": \"high\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"cover_url\": \"https://bad.example/page\",\n  \"source\": \"web\",\n  \"notes\": \"guess\",\n  \"confidence\": \"medium\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"cover_url\": \"https://bad.example/page\",\n  \"source\": \"web\",\n  \"notes\": \"guess\",\n  \"confidence\": \"medium\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {
+        "https://bad.example/page": [
+          false,
+          "content-type text/html"
+        ]
+      }
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": {
+        "confidence": "low",
+        "cover_url": null,
+        "notes": "No MB match.",
+        "source": "MusicBrainz"
+      },
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-job-bad-url-mb-empty",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:31>",
+        "job_type": "cover",
+        "result": {
+          "cover": {
+            "confidence": "unknown",
+            "cover_url": null,
+            "notes": "Claude's suggested URL didn't resolve to an image (HTTP 404).\n\nNo MB match.",
+            "source": ""
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:31>",
+        "job_type": "cover",
+        "result_json": "{\"cover\": {\"cover_url\": null, \"source\": \"\", \"notes\": \"Claude's suggested URL didn't resolve to an image (HTTP 404).\\n\\nNo MB match.\", \"confidence\": \"unknown\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "cover",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"cover\": {\"cover_url\": null, \"source\": \"\", \"notes\": \"Claude's suggested URL didn't resolve to an image (HTTP 404).\\n\\nNo MB match.\", \"confidence\": \"unknown\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"cover_url\": \"https://bad.example/page\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"cover_url\": \"https://bad.example/page\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {
+        "https://bad.example/page": [
+          false,
+          "HTTP 404"
+        ]
+      }
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": {
+        "confidence": null,
+        "cover_url": "https://caa.example/mb.jpg",
+        "notes": "",
+        "source": "MusicBrainz"
+      },
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-job-provider-error-mb-fallback",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:32>",
+        "job_type": "cover",
+        "result": {
+          "cover": {
+            "confidence": "low",
+            "cover_url": "https://caa.example/mb.jpg",
+            "notes": "Claude's cover-art search exited with an error before returning a result; tried MusicBrainz directly as a fallback.",
+            "source": "MusicBrainz"
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:32>",
+        "job_type": "cover",
+        "result_json": "{\"cover\": {\"cover_url\": \"https://caa.example/mb.jpg\", \"source\": \"MusicBrainz\", \"notes\": \"Claude's cover-art search exited with an error before returning a result; tried MusicBrainz directly as a fallback.\", \"confidence\": \"low\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "the cover path falls back to MusicBrainz on a provider error and completes",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "cover",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"cover\": {\"cover_url\": \"https://caa.example/mb.jpg\", \"source\": \"MusicBrainz\", \"notes\": \"Claude's cover-art search exited with an error before returning a result; tried MusicBrainz directly as a fallback.\", \"confidence\": \"low\"}}",
+      "scripts": [
+        {
+          "events": [],
+          "raise": {
+            "kind": "auth",
+            "message": "no creds"
+          }
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": "raise",
+      "firecrawl": "",
+      "hint": "",
+      "id": "cover-job-provider-error-mb-raises",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend reported a transient failure — most often a rate-limit hit (subscriptions have shared rolling windows), a brief upstream outage, or a model/tool incompatibility. Hit Retry on the AI Jobs page after a moment. To triage, run `.venv/bin/python diagnose_claude.py <album_id>`.",
+        "hint": "",
+        "id": "<JOB:33>",
+        "job_type": "cover",
+        "result": {
+          "failure_excerpt": "x"
+        },
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend reported a transient failure — most often a rate-limit hit (subscriptions have shared rolling windows), a brief upstream outage, or a model/tool incompatibility. Hit Retry on the AI Jobs page after a moment. To triage, run `.venv/bin/python diagnose_claude.py <album_id>`.",
+        "hint": "",
+        "id": "<JOB:33>",
+        "job_type": "cover",
+        "result_json": "{\"failure_excerpt\": \"x\"}",
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "cover",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"failure_excerpt\": \"x\"}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "x",
+              "type": "text"
+            }
+          ],
+          "raise": {
+            "kind": "transient",
+            "message": "503"
+          }
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "metadata+cover-both-resolved",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:34>",
+        "job_type": "metadata+cover",
+        "result": {
+          "cover": {
+            "confidence": "high",
+            "cover_url": "https://caa.example/b",
+            "notes": "Derived from MusicBrainz; no AI call needed.",
+            "source": "Cover Art Archive (anchored release-group)"
+          },
+          "metadata": {
+            "confidence": "high",
+            "mb_release_group_mbid": "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+            "notes": "Derived from MusicBrainz; no AI call needed.",
+            "suggestions": {
+              "album_artist": "Alpha",
+              "artist": "Alpha",
+              "title": "One"
+            },
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:34>",
+        "job_type": "metadata+cover",
+        "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One\", \"album_artist\": \"Alpha\", \"artist\": \"Alpha\"}, \"tracks\": [], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}, \"cover\": {\"cover_url\": \"https://caa.example/b\", \"source\": \"Cover Art Archive (anchored release-group)\", \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata+cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [],
+      "resolution": {
+        "anchor": [
+          "f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a",
+          "musicbrainz",
+          1.0
+        ],
+        "anchor_strategy": "dir-search",
+        "canonical_album_artist": [
+          "Alpha",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_title": [
+          "One",
+          "musicbrainz",
+          0.95
+        ],
+        "canonical_year": [
+          "2019",
+          "musicbrainz",
+          0.95
+        ],
+        "cover_url": [
+          "https://caa.example/b",
+          "musicbrainz",
+          0.95
+        ],
+        "tracks": [
+          {
+            "canonical_title": [
+              "Ex",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "01 x.flac"
+          },
+          {
+            "canonical_title": [
+              "Why",
+              "musicbrainz",
+              0.95
+            ],
+            "filename": "02 y.flac"
+          }
+        ],
+        "unresolved_track_count": 0
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {\"title\": \"One\", \"album_artist\": \"Alpha\", \"artist\": \"Alpha\"}, \"tracks\": [], \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\", \"mb_release_group_mbid\": \"f8b29c2c-9f5d-4c4d-89cb-7c2e5fbf6f0a\"}, \"cover\": {\"cover_url\": \"https://caa.example/b\", \"source\": \"Cover Art Archive (anchored release-group)\", \"notes\": \"Derived from MusicBrainz; no AI call needed.\", \"confidence\": \"high\"}}",
+      "scripts": [],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "0",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": "<NOW>",
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "metadata+cover-cover-by-provider",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:35>",
+        "job_type": "metadata+cover",
+        "result": {
+          "cover": {
+            "confidence": "unknown",
+            "cover_url": null,
+            "notes": "none",
+            "source": ""
+          },
+          "metadata": {
+            "confidence": "unknown",
+            "mb_release_group_mbid": null,
+            "notes": "",
+            "suggestions": {
+              "year": "2020"
+            },
+            "tracks": []
+          }
+        },
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": null,
+        "hint": "",
+        "id": "<JOB:35>",
+        "job_type": "metadata+cover",
+        "result_json": "{\"metadata\": {\"suggestions\": {\"year\": \"2020\"}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}, \"cover\": {\"cover_url\": null, \"source\": \"\", \"notes\": \"none\", \"confidence\": \"unknown\"}}",
+        "started_at": "<NOW>",
+        "status": "completed"
+      },
+      "job_type": "metadata+cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        },
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "cover",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": "{\"metadata\": {\"suggestions\": {\"year\": \"2020\"}, \"tracks\": [], \"notes\": \"\", \"confidence\": \"unknown\", \"mb_release_group_mbid\": null}, \"cover\": {\"cover_url\": null, \"source\": \"\", \"notes\": \"none\", \"confidence\": \"unknown\"}}",
+      "scripts": [
+        {
+          "events": [
+            {
+              "text": "Looking up ",
+              "type": "text"
+            },
+            {
+              "text": "the album.",
+              "type": "text"
+            },
+            {
+              "args": "{\"query\": \"Alpha One\"}",
+              "id": "t1",
+              "name": "WebSearch",
+              "type": "tool_start"
+            },
+            {
+              "id": "t1",
+              "is_error": false,
+              "output": "3 results",
+              "type": "tool_result"
+            },
+            {
+              "text": "{\n  \"suggestions\": {\n    \"year\": \"2020\"\n  }\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"suggestions\": {\n    \"year\": \"2020\"\n  }\n}",
+              "type": "complete"
+            }
+          ]
+        },
+        {
+          "events": [
+            {
+              "text": "{\n  \"cover_url\": null,\n  \"notes\": \"none\"\n}",
+              "type": "text"
+            },
+            {
+              "text": "{\n  \"cover_url\": null,\n  \"notes\": \"none\"\n}",
+              "type": "complete"
+            }
+          ]
+        }
+      ],
+      "verify": {}
+    },
+    {
+      "ai_queue_paused": "1",
+      "album": "Bravo - Two [FLAC]",
+      "album_id": "<ID:Bravo - Two [FLAC]>",
+      "album_row": [
+        {
+          "id": "<ID:Bravo - Two [FLAC]>",
+          "mb_last_checked_at": null,
+          "mb_match_score": null,
+          "mb_release_group_mbid": null,
+          "mb_release_mbid": null,
+          "metadata_ai_acted_on_at": null
+        }
+      ],
+      "attach_cover": true,
+      "blocked": [],
+      "events": [],
+      "find_cover": null,
+      "firecrawl": "",
+      "hint": "",
+      "id": "metadata+cover-metadata-fails",
+      "job": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": true,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend ('claude') rejected the credentials. Check the auth for your selected provider (for Claude: CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY, or the Claude Code credential file).",
+        "hint": "",
+        "id": "<JOB:36>",
+        "job_type": "metadata+cover",
+        "result": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_row": {
+        "acted_on_action": null,
+        "acted_on_at": null,
+        "album_id": "<ID:Bravo - Two [FLAC]>",
+        "album_path": "<LIB>/Bravo - Two [FLAC]",
+        "album_title": "Bravo - Two [FLAC]",
+        "attach_cover": 1,
+        "completed_at": "<NOW>",
+        "created_at": "<NOW>",
+        "error": "The agent backend ('claude') rejected the credentials. Check the auth for your selected provider (for Claude: CLAUDE_CODE_OAUTH_TOKEN / ANTHROPIC_API_KEY, or the Claude Code credential file).",
+        "hint": "",
+        "id": "<JOB:36>",
+        "job_type": "metadata+cover",
+        "result_json": null,
+        "started_at": "<NOW>",
+        "status": "failed"
+      },
+      "job_type": "metadata+cover",
+      "mb_status": {},
+      "no_cli": false,
+      "notes": "",
+      "provider_calls": [
+        {
+          "image": null,
+          "max_turns": 20,
+          "mcp_servers": [],
+          "model": [
+            "claude",
+            "claude-sonnet-4-6"
+          ],
+          "native_tools": 2,
+          "system": "metadata",
+          "user_message": "<album>\n{\n  \"directory\": {\n    \"dir_name\": \"Bravo - Two [FLAC]\",\n    \"matched\": true,\n    \"dir_artist\": \"Bravo\",\n    \"dir_album\": \"Two\",\n    \"is_compilation\": false,\n    \"disc_number\": null,\n    \"disc_total\": null\n  },\n  \"current_tags\": {\n    \"title\": \"Two\",\n    \"album_artist\": \"Bravo\",\n    \"artist\": \"Bravo\",\n    \"year\": \"2019\",\n    \"genre\": \"Jazz\"\n  },\n  \"track_count\": 2,\n  \"total_seconds\": 6.0,\n  \"tracks\": [\n    {\n      \"filename\": \"01 x.flac\",\n      \"tracknumber\": \"1\",\n      \"title\": \"Ex\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    },\n    {\n      \"filename\": \"02 y.flac\",\n      \"tracknumber\": \"2\",\n      \"title\": \"Why\",\n      \"artist\": \"Bravo\",\n      \"duration\": 3.0\n    }\n  ],\n  \"anchor\": null,\n  \"resolver_canonical\": {\n    \"title\": null,\n    \"album_artist\": null,\n    \"year\": null,\n    \"album_artist_sort\": null\n  },\n  \"unresolved_filenames\": [\n    \"01 a.flac\",\n    \"02 b.flac\"\n  ]\n}\n</album>"
+        }
+      ],
+      "resolution": {
+        "notes": [
+          "No anchor found via Tiers 0a-0c; AI escalation may be required"
+        ],
+        "tracks": [
+          {
+            "filename": "01 a.flac"
+          },
+          {
+            "filename": "02 b.flac"
+          }
+        ],
+        "unresolved_track_count": 2
+      },
+      "result_json": null,
+      "scripts": [
+        {
+          "events": [],
+          "raise": {
+            "kind": "auth",
+            "message": "x"
+          }
+        }
+      ],
+      "verify": {}
+    }
+  ],
+  "track_dicts": {
+    "Alpha - One [FLAC]": [
+      {
+        "artist": "Alpha",
+        "bpm": null,
+        "duration": 3.0,
+        "filename": "01 a.flac",
+        "replaygain_album_gain": null,
+        "replaygain_album_peak": null,
+        "replaygain_track_gain": null,
+        "replaygain_track_peak": null,
+        "title": "Uno",
+        "tracknumber": "1"
+      },
+      {
+        "artist": "Alpha",
+        "bpm": null,
+        "duration": 3.0,
+        "filename": "02 b.flac",
+        "replaygain_album_gain": null,
+        "replaygain_album_peak": null,
+        "replaygain_track_gain": null,
+        "replaygain_track_peak": null,
+        "title": "Dos",
+        "tracknumber": "2"
+      }
+    ],
+    "Bravo - Two [FLAC]": [
+      {
+        "artist": "Bravo",
+        "bpm": null,
+        "duration": 3.0,
+        "filename": "01 x.flac",
+        "replaygain_album_gain": null,
+        "replaygain_album_peak": null,
+        "replaygain_track_gain": null,
+        "replaygain_track_peak": null,
+        "title": "Ex",
+        "tracknumber": "1"
+      },
+      {
+        "artist": "Bravo",
+        "bpm": null,
+        "duration": 3.0,
+        "filename": "02 y.flac",
+        "replaygain_album_gain": null,
+        "replaygain_album_peak": null,
+        "replaygain_track_gain": null,
+        "replaygain_track_peak": null,
+        "title": "Why",
+        "tracknumber": "2"
+      }
+    ],
+    "Delta four": [
+      {
+        "artist": "Delta",
+        "bpm": null,
+        "duration": 3.0,
+        "filename": "track.flac",
+        "replaygain_album_gain": null,
+        "replaygain_album_peak": null,
+        "replaygain_track_gain": null,
+        "replaygain_track_peak": null,
+        "title": "Solo",
+        "tracknumber": "1"
+      }
+    ],
+    "Various Artists - Mix [FLAC]": [
+      {
+        "artist": "Mike",
+        "bpm": null,
+        "duration": 3.0,
+        "filename": "01 m.flac",
+        "replaygain_album_gain": null,
+        "replaygain_album_peak": null,
+        "replaygain_track_gain": null,
+        "replaygain_track_peak": null,
+        "title": "Em",
+        "tracknumber": "1"
+      },
+      {
+        "artist": "Nora",
+        "bpm": null,
+        "duration": 3.0,
+        "filename": "02 n.flac",
+        "replaygain_album_gain": null,
+        "replaygain_album_peak": null,
+        "replaygain_track_gain": null,
+        "replaygain_track_peak": null,
+        "title": "En",
+        "tracknumber": "2"
+      }
+    ]
+  }
+}

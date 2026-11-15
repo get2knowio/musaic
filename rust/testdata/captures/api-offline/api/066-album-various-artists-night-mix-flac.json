@@ -1,0 +1,74 @@
+{
+  "elapsed_ms": 1.0,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": null,
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Sable & The Static",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": "Night Mix",
+      "dir_artist": null,
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Various Artists - Night Mix [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "House; Electronic; Downtempo",
+      "has_embedded_cover": false,
+      "id": "<ID:Various Artists - Night Mix [FLAC]>",
+      "is_compilation": true,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Various Artists - Night Mix [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Various Artists - Night Mix [FLAC]/02 - something.flac",
+      "title": "Night Mix",
+      "total_seconds": 40.0,
+      "track_artists": [
+        {
+          "artist": "Sable & The Static",
+          "artist_sort": "",
+          "filename": "02 - something.flac"
+        },
+        {
+          "artist": "Orbit Society",
+          "artist_sort": "",
+          "filename": "04.flac"
+        },
+        {
+          "artist": "Kite Theory",
+          "artist_sort": "",
+          "filename": "Night Mix 3.flac"
+        },
+        {
+          "artist": "Lumen Drift",
+          "artist_sort": "",
+          "filename": "trackA.flac"
+        }
+      ],
+      "track_count": 4,
+      "track_numbers": [
+        2,
+        4,
+        3,
+        1
+      ],
+      "year": "2017"
+    },
+    "status": 200
+  }
+}

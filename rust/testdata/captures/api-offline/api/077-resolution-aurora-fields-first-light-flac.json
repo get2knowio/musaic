@@ -1,0 +1,80 @@
+{
+  "elapsed_ms": 4.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Aurora Fields - First Light [FLAC]>/resolution"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+      "anchor": null,
+      "anchor_strategy": "none",
+      "canonical_album_artist": null,
+      "canonical_album_artist_sort": null,
+      "canonical_genre": null,
+      "canonical_title": null,
+      "canonical_year": null,
+      "cover_url": null,
+      "notes": [
+        "No anchor found via Tiers 0a-0c; AI escalation may be required"
+      ],
+      "tracks": [
+        {
+          "canonical_artist": null,
+          "canonical_duration_s": null,
+          "canonical_title": null,
+          "canonical_tracknumber": null,
+          "filename": "01 - Dawn Chorus.flac",
+          "fingerprint_score": null,
+          "fingerprinted": true,
+          "recording_mbid": null
+        },
+        {
+          "canonical_artist": null,
+          "canonical_duration_s": null,
+          "canonical_title": null,
+          "canonical_tracknumber": null,
+          "filename": "02 - Low Sun.flac",
+          "fingerprint_score": null,
+          "fingerprinted": true,
+          "recording_mbid": null
+        },
+        {
+          "canonical_artist": null,
+          "canonical_duration_s": null,
+          "canonical_title": null,
+          "canonical_tracknumber": null,
+          "filename": "03 - Meridian.flac",
+          "fingerprint_score": null,
+          "fingerprinted": true,
+          "recording_mbid": null
+        },
+        {
+          "canonical_artist": null,
+          "canonical_duration_s": null,
+          "canonical_title": null,
+          "canonical_tracknumber": null,
+          "filename": "04 - Long Shadows.flac",
+          "fingerprint_score": null,
+          "fingerprinted": true,
+          "recording_mbid": null
+        },
+        {
+          "canonical_artist": null,
+          "canonical_duration_s": null,
+          "canonical_title": null,
+          "canonical_tracknumber": null,
+          "filename": "05 - Afterglow.flac",
+          "fingerprint_score": null,
+          "fingerprinted": true,
+          "recording_mbid": null
+        }
+      ],
+      "unresolved_track_count": 5
+    },
+    "status": 200
+  }
+}

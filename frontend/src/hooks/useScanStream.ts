@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listAlbums, rescanLibrary } from "@/lib/api";
 import { openScanStream } from "@/lib/sse";
 import { registerRescan, setScanning } from "@/lib/rescanController";
+import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import type { Album } from "@/lib/types";
 
 export interface ScanState {
@@ -47,6 +48,9 @@ export interface UseScanStreamResult {
   scan: ScanState;
   libraryDir: string | null;
   rescan: () => Promise<void>;
+  /** Counts the times the list was replaced by a newer ["albums-snapshot"]
+   *  fetch (see the sync effect); Library drops its apply overrides then. */
+  snapshotSyncs: number;
 }
 
 /**
@@ -58,6 +62,15 @@ export interface UseScanStreamResult {
  * `rescan()` and ignores this flag).
  */
 let _initialScanDone = false;
+
+/**
+ * A new library directory was saved: the next time the
+ * Library page is enabled it opens the scan stream again, so the new
+ * directory is scanned at once instead of only read from the cache.
+ */
+export function requestScanOnNextLoad(): void {
+  _initialScanDone = false;
+}
 
 /**
  * Sort key for the "by Artist" library order. Compilations always cluster
@@ -284,5 +297,28 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
     setScanning(scan.status === "scanning" || scan.status === "loading-cache");
   }, [scan.status]);
 
-  return { albums, scan, libraryDir, rescan };
+  // Follow the bus while no scan runs (public issue: an uploaded cover
+  // did not appear until Library was reopened). useLibraryEventsStream
+  // invalidates ["albums-snapshot"] on every album change; this list is
+  // local state, so without this it kept the old rows. Only a snapshot
+  // fetched AFTER this list last settled is taken: an older cached one
+  // (from before the scan that just finished) must not replace newer rows.
+  const snapshot = useAlbumsSnapshot();
+  const settledAt = useRef(0);
+  const [snapshotSyncs, setSnapshotSyncs] = useState(0);
+  useEffect(() => {
+    if (scan.status === "done") settledAt.current = Date.now();
+  }, [scan.status, scan.scannedAt]);
+  useEffect(() => {
+    if (!enabled || scan.status !== "done") return;
+    if (!snapshot.data || snapshot.isFetching) return;
+    if (snapshot.dataUpdatedAt <= settledAt.current) return;
+    settledAt.current = snapshot.dataUpdatedAt;
+    const map = new Map<string, Album>();
+    for (const a of snapshot.data) map.set(a.id, a);
+    setAlbumsById(map);
+    setSnapshotSyncs((n) => n + 1);
+  }, [enabled, scan.status, snapshot.data, snapshot.dataUpdatedAt, snapshot.isFetching]);
+
+  return { albums, scan, libraryDir, rescan, snapshotSyncs };
 }

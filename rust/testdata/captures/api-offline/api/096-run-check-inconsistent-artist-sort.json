@@ -1,0 +1,27 @@
+{
+  "elapsed_ms": 4.5,
+  "request": {
+    "json": {
+      "scope": "all"
+    },
+    "method": "POST",
+    "params": null,
+    "path": "/api/checks/inconsistent-artist-sort/run"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "check_id": "inconsistent-artist-sort",
+      "completed_at": "2026-11-09T17:39:25Z",
+      "duration_ms": 2,
+      "error": null,
+      "id": 4,
+      "issue_count": 1,
+      "library_path": "<LIB>",
+      "scope": "all",
+      "started_at": "2026-11-09T17:39:25Z",
+      "status": "completed"
+    },
+    "status": 200
+  }
+}

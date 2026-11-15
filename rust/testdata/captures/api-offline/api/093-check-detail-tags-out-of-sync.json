@@ -1,0 +1,67 @@
+{
+  "elapsed_ms": 1.3,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/tags-out-of-sync"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "findings": [
+        {
+          "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+          "check_id": "tags-out-of-sync",
+          "detail": {
+            "ai_fallback_fields": [],
+            "album_diffs": [],
+            "dir_name": "The Lanterns - Porchlight [FLAC]",
+            "has_anchor": false,
+            "headline": "The Lanterns - Porchlight [FLAC]",
+            "is_compilation": false,
+            "missing_core": [],
+            "sort_proposals": {
+              "album_artist_sort": "Lanterns, The",
+              "artist_sort": "Lanterns, The"
+            },
+            "track_diffs": []
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 14,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "info",
+          "summary": "2 sort tag (no MB anchor — AI required)"
+        }
+      ],
+      "meta": {
+        "bulk_action_label": "Apply MusicBrainz canonical",
+        "category": "metadata",
+        "cost": "medium",
+        "description": "Albums where Vorbis tags drift from MusicBrainz's canonical values, are missing a required field (title / artist / year / genre), or are missing the *_SORT variants used by Plex and Roon for sidebar alphabetization. Fix applies all MusicBrainz-derivable corrections in one click and falls back to AI only for fields the resolver can't fill (genre, or anything on an unanchored album).",
+        "fix_kind": "ai-job",
+        "id": "tags-out-of-sync",
+        "label": "Tags don't match canonical",
+        "runs_during_scan": false
+      },
+      "runs": [
+        {
+          "check_id": "tags-out-of-sync",
+          "completed_at": "2026-11-09T17:39:25Z",
+          "duration_ms": 5,
+          "error": null,
+          "id": 2,
+          "issue_count": 1,
+          "library_path": "<LIB>",
+          "scope": "all",
+          "started_at": "2026-11-09T17:39:25Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

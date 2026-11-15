@@ -1,0 +1,341 @@
+{
+  "constructed": [
+    {
+      "best": null,
+      "body": {},
+      "kind": "constructed",
+      "name": "empty dict"
+    },
+    {
+      "best": null,
+      "body": {
+        "results": null,
+        "status": "ok"
+      },
+      "kind": "constructed",
+      "name": "results null"
+    },
+    {
+      "best": null,
+      "body": {
+        "results": [],
+        "status": "ok"
+      },
+      "kind": "constructed",
+      "name": "no results"
+    },
+    {
+      "best": null,
+      "body": {
+        "error": {
+          "code": 4,
+          "message": "invalid API key"
+        },
+        "status": "error"
+      },
+      "kind": "constructed",
+      "name": "status error"
+    },
+    {
+      "best": null,
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ],
+            "score": 0.84999
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "below floor"
+    },
+    {
+      "best": {
+        "mbid": "r1",
+        "score": 0.85
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ],
+            "score": 0.85
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "at floor"
+    },
+    {
+      "best": null,
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ]
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "score missing"
+    },
+    {
+      "best": null,
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ],
+            "score": null
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "score null"
+    },
+    {
+      "best": null,
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "score": 0.99
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "no recordings"
+    },
+    {
+      "best": null,
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": null,
+            "score": 0.99
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "recordings null"
+    },
+    {
+      "best": {
+        "mbid": "r2",
+        "score": 0.9
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "title": "x"
+              },
+              {
+                "id": "r2"
+              },
+              {
+                "id": "r3"
+              }
+            ],
+            "score": 0.9
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "first recording has no id"
+    },
+    {
+      "best": {
+        "mbid": "r2",
+        "score": 0.9
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": ""
+              },
+              {
+                "id": "r2"
+              }
+            ],
+            "score": 0.9
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "first recording id empty"
+    },
+    {
+      "best": {
+        "mbid": "r2",
+        "score": 0.95
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ],
+            "score": 0.9
+          },
+          {
+            "id": "b",
+            "recordings": [
+              {
+                "id": "r2"
+              },
+              {
+                "id": "r3"
+              }
+            ],
+            "score": 0.95
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "higher later result wins"
+    },
+    {
+      "best": {
+        "mbid": "r1",
+        "score": 0.9
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ],
+            "score": 0.9
+          },
+          {
+            "id": "b",
+            "recordings": [
+              {
+                "id": "r2"
+              }
+            ],
+            "score": 0.9
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "equal score keeps first"
+    },
+    {
+      "best": {
+        "mbid": "r1",
+        "score": 0.97
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ],
+            "score": 0.97
+          },
+          {
+            "id": "b",
+            "recordings": [
+              {
+                "id": "r2"
+              }
+            ],
+            "score": 0.9
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "lower later result ignored"
+    },
+    {
+      "best": {
+        "mbid": "r2",
+        "score": 0.9
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [],
+            "score": 0.99
+          },
+          {
+            "id": "b",
+            "recordings": [
+              {
+                "id": "r2"
+              }
+            ],
+            "score": 0.9
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "high result without recordings, lower with"
+    },
+    {
+      "best": {
+        "mbid": "r1",
+        "score": 1.0
+      },
+      "body": {
+        "results": [
+          {
+            "id": "a",
+            "recordings": [
+              {
+                "id": "r1"
+              }
+            ],
+            "score": 1
+          }
+        ]
+      },
+      "kind": "constructed",
+      "name": "integer score 1"
+    }
+  ],
+  "floor": 0.85,
+  "provenance": {
+    "fpcalc": "fpcalc version 1.6.2 (FFmpeg Lavc63.1.102 Lavf63.1.102 SwR7.1.102)",
+    "network": "replay (fixtures/replay); injected failures marked per step",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "real_library": "fixtures/library-real (local copy, see library-real.manifest.json)",
+    "row_timestamp": "2001-01-01T00:00:00Z",
+    "tool": "gen_fingerprint_golden"
+  }
+}

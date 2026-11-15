@@ -1,0 +1,65 @@
+{
+  "elapsed_ms": 0.9,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/checks/track-gaps"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "findings": [
+        {
+          "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "check_id": "track-gaps",
+          "detail": {
+            "expected_total": 4,
+            "missing": [
+              3
+            ],
+            "present": [
+              1,
+              2,
+              4,
+              5
+            ]
+          },
+          "first_seen_at": "2026-11-09T17:39:25Z",
+          "id": 15,
+          "ignored_at": null,
+          "ignored_reason": null,
+          "last_seen_at": "2026-11-09T17:39:25Z",
+          "resolved_at": null,
+          "severity": "warn",
+          "summary": "Track-number gaps: missing 3"
+        }
+      ],
+      "meta": {
+        "bulk_action_label": "Try MusicBrainz on all",
+        "category": "metadata",
+        "cost": "cheap",
+        "description": "Albums whose track-number sequence has gaps (1, 2, 4) or repeats (1, 2, 2). Detected from tag inspection — fingerprints not required to detect, but Fix uses them when available. Cascade: MB title match → AcoustID fingerprint match → AI. Note: this is about the TAG; the duplicate-tracks check catches duplicate AUDIO regardless of tag.",
+        "fix_kind": "ai-job",
+        "id": "track-gaps",
+        "label": "Track-number gaps & duplicates",
+        "runs_during_scan": true
+      },
+      "runs": [
+        {
+          "check_id": "track-gaps",
+          "completed_at": "2026-11-09T17:39:25Z",
+          "duration_ms": 4,
+          "error": null,
+          "id": 3,
+          "issue_count": 1,
+          "library_path": "<LIB>",
+          "scope": "all",
+          "started_at": "2026-11-09T17:39:25Z",
+          "status": "completed"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

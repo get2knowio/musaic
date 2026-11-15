@@ -1,0 +1,31 @@
+[package]
+name = "musaic-ai"
+description = "AI job queue: persistence glue, worker loop, resolver synthesizer, provider trait (no network provider in this build)"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[features]
+# The test-only replay provider (recorded / scripted responses).
+replay = []
+
+[dependencies]
+musaic-db = { path = "../musaic-db" }
+musaic-fsops = { path = "../musaic-fsops" }
+musaic-resolve = { path = "../musaic-resolve" }
+musaic-services = { path = "../musaic-services" }
+musaic-core = { path = "../musaic-core" }
+regex = "1"
+rusqlite.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+musaic-ai = { path = ".", features = ["replay"] }
+base64 = "0.22"
+tempfile.workspace = true
+sha2 = "0.10"
+
+[lints]
+workspace = true

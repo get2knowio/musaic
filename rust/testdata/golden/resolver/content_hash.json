@@ -1,0 +1,102 @@
+{
+  "cases": [
+    {
+      "album": {
+        "dir_name": "A - B [FLAC]",
+        "total_seconds": 600.0,
+        "track_count": 3
+      },
+      "content_hash": "c36f38e3ee4fcacac076e2ca0bf972aa02b3cb36",
+      "filenames": [
+        "b.flac",
+        "a.flac",
+        "C.flac"
+      ]
+    },
+    {
+      "album": {
+        "dir_name": "A - B [FLAC]",
+        "total_seconds": 1638.9,
+        "track_count": 3
+      },
+      "content_hash": "346ee76658f09b036859453bf5bb4e8c2d2643d6",
+      "filenames": []
+    },
+    {
+      "album": {
+        "dir_name": "A - B [FLAC]",
+        "total_seconds": 0.30000000000000004,
+        "track_count": 3
+      },
+      "content_hash": "6bbab758aeb3ac69db795d45d8dabc0dfaae4f54",
+      "filenames": [
+        "x.flac"
+      ]
+    },
+    {
+      "album": {
+        "dir_name": "A - B [FLAC]",
+        "total_seconds": 1e+16,
+        "track_count": 3
+      },
+      "content_hash": "fe0c7f06ca22b1b59a5c31aeeddfb0079a511cca",
+      "filenames": [
+        "x.flac"
+      ]
+    },
+    {
+      "album": {
+        "dir_name": "A - B [FLAC]",
+        "total_seconds": 1.5e-05,
+        "track_count": 3
+      },
+      "content_hash": "0305b600704a8f993b9b528a457bfc066a555e66",
+      "filenames": [
+        "x.flac"
+      ]
+    },
+    {
+      "album": {
+        "dir_name": "A - B [FLAC]",
+        "total_seconds": 123456789012.25,
+        "track_count": 3
+      },
+      "content_hash": "a5657b062d47508bd18d4da559a51deb23f5061d",
+      "filenames": [
+        "x.flac"
+      ]
+    },
+    {
+      "album": {
+        "dir_name": null,
+        "total_seconds": null,
+        "track_count": null
+      },
+      "content_hash": "f097fbb548a0807cd3f3e66489d90a10c5a23543",
+      "filenames": [
+        "x.flac"
+      ]
+    },
+    {
+      "album": {
+        "dir_name": "Café — 🎵 \"q\" \\ /",
+        "total_seconds": 600.0,
+        "track_count": 3
+      },
+      "content_hash": "f300a8ba6c905e3831a80df664d68668c1aed4c8",
+      "filenames": [
+        "été.flac",
+        "Zed.flac",
+        "Été.flac",
+        "é.flac"
+      ]
+    }
+  ],
+  "provenance": {
+    "fresh_timestamp": "2999-01-01T00:00:00Z",
+    "network": "replay (fixtures/replay) + constructed overlay per case",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "stale_timestamp": "2000-01-01T00:00:00Z",
+    "tool": "gen_resolver_golden"
+  }
+}

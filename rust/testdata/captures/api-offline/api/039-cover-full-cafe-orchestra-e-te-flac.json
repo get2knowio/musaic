@@ -1,0 +1,19 @@
+{
+  "elapsed_ms": 1.2,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": {
+      "size": "full"
+    },
+    "path": "/api/albums/<ID:Café Orchestra - Été [FLAC]>/cover"
+  },
+  "response": {
+    "binary": {
+      "sha256": "0d95ee0ce10358d316839d59e1b886c888b629ebb2fad30ebb6a1155bd0d3ba6",
+      "size": 30089
+    },
+    "content_type": "image/jpeg",
+    "status": 200
+  }
+}

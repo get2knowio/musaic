@@ -1,0 +1,28 @@
+[package]
+name = "musaic-fsops"
+description = "File-moving operations that are not tag writes: filename-mismatch renames, trash, cover discovery"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+musaic-log = { path = "../musaic-log" }
+musaic-core = { path = "../musaic-core" }
+musaic-db = { path = "../musaic-db" }
+musaic-scan = { path = "../musaic-scan" }
+regex = "1.11"
+rusqlite.workspace = true
+same-file = "1"
+thiserror.workspace = true
+unicode-general-category = "1.1"
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+musaic-testdata = { path = "../musaic-testdata" }
+serde_json.workspace = true
+sha2 = "0.10"
+tempfile.workspace = true
+
+[lints]
+workspace = true

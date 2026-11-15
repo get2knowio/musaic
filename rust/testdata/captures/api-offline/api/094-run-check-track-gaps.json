@@ -1,0 +1,27 @@
+{
+  "elapsed_ms": 7.2,
+  "request": {
+    "json": {
+      "scope": "all"
+    },
+    "method": "POST",
+    "params": null,
+    "path": "/api/checks/track-gaps/run"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "check_id": "track-gaps",
+      "completed_at": "2026-11-09T17:39:25Z",
+      "duration_ms": 4,
+      "error": null,
+      "id": 3,
+      "issue_count": 1,
+      "library_path": "<LIB>",
+      "scope": "all",
+      "started_at": "2026-11-09T17:39:25Z",
+      "status": "completed"
+    },
+    "status": 200
+  }
+}

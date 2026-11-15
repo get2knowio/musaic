@@ -1,0 +1,168 @@
+{
+  "function": "musaic.tags.save_cover_to_album_dir (tags.py:436-479)",
+  "generator": "tools/gen_sidecar_atomic_golden.py",
+  "new_bytes": "NEW-COVER-BYTES",
+  "note": "recorded on the volume holding work/ (APFS, case-insensitive on the reference Mac); no scenario depends on case folding (cover.JPEG is a hard link to folder.jpg, never the same file as cover.jpg)",
+  "old_bytes": "OLD-COVER-BYTES",
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "scenarios": [
+    {
+      "after": [
+        {
+          "bytes": "NEW-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 1
+        },
+        {
+          "bytes": "OLD-COVER-BYTES",
+          "kind": "file",
+          "name": "keep.jpg",
+          "nlink": 1
+        }
+      ],
+      "before": [
+        {
+          "bytes": "OLD-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 2
+        },
+        {
+          "bytes": "OLD-COVER-BYTES",
+          "kind": "file",
+          "name": "keep.jpg",
+          "nlink": 2
+        }
+      ],
+      "cover_jpg_samefile_keep_jpg": false,
+      "returned": "cover.jpg",
+      "scenario": "hardlink-to-old-cover"
+    },
+    {
+      "after": [
+        {
+          "kind": "dir",
+          "name": ".cover.jpg.tmp"
+        },
+        {
+          "bytes": "OLD-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 1
+        }
+      ],
+      "before": [
+        {
+          "kind": "dir",
+          "name": ".cover.jpg.tmp"
+        },
+        {
+          "bytes": "OLD-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 1
+        }
+      ],
+      "cover_jpg_samefile_keep_jpg": null,
+      "returned": null,
+      "scenario": "tmp-squatted-by-dir"
+    },
+    {
+      "after": [
+        {
+          "bytes": "NEW-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 2
+        },
+        {
+          "bytes": "NEW-COVER-BYTES",
+          "kind": "file",
+          "name": "other.bin",
+          "nlink": 2
+        }
+      ],
+      "before": [
+        {
+          "bytes": "STALE-TMP",
+          "kind": "file",
+          "name": ".cover.jpg.tmp",
+          "nlink": 2
+        },
+        {
+          "bytes": "OLD-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 1
+        },
+        {
+          "bytes": "STALE-TMP",
+          "kind": "file",
+          "name": "other.bin",
+          "nlink": 2
+        }
+      ],
+      "cover_jpg_samefile_keep_jpg": null,
+      "returned": "cover.jpg",
+      "scenario": "stale-tmp-hardlinked"
+    },
+    {
+      "after": [
+        {
+          "bytes": "NEW-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 1
+        },
+        {
+          "bytes": "FOLDER",
+          "kind": "file",
+          "name": "folder.jpg",
+          "nlink": 1
+        },
+        {
+          "bytes": "FRONT",
+          "kind": "file",
+          "name": "front.jpg",
+          "nlink": 1
+        }
+      ],
+      "before": [
+        {
+          "bytes": "FOLDER",
+          "kind": "file",
+          "name": "cover.JPEG",
+          "nlink": 2
+        },
+        {
+          "bytes": "OLD-COVER-BYTES",
+          "kind": "file",
+          "name": "cover.jpg",
+          "nlink": 1
+        },
+        {
+          "bytes": "PNG-SIBLING",
+          "kind": "file",
+          "name": "cover.png",
+          "nlink": 1
+        },
+        {
+          "bytes": "FOLDER",
+          "kind": "file",
+          "name": "folder.jpg",
+          "nlink": 2
+        },
+        {
+          "bytes": "FRONT",
+          "kind": "file",
+          "name": "front.jpg",
+          "nlink": 1
+        }
+      ],
+      "cover_jpg_samefile_keep_jpg": null,
+      "returned": "cover.jpg",
+      "scenario": "samefile-and-stale-siblings"
+    }
+  ]
+}

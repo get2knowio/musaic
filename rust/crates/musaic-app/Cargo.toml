@@ -1,0 +1,28 @@
+[package]
+name = "musaic-app"
+description = "The application object: builder, startup and shutdown, the AI worker host, service environments (no HTTP; musaic-api and later faces wrap it)"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+musaic-ai = { path = "../musaic-ai" }
+musaic-checks = { path = "../musaic-checks" }
+musaic-core = { path = "../musaic-core" }
+musaic-db = { path = "../musaic-db" }
+musaic-events = { path = "../musaic-events" }
+musaic-log = { path = "../musaic-log" }
+musaic-net = { path = "../musaic-net" }
+musaic-resolve = { path = "../musaic-resolve" }
+musaic-scan = { path = "../musaic-scan" }
+musaic-secrets = { path = "../musaic-secrets" }
+musaic-services = { path = "../musaic-services" }
+rusqlite.workspace = true
+thiserror.workspace = true
+# The watch channels the streams subscribe to (pool, checks, jobs,
+# shutdown); no runtime.
+tokio = { version = "1", features = ["sync"] }
+
+[lints]
+workspace = true

@@ -1,0 +1,66 @@
+{
+  "elapsed_ms": 1.4,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Various Artists - Night Mix [FLAC]>/tracks"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+      "tracks": [
+        {
+          "artist": "Sable & The Static",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "02 - something.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Something Electric",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "Orbit Society",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "04.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Last Train",
+          "tracknumber": "4"
+        },
+        {
+          "artist": "Kite Theory",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "Night Mix 3.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Velvet Signal",
+          "tracknumber": "3"
+        },
+        {
+          "artist": "Lumen Drift",
+          "bpm": null,
+          "duration": 10.0,
+          "filename": "trackA.flac",
+          "replaygain_album_gain": null,
+          "replaygain_album_peak": null,
+          "replaygain_track_gain": null,
+          "replaygain_track_peak": null,
+          "title": "Neon Tide",
+          "tracknumber": "1"
+        }
+      ]
+    },
+    "status": 200
+  }
+}

@@ -6,6 +6,8 @@ import { useJobs, useAttentionJobCount, useInFlightJobCounts } from "@/hooks/use
 import { useChecks } from "@/hooks/useChecks";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useRememberedLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import { jobsPageLabel } from "@/lib/aiGating";
 import { FILTERS, buildNeedsAttentionSet, isValidFilterKey, type FilterKey } from "@/lib/filters";
 
 interface NavItem {
@@ -88,6 +90,7 @@ export default function Sidebar() {
     return out;
   }, [albums, needsAttention]);
 
+  const ai = useAiStatus();
   const attentionCount = useAttentionJobCount();
   const { running: runningCount, queued: queuedCount } = useInFlightJobCounts();
   const activityLabel =
@@ -100,7 +103,7 @@ export default function Sidebar() {
       : null;
   const aiJobsItem: NavItem = {
     to: "/jobs",
-    label: "AI Jobs",
+    label: jobsPageLabel(ai),
     icon: Sparkles,
     badge: attentionCount > 0
       ? { text: String(attentionCount), tone: "accent" }

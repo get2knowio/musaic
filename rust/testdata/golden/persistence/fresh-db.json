@@ -1,0 +1,290 @@
+{
+  "_meta": {
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "tool": "tools.gen_fresh_db_golden",
+    "what": "musaic.db.bootstrap() on an empty config dir"
+  },
+  "bootstrap_connection_pragmas": {
+    "busy_timeout": 30000,
+    "cache_size": -2000,
+    "cell_size_check": 0,
+    "defer_foreign_keys": 0,
+    "foreign_keys": 1,
+    "journal_mode": "wal",
+    "locking_mode": "normal",
+    "recursive_triggers": 0,
+    "secure_delete": 0,
+    "synchronous": 1,
+    "temp_store": 0,
+    "trusted_schema": 1,
+    "wal_autocheckpoint": 1000
+  },
+  "connection_autocommit": true,
+  "connection_pragmas": {
+    "busy_timeout": 30000,
+    "cache_size": -2000,
+    "cell_size_check": 0,
+    "defer_foreign_keys": 0,
+    "foreign_keys": 1,
+    "journal_mode": "wal",
+    "locking_mode": "normal",
+    "recursive_triggers": 0,
+    "secure_delete": 0,
+    "synchronous": 2,
+    "temp_store": 0,
+    "trusted_schema": 1,
+    "wal_autocheckpoint": 1000
+  },
+  "existing_db_bootstrap": {
+    "connection_pragmas": {
+      "busy_timeout": 30000,
+      "cache_size": -2000,
+      "cell_size_check": 0,
+      "defer_foreign_keys": 0,
+      "foreign_keys": 1,
+      "journal_mode": "wal",
+      "locking_mode": "normal",
+      "recursive_triggers": 0,
+      "secure_delete": 0,
+      "synchronous": 2,
+      "temp_store": 0,
+      "trusted_schema": 1,
+      "wal_autocheckpoint": 1000
+    },
+    "journal_mode_after": "wal",
+    "journal_mode_before": "delete"
+  },
+  "files": [
+    "library.db"
+  ],
+  "persistent_pragmas": {
+    "application_id": 0,
+    "auto_vacuum": 0,
+    "encoding": "UTF-8",
+    "journal_mode": "wal",
+    "page_size": 4096,
+    "user_version": 0
+  },
+  "schema_version": [
+    16
+  ],
+  "schema_version_constant": 16,
+  "sqlite_master": [
+    [
+      "table",
+      "schema_version",
+      "schema_version",
+      "CREATE TABLE schema_version (\n        version INTEGER PRIMARY KEY\n    )"
+    ],
+    [
+      "table",
+      "libraries",
+      "libraries",
+      "CREATE TABLE libraries (\n        path        TEXT PRIMARY KEY,\n        scanned_at  TEXT NOT NULL DEFAULT ''\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_libraries_1",
+      "libraries",
+      null
+    ],
+    [
+      "table",
+      "albums",
+      "albums",
+      "CREATE TABLE albums (\n        id                  TEXT PRIMARY KEY,\n        library_path        TEXT NOT NULL,\n        path                TEXT NOT NULL UNIQUE,\n        dir_name            TEXT,\n        title               TEXT,\n        artist              TEXT,\n        album_artist        TEXT,\n        year                TEXT,\n        genre               TEXT,\n        track_count         INTEGER NOT NULL DEFAULT 0,\n        total_seconds       REAL    NOT NULL DEFAULT 0,\n        has_embedded_cover  INTEGER NOT NULL DEFAULT 0,\n        cover_file          TEXT,\n        sample_track        TEXT NOT NULL DEFAULT '',\n        dir_mtime           REAL    NOT NULL DEFAULT 0,\n        -- v2: parsed from the directory name (flac-jacket convention)\n        dir_artist          TEXT,\n        dir_album           TEXT,\n        is_compilation      INTEGER NOT NULL DEFAULT 0,\n        disc_number         INTEGER,\n        disc_total          INTEGER,\n        -- v3: audio format info (from FLAC StreamInfo)\n        sample_rate         INTEGER,\n        bits_per_sample     INTEGER,\n        channels            INTEGER,\n        -- v6: per-track number sequence, JSON list. Denormalized for the\n        -- track-gaps check so it doesn't need to re-read every FLAC.\n        track_numbers_json  TEXT,\n        -- v7: cached MusicBrainz anchors. Populated on the first confident\n        -- find_release() match; subsequent lookups short-circuit the search\n        -- step. Refreshed when last_checked_at exceeds a staleness window.\n        mb_release_group_mbid TEXT,\n        mb_release_mbid       TEXT,\n        mb_match_score        INTEGER,\n        mb_last_checked_at    TEXT,\n        -- v8: Vorbis sort variants. Read by the scanner from the FLAC's\n        -- ALBUMARTISTSORT / ARTISTSORT / ALBUMSORT tags. NULL when the\n        -- source files don't carry sort tags. Plex / Roon honor these\n        -- for sidebar / library alphabetization.\n        album_artist_sort   TEXT,\n        artist_sort         TEXT,\n        album_sort          TEXT,\n        -- v11: per-track artist + artistsort, denormalized so the\n        -- inconsistent-artist-sort check can cluster across album AND\n        -- track levels without re-reading every FLAC. Stored as a JSON\n        -- list of {filename, artist, artist_sort} dicts. Mirrors the\n        -- track_numbers_json pattern; populated in the same per-FLAC\n        -- loop in scanner._scan_album_dir, so reading is free.\n        track_artists_json  TEXT,\n        -- v12: timestamp of the most recent AI metadata job whose\n        -- output the user acted on (applied OR discarded — both\n        -- count as \"I reviewed AI's suggestion\"). NULL = never been\n        -- through an AI metadata pass that the user reviewed.\n        -- Used by the UI to show \"AI reviewed: yes/no\" so the user\n        -- doesn't keep re-running AI on the same albums by accident,\n        -- and (eventually) by Library filters to bucket the unreviewed\n        -- backlog.\n        metadata_ai_acted_on_at TEXT,\n        -- v15: presence-as-data. ISO-8601 timestamp of the first scan\n        -- that observed the album dir gone from disk; NULL when the\n        -- album is currently Present. Lets us preserve the row (and\n        -- its computed children — fingerprints, MB anchor, track\n        -- tags) across drive outages, reorganizations, and transient\n        -- FS errors. Only `cache.delete_album` actually removes a\n        -- row, and that's only reachable via explicit user action\n        -- (`DELETE /api/albums/{id}`). Scans never delete.\n        missing_since TEXT,\n        FOREIGN KEY (library_path) REFERENCES libraries(path) ON DELETE CASCADE\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_albums_1",
+      "albums",
+      null
+    ],
+    [
+      "index",
+      "sqlite_autoindex_albums_2",
+      "albums",
+      null
+    ],
+    [
+      "index",
+      "idx_albums_library",
+      "albums",
+      "CREATE INDEX idx_albums_library ON albums(library_path)"
+    ],
+    [
+      "table",
+      "ai_jobs",
+      "ai_jobs",
+      "CREATE TABLE ai_jobs (\n        id                 TEXT PRIMARY KEY,         -- short hex\n        album_id           TEXT NOT NULL,\n        album_path         TEXT NOT NULL,            -- denormalized for display\n        album_title        TEXT,                     -- denormalized for display\n        job_type           TEXT NOT NULL,            -- \"metadata\" | \"cover\" | \"metadata+cover\"\n        hint               TEXT NOT NULL DEFAULT '', -- user-supplied prompt context\n        status             TEXT NOT NULL,            -- \"queued\"|\"running\"|\"completed\"|\"failed\"|\"acted_on\"\n        result_json        TEXT,                     -- JSON-encoded MetadataSuggestion + CoverSuggestion combo\n        error              TEXT,                     -- exception message when status=\"failed\"\n        acted_on_action    TEXT,                     -- \"applied\" | \"discarded\" once status=\"acted_on\"\n        created_at         TEXT NOT NULL,\n        started_at         TEXT,\n        completed_at       TEXT,\n        acted_on_at        TEXT,\n        -- v16: per-job toggle for whether the album cover art is sent\n        -- with the suggest_metadata prompt. Default 1 (on) matches\n        -- the post-cover-attach launch behavior. User can uncheck\n        -- via the hint dialog when they want to A/B-test the\n        -- cover's effect on identification quality / latency.\n        attach_cover       INTEGER NOT NULL DEFAULT 1\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_ai_jobs_1",
+      "ai_jobs",
+      null
+    ],
+    [
+      "index",
+      "idx_ai_jobs_status",
+      "ai_jobs",
+      "CREATE INDEX idx_ai_jobs_status ON ai_jobs(status)"
+    ],
+    [
+      "index",
+      "idx_ai_jobs_album",
+      "ai_jobs",
+      "CREATE INDEX idx_ai_jobs_album  ON ai_jobs(album_id)"
+    ],
+    [
+      "index",
+      "idx_ai_jobs_created",
+      "ai_jobs",
+      "CREATE INDEX idx_ai_jobs_created ON ai_jobs(created_at)"
+    ],
+    [
+      "table",
+      "settings",
+      "settings",
+      "CREATE TABLE settings (\n        key   TEXT PRIMARY KEY,\n        value TEXT NOT NULL\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_settings_1",
+      "settings",
+      null
+    ],
+    [
+      "table",
+      "check_runs",
+      "check_runs",
+      "CREATE TABLE check_runs (\n        id              INTEGER PRIMARY KEY AUTOINCREMENT,\n        check_id        TEXT NOT NULL,\n        started_at      TEXT NOT NULL,\n        completed_at    TEXT,\n        status          TEXT NOT NULL,           -- \"running\"|\"completed\"|\"failed\"|\"cancelled\"\n        library_path    TEXT NOT NULL,\n        scope           TEXT NOT NULL,           -- \"all\"|\"incremental\"|JSON list of album_ids\n        issue_count     INTEGER NOT NULL DEFAULT 0,\n        error           TEXT,\n        duration_ms     INTEGER\n    )"
+    ],
+    [
+      "table",
+      "sqlite_sequence",
+      "sqlite_sequence",
+      "CREATE TABLE sqlite_sequence(name,seq)"
+    ],
+    [
+      "index",
+      "idx_check_runs_check",
+      "check_runs",
+      "CREATE INDEX idx_check_runs_check ON check_runs(check_id, started_at DESC)"
+    ],
+    [
+      "table",
+      "check_findings",
+      "check_findings",
+      "CREATE TABLE check_findings (\n        id              INTEGER PRIMARY KEY AUTOINCREMENT,\n        check_id        TEXT NOT NULL,\n        album_id        TEXT,                    -- NULL = library-level finding\n        severity        TEXT NOT NULL DEFAULT 'warn',  -- \"info\"|\"warn\"|\"error\"\n        summary         TEXT NOT NULL,\n        detail_json     TEXT,\n        first_seen_at   TEXT NOT NULL,\n        last_seen_at    TEXT NOT NULL,\n        resolved_at     TEXT,\n        ignored_at      TEXT,\n        ignored_reason  TEXT,\n        UNIQUE(check_id, album_id, summary)\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_check_findings_1",
+      "check_findings",
+      null
+    ],
+    [
+      "index",
+      "idx_findings_check",
+      "check_findings",
+      "CREATE INDEX idx_findings_check ON check_findings(check_id, resolved_at, ignored_at)"
+    ],
+    [
+      "index",
+      "idx_findings_album",
+      "check_findings",
+      "CREATE INDEX idx_findings_album ON check_findings(album_id)"
+    ],
+    [
+      "table",
+      "track_fingerprints",
+      "track_fingerprints",
+      "CREATE TABLE track_fingerprints (\n        album_id           TEXT NOT NULL,\n        filename           TEXT NOT NULL,\n        fingerprint        TEXT NOT NULL,            -- chromaprint hash\n        duration_s         REAL NOT NULL,            -- needed for AcoustID submission\n        acoustid_recording_mbid TEXT,                -- canonical recording MBID, if matched\n        acoustid_score     REAL,                     -- 0.0–1.0 confidence\n        last_computed_at   TEXT NOT NULL,\n        PRIMARY KEY (album_id, filename),\n        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_track_fingerprints_1",
+      "track_fingerprints",
+      null
+    ],
+    [
+      "index",
+      "idx_track_fingerprints_recording",
+      "track_fingerprints",
+      "CREATE INDEX idx_track_fingerprints_recording ON track_fingerprints(acoustid_recording_mbid) WHERE acoustid_recording_mbid IS NOT NULL"
+    ],
+    [
+      "table",
+      "track_tags",
+      "track_tags",
+      "CREATE TABLE track_tags (\n        album_id   TEXT NOT NULL,\n        filename   TEXT NOT NULL,\n        tag        TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        PRIMARY KEY (album_id, filename, tag),\n        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_track_tags_1",
+      "track_tags",
+      null
+    ],
+    [
+      "index",
+      "idx_track_tags_tag",
+      "track_tags",
+      "CREATE INDEX idx_track_tags_tag ON track_tags(tag)"
+    ],
+    [
+      "table",
+      "tag_vocabulary",
+      "tag_vocabulary",
+      "CREATE TABLE tag_vocabulary (\n        tag         TEXT PRIMARY KEY COLLATE NOCASE,\n        description TEXT NOT NULL DEFAULT '',\n        color       TEXT,\n        sort_order  INTEGER NOT NULL DEFAULT 0,\n        created_at  TEXT NOT NULL\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_tag_vocabulary_1",
+      "tag_vocabulary",
+      null
+    ],
+    [
+      "index",
+      "idx_tag_vocabulary_sort",
+      "tag_vocabulary",
+      "CREATE INDEX idx_tag_vocabulary_sort ON tag_vocabulary(sort_order, tag)"
+    ],
+    [
+      "table",
+      "album_blocked_mb_release_groups",
+      "album_blocked_mb_release_groups",
+      "CREATE TABLE album_blocked_mb_release_groups (\n        album_id           TEXT NOT NULL,\n        release_group_mbid TEXT NOT NULL,\n        blocked_at         TEXT NOT NULL,\n        PRIMARY KEY (album_id, release_group_mbid),\n        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE\n    )"
+    ],
+    [
+      "index",
+      "sqlite_autoindex_album_blocked_mb_release_groups_1",
+      "album_blocked_mb_release_groups",
+      null
+    ]
+  ],
+  "sqlite_version": "3.53.1",
+  "statements": [
+    "\n    CREATE TABLE IF NOT EXISTS schema_version (\n        version INTEGER PRIMARY KEY\n    )\n    ",
+    "\n    CREATE TABLE IF NOT EXISTS libraries (\n        path        TEXT PRIMARY KEY,\n        scanned_at  TEXT NOT NULL DEFAULT ''\n    )\n    ",
+    "\n    CREATE TABLE IF NOT EXISTS albums (\n        id                  TEXT PRIMARY KEY,\n        library_path        TEXT NOT NULL,\n        path                TEXT NOT NULL UNIQUE,\n        dir_name            TEXT,\n        title               TEXT,\n        artist              TEXT,\n        album_artist        TEXT,\n        year                TEXT,\n        genre               TEXT,\n        track_count         INTEGER NOT NULL DEFAULT 0,\n        total_seconds       REAL    NOT NULL DEFAULT 0,\n        has_embedded_cover  INTEGER NOT NULL DEFAULT 0,\n        cover_file          TEXT,\n        sample_track        TEXT NOT NULL DEFAULT '',\n        dir_mtime           REAL    NOT NULL DEFAULT 0,\n        -- v2: parsed from the directory name (flac-jacket convention)\n        dir_artist          TEXT,\n        dir_album           TEXT,\n        is_compilation      INTEGER NOT NULL DEFAULT 0,\n        disc_number         INTEGER,\n        disc_total          INTEGER,\n        -- v3: audio format info (from FLAC StreamInfo)\n        sample_rate         INTEGER,\n        bits_per_sample     INTEGER,\n        channels            INTEGER,\n        -- v6: per-track number sequence, JSON list. Denormalized for the\n        -- track-gaps check so it doesn't need to re-read every FLAC.\n        track_numbers_json  TEXT,\n        -- v7: cached MusicBrainz anchors. Populated on the first confident\n        -- find_release() match; subsequent lookups short-circuit the search\n        -- step. Refreshed when last_checked_at exceeds a staleness window.\n        mb_release_group_mbid TEXT,\n        mb_release_mbid       TEXT,\n        mb_match_score        INTEGER,\n        mb_last_checked_at    TEXT,\n        -- v8: Vorbis sort variants. Read by the scanner from the FLAC's\n        -- ALBUMARTISTSORT / ARTISTSORT / ALBUMSORT tags. NULL when the\n        -- source files don't carry sort tags. Plex / Roon honor these\n        -- for sidebar / library alphabetization.\n        album_artist_sort   TEXT,\n        artist_sort         TEXT,\n        album_sort          TEXT,\n        -- v11: per-track artist + artistsort, denormalized so the\n        -- inconsistent-artist-sort check can cluster across album AND\n        -- track levels without re-reading every FLAC. Stored as a JSON\n        -- list of {filename, artist, artist_sort} dicts. Mirrors the\n        -- track_numbers_json pattern; populated in the same per-FLAC\n        -- loop in scanner._scan_album_dir, so reading is free.\n        track_artists_json  TEXT,\n        -- v12: timestamp of the most recent AI metadata job whose\n        -- output the user acted on (applied OR discarded — both\n        -- count as \"I reviewed AI's suggestion\"). NULL = never been\n        -- through an AI metadata pass that the user reviewed.\n        -- Used by the UI to show \"AI reviewed: yes/no\" so the user\n        -- doesn't keep re-running AI on the same albums by accident,\n        -- and (eventually) by Library filters to bucket the unreviewed\n        -- backlog.\n        metadata_ai_acted_on_at TEXT,\n        -- v15: presence-as-data. ISO-8601 timestamp of the first scan\n        -- that observed the album dir gone from disk; NULL when the\n        -- album is currently Present. Lets us preserve the row (and\n        -- its computed children — fingerprints, MB anchor, track\n        -- tags) across drive outages, reorganizations, and transient\n        -- FS errors. Only `cache.delete_album` actually removes a\n        -- row, and that's only reachable via explicit user action\n        -- (`DELETE /api/albums/{id}`). Scans never delete.\n        missing_since TEXT,\n        FOREIGN KEY (library_path) REFERENCES libraries(path) ON DELETE CASCADE\n    )\n    ",
+    "CREATE INDEX IF NOT EXISTS idx_albums_library ON albums(library_path)",
+    "\n    CREATE TABLE IF NOT EXISTS ai_jobs (\n        id                 TEXT PRIMARY KEY,         -- short hex\n        album_id           TEXT NOT NULL,\n        album_path         TEXT NOT NULL,            -- denormalized for display\n        album_title        TEXT,                     -- denormalized for display\n        job_type           TEXT NOT NULL,            -- \"metadata\" | \"cover\" | \"metadata+cover\"\n        hint               TEXT NOT NULL DEFAULT '', -- user-supplied prompt context\n        status             TEXT NOT NULL,            -- \"queued\"|\"running\"|\"completed\"|\"failed\"|\"acted_on\"\n        result_json        TEXT,                     -- JSON-encoded MetadataSuggestion + CoverSuggestion combo\n        error              TEXT,                     -- exception message when status=\"failed\"\n        acted_on_action    TEXT,                     -- \"applied\" | \"discarded\" once status=\"acted_on\"\n        created_at         TEXT NOT NULL,\n        started_at         TEXT,\n        completed_at       TEXT,\n        acted_on_at        TEXT,\n        -- v16: per-job toggle for whether the album cover art is sent\n        -- with the suggest_metadata prompt. Default 1 (on) matches\n        -- the post-cover-attach launch behavior. User can uncheck\n        -- via the hint dialog when they want to A/B-test the\n        -- cover's effect on identification quality / latency.\n        attach_cover       INTEGER NOT NULL DEFAULT 1\n    )\n    ",
+    "CREATE INDEX IF NOT EXISTS idx_ai_jobs_status ON ai_jobs(status)",
+    "CREATE INDEX IF NOT EXISTS idx_ai_jobs_album  ON ai_jobs(album_id)",
+    "CREATE INDEX IF NOT EXISTS idx_ai_jobs_created ON ai_jobs(created_at)",
+    "\n    CREATE TABLE IF NOT EXISTS settings (\n        key   TEXT PRIMARY KEY,\n        value TEXT NOT NULL\n    )\n    ",
+    "\n    CREATE TABLE IF NOT EXISTS check_runs (\n        id              INTEGER PRIMARY KEY AUTOINCREMENT,\n        check_id        TEXT NOT NULL,\n        started_at      TEXT NOT NULL,\n        completed_at    TEXT,\n        status          TEXT NOT NULL,           -- \"running\"|\"completed\"|\"failed\"|\"cancelled\"\n        library_path    TEXT NOT NULL,\n        scope           TEXT NOT NULL,           -- \"all\"|\"incremental\"|JSON list of album_ids\n        issue_count     INTEGER NOT NULL DEFAULT 0,\n        error           TEXT,\n        duration_ms     INTEGER\n    )\n    ",
+    "CREATE INDEX IF NOT EXISTS idx_check_runs_check ON check_runs(check_id, started_at DESC)",
+    "\n    CREATE TABLE IF NOT EXISTS check_findings (\n        id              INTEGER PRIMARY KEY AUTOINCREMENT,\n        check_id        TEXT NOT NULL,\n        album_id        TEXT,                    -- NULL = library-level finding\n        severity        TEXT NOT NULL DEFAULT 'warn',  -- \"info\"|\"warn\"|\"error\"\n        summary         TEXT NOT NULL,\n        detail_json     TEXT,\n        first_seen_at   TEXT NOT NULL,\n        last_seen_at    TEXT NOT NULL,\n        resolved_at     TEXT,\n        ignored_at      TEXT,\n        ignored_reason  TEXT,\n        UNIQUE(check_id, album_id, summary)\n    )\n    ",
+    "CREATE INDEX IF NOT EXISTS idx_findings_check ON check_findings(check_id, resolved_at, ignored_at)",
+    "CREATE INDEX IF NOT EXISTS idx_findings_album ON check_findings(album_id)",
+    "\n    CREATE TABLE IF NOT EXISTS track_fingerprints (\n        album_id           TEXT NOT NULL,\n        filename           TEXT NOT NULL,\n        fingerprint        TEXT NOT NULL,            -- chromaprint hash\n        duration_s         REAL NOT NULL,            -- needed for AcoustID submission\n        acoustid_recording_mbid TEXT,                -- canonical recording MBID, if matched\n        acoustid_score     REAL,                     -- 0.0–1.0 confidence\n        last_computed_at   TEXT NOT NULL,\n        PRIMARY KEY (album_id, filename),\n        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE\n    )\n    ",
+    "CREATE INDEX IF NOT EXISTS idx_track_fingerprints_recording ON track_fingerprints(acoustid_recording_mbid) WHERE acoustid_recording_mbid IS NOT NULL",
+    "\n    CREATE TABLE IF NOT EXISTS track_tags (\n        album_id   TEXT NOT NULL,\n        filename   TEXT NOT NULL,\n        tag        TEXT NOT NULL,\n        created_at TEXT NOT NULL,\n        PRIMARY KEY (album_id, filename, tag),\n        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE\n    )\n    ",
+    "CREATE INDEX IF NOT EXISTS idx_track_tags_tag ON track_tags(tag)",
+    "\n    CREATE TABLE IF NOT EXISTS tag_vocabulary (\n        tag         TEXT PRIMARY KEY COLLATE NOCASE,\n        description TEXT NOT NULL DEFAULT '',\n        color       TEXT,\n        sort_order  INTEGER NOT NULL DEFAULT 0,\n        created_at  TEXT NOT NULL\n    )\n    ",
+    "CREATE INDEX IF NOT EXISTS idx_tag_vocabulary_sort ON tag_vocabulary(sort_order, tag)",
+    "\n    CREATE TABLE IF NOT EXISTS album_blocked_mb_release_groups (\n        album_id           TEXT NOT NULL,\n        release_group_mbid TEXT NOT NULL,\n        blocked_at         TEXT NOT NULL,\n        PRIMARY KEY (album_id, release_group_mbid),\n        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE\n    )\n    "
+  ]
+}

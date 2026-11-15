@@ -1,0 +1,1644 @@
+{
+  "cases": [
+    {
+      "album": null,
+      "blocked": [],
+      "content_hash": null,
+      "filenames": [],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "album not in cache",
+      "overlay": [],
+      "results": [
+        {
+          "body": {
+            "album_id": "missing-album",
+            "anchor": null,
+            "anchor_strategy": "none",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "Album not in cache; rescan first"
+            ],
+            "tracks": [],
+            "unresolved_track_count": 0
+          },
+          "events": [],
+          "op": "resolve",
+          "requests": [],
+          "same_object_as_previous_resolve": false,
+          "store_after": null,
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": null,
+      "tracks": []
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "medium score 0b: not persisted, Tier 1 re-searches",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSBBcnRpc3QifV0sICJmaXJzdC1yZWxlYXNlLWRhdGUiOiAiMTk3OSIsICJpZCI6ICI1NTU1NTU1NS01NTU1LTU1NTUtNTU1NS01NTU1NTU1NTU1NTUiLCAic2NvcmUiOiA4MCwgInRhZ3MiOiBbeyJjb3VudCI6IDQsICJuYW1lIjogImZvbGsifV0sICJ0aXRsZSI6ICJBbGJ1bSBPbmUifV19",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+          "method": "HEAD",
+          "status": 404,
+          "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk3OS0wMyIsICJpZCI6ICJyZWwtMSIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMywgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDIwMDAwMCwgInJlY29yZGluZyI6IHsiYXJ0aXN0LWNyZWRpdCI6IFt7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiQW5hIn1dLCAiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJPbmUifSwgeyJsZW5ndGgiOiAxOTU1MDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVHdvIn0sIHsibGVuZ3RoIjogMjA0MDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlRocmVlIn1dfV19XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+        }
+      ],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": {
+              "confidence": 0.8,
+              "source": "musicbrainz",
+              "value": "55555555-5555-5555-5555-555555555555"
+            },
+            "anchor_strategy": "dir-search",
+            "canonical_album_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "Ana Artist"
+            },
+            "canonical_album_artist_sort": null,
+            "canonical_genre": {
+              "confidence": 0.55,
+              "source": "musicbrainz",
+              "value": "folk"
+            },
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "Album One"
+            },
+            "canonical_year": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1979"
+            },
+            "cover_url": null,
+            "notes": [
+              "Tier 0b: Matched \"Ana Artist — Album One\" (score 80/100, MBID 55555555-5555-5555-5555-555555555555)"
+            ],
+            "tracks": [
+              {
+                "canonical_artist": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Ana"
+                },
+                "canonical_duration_s": 200.0,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "One"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "1"
+                },
+                "filename": "01.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": 195.5,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Two"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "2"
+                },
+                "filename": "02.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": 204.0,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Three"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "3"
+                },
+                "filename": "03.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              }
+            ],
+            "unresolved_track_count": 0
+          },
+          "events": [
+            {
+              "album_id": "medium-1",
+              "event": "AlbumMbAnchorSet",
+              "source": "musicbrainz"
+            }
+          ],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+            },
+            {
+              "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+            },
+            {
+              "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+              "method": "HEAD",
+              "served": "constructed",
+              "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+            },
+            {
+              "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": null,
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": null,
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "medium score 0b, no first-release-date (year browse)",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSBBcnRpc3QifV0sICJpZCI6ICI1NTU1NTU1NS01NTU1LTU1NTUtNTU1NS01NTU1NTU1NTU1NTUiLCAic2NvcmUiOiA4MCwgInRpdGxlIjogIkFsYnVtIE9uZSJ9XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk3OS0wMyIsICJpZCI6ICJyZWwtMSJ9XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "1118a066910b51dafdaa2e64152f16ff004c998ab40c9f4a5fa84e097f5f0c90",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+        },
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+          "method": "HEAD",
+          "status": 404,
+          "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk3OS0wMyIsICJpZCI6ICJyZWwtMSIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMywgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDIwMDAwMCwgInJlY29yZGluZyI6IHsiYXJ0aXN0LWNyZWRpdCI6IFt7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiQW5hIn1dLCAiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJPbmUifSwgeyJsZW5ndGgiOiAxOTU1MDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVHdvIn0sIHsibGVuZ3RoIjogMjA0MDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlRocmVlIn1dfV19XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+        }
+      ],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": {
+              "confidence": 0.8,
+              "source": "musicbrainz",
+              "value": "55555555-5555-5555-5555-555555555555"
+            },
+            "anchor_strategy": "dir-search",
+            "canonical_album_artist": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "Ana Artist"
+            },
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "Album One"
+            },
+            "canonical_year": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "1979"
+            },
+            "cover_url": null,
+            "notes": [
+              "Tier 0b: Matched \"Ana Artist — Album One\" (score 80/100, MBID 55555555-5555-5555-5555-555555555555)"
+            ],
+            "tracks": [
+              {
+                "canonical_artist": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Ana"
+                },
+                "canonical_duration_s": 200.0,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "One"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "1"
+                },
+                "filename": "01.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": 195.5,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Two"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "2"
+                },
+                "filename": "02.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": 204.0,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Three"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "3"
+                },
+                "filename": "03.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              }
+            ],
+            "unresolved_track_count": 0
+          },
+          "events": [
+            {
+              "album_id": "medium-1",
+              "event": "AlbumMbAnchorSet",
+              "source": "musicbrainz"
+            }
+          ],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+            },
+            {
+              "key": "1118a066910b51dafdaa2e64152f16ff004c998ab40c9f4a5fa84e097f5f0c90",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            },
+            {
+              "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+            },
+            {
+              "key": "1118a066910b51dafdaa2e64152f16ff004c998ab40c9f4a5fa84e097f5f0c90",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            },
+            {
+              "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+              "method": "HEAD",
+              "served": "constructed",
+              "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+            },
+            {
+              "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": null,
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": null,
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "score 69: Tier 0b declines",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSBBcnRpc3QifV0sICJmaXJzdC1yZWxlYXNlLWRhdGUiOiAiMTk3OSIsICJpZCI6ICI1NTU1NTU1NS01NTU1LTU1NTUtNTU1NS01NTU1NTU1NTU1NTUiLCAic2NvcmUiOiA2OSwgInRpdGxlIjogIkFsYnVtIE9uZSJ9XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        }
+      ],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": null,
+            "anchor_strategy": "none",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "No anchor found via Tiers 0a-0c; AI escalation may be required"
+            ],
+            "tracks": [
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "01.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "02.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "03.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              }
+            ],
+            "unresolved_track_count": 3
+          },
+          "events": [],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": null,
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": null,
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "stale anchor, fresh search finds another group",
+      "overlay": [
+        {
+          "content_b64": "eyJyZWxlYXNlLWdyb3VwcyI6IFt7ImFydGlzdC1jcmVkaXQiOiBbeyJqb2lucGhyYXNlIjogIiIsICJuYW1lIjogIkFuYSBBcnRpc3QifV0sICJmaXJzdC1yZWxlYXNlLWRhdGUiOiAiMTk3OSIsICJpZCI6ICI1NTU1NTU1NS01NTU1LTU1NTUtNTU1NS01NTU1NTU1NTU1NTUiLCAic2NvcmUiOiA5NSwgInRpdGxlIjogIkFsYnVtIE9uZSJ9XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+        },
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+          "method": "HEAD",
+          "status": 200,
+          "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk3OS0wMyIsICJpZCI6ICJyZWwtMSIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMywgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDIwMDAwMCwgInJlY29yZGluZyI6IHsiYXJ0aXN0LWNyZWRpdCI6IFt7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiQW5hIn1dLCAiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJPbmUifSwgeyJsZW5ndGgiOiAxOTU1MDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVHdvIn0sIHsibGVuZ3RoIjogMjA0MDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlRocmVlIn1dfV19XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+        }
+      ],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": {
+              "confidence": 0.9,
+              "source": "cache",
+              "value": "66666666-6666-6666-6666-666666666666"
+            },
+            "anchor_strategy": "cache",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "Tier 0a: anchored from cache (score 90)",
+              "Tier 1: anchor present but tracklist fetch missed"
+            ],
+            "tracks": [],
+            "unresolved_track_count": 0
+          },
+          "events": [
+            {
+              "album_id": "medium-1",
+              "event": "AlbumMbAnchorSet",
+              "source": "musicbrainz"
+            }
+          ],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "15b1d1c4ded8a3bb9268e62e9acea4dc53f0c5644d7904d018ca49f378916d70",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Ana+Artist%22+AND+release%3A%22Album+One%22"
+            },
+            {
+              "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+              "method": "HEAD",
+              "served": "constructed",
+              "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+            },
+            {
+              "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": {
+            "last_checked_at": "2999-01-01T00:00:00Z",
+            "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+            "release_mbid": "rel-1",
+            "score": 95
+          },
+          "store_writes": [
+            {
+              "album_id": "medium-1",
+              "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+              "release_mbid": "rel-1",
+              "score": 95
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": {
+        "last_checked_at": "2000-01-01T00:00:00Z",
+        "release_group_mbid": "66666666-6666-6666-6666-666666666666",
+        "release_mbid": null,
+        "score": 90
+      },
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "cached anchor, empty release listing",
+      "overlay": [
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+          "method": "HEAD",
+          "status": 200,
+          "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFtdfQ==",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+        }
+      ],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": {
+              "confidence": 0.95,
+              "source": "cache",
+              "value": "55555555-5555-5555-5555-555555555555"
+            },
+            "anchor_strategy": "cache",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": {
+              "confidence": 0.95,
+              "source": "musicbrainz",
+              "value": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+            },
+            "notes": [
+              "Tier 0a: anchored from cache (score 95)",
+              "Tier 1: anchored but MB returned no tracklist"
+            ],
+            "tracks": [],
+            "unresolved_track_count": 0
+          },
+          "events": [],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+              "method": "HEAD",
+              "served": "constructed",
+              "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+            },
+            {
+              "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": {
+            "last_checked_at": "2999-01-01T00:00:00Z",
+            "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+            "release_mbid": null,
+            "score": 95
+          },
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": {
+        "last_checked_at": "2999-01-01T00:00:00Z",
+        "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+        "release_mbid": null,
+        "score": 95
+      },
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "cached anchor, CAA 500 and browse 503",
+      "overlay": [
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+          "method": "HEAD",
+          "status": 500,
+          "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+        },
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+          "method": "GET",
+          "status": 503,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+        }
+      ],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": {
+              "confidence": 0.95,
+              "source": "cache",
+              "value": "55555555-5555-5555-5555-555555555555"
+            },
+            "anchor_strategy": "cache",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "Tier 0a: anchored from cache (score 95)",
+              "Tier 1: anchored but MB returned no tracklist"
+            ],
+            "tracks": [],
+            "unresolved_track_count": 0
+          },
+          "events": [],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+              "method": "HEAD",
+              "served": "constructed",
+              "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+            },
+            {
+              "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": {
+            "last_checked_at": "2999-01-01T00:00:00Z",
+            "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+            "release_mbid": null,
+            "score": 95
+          },
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": {
+        "last_checked_at": "2999-01-01T00:00:00Z",
+        "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+        "release_mbid": null,
+        "score": 95
+      },
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "cached anchor without score",
+      "overlay": [
+        {
+          "content_b64": "",
+          "headers": {},
+          "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+          "method": "HEAD",
+          "status": 404,
+          "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+        },
+        {
+          "content_b64": "eyJyZWxlYXNlcyI6IFt7ImRhdGUiOiAiMTk3OS0wMyIsICJpZCI6ICJyZWwtMSIsICJtZWRpYSI6IFt7InBvc2l0aW9uIjogMSwgInRyYWNrLWNvdW50IjogMywgInRyYWNrcyI6IFt7Imxlbmd0aCI6IDIwMDAwMCwgInJlY29yZGluZyI6IHsiYXJ0aXN0LWNyZWRpdCI6IFt7ImpvaW5waHJhc2UiOiAiIiwgIm5hbWUiOiAiQW5hIn1dLCAiaWQiOiAicmVjIn0sICJ0aXRsZSI6ICJPbmUifSwgeyJsZW5ndGgiOiAxOTU1MDAsICJyZWNvcmRpbmciOiB7ImlkIjogInJlYyJ9LCAidGl0bGUiOiAiVHdvIn0sIHsibGVuZ3RoIjogMjA0MDAwLCAicmVjb3JkaW5nIjogeyJpZCI6ICJyZWMifSwgInRpdGxlIjogIlRocmVlIn1dfV19XX0=",
+          "headers": {
+            "Content-Type": "application/json"
+          },
+          "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+          "method": "GET",
+          "status": 200,
+          "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+        }
+      ],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": {
+              "confidence": 0.0,
+              "source": "cache",
+              "value": "55555555-5555-5555-5555-555555555555"
+            },
+            "anchor_strategy": "cache",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "Tier 0a: anchored from cache (score 0)"
+            ],
+            "tracks": [
+              {
+                "canonical_artist": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Ana"
+                },
+                "canonical_duration_s": 200.0,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "One"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "1"
+                },
+                "filename": "01.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": 195.5,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Two"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "2"
+                },
+                "filename": "02.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": 204.0,
+                "canonical_title": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "Three"
+                },
+                "canonical_tracknumber": {
+                  "confidence": 0.95,
+                  "source": "musicbrainz",
+                  "value": "3"
+                },
+                "filename": "03.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              }
+            ],
+            "unresolved_track_count": 0
+          },
+          "events": [
+            {
+              "album_id": "medium-1",
+              "event": "AlbumMbAnchorSet",
+              "source": "musicbrainz"
+            }
+          ],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "b82339e5754e9e4873728d8478bbe374968a9085c7a120ca63454362712c7a31",
+              "method": "HEAD",
+              "served": "constructed",
+              "url": "https://coverartarchive.org/release-group/55555555-5555-5555-5555-555555555555/front"
+            },
+            {
+              "key": "46e167f14324fc4e5cd96a4d7c700857607387d67c15cd66a1586f6176ea5f16",
+              "method": "GET",
+              "served": "constructed",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=55555555-5555-5555-5555-555555555555"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": {
+            "last_checked_at": "2999-01-01T00:00:00Z",
+            "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+            "release_mbid": "rel-1",
+            "score": 0
+          },
+          "store_writes": [
+            {
+              "album_id": "medium-1",
+              "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+              "release_mbid": "rel-1",
+              "score": 0
+            }
+          ]
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": {
+        "last_checked_at": "2999-01-01T00:00:00Z",
+        "release_group_mbid": "55555555-5555-5555-5555-555555555555",
+        "release_mbid": null,
+        "score": null
+      },
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Never Asked",
+        "dir_artist": "Nobody Recorded",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "network: search unrecorded",
+      "overlay": [],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": null,
+            "anchor_strategy": "none",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "No anchor found via Tiers 0a-0c; AI escalation may be required"
+            ],
+            "tracks": [
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "01.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "02.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "03.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              }
+            ],
+            "unresolved_track_count": 3
+          },
+          "events": [],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "9af15e2d1098f1afaa18b2b9b0a5fa6f63869a561e30e29aeb653139a75d849d",
+              "method": "GET",
+              "served": "unobserved",
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Nobody+Recorded%22+AND+release%3A%22Never+Asked%22"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": null,
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": null,
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "First Light",
+        "dir_artist": "Aurora Fields",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "network: recorded 503 on search",
+      "overlay": [],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": null,
+            "anchor_strategy": "none",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "No anchor found via Tiers 0a-0c; AI escalation may be required"
+            ],
+            "tracks": [
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "01.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "02.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              },
+              {
+                "canonical_artist": null,
+                "canonical_duration_s": null,
+                "canonical_title": null,
+                "canonical_tracknumber": null,
+                "filename": "03.flac",
+                "fingerprint_score": null,
+                "fingerprinted": false,
+                "recording_mbid": null
+              }
+            ],
+            "unresolved_track_count": 3
+          },
+          "events": [],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "0f03f340371482a495235135a7a15051d358c38f354b9dd92a9ca9221dc0c9ad",
+              "method": "GET",
+              "served": "recorded",
+              "status": 503,
+              "url": "https://musicbrainz.org/ws/2/release-group/?fmt=json&limit=5&query=artist%3A%22Aurora+Fields%22+AND+release%3A%22First+Light%22"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": null,
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": null,
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "album": {
+        "album_artist": null,
+        "artist": "Ana Artist",
+        "dir_album": "Album One",
+        "dir_artist": "Ana Artist",
+        "dir_name": "Ana Artist - Album One [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "genre": null,
+        "id": "medium-1",
+        "is_compilation": false,
+        "path": "/golden/medium-1",
+        "title": "Album One",
+        "total_seconds": 600.0,
+        "track_count": 3,
+        "year": null
+      },
+      "blocked": [],
+      "content_hash": "0a53a59b58153eacf7bd2e0623307b9133b2a406",
+      "filenames": [
+        "01.flac",
+        "02.flac",
+        "03.flac"
+      ],
+      "fingerprints": [],
+      "kind": "parity",
+      "name": "network: cached anchor, nothing recorded for Tier 1",
+      "overlay": [],
+      "results": [
+        {
+          "body": {
+            "album_id": "medium-1",
+            "anchor": {
+              "confidence": 0.95,
+              "source": "cache",
+              "value": "77777777-7777-7777-7777-777777777777"
+            },
+            "anchor_strategy": "cache",
+            "canonical_album_artist": null,
+            "canonical_album_artist_sort": null,
+            "canonical_genre": null,
+            "canonical_title": null,
+            "canonical_year": null,
+            "cover_url": null,
+            "notes": [
+              "Tier 0a: anchored from cache (score 95)",
+              "Tier 1: anchored but MB returned no tracklist"
+            ],
+            "tracks": [],
+            "unresolved_track_count": 0
+          },
+          "events": [],
+          "op": "resolve",
+          "requests": [
+            {
+              "key": "07f25e45d618e1670db4fe8f0fe3edea9ef769e08ced36da6df658234f9b1b0a",
+              "method": "HEAD",
+              "served": "unobserved",
+              "url": "https://coverartarchive.org/release-group/77777777-7777-7777-7777-777777777777/front"
+            },
+            {
+              "key": "715548079189694687bccdc4cbb8c814f2b6c21006e76e594a3ad3af134148e8",
+              "method": "GET",
+              "served": "unobserved",
+              "url": "https://musicbrainz.org/ws/2/release?fmt=json&inc=media%2Brecordings%2Bartist-credits&limit=25&release-group=77777777-7777-7777-7777-777777777777"
+            }
+          ],
+          "same_object_as_previous_resolve": false,
+          "store_after": {
+            "last_checked_at": "2999-01-01T00:00:00Z",
+            "release_group_mbid": "77777777-7777-7777-7777-777777777777",
+            "release_mbid": null,
+            "score": 95
+          },
+          "store_writes": []
+        }
+      ],
+      "steps": [
+        {
+          "op": "resolve"
+        }
+      ],
+      "stored_anchor": {
+        "last_checked_at": "2999-01-01T00:00:00Z",
+        "release_group_mbid": "77777777-7777-7777-7777-777777777777",
+        "release_mbid": null,
+        "score": 95
+      },
+      "tracks": [
+        {
+          "artist": "",
+          "duration": 200.0,
+          "filename": "01.flac",
+          "title": "x",
+          "tracknumber": "1"
+        },
+        {
+          "artist": "",
+          "duration": 195.0,
+          "filename": "02.flac",
+          "title": "x",
+          "tracknumber": "2"
+        },
+        {
+          "artist": "",
+          "duration": 205.0,
+          "filename": "03.flac",
+          "title": "x",
+          "tracknumber": "3"
+        }
+      ]
+    }
+  ],
+  "provenance": {
+    "fresh_timestamp": "2999-01-01T00:00:00Z",
+    "network": "replay (fixtures/replay) + constructed overlay per case",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "stale_timestamp": "2000-01-01T00:00:00Z",
+    "tool": "gen_resolver_golden"
+  }
+}

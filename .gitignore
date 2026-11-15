@@ -1,45 +1,37 @@
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-dist/
-build/
-# …but the Electron desktop build scripts (issue #8) live in desktop/build/
-# and are source, not a Python artifact dir.
-!desktop/build/
+# Rust build output
+rust/target/
 
-# uv / virtualenv
-.venv/
-.uv/
+# Generated synthetic test audio (rust/testdata/synthetic-library/gen_fixture_library.py).
+# The manifest next to it IS committed: it carries every file's SHA-256.
+rust/testdata/synthetic-library/library/
+rust/testdata/synthetic-library/.library.tmp/
 
-# Environment & secrets
-.env
-*.env.local
+# Private test data, when checked out next to rust/ (never committed here)
+private-testdata/
+
+# Scratch space: library copies, config dirs, exports, logs
+work/
 
 # Frontend
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+*.tsbuildinfo
 
-# macOS
-.DS_Store
+# Python (test-data generator, notices script)
+__pycache__/
+*.pyc
+.venv/
 
-# Editor
-.idea/
-*.swp
-*.swo
+# Environment and secrets
+.env
+*.env.local
 
 # Runtime data (user-local, not project files)
-*.db
 *.db-shm
 *.db-wal
 
-# TypeScript incremental build cache
-*.tsbuildinfo
-
-# Stale root-level docs (content moved to docs/)
-README 2.md
+# macOS / editors
+.DS_Store
+.idea/
+*.swp

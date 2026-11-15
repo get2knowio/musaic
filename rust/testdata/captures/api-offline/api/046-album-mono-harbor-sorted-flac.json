@@ -1,0 +1,68 @@
+{
+  "elapsed_ms": 1.0,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Mono Harbor - Sorted [FLAC]>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": "Mono Harbor",
+      "album_artist_sort": "Harbor, Mono",
+      "album_sort": null,
+      "artist": "Mono Harbor",
+      "artist_sort": "Harbor, Mono",
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": "Sorted",
+      "dir_artist": "Mono Harbor",
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Mono Harbor - Sorted [FLAC]",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Indie Rock",
+      "has_embedded_cover": false,
+      "id": "<ID:Mono Harbor - Sorted [FLAC]>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Mono Harbor - Sorted [FLAC]",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Mono Harbor - Sorted [FLAC]/01 - Ordered.flac",
+      "title": "Sorted",
+      "total_seconds": 30.0,
+      "track_artists": [
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "Harbor, Mono",
+          "filename": "01 - Ordered.flac"
+        },
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "Harbor, Mono",
+          "filename": "02 - Indexed.flac"
+        },
+        {
+          "artist": "Mono Harbor",
+          "artist_sort": "Harbor, Mono",
+          "filename": "03 - Filed.flac"
+        }
+      ],
+      "track_count": 3,
+      "track_numbers": [
+        1,
+        2,
+        3
+      ],
+      "year": "2018"
+    },
+    "status": 200
+  }
+}

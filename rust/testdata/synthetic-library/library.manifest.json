@@ -1,0 +1,1039 @@
+{
+  "albums": [
+    {
+      "cover": "both",
+      "cover_filename": "cover.jpg",
+      "defects": [],
+      "dir_name": "Aurora Fields - First Light [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Aurora Fields - First Light [FLAC]",
+      "expected_checks": [],
+      "extra_files": [],
+      "notes": "Clean baseline. DATE is a full ISO date so the scanner's year normalisation ('2019-04-12' -> '2019') is exercised. All Aurora Fields albums share ALBUMARTISTSORT 'Aurora Fields' so their sort cluster is consistent (no inconsistent-artist-sort finding).",
+      "track_count": 5,
+      "tracks": [
+        {
+          "audio_seed": 101,
+          "filename": "01 - Dawn Chorus.flac",
+          "title": "Dawn Chorus",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 102,
+          "filename": "02 - Low Sun.flac",
+          "title": "Low Sun",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 103,
+          "filename": "03 - Meridian.flac",
+          "title": "Meridian",
+          "tracknumber": "3"
+        },
+        {
+          "audio_seed": 104,
+          "filename": "04 - Long Shadows.flac",
+          "title": "Long Shadows",
+          "tracknumber": "4"
+        },
+        {
+          "audio_seed": 105,
+          "filename": "05 - Afterglow.flac",
+          "title": "Afterglow",
+          "tracknumber": "5"
+        }
+      ]
+    },
+    {
+      "cover": null,
+      "cover_filename": null,
+      "defects": [
+        "no-cover-art"
+      ],
+      "dir_name": "Aurora Fields - Second Light [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Aurora Fields - Second Light [FLAC]",
+      "expected_checks": [
+        "no-cover-art"
+      ],
+      "extra_files": [],
+      "notes": "No cover.jpg/folder.jpg/front.jpg and no embedded PICTURE block.",
+      "track_count": 4,
+      "tracks": [
+        {
+          "audio_seed": 111,
+          "filename": "01 - Blue Hour.flac",
+          "title": "Blue Hour",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 112,
+          "filename": "02 - Cirrus.flac",
+          "title": "Cirrus",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 113,
+          "filename": "03 - Halation.flac",
+          "title": "Halation",
+          "tracknumber": "3"
+        },
+        {
+          "audio_seed": 114,
+          "filename": "04 - Nightfall.flac",
+          "title": "Nightfall",
+          "tracknumber": "4"
+        }
+      ]
+    },
+    {
+      "cover": "file",
+      "cover_filename": "folder.jpg",
+      "defects": [
+        "folder-jpg-cover"
+      ],
+      "dir_name": "Aurora Fields - Folder Art [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Aurora Fields - Folder Art [FLAC]",
+      "expected_checks": [],
+      "extra_files": [],
+      "notes": "Sidecar is folder.jpg only (COVER_FILENAMES preference order); scanner should report cover_file='folder.jpg', has_embedded_cover=False.",
+      "track_count": 2,
+      "tracks": [
+        {
+          "audio_seed": 121,
+          "filename": "01 - Canvas.flac",
+          "title": "Canvas",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 122,
+          "filename": "02 - Easel.flac",
+          "title": "Easel",
+          "tracknumber": "2"
+        }
+      ]
+    },
+    {
+      "cover": "embedded",
+      "cover_filename": null,
+      "defects": [
+        "multi-disc"
+      ],
+      "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+      "expected_checks": [],
+      "extra_files": [],
+      "notes": "Disc 1 of a two-disc set; each disc is its own album row.",
+      "track_count": 3,
+      "tracks": [
+        {
+          "audio_seed": 131,
+          "filename": "01 - Mirror.flac",
+          "title": "Mirror",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 132,
+          "filename": "02 - Parallax.flac",
+          "title": "Parallax",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 133,
+          "filename": "03 - Echo.flac",
+          "title": "Echo",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "cover": "embedded",
+      "cover_filename": null,
+      "defects": [
+        "multi-disc"
+      ],
+      "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+      "expected_checks": [],
+      "extra_files": [],
+      "notes": "Disc 2 of a two-disc set; track numbers restart at 1.",
+      "track_count": 3,
+      "tracks": [
+        {
+          "audio_seed": 141,
+          "filename": "01 - Reflection.flac",
+          "title": "Reflection",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 142,
+          "filename": "02 - Doppler.flac",
+          "title": "Doppler",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 143,
+          "filename": "03 - Return.flac",
+          "title": "Return",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "cover": "file",
+      "cover_filename": "cover.jpg",
+      "defects": [
+        "track-gaps",
+        "missing-albumartist",
+        "inconsistent-artist-sort"
+      ],
+      "dir_name": "Mono Harbor - Gaps [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Mono Harbor - Gaps [FLAC]",
+      "expected_checks": [
+        "track-gaps",
+        "inconsistent-artist-sort"
+      ],
+      "extra_files": [],
+      "notes": "TRACKNUMBER 1,2,4,5 (missing 3). ARTIST set, NO ALBUMARTIST: scanner album_artist=None but artist='Mono Harbor' via the albumartist->artist cascade. ARTISTSORT='Mono Harbor' (unsorted form) contributes a TRACK-level member to the 'mono harbor' sort cluster (album-level membership needs album_artist, which is empty).",
+      "track_count": 4,
+      "tracks": [
+        {
+          "audio_seed": 201,
+          "filename": "01 - Pier One.flac",
+          "title": "Pier One",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 202,
+          "filename": "02 - Breakwater.flac",
+          "title": "Breakwater",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 203,
+          "filename": "04 - Tidewater.flac",
+          "title": "Tidewater",
+          "tracknumber": "4"
+        },
+        {
+          "audio_seed": 204,
+          "filename": "05 - Lighthouse.flac",
+          "title": "Lighthouse",
+          "tracknumber": "5"
+        }
+      ]
+    },
+    {
+      "cover": "file",
+      "cover_filename": "cover.jpg",
+      "defects": [
+        "inconsistent-artist-sort"
+      ],
+      "dir_name": "Mono Harbor - Sorted [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Mono Harbor - Sorted [FLAC]",
+      "expected_checks": [
+        "inconsistent-artist-sort"
+      ],
+      "extra_files": [],
+      "notes": "Sort tags 'Harbor, Mono' conflict with 'Mono Harbor' on Gaps -> the 'mono harbor' cluster has two distinct non-empty sort values = state 'conflicting'. One finding per cluster (not per album).",
+      "track_count": 3,
+      "tracks": [
+        {
+          "audio_seed": 211,
+          "filename": "01 - Ordered.flac",
+          "title": "Ordered",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 212,
+          "filename": "02 - Indexed.flac",
+          "title": "Indexed",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 213,
+          "filename": "03 - Filed.flac",
+          "title": "Filed",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "cover": "embedded",
+      "cover_filename": null,
+      "defects": [
+        "duplicate-tracks"
+      ],
+      "dir_name": "Mono Harbor - Dupes [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Mono Harbor - Dupes [FLAC]",
+      "expected_checks": [
+        "duplicate-tracks"
+      ],
+      "extra_files": [],
+      "notes": "Track 3's PCM is identical to track 1 (same STREAMINFO md5_signature), different filename/title. duplicate-tracks needs track_fingerprints rows (fpcalc + the fingerprint pool), so it only fires once fingerprinting ran. No sort tags: an empty member of the 'mono harbor' cluster.",
+      "track_count": 4,
+      "tracks": [
+        {
+          "audio_seed": 221,
+          "filename": "01 - Static Bloom.flac",
+          "title": "Static Bloom",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 222,
+          "filename": "02 - Feedback Garden.flac",
+          "title": "Feedback Garden",
+          "tracknumber": "2"
+        },
+        {
+          "dup_of": "01 - Static Bloom.flac",
+          "filename": "03 - Static Bloom (Reprise).flac",
+          "title": "Static Bloom (Reprise)",
+          "tracknumber": "3"
+        },
+        {
+          "audio_seed": 223,
+          "filename": "04 - Wall of Sound.flac",
+          "title": "Wall of Sound",
+          "tracknumber": "4"
+        }
+      ]
+    },
+    {
+      "cover": "file",
+      "cover_filename": "cover.jpg",
+      "defects": [
+        "junk-files"
+      ],
+      "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Mono Harbor - Dotfiles [FLAC]",
+      "expected_checks": [],
+      "extra_files": [
+        "._01 - Ghost.flac",
+        "notes.txt"
+      ],
+      "notes": "`._01 - Ghost.flac` is a few bytes of AppleDouble header (not valid FLAC) and must be skipped by _list_flacs; notes.txt is skipped by extension. Expected track_count=2.",
+      "track_count": 2,
+      "tracks": [
+        {
+          "audio_seed": 231,
+          "filename": "01 - Hidden.flac",
+          "title": "Hidden",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 232,
+          "filename": "02 - Visible.flac",
+          "title": "Visible",
+          "tracknumber": "2"
+        }
+      ]
+    },
+    {
+      "cover": "file",
+      "cover_filename": "cover.jpg",
+      "defects": [
+        "compilation",
+        "filename-mismatch",
+        "multi-genre"
+      ],
+      "dir_name": "Various Artists - Night Mix [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Various Artists - Night Mix [FLAC]",
+      "expected_checks": [
+        "filename-mismatch"
+      ],
+      "extra_files": [],
+      "notes": "Album-level ARTIST is overridden per track; no ALBUMARTIST. Filenames match neither template ('{tracknumber:02} - {artist} - {title}' for compilations). Scanner reads files in sorted() codepoint order ('02 - something', '04', 'Night Mix 3', 'trackA'), so the sample track is '02 - something.flac': album artist='Sable & The Static', genre union = 'House; Electronic; Downtempo' (case-insensitive dedupe, first-seen casing), track_numbers=[2, 4, 3, 1].",
+      "track_count": 4,
+      "tracks": [
+        {
+          "audio_seed": 301,
+          "filename": "trackA.flac",
+          "title": "Neon Tide",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 302,
+          "filename": "02 - something.flac",
+          "title": "Something Electric",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 303,
+          "filename": "Night Mix 3.flac",
+          "title": "Velvet Signal",
+          "tracknumber": "3"
+        },
+        {
+          "audio_seed": 304,
+          "filename": "04.flac",
+          "title": "Last Train",
+          "tracknumber": "4"
+        }
+      ]
+    },
+    {
+      "cover": "file",
+      "cover_filename": "cover.jpg",
+      "defects": [
+        "nonconforming-dir-name",
+        "filename-mismatch"
+      ],
+      "dir_name": "Legacy Folder Name",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "Legacy Folder Name",
+      "expected_checks": [
+        "filename-mismatch"
+      ],
+      "extra_files": [],
+      "notes": "Directory name does not match the convention: parse matched=False, dir_artist/dir_album None, title falls back to the ALBUM tag. The filename-mismatch dir template proposes 'Quiet Atlas - Old Rips [FLAC]'.",
+      "track_count": 2,
+      "tracks": [
+        {
+          "audio_seed": 401,
+          "filename": "01 - Kitchen Radio.flac",
+          "title": "Kitchen Radio",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 402,
+          "filename": "02 - Porch Light.flac",
+          "title": "Porch Light",
+          "tracknumber": "2"
+        }
+      ]
+    },
+    {
+      "cover": "both",
+      "cover_filename": "cover.jpg",
+      "defects": [
+        "nfd-dir-name"
+      ],
+      "dir_name": "Café Orchestra - Été [FLAC]",
+      "dir_name_is_nfc": false,
+      "dir_name_nfc": "Café Orchestra - Été [FLAC]",
+      "expected_checks": [
+        "filename-mismatch"
+      ],
+      "extra_files": [],
+      "notes": "Directory name written in NFD; every tag (and track filenames) in NFC. The Python app has no unicodedata normalisation anywhere: dir_album comes out NFD, album id = sha1 of the NFD path, filename-mismatch compares an NFD-derived rendering against the NFD dir name. Behaviour on a normalising filesystem is an open unknown. OBSERVED (sanity run): _check_dir renders albumartist from the NFC tag and album from the NFD dir parse, so the proposed dir name is MIXED-normalisation and differs from the current name only by normalisation -> a spurious filename-mismatch dir rename.",
+      "track_count": 3,
+      "tracks": [
+        {
+          "audio_seed": 501,
+          "filename": "01 - Soirée.flac",
+          "title": "Soirée",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 502,
+          "filename": "02 - Terrasse.flac",
+          "title": "Terrasse",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 503,
+          "filename": "03 - Crème.flac",
+          "title": "Crème",
+          "tracknumber": "3"
+        }
+      ]
+    },
+    {
+      "cover": "file",
+      "cover_filename": "cover.jpg",
+      "defects": [
+        "article-artist",
+        "tags-out-of-sync"
+      ],
+      "dir_name": "The Lanterns - Porchlight [FLAC]",
+      "dir_name_is_nfc": true,
+      "dir_name_nfc": "The Lanterns - Porchlight [FLAC]",
+      "expected_checks": [
+        "tags-out-of-sync"
+      ],
+      "extra_files": [],
+      "notes": "Added so tags-out-of-sync fires offline: with no MB anchor its only triggers are blank core fields or article-rotation sort proposals; ALBUMARTIST/ARTIST 'The Lanterns' with no sort tags proposes 'Lanterns, The'.",
+      "track_count": 3,
+      "tracks": [
+        {
+          "audio_seed": 601,
+          "filename": "01 - Screen Door.flac",
+          "title": "Screen Door",
+          "tracknumber": "1"
+        },
+        {
+          "audio_seed": 602,
+          "filename": "02 - Fireflies.flac",
+          "title": "Fireflies",
+          "tracknumber": "2"
+        },
+        {
+          "audio_seed": 603,
+          "filename": "03 - Gravel Road.flac",
+          "title": "Gravel Road",
+          "tracknumber": "3"
+        }
+      ]
+    }
+  ],
+  "audio": {
+    "channels": 2,
+    "duration_s": 10.0,
+    "flac_padding": 1024,
+    "format": "FLAC",
+    "sample_rate": 44100,
+    "subtype": "PCM_16"
+  },
+  "files": [
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "357b87b1e0478d90714cdf90697c7a1d",
+      "path": "Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac",
+      "sample_rate": 44100,
+      "sha256": "7c420d5a0f3838694a5980e6b66598505bb4a703e35bbe42cd3f478cf9a8ec1a",
+      "size": 984900,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "8c4209f2fc46d8986e4173b90f12b499",
+      "path": "Aurora Fields - First Light [FLAC]/02 - Low Sun.flac",
+      "sample_rate": 44100,
+      "sha256": "26d38ffe162fb3811004d0e7f76744c3fc6822a106b4936e3d21510cbeaf2acf",
+      "size": 969310,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "e4c472ed098a5622034ddddd96f06014",
+      "path": "Aurora Fields - First Light [FLAC]/03 - Meridian.flac",
+      "sample_rate": 44100,
+      "sha256": "9d012fc0c609617ce79f455d4260b2b36f84b4d8255ff86d6c8f951224ce205b",
+      "size": 965671,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "14a04b780bd7b3207e2bc8b94235bb8b",
+      "path": "Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac",
+      "sample_rate": 44100,
+      "sha256": "1ee689d8ae26d893c8822b8bed42845bf0878aeeb0792b53271fa0fe3c371519",
+      "size": 975363,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "d1598a2ead7949ea223b10e9b107d819",
+      "path": "Aurora Fields - First Light [FLAC]/05 - Afterglow.flac",
+      "sample_rate": 44100,
+      "sha256": "9fbe7309c3038f276cbde659aa098b3bb6498e3f112c0507717f78856a5d5569",
+      "size": 970419,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Aurora Fields - First Light [FLAC]/cover.jpg",
+      "sha256": "ceb628c40ef4acc11fd5a76e838176055b69c7b32f9a9e35007109060b713e96",
+      "size": 23289
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "9209b1b5748d7fde8c25c27a92fd3d82",
+      "path": "Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac",
+      "sample_rate": 44100,
+      "sha256": "274ab55f3cbc3f1552229550e8a96e898606d73cf0f92fa002b2feddbe3fe91a",
+      "size": 950619,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "b638aac662eb6b5695d8b94e6c3182af",
+      "path": "Aurora Fields - Folder Art [FLAC]/02 - Easel.flac",
+      "sample_rate": 44100,
+      "sha256": "695bba5f2d1fdf347eaa2caec62d1043be2c4681f3fa82bf76b09fe5d7b7a38f",
+      "size": 943663,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Aurora Fields - Folder Art [FLAC]/folder.jpg",
+      "sha256": "f41bd7e1edd0c1980cf149eb63b9e4ae1c90395be02ab16d0730756d1b6289f2",
+      "size": 17961
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "67c84ce6cdb051f46e52f0f65166789f",
+      "path": "Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac",
+      "sample_rate": 44100,
+      "sha256": "97c30b2aaf88ab4a42ddf3b4b3af3495c68ba841ab429c3f46db6f873d3acc64",
+      "size": 978122,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "a787c236efb10431b159675565a0f5d1",
+      "path": "Aurora Fields - Second Light [FLAC]/02 - Cirrus.flac",
+      "sample_rate": 44100,
+      "sha256": "eb7c551cf43adf35bb7387d4852c5d65f3e9246a59b4f04c08a0faf309ceb153",
+      "size": 962267,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "7d5f82e17517a64f3cad9bc74027c545",
+      "path": "Aurora Fields - Second Light [FLAC]/03 - Halation.flac",
+      "sample_rate": 44100,
+      "sha256": "2b187e7204643c960f8d528a97726dde93307dcbfe2a1e439af34692d93df9a6",
+      "size": 979826,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "978957b9342b52f4fd2ebb1e04a51aa6",
+      "path": "Aurora Fields - Second Light [FLAC]/04 - Nightfall.flac",
+      "sample_rate": 44100,
+      "sha256": "50d8e32cc8175e2123a8506c092967a25fb3e7b3f5de9488e19003c317d27aa7",
+      "size": 970347,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "be9ae46e0db3212ceccba3fbc126e11b",
+      "path": "Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac",
+      "sample_rate": 44100,
+      "sha256": "ac861fb37114742487d34eb2be6f880f77a663811c9cc50faf7b58a82398a7df",
+      "size": 965861,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "88de00c1b266e726f5c05b99c903e21d",
+      "path": "Aurora Fields - Twin (disc 1 of 2) [FLAC]/02 - Parallax.flac",
+      "sample_rate": 44100,
+      "sha256": "acd7b094d47e74cb71e081598889c96494c369c68dd761a6ecbec6cafe609ab3",
+      "size": 978120,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "d71781a252f703d94c1b7709773e0060",
+      "path": "Aurora Fields - Twin (disc 1 of 2) [FLAC]/03 - Echo.flac",
+      "sample_rate": 44100,
+      "sha256": "1c6d9a1760b0f06eeff7489121778f9fdd2499d7a2a0a421021a5a890224cf3e",
+      "size": 994622,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "9e9b006f8b0d58c105d192618776f1c3",
+      "path": "Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac",
+      "sample_rate": 44100,
+      "sha256": "78a786ad3f996a189e2b0246ee23f8aab7518fe8b135e430f87ddc873013a35a",
+      "size": 983242,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "0c70c3053785a2f9756098c3e08b9829",
+      "path": "Aurora Fields - Twin (disc 2 of 2) [FLAC]/02 - Doppler.flac",
+      "sample_rate": 44100,
+      "sha256": "766304bce0094eed2f8249a6e852b213bad4c40477bc9db1f812dc70269a7050",
+      "size": 999210,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "a70fb153576f072cc717acbeb542e999",
+      "path": "Aurora Fields - Twin (disc 2 of 2) [FLAC]/03 - Return.flac",
+      "sample_rate": 44100,
+      "sha256": "07b42d410f4cc46583ab912592762e3dbffa4b0dd7337dfc840e6693cd724cc2",
+      "size": 994611,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "ee5c339e77d3b3eed1b270f429151f19",
+      "path": "Café Orchestra - Été [FLAC]/01 - Soirée.flac",
+      "sample_rate": 44100,
+      "sha256": "38bf0f821274a3783ab5b8dc40e39d6d4666335471fb6fe7de3c59d9a1f78cc1",
+      "size": 1000801,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "0a996ccdfc97ddfa992d516972a5f2b1",
+      "path": "Café Orchestra - Été [FLAC]/02 - Terrasse.flac",
+      "sample_rate": 44100,
+      "sha256": "630c075b820edd46cf94a09a34ab641d0839e5ce2b4fde3f78358f4c5e43067a",
+      "size": 1005551,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "6435463de021cc83bfef5ab5460b8525",
+      "path": "Café Orchestra - Été [FLAC]/03 - Crème.flac",
+      "sample_rate": 44100,
+      "sha256": "a8fa9142d0933f66d753a6ca71be61959997a95a0d0217f5e7dfb0d9d6958ada",
+      "size": 999895,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Café Orchestra - Été [FLAC]/cover.jpg",
+      "sha256": "0d95ee0ce10358d316839d59e1b886c888b629ebb2fad30ebb6a1155bd0d3ba6",
+      "size": 30089
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "81f8ec21b8eb30db30136a0c682775d7",
+      "path": "Legacy Folder Name/01 - Kitchen Radio.flac",
+      "sample_rate": 44100,
+      "sha256": "6e8dfdf7f547edc7c1b933155589393c7ef38388efcf106b59bb1e2baec6cd6a",
+      "size": 980218,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "dc3b8386b2dfa5a8b01b79a0218bda8e",
+      "path": "Legacy Folder Name/02 - Porch Light.flac",
+      "sample_rate": 44100,
+      "sha256": "9d701d49b7266e68f12fb9cfe3da61ff0f417d963b03be8e75ff1a5eaa0912d6",
+      "size": 968551,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Legacy Folder Name/cover.jpg",
+      "sha256": "192f85c319f1fe8afd370ba32c414d047a409d396d0baecc4f0cf2f3af6d9493",
+      "size": 26324
+    },
+    {
+      "kind": "appledouble-junk",
+      "path": "Mono Harbor - Dotfiles [FLAC]/._01 - Ghost.flac",
+      "sha256": "17c88df6b56c6e2b4ddd1bc6c576159af8197e8ada88bd97105f55e21213a763",
+      "size": 26
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "094855487356b41648872e0b009d9d25",
+      "path": "Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac",
+      "sample_rate": 44100,
+      "sha256": "f56e9588fa4415dd1dd3085f0189c67c79ac89a53f02c782b4d5db6edcb79e90",
+      "size": 971118,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "2ef4a51f6823c08c042932176bf0f40b",
+      "path": "Mono Harbor - Dotfiles [FLAC]/02 - Visible.flac",
+      "sample_rate": 44100,
+      "sha256": "a7a320c35feb77d332e2a6a1f4d1274d39f023d4391f9ecd646ff991bf9407b0",
+      "size": 968606,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Mono Harbor - Dotfiles [FLAC]/cover.jpg",
+      "sha256": "15391109b120052d53e610ae50fde42f7a8dbd6da684f1551a357de1e559968d",
+      "size": 25786
+    },
+    {
+      "kind": "other",
+      "path": "Mono Harbor - Dotfiles [FLAC]/notes.txt",
+      "sha256": "8fe9b9fc98397682e8484e837045943cee55badb2b9af3a404a19604454d1087",
+      "size": 65
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "dab49dd9f27600f98fc74b52130ec0fd",
+      "path": "Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac",
+      "sample_rate": 44100,
+      "sha256": "1a085dcbab9a8662bc6b18484ab164579fb9d915184654c8ee897de4fafba51b",
+      "size": 987829,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "fbdd6b2295038fdd5c5eec6fd5523f3c",
+      "path": "Mono Harbor - Dupes [FLAC]/02 - Feedback Garden.flac",
+      "sample_rate": 44100,
+      "sha256": "0f4b8729c8795c7032d26e5974f7737478d862d8306bd3dfaf04007b8ab928e5",
+      "size": 982444,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "dab49dd9f27600f98fc74b52130ec0fd",
+      "path": "Mono Harbor - Dupes [FLAC]/03 - Static Bloom (Reprise).flac",
+      "sample_rate": 44100,
+      "sha256": "20d9c3697f3f17588b8e9cab334ffb43e970e5060bd021f0ffa809c427578e67",
+      "size": 987839,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "cdbbf5d569497a10d068c7b597b563bc",
+      "path": "Mono Harbor - Dupes [FLAC]/04 - Wall of Sound.flac",
+      "sample_rate": 44100,
+      "sha256": "dc0b4ca2367748e5f96191bce81fdae30631c3bac63184bc8247950d6a07cda9",
+      "size": 973864,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "9ff88895ae10dba200678bf34d59fa58",
+      "path": "Mono Harbor - Gaps [FLAC]/01 - Pier One.flac",
+      "sample_rate": 44100,
+      "sha256": "9e1eb740b55dad92933f19dd90ef705201f158919fcf96d1eb12896593a2d884",
+      "size": 944259,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "4e3e3f22184f4d51131e3ce3e1ecb44f",
+      "path": "Mono Harbor - Gaps [FLAC]/02 - Breakwater.flac",
+      "sample_rate": 44100,
+      "sha256": "cff26eebf1410953fdd3e7efdebec6df7389298e13d08a4b9646fe38ad6172aa",
+      "size": 956294,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "5d0c812719c1c57361f7cb5f39590177",
+      "path": "Mono Harbor - Gaps [FLAC]/04 - Tidewater.flac",
+      "sample_rate": 44100,
+      "sha256": "4510c034027934e518d913b384f5906f811f838a39ae479dfbe0c6249f7ae6fb",
+      "size": 947038,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "d822171fbdb32d080c7443e31a6fc766",
+      "path": "Mono Harbor - Gaps [FLAC]/05 - Lighthouse.flac",
+      "sample_rate": 44100,
+      "sha256": "2b5028572ffc29cb63d908da31f158b386627dd2dc0725b6340704629f1af023",
+      "size": 961680,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Mono Harbor - Gaps [FLAC]/cover.jpg",
+      "sha256": "78c7f5e7d46b89b70ffdb7b3e57617f55e16d6204e0b3a89319f1c661276dc17",
+      "size": 26508
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "66f1c6d2f05ad4be1f08a82b32cb46bc",
+      "path": "Mono Harbor - Sorted [FLAC]/01 - Ordered.flac",
+      "sample_rate": 44100,
+      "sha256": "20bdbed37bf81b411888d34165f32e447a519cf7cd42d9c6d1bca5da3a8add90",
+      "size": 958948,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "4855e15a9de1ed9658be6721e8af0bcf",
+      "path": "Mono Harbor - Sorted [FLAC]/02 - Indexed.flac",
+      "sample_rate": 44100,
+      "sha256": "43980c4592d8b5ad0fb771e6f1d9a387e599ce463597f47e3e5174089a0301f3",
+      "size": 975540,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "7dd9a31b40b92e44fae76e66de0a61d2",
+      "path": "Mono Harbor - Sorted [FLAC]/03 - Filed.flac",
+      "sample_rate": 44100,
+      "sha256": "ef9b731b2b510388aae0b9d142848a9e252d5788bebdca56a94fd5962b2843d5",
+      "size": 962495,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Mono Harbor - Sorted [FLAC]/cover.jpg",
+      "sha256": "434923508cc2d3e93d4349e0da12fdba407721cd0fa23e7203c70992aa543ca4",
+      "size": 24601
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "0ffed5f764177725efc09c96752ce0b0",
+      "path": "The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac",
+      "sample_rate": 44100,
+      "sha256": "44bc0e74c5c0045900250bac612fcaf8cf93d67b1435f743215785540054d13c",
+      "size": 952678,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "d0859b3a8dd12966cdc1626f42e55b6e",
+      "path": "The Lanterns - Porchlight [FLAC]/02 - Fireflies.flac",
+      "sample_rate": 44100,
+      "sha256": "fee3e85b3bcef56ebb7846b268183f3f9ef47bb4fdb3fcc9a676aef37d20ba06",
+      "size": 944711,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "d03fbb9849d715c72de65dcf23d925c9",
+      "path": "The Lanterns - Porchlight [FLAC]/03 - Gravel Road.flac",
+      "sample_rate": 44100,
+      "sha256": "0fbfd09f6189ec2fa580c546177ff02e3600cb5498e3c95aca51471d924ddf83",
+      "size": 950198,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "The Lanterns - Porchlight [FLAC]/cover.jpg",
+      "sha256": "63777c3a9c7fe272b4be6f91b51ff1677a61219872a47be8a4f8c2043770c615",
+      "size": 17947
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "1685632c4aecbecf5ffd5edcd3596a61",
+      "path": "Various Artists - Night Mix [FLAC]/02 - something.flac",
+      "sample_rate": 44100,
+      "sha256": "d00788d05c4c898f490b15fe28dee0e2e523c7e31b64cea326c5fd1d678325e3",
+      "size": 968691,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "d3994996c65ca2937516ec8009bc902b",
+      "path": "Various Artists - Night Mix [FLAC]/04.flac",
+      "sample_rate": 44100,
+      "sha256": "cbfa058c010f0f1a0144694cf1ec2be3f6ca4d38bfb92c1d1dad406fc11a74fd",
+      "size": 969171,
+      "total_samples": 441000
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "e8a88a2daaa1b31274f3f20b82b54964",
+      "path": "Various Artists - Night Mix [FLAC]/Night Mix 3.flac",
+      "sample_rate": 44100,
+      "sha256": "00021a6b4a2012c7c2593af9f32582b894175078ebb6b016d20424526eab47a4",
+      "size": 978082,
+      "total_samples": 441000
+    },
+    {
+      "kind": "cover",
+      "path": "Various Artists - Night Mix [FLAC]/cover.jpg",
+      "sha256": "1bdc61d015dbd5ddd66476755965eaa75fcf761f3bff7882ef85c4bde0fbe92c",
+      "size": 23169
+    },
+    {
+      "bits_per_sample": 16,
+      "channels": 2,
+      "kind": "flac",
+      "md5_signature": "c07d96c7df78abf6955e9bb7855503d2",
+      "path": "Various Artists - Night Mix [FLAC]/trackA.flac",
+      "sample_rate": 44100,
+      "sha256": "cf2ccc762d2bce5c450b88b3ea054e81b8cb9b3671076804ece823bde401d93c",
+      "size": 969555,
+      "total_samples": 441000
+    }
+  ],
+  "fixed_mtime": 1704067200,
+  "generated_at": "2026-11-09T17:36:49+00:00",
+  "generator_version": "gen_fixture_library/1 spec/1",
+  "library_digest": "d2730b9d9e90768b48e21d4aadcaaac161bdc168852e84332ca6670637b09efc",
+  "tool_versions": {
+    "Pillow": "13.0.0",
+    "libsndfile": "1.2.2",
+    "mutagen": "1.48.1",
+    "numpy": "2.5.4",
+    "python": "3.13.15",
+    "soundfile": "0.14.0"
+  },
+  "total_size": 41047994
+}

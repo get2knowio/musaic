@@ -47,7 +47,7 @@ body:
     id: logs
     attributes:
       label: Relevant logs
-      description: Backend output (run with `DEBUG=true` for more), or browser console errors.
+      description: The end of `~/.musaic/server.log` (on Windows `%USERPROFILE%\.musaic\server.log`; key values are never written to it). Start Musaic with `MUSAIC_LOG_LEVEL=DEBUG` for more detail.
       render: shell
     validations:
       required: false

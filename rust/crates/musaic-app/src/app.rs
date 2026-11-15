@@ -1,0 +1,790 @@
+//! The application object and its builder: the config dir, the database, the
+//! secrets store, the event bus with its subscribers and SSE relay, the scan
+//! service, the checks environment, the resolver and the fingerprint pool.
+//! The Python app keeps all of this in module globals and builds it in
+//! `main._lifespan`. No HTTP here: musaic-api wraps an [`App`] (with its
+//! own Host / Origin, body-limit, SPA and SSE settings) and a non-HTTP face
+//! can build and drive one without it.
+//!
+//! The fingerprint pool and the restore gate: pool work never
+//! takes a [`musaic_services::gate::WorkGuard`]. A pass can run for hours; holding the gate for it
+//! would refuse every restore until it ends. Instead a restore, once it
+//! holds the [`musaic_services::gate::RestoreGuard`], stops the pool
+//! ([`FingerprintPool::stop`] returns after the pool thread has exited,
+//! between two files) before it touches the database, and the pool is not
+//! restarted afterwards (the Python app restarts it only after a scan). A new
+//! pass can only start from a scan, which needs a
+//! [`musaic_services::gate::WorkGuard`] and is
+//! therefore refused while the restore runs.
+//!
+//! The pool stream: one listener on the pool's change
+//! event bumps a [`watch`] counter; every stream connection holds its own
+//! receiver, so each connection is woken once per change it has not sent
+//! yet, no connection can consume another's wake-up, and a new connection
+//! starts with every earlier change already seen (no second first frame).
+
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::time::{Duration, SystemTime};
+
+use musaic_checks::{CheckEnv, ChecksSideEffects, Registry, ResolutionSource};
+use musaic_core::config::ConfigDir;
+use musaic_db::Db;
+use musaic_events::{Bus, Relay};
+use musaic_resolve::Resolver;
+use musaic_scan::TrackOrder;
+use musaic_services::analyze::{Analyzer, DspAnalyzer};
+use musaic_services::check_fixes::FixSources;
+use musaic_services::fingerprint_pool::{FingerprintPool, PoolDeps, PoolSleeper, RealSleeper};
+use musaic_services::startup;
+use musaic_services::{ScanDeps, ScanService};
+use rusqlite::Connection;
+use tokio::sync::watch;
+
+use musaic_services::gate::{DbGate, WorkGate};
+use musaic_services::keyscrub::{KeyScrub, Logger, Retry, ScrubOutcome};
+use musaic_services::production::{
+    ChecksResolution, Fingerprinting, Network, Parts, PartsFactory, SharedTransport,
+};
+use musaic_services::thumb_pool::ThumbPool;
+
+use crate::logging::{AppLog, LogSink, MaskingStore, Masks};
+
+/// The log target of the shutdown lines.
+const SHUTDOWN_TARGET: &str = "musaic.main";
+
+/// Test hook run by a restore while it holds the restore gate.
+pub type RestoreHook = Arc<dyn Fn() + Send + Sync>;
+
+/// A secrets store shared across threads.
+pub type SharedSecrets = musaic_services::startup::SharedSecrets;
+/// Wall clock (tests script it).
+pub type WallClock = musaic_services::startup::WallClock;
+
+/// Called between two quick-fix-all findings. The Python
+/// app's fixed one-second pause (`await asyncio.sleep(1.0)`,
+/// musaic/api/health.py:650-653) is dropped and the MusicBrainz limiter
+/// paces the requests, so the default does nothing. Kept only as a test
+/// seam (the check-fix tests hold a run between two findings with it).
+pub type Pause = Arc<dyn Fn() + Send + Sync>;
+
+/// The analyzer `POST /api/albums/{id}/analyze/stream` runs.
+pub type SharedAnalyzer = Arc<dyn Analyzer + Send + Sync>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum StartupError {
+    #[error("config dir {0}: {1}")]
+    ConfigDir(PathBuf, std::io::Error),
+    #[error("database: {0}")]
+    Db(#[from] musaic_db::Error),
+}
+
+/// Builds an [`App`].
+pub struct AppBuilder {
+    config_dir: PathBuf,
+    secrets: Option<SharedSecrets>,
+    network: Network,
+    clock: WallClock,
+    subscribers: bool,
+    auto_snapshot: bool,
+    track_order: TrackOrder,
+    home: Option<PathBuf>,
+    on_scan_album: Option<musaic_services::scan::AlbumHook>,
+    on_restore: Option<RestoreHook>,
+    fingerprinting: Fingerprinting,
+    pool_sleeper: Arc<dyn PoolSleeper>,
+    quick_fix_pause: Pause,
+    fix_sources: Option<Arc<dyn FixSources + Send + Sync>>,
+    checks_resolution: Option<Arc<dyn ResolutionSource>>,
+    analyzer: SharedAnalyzer,
+    log_sink: LogSink,
+    log_masks: Masks,
+    key_scrub_delays: Vec<Duration>,
+    // AI job queue (musaic-ai).
+    ai_provider: Option<Arc<dyn musaic_ai::Provider>>,
+    ai_worker: Option<bool>,
+    ai_job_ids: Option<crate::ai::JobIds>,
+    ai_call_timeout: Duration,
+    shutdown_pool_wait: Duration,
+}
+
+/// How long [`App::shutdown`] waits for the fingerprint pool's thread to
+/// exit after cancelling it (it stops between two files; one file rarely
+/// takes more than a few seconds).
+pub const SHUTDOWN_POOL_WAIT: Duration = Duration::from_secs(15);
+/// How long the final WAL checkpoint on shutdown waits for any connection
+/// still open (a scan or check rerun ending at the same moment).
+pub const SHUTDOWN_CHECKPOINT_WAIT: Duration = Duration::from_secs(5);
+
+/// What [`App::shutdown`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShutdownReport {
+    /// The fingerprint pool's thread exited within the wait (or none ran).
+    pub pool_stopped: bool,
+    /// The final WAL checkpoint, or why it could not run.
+    pub checkpoint: Result<musaic_db::CloseCheckpoint, String>,
+}
+
+impl AppBuilder {
+    /// Defaults: in-memory secrets, network offline, system clock, bus
+    /// subscribers registered, startup auto-snapshot on,
+    /// (DISCNUMBER, TRACKNUMBER) track order, in-process
+    /// Chromaprint, the real pool pause (0.5 s), no pause between
+    /// quick-fix-all findings, the real analyzers, stderr log.
+    pub fn new(config_dir: impl Into<PathBuf>) -> Self {
+        AppBuilder {
+            config_dir: config_dir.into(),
+            secrets: None,
+            network: Network::Offline,
+            clock: Arc::new(SystemTime::now),
+            subscribers: true,
+            auto_snapshot: true,
+            track_order: TrackOrder::DiscTrack,
+            home: musaic_core::config::home_dir(),
+            on_scan_album: None,
+            on_restore: None,
+            fingerprinting: Fingerprinting::chromaprint(),
+            pool_sleeper: Arc::new(RealSleeper),
+            quick_fix_pause: Arc::new(|| {}),
+            fix_sources: None,
+            checks_resolution: None,
+            analyzer: Arc::new(DspAnalyzer),
+            log_sink: AppLog::stderr_sink(),
+            log_masks: Masks::new(),
+            key_scrub_delays: musaic_services::keyscrub::RETRY_DELAYS.to_vec(),
+            ai_provider: None,
+            ai_worker: None,
+            ai_job_ids: None,
+            ai_call_timeout: musaic_ai::worker::WALL_CLOCK_TIMEOUT,
+            shutdown_pool_wait: SHUTDOWN_POOL_WAIT,
+        }
+    }
+
+    /// How long shutdown waits for the fingerprint pool's thread (default
+    /// [`SHUTDOWN_POOL_WAIT`]; tests shorten it).
+    pub fn shutdown_pool_wait(mut self, d: Duration) -> Self {
+        self.shutdown_pool_wait = d;
+        self
+    }
+
+    /// The AI provider the worker calls. Default: `musaic_ai::Unconfigured`
+    /// (no model backend in this build).
+    pub fn ai_provider(mut self, p: Arc<dyn musaic_ai::Provider>) -> Self {
+        self.ai_provider = Some(p);
+        self
+    }
+
+    /// Run the AI job dispatcher (the lifespan's `worker_loop`). Default:
+    /// on exactly when the bus subscribers are registered ([`Self::subscribers`]),
+    /// so a "no lifespan" state has no worker, as the Python app's TestClient runs.
+    pub fn ai_worker(mut self, on: bool) -> Self {
+        self.ai_worker = Some(on);
+        self
+    }
+
+    /// How new AI job ids are made (tests script them). Default: 16 random
+    /// hex characters.
+    pub fn ai_job_ids(mut self, ids: crate::ai::JobIds) -> Self {
+        self.ai_job_ids = Some(ids);
+        self
+    }
+
+    /// The cap on one provider call (tests shorten it; the failure text
+    /// always names the 240 s cap).
+    pub fn ai_call_timeout(mut self, d: Duration) -> Self {
+        self.ai_call_timeout = d;
+        self
+    }
+
+    /// The BPM / loudness measurements of the analyze route (tests stub
+    /// them). Default: musaic-bpm and musaic-dsp.
+    pub fn analyzer(mut self, a: SharedAnalyzer) -> Self {
+        self.analyzer = a;
+        self
+    }
+
+    /// Where the app's own log lines go, as text lines
+    /// `[LEVEL] logger: message` (default: stderr). Secret values are
+    /// replaced before a line reaches the sink (`crate::logging`).
+    pub fn log(mut self, l: Logger) -> Self {
+        self.log_sink = AppLog::line_sink(l);
+        self
+    }
+
+    /// Where the app's log records go, structured (the binary passes its
+    /// `ServerLog`). Secret values are replaced first.
+    pub fn log_sink(mut self, s: LogSink) -> Self {
+        self.log_sink = s;
+        self
+    }
+
+    /// The secret values to keep out of the log, shared with the host's
+    /// sink. Every value the app's secret store reads or writes is added.
+    pub fn log_masks(mut self, m: Masks) -> Self {
+        self.log_masks = m;
+        self
+    }
+
+    /// Pauses before the timed retries of an unfinished secret scrub (the
+    /// last repeats; default [`musaic_services::keyscrub::RETRY_DELAYS`]).
+    pub fn key_scrub_retry_delays(mut self, d: Vec<Duration>) -> Self {
+        self.key_scrub_delays = d;
+        self
+    }
+
+    /// How tracks are fingerprinted (pool, Tier 0c, fix paths).
+    pub fn fingerprinting(mut self, f: Fingerprinting) -> Self {
+        self.fingerprinting = f;
+        self
+    }
+
+    /// The fingerprint pool's pause between albums (tests: no wait).
+    pub fn pool_sleeper(mut self, s: Arc<dyn PoolSleeper>) -> Self {
+        self.pool_sleeper = s;
+        self
+    }
+
+    /// What quick-fix-all does between two findings (a test seam;
+    /// the default does nothing).
+    pub fn quick_fix_pause(mut self, p: Pause) -> Self {
+        self.quick_fix_pause = p;
+        self
+    }
+
+    /// Replace the check fixes' outside world (tests replay the Python app's
+    /// stubs). Default: [`musaic_services::production::AppFixSources`].
+    pub fn fix_sources(mut self, s: Arc<dyn FixSources + Send + Sync>) -> Self {
+        self.fix_sources = Some(s);
+        self
+    }
+
+    /// Replace the checks' resolution source (tests replay the Python app's
+    /// stubs). Default: the resolver over this app's sources.
+    pub fn checks_resolution(mut self, r: Arc<dyn ResolutionSource>) -> Self {
+        self.checks_resolution = Some(r);
+        self
+    }
+
+    /// Called by both restore routes while they hold the restore
+    /// gate, before the database is touched. Tests use it to hold a restore.
+    pub fn on_restore(mut self, hook: RestoreHook) -> Self {
+        self.on_restore = Some(hook);
+        self
+    }
+
+    /// Called after each album of a scan (the Python app submits the thumbnail
+    /// there). Tests use it to hold a scan mid-way.
+    pub fn on_scan_album(mut self, hook: musaic_services::scan::AlbumHook) -> Self {
+        self.on_scan_album = Some(hook);
+        self
+    }
+
+    pub fn secrets(mut self, s: SharedSecrets) -> Self {
+        self.secrets = Some(s);
+        self
+    }
+    pub fn network(mut self, n: Network) -> Self {
+        self.network = n;
+        self
+    }
+    pub fn clock(mut self, c: WallClock) -> Self {
+        self.clock = c;
+        self
+    }
+    /// Register the `library_events` subscribers (the Python app's lifespan).
+    pub fn subscribers(mut self, on: bool) -> Self {
+        self.subscribers = on;
+        self
+    }
+    /// Take the lifespan's automatic snapshot.
+    pub fn auto_snapshot(mut self, on: bool) -> Self {
+        self.auto_snapshot = on;
+        self
+    }
+    pub fn track_order(mut self, o: TrackOrder) -> Self {
+        self.track_order = o;
+        self
+    }
+    /// Home directory for `~` expansion in `POST /api/config`.
+    pub fn home(mut self, h: Option<PathBuf>) -> Self {
+        self.home = h;
+        self
+    }
+
+    pub fn build(self) -> Result<App, StartupError> {
+        let config = ConfigDir::new(&self.config_dir);
+        std::fs::create_dir_all(config.dir())
+            .map_err(|e| StartupError::ConfigDir(config.dir().to_path_buf(), e))?;
+        let db_path = config.db_path();
+        let log = AppLog::new(self.log_sink.clone(), self.log_masks.clone());
+        // Every secret value read or written is kept out of the log.
+        let secrets: SharedSecrets = Arc::new(MaskingStore::new(
+            self.secrets
+                .unwrap_or_else(|| Arc::new(musaic_secrets::MemoryStore::new())),
+            self.log_masks.clone(),
+        ));
+        let clock = self.clock.clone();
+        let key_scrub = Arc::new(KeyScrub::new(log.clone(), self.key_scrub_delays));
+        let startup_scrub;
+        {
+            // No database yet: created at the current schema (no backup:
+            // there is nothing to go back to).
+            let (db, opened) = Db::open_or_create(&db_path)?;
+            startup::log_opened(&log, &db_path, &opened);
+            // Secret rows leave SQLite on every open. This
+            // is the process's only connection at this point, so nothing of
+            // ours can block the scrub's checkpoint.
+            startup_scrub = key_scrub.run(&db, secrets.as_ref(), "startup");
+            if self.auto_snapshot {
+                startup::auto_snapshot_on_startup(&db, &config.snapshot_dir(), &*clock, &log);
+            }
+        }
+
+        let bus = Bus::new();
+        let relay = Relay::new();
+        let (checks_tick, _) = watch::channel(0u64);
+        let tick = checks_tick.clone();
+        let notify: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+            tick.send_modify(|n| *n += 1);
+        });
+        let resolver = Arc::new(Resolver::new());
+        let transport = self.network.shared();
+        let parts = startup::parts_factory(
+            resolver.clone(),
+            transport.clone(),
+            secrets.clone(),
+            self.fingerprinting.fingerprinter(),
+            bus.clone(),
+            clock.clone(),
+        );
+        let cfg2 = config.clone();
+        let library_dir: Arc<dyn Fn() -> Option<String> + Send + Sync> =
+            Arc::new(move || cfg2.load().library_dir);
+        let checks_resolution = self.checks_resolution.clone().unwrap_or_else(|| {
+            Arc::new(ChecksResolution {
+                parts: parts.clone(),
+                library_dir: library_dir.clone(),
+            })
+        });
+        let checks_env = CheckEnv {
+            registry: Registry::default(),
+            resolver: checks_resolution,
+            clock: Arc::new(startup::ChecksClock(clock.clone())),
+            notify,
+        };
+        let thumbs_dir = config.dir().join("thumbs");
+        let gate = WorkGate::new();
+        if self.subscribers {
+            let db_for_fx = db_path.clone();
+            let r2 = resolver.clone();
+            let effects = ChecksSideEffects {
+                env: checks_env.clone(),
+                open: Arc::new(move || open_conn(&db_for_fx).map_err(|e| e.to_string().into())),
+                library_dir: library_dir.clone(),
+                resolver_invalidate: Arc::new(move |id: &str| {
+                    r2.invalidate(Some(id));
+                    Ok(())
+                }),
+                delete_thumb: Arc::new(move |id: &str| {
+                    musaic_services::covers::delete_thumb(&thumbs_dir, id);
+                    Ok(())
+                }),
+            };
+            // Reruns take the gate; those refused during
+            // a restore run once it ends.
+            let gated = musaic_services::gated_reruns::install(
+                effects,
+                gate.clone(),
+                Arc::new(log.clone()),
+            );
+            musaic_events::register_all(&bus, gated, Some(&relay));
+        } else {
+            // The relay alone: the SSE stream still sees every event.
+            relay.register_on(&bus);
+        }
+
+        let pool = FingerprintPool::new();
+        let (pool_changes, _) = watch::channel(0u64);
+        let tx = pool_changes.clone();
+        // The pool's `_notify_changed()` bumps the counter; each
+        // stream connection has its own receiver.
+        pool.changed().add_listener(Arc::new(move || {
+            tx.send_modify(|n| *n = n.wrapping_add(1));
+        }));
+
+        let state = App(Arc::new(AppInner {
+            config,
+            db_path,
+            secrets,
+            transport,
+            parts,
+            resolver,
+            fingerprinting: self.fingerprinting,
+            pool,
+            pool_changes,
+            pool_sleeper: self.pool_sleeper,
+            quick_fix_pause: self.quick_fix_pause,
+            fix_sources: self.fix_sources,
+            clock,
+            bus,
+            relay,
+            scan: ScanService::new(),
+            checks_env,
+            checks_tick,
+            track_order: self.track_order,
+            home: self.home,
+            on_scan_album: self.on_scan_album,
+            db_gate: DbGate::new(()),
+            gate,
+            on_restore: self.on_restore,
+            analyzer: self.analyzer,
+            log,
+            pool_logged: std::sync::Mutex::new(None),
+            key_scrub,
+            recording_canonical: musaic_services::recording_canonical::RecordingCanonicalCache::new(
+            ),
+            shutting_down: watch::channel(false).0,
+            shutdown_pool_wait: self.shutdown_pool_wait,
+            ai: crate::ai::AiQueue::new(
+                self.ai_provider
+                    .unwrap_or_else(|| Arc::new(musaic_ai::Unconfigured)),
+                self.ai_job_ids
+                    .unwrap_or_else(|| Arc::new(crate::ai::random_job_id)),
+                musaic_ai::RunOptions {
+                    call_timeout: self.ai_call_timeout,
+                    ..musaic_ai::RunOptions::default()
+                },
+            ),
+        }));
+        // Pool passes in the log (fingerprint_pool.py's INFO lines).
+        let weak = Arc::downgrade(&state.0);
+        state.0.pool.changed().add_listener(Arc::new(move || {
+            if let Some(inner) = weak.upgrade() {
+                startup::log_pool(&inner.pool, &inner.pool_logged, &inner.log);
+            }
+        }));
+        if self.subscribers {
+            crate::ai::start_job_log(&state);
+        }
+        if self.ai_worker.unwrap_or(self.subscribers) {
+            state.0.ai.start(Arc::downgrade(&state.0));
+        }
+        if startup_scrub == (ScrubOutcome::Pending { retry: true }) {
+            state.schedule_key_scrub_retry();
+        }
+        Ok(state)
+    }
+}
+
+/// A further connection to the library database, configured as the
+/// Python app's `db.connect()` (30 s busy timeout, foreign keys on,
+/// `synchronous=FULL`), through [`musaic_db::open_connection`].
+pub fn open_conn(path: &Path) -> musaic_db::Result<Connection> {
+    musaic_db::open_connection(path)
+}
+
+fn retry_once(inner: &AppInner) -> Option<ScrubOutcome> {
+    musaic_services::keyscrub::retry_once(
+        &inner.key_scrub,
+        &inner.gate,
+        &inner.db_gate,
+        &inner.db_path,
+        inner.secrets.as_ref(),
+    )
+}
+
+/// The application's parts. Fields are public so a host (musaic-api's
+/// handlers) reads them directly.
+pub struct AppInner {
+    pub config: ConfigDir,
+    pub db_path: PathBuf,
+    pub secrets: SharedSecrets,
+    /// Every outbound request (resolver, fixes, covers, pool).
+    pub transport: SharedTransport,
+    /// The resolver's parts with the current AcoustID key.
+    pub parts: PartsFactory,
+    pub resolver: Arc<Resolver>,
+    pub fingerprinting: Fingerprinting,
+    pub pool: FingerprintPool,
+    /// Bumped on every pool state change; one receiver per stream
+    /// connection.
+    pub pool_changes: watch::Sender<u64>,
+    pub pool_sleeper: Arc<dyn PoolSleeper>,
+    pub quick_fix_pause: Pause,
+    pub fix_sources: Option<Arc<dyn FixSources + Send + Sync>>,
+    pub clock: WallClock,
+    pub bus: Bus,
+    pub relay: Relay,
+    pub scan: ScanService,
+    pub checks_env: CheckEnv,
+    pub checks_tick: watch::Sender<u64>,
+    pub track_order: TrackOrder,
+    pub home: Option<PathBuf>,
+    pub on_scan_album: Option<musaic_services::scan::AlbumHook>,
+    /// Restores replace the database file: they take this for writing,
+    /// every other database user for reading
+    /// ([`musaic_services::gate::DbGate`]).
+    pub db_gate: DbGate,
+    /// Restore vs scans / check runs / applies.
+    pub gate: Arc<WorkGate>,
+    pub on_restore: Option<RestoreHook>,
+    pub analyzer: SharedAnalyzer,
+    pub log: AppLog,
+    /// The fingerprint pool state last logged (status, started_at, total).
+    pub pool_logged: startup::PoolLogged,
+    pub key_scrub: Arc<KeyScrub>,
+    /// `mb_lookup.get_recording_canonical`'s lru_cache: one per server
+    /// lifetime (the duplicate-tracks canonical route).
+    pub recording_canonical: musaic_services::recording_canonical::RecordingCanonicalCache,
+    /// The AI job queue (signal, stream changes, provider, dispatcher).
+    pub ai: crate::ai::AiQueue,
+    /// Flips to `true` when the server begins shutting down; every
+    /// SSE body watches it and ends (a clean end of stream, not a cut
+    /// connection).
+    pub shutting_down: watch::Sender<bool>,
+    /// How long [`App::shutdown`] waits for the fingerprint pool.
+    pub shutdown_pool_wait: Duration,
+}
+
+/// The application (cheap to clone).
+#[derive(Clone)]
+pub struct App(pub Arc<AppInner>);
+
+impl App {
+    pub fn builder(config_dir: impl Into<PathBuf>) -> AppBuilder {
+        AppBuilder::new(config_dir)
+    }
+
+    pub fn config_dir(&self) -> &Path {
+        self.0.config.dir()
+    }
+
+    pub fn bus(&self) -> &Bus {
+        &self.0.bus
+    }
+
+    pub fn relay(&self) -> &Relay {
+        &self.0.relay
+    }
+
+    pub fn scan(&self) -> &ScanService {
+        &self.0.scan
+    }
+
+    pub fn db_path(&self) -> &Path {
+        &self.0.db_path
+    }
+
+    /// The app's log.
+    pub fn log(&self) -> &AppLog {
+        &self.0.log
+    }
+
+    /// The restore gate.
+    pub fn gate(&self) -> &Arc<WorkGate> {
+        &self.0.gate
+    }
+
+    pub fn library_dir(&self) -> Option<String> {
+        self.0.config.load().library_dir
+    }
+
+    pub fn now(&self) -> SystemTime {
+        (self.0.clock)()
+    }
+
+    pub fn now_iso(&self) -> String {
+        musaic_db::backup::iso_seconds(self.now())
+    }
+
+    /// The resolver's parts with the AcoustID key as it is now.
+    pub fn parts(&self) -> Parts {
+        (self.0.parts)()
+    }
+
+    /// The fingerprint pool (`services.fingerprint_pool`).
+    pub fn pool(&self) -> &FingerprintPool {
+        &self.0.pool
+    }
+
+    /// Start shutting down: every open SSE stream ends cleanly
+    /// (its body finishes, so the client sees the end of the response and
+    /// the server's graceful drain is not held up by `EventSource`s), and
+    /// streams opened from now on end at once. Idempotent; does not stop
+    /// the work itself ([`Self::shutdown`] does what the lifespan does).
+    pub fn begin_shutdown(&self) {
+        self.0.shutting_down.send_replace(true);
+    }
+
+    /// Whether [`Self::begin_shutdown`] was called.
+    pub fn is_shutting_down(&self) -> bool {
+        *self.0.shutting_down.borrow()
+    }
+
+    /// A receiver for the shutdown flag (SSE bodies watch it).
+    pub fn shutdown_signal(&self) -> watch::Receiver<bool> {
+        self.0.shutting_down.subscribe()
+    }
+
+    /// What is running now: the work gate's labelled guards, a
+    /// restore, the scan service and the fingerprint pool; worded per
+    /// [`App::ai_ready`].
+    pub fn work_snapshot(&self) -> crate::work::WorkSnapshot {
+        let (kinds, restoring) = self.0.gate.running();
+        crate::work::WorkSnapshot {
+            kinds,
+            restoring,
+            scan_running: self.0.scan.is_running(),
+            pool_running: self.0.pool.is_running(),
+            ai_ready: self.ai_ready(),
+        }
+    }
+
+    /// The provider the worker uses is ready: the `ready` flag
+    /// `GET /api/ai/providers` reports for it, the same rule the frontend
+    /// applies (`frontend/src/lib/aiGating.ts`). `false` in this build's
+    /// default (`musaic_ai::Unconfigured`).
+    pub fn ai_ready(&self) -> bool {
+        self.0.ai.provider.info().ready
+    }
+
+    /// The wording of
+    /// user-visible text, from [`App::ai_ready`] at the moment it is shown.
+    pub fn ai_wording(&self) -> musaic_core::AiWording {
+        musaic_core::AiWording::for_readiness(self.ai_ready())
+    }
+
+    /// The lifespan's shutdown, blocking: cancel the fingerprint pool and
+    /// wait (at most [`AppBuilder::shutdown_pool_wait`]) for its thread to
+    /// exit, stop the AI worker, give an unfinished secret scrub one more
+    /// try, then fold the WAL into the main database file and truncate it
+    /// ([`musaic_db::checkpoint_on_close`]) so a stop in the middle of a
+    /// pass leaves no un-checkpointed WAL behind.
+    pub fn shutdown(&self) -> ShutdownReport {
+        let pool_stopped = self.0.pool.stop_within(self.0.shutdown_pool_wait);
+        if !pool_stopped {
+            self.0.log.warn(
+                SHUTDOWN_TARGET,
+                &format!(
+                    "fingerprint pool still busy after {} s; closing the database without waiting for it",
+                    self.0.shutdown_pool_wait.as_secs_f64()
+                ),
+            );
+        }
+        // The lifespan cancels the AI worker loop (jobs in flight finish on
+        // their own threads; one left `running` is requeued next start).
+        self.0.ai.stop();
+        // An unfinished secret scrub gets one more try now that the server
+        // has stopped and the pool has exited.
+        musaic_services::keyscrub::shutdown_retry(
+            &self.0.key_scrub,
+            &self.0.db_gate,
+            &self.0.db_path,
+            self.0.secrets.as_ref(),
+        );
+        let checkpoint = {
+            // A restore swaps the file under the write side of this lock.
+            let _db = self
+                .0
+                .db_gate
+                .read()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            musaic_db::checkpoint_on_close(&self.0.db_path, SHUTDOWN_CHECKPOINT_WAIT)
+                .map_err(|e| e.to_string())
+        };
+        match &checkpoint {
+            Ok(musaic_db::CloseCheckpoint::Done) => self.0.log.log(
+                crate::logging::Level::Debug,
+                SHUTDOWN_TARGET,
+                "database checkpointed and closed",
+            ),
+            Ok(musaic_db::CloseCheckpoint::Blocked) => self.0.log.warn(
+                SHUTDOWN_TARGET,
+                "database still in use at shutdown: the write-ahead log was not fully folded \
+                 into the database file (it is applied on the next start)",
+            ),
+            Ok(_) => {}
+            Err(e) => self.0.log.warn(
+                SHUTDOWN_TARGET,
+                &format!("final database checkpoint failed: {e}"),
+            ),
+        }
+        ShutdownReport {
+            pool_stopped,
+            checkpoint,
+        }
+    }
+
+    /// True while keys (or old copies of them) are left in the database file
+    /// or its pre-migration backup (the settings body's
+    /// `keys_pending_removal`).
+    pub fn key_scrub_pending(&self) -> bool {
+        self.0.key_scrub.pending()
+    }
+
+    /// Run the secret migration on `db` (after a restore) and schedule the
+    /// timed retry when it could not finish.
+    pub fn scrub_keys(&self, db: &Db, when: &str) {
+        if self.0.key_scrub.run(db, self.0.secrets.as_ref(), when)
+            == (ScrubOutcome::Pending { retry: true })
+        {
+            self.schedule_key_scrub_retry();
+        }
+    }
+
+    /// One retry of an unfinished secret scrub, now: `None` (nothing done)
+    /// while writing work or a restore holds the gate. The database file
+    /// lock is held for reading so a restore cannot swap the file under it.
+    pub fn retry_key_scrub(&self) -> Option<ScrubOutcome> {
+        retry_once(&self.0)
+    }
+
+    fn schedule_key_scrub_retry(&self) {
+        let weak = Arc::downgrade(&self.0);
+        self.0.key_scrub.spawn_retry(move || match weak.upgrade() {
+            None => Retry::Gone,
+            Some(inner) => match retry_once(&inner) {
+                None => Retry::Busy,
+                Some(o) => Retry::Ran(o),
+            },
+        });
+    }
+
+    /// What a pool pass needs (`fingerprint_pool._run_pool`,
+    /// [`musaic_services::startup::pool_deps`]).
+    pub fn pool_deps(&self) -> PoolDeps {
+        startup::pool_deps(
+            &self.0.db_path,
+            &self.0.clock,
+            &self.0.secrets,
+            &self.0.fingerprinting,
+            &self.0.transport,
+            &self.0.bus,
+            &self.0.pool_sleeper,
+        )
+    }
+
+    /// The scan's dependencies and its thumbnail pool
+    /// ([`musaic_services::scan_run::scan_deps_with_thumbs`]): every album
+    /// the scan reads is submitted (`force` for a fresh one) and
+    /// `on_worker_done` waits for the pool once the scan worker returns,
+    /// before `LibraryScanCompleted` and the terminal status, on every path
+    /// (services/scan.py:402-404).
+    pub fn scan_deps_with_thumbs(&self) -> (ScanDeps, ThumbPool) {
+        musaic_services::scan_run::scan_deps_with_thumbs(musaic_services::scan_run::ScanHost {
+            db_path: self.0.db_path.clone(),
+            clock: self.0.clock.clone(),
+            bus: self.0.bus.clone(),
+            track_order: self.0.track_order,
+            pool: self.0.pool.clone(),
+            pool_deps: self.pool_deps(),
+            thumbs_dir: self.thumbs_dir(),
+            on_scan_album: self.0.on_scan_album.clone(),
+            log: Arc::new(self.0.log.clone()),
+        })
+    }
+
+    pub fn thumbs_dir(&self) -> PathBuf {
+        self.0.config.dir().join("thumbs")
+    }
+}

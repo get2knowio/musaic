@@ -1,0 +1,2192 @@
+{
+  "apply_cluster_sort": [
+    {
+      "calls": [
+        {
+          "album_id": "a1",
+          "in_bulk_run": true,
+          "suggestions": {
+            "album_artist_sort": "Conniff, Ray"
+          },
+          "track_suggestions": null
+        },
+        {
+          "album_id": "a2",
+          "in_bulk_run": true,
+          "suggestions": {
+            "album_artist_sort": "Conniff, Ray"
+          },
+          "track_suggestions": {
+            "1.flac": {
+              "artist_sort": "Conniff, Ray"
+            },
+            "2.flac": {
+              "artist_sort": "Conniff, Ray"
+            },
+            "3.flac": {
+              "artist_sort": "Conniff, Ray"
+            }
+          }
+        },
+        {
+          "album_id": "fail",
+          "in_bulk_run": true,
+          "suggestions": null,
+          "track_suggestions": {
+            "x.flac": {
+              "artist_sort": "Conniff, Ray"
+            }
+          }
+        }
+      ],
+      "members": [
+        {
+          "album_id": "a1",
+          "kind": "album"
+        },
+        {
+          "album_id": "a2",
+          "filenames": [
+            "2.flac",
+            "1.flac"
+          ],
+          "kind": "track"
+        },
+        {
+          "album_id": "a2",
+          "filenames": [
+            "3.flac",
+            "1.flac"
+          ],
+          "kind": "track"
+        },
+        {
+          "album_id": "a2",
+          "kind": "album"
+        },
+        {
+          "album_id": "a1",
+          "kind": "album"
+        },
+        {
+          "kind": "album"
+        },
+        {
+          "album_id": "a3",
+          "filenames": [],
+          "kind": "track"
+        },
+        {
+          "album_id": "fail",
+          "filenames": [
+            "x.flac"
+          ],
+          "kind": "track"
+        }
+      ],
+      "published": [
+        "BulkBatchCompleted"
+      ],
+      "sort_value": "Conniff, Ray",
+      "succeeded": 2
+    },
+    {
+      "calls": [],
+      "members": [
+        {
+          "album_id": "a1",
+          "kind": "album"
+        }
+      ],
+      "published": [],
+      "sort_value": "",
+      "succeeded": 0
+    },
+    {
+      "calls": [],
+      "members": [],
+      "published": [],
+      "sort_value": "x",
+      "succeeded": 0
+    }
+  ],
+  "build_summary": [
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 0,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "Tags need updating"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 0,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "Tags need updating"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 0,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 0,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 0,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 0,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 1,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "1 canonical drift (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 1,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "1 canonical drift"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 1,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "1 canonical drift · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 1,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "1 canonical drift · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 1,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "1 canonical drift · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 1,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "1 canonical drift · 2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 2,
+      "n_sort": 0,
+      "n_track": 3,
+      "out": "2 canonical drift · 3 track artist drift (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 2,
+      "n_sort": 0,
+      "n_track": 3,
+      "out": "2 canonical drift · 3 track artist drift"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 2,
+      "n_sort": 1,
+      "n_track": 3,
+      "out": "2 canonical drift · 3 track artist drift · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 2,
+      "n_sort": 1,
+      "n_track": 3,
+      "out": "2 canonical drift · 3 track artist drift · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [],
+      "n_album": 2,
+      "n_sort": 2,
+      "n_track": 3,
+      "out": "2 canonical drift · 3 track artist drift · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [],
+      "n_album": 2,
+      "n_sort": 2,
+      "n_track": 3,
+      "out": "2 canonical drift · 3 track artist drift · 2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 0,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 0,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 0,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 0,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 0,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 0,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title · 2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 1,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title · 1 canonical drift (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 1,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title · 1 canonical drift"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 1,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title · 1 canonical drift · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 1,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title · 1 canonical drift · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 1,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title · 1 canonical drift · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 1,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title · 1 canonical drift · 2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 2,
+      "n_sort": 0,
+      "n_track": 3,
+      "out": "missing: title · 2 canonical drift · 3 track artist drift (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 2,
+      "n_sort": 0,
+      "n_track": 3,
+      "out": "missing: title · 2 canonical drift · 3 track artist drift"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 2,
+      "n_sort": 1,
+      "n_track": 3,
+      "out": "missing: title · 2 canonical drift · 3 track artist drift · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 2,
+      "n_sort": 1,
+      "n_track": 3,
+      "out": "missing: title · 2 canonical drift · 3 track artist drift · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 2,
+      "n_sort": 2,
+      "n_track": 3,
+      "out": "missing: title · 2 canonical drift · 3 track artist drift · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title"
+      ],
+      "n_album": 2,
+      "n_sort": 2,
+      "n_track": 3,
+      "out": "missing: title · 2 canonical drift · 3 track artist drift · 2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 0,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 0,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 0,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 0,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 0,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 0,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 1,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 canonical drift (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 1,
+      "n_sort": 0,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 canonical drift"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 1,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 canonical drift · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 1,
+      "n_sort": 1,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 canonical drift · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 1,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 canonical drift · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 1,
+      "n_sort": 2,
+      "n_track": 0,
+      "out": "missing: title, album_artist, year, genre · 1 canonical drift · 2 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 2,
+      "n_sort": 0,
+      "n_track": 3,
+      "out": "missing: title, album_artist, year, genre · 2 canonical drift · 3 track artist drift (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 2,
+      "n_sort": 0,
+      "n_track": 3,
+      "out": "missing: title, album_artist, year, genre · 2 canonical drift · 3 track artist drift"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 2,
+      "n_sort": 1,
+      "n_track": 3,
+      "out": "missing: title, album_artist, year, genre · 2 canonical drift · 3 track artist drift · 1 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 2,
+      "n_sort": 1,
+      "n_track": 3,
+      "out": "missing: title, album_artist, year, genre · 2 canonical drift · 3 track artist drift · 1 sort tag"
+    },
+    {
+      "has_anchor": false,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 2,
+      "n_sort": 2,
+      "n_track": 3,
+      "out": "missing: title, album_artist, year, genre · 2 canonical drift · 3 track artist drift · 2 sort tag (no MB anchor — AI required)"
+    },
+    {
+      "has_anchor": true,
+      "missing_core": [
+        "title",
+        "album_artist",
+        "year",
+        "genre"
+      ],
+      "n_album": 2,
+      "n_sort": 2,
+      "n_track": 3,
+      "out": "missing: title, album_artist, year, genre · 2 canonical drift · 3 track artist drift · 2 sort tag"
+    }
+  ],
+  "canonical_display": [
+    {
+      "in": [
+        "Ray Conniff & His Orchestra",
+        "Ray Conniff",
+        "Ray Conniffs"
+      ],
+      "out": "Ray Conniff"
+    },
+    {
+      "in": [
+        "b",
+        "a"
+      ],
+      "out": "a"
+    },
+    {
+      "in": [
+        "",
+        ""
+      ],
+      "out": ""
+    },
+    {
+      "in": [],
+      "out": ""
+    }
+  ],
+  "classify_cluster": [
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "John Fred & His Playboy Band",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Fred, John & His Playboy Band"
+        },
+        {
+          "album_id": "a2",
+          "artist": "John Fred & His Playboy Band",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Fred, John & His Playboy Band"
+        }
+      ],
+      "out": [
+        "consistent",
+        "Fred, John & His Playboy Band"
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "Spike Jones New Band",
+          "filenames": [
+            "16 - shangri-la.flac"
+          ],
+          "kind": "track",
+          "sort": "Jones, Spike"
+        },
+        {
+          "album_id": "a2",
+          "artist": "Spike Jones New Band",
+          "filenames": [
+            "10 - harlem-nocturne.flac"
+          ],
+          "kind": "track",
+          "sort": "Jones, Spike"
+        }
+      ],
+      "out": [
+        "consistent",
+        "Jones, Spike"
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "Madonna",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Madonna"
+        },
+        {
+          "album_id": "a2",
+          "artist": "Madonna",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Madonna"
+        }
+      ],
+      "out": [
+        "consistent",
+        "Madonna"
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "Ray Conniff",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": ""
+        },
+        {
+          "album_id": "a2",
+          "artist": "Ray Conniff",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": ""
+        }
+      ],
+      "out": [
+        "unsorted",
+        null
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "Ray Conniff",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Conniff, Ray"
+        },
+        {
+          "album_id": "a2",
+          "artist": "Ray Conniff",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": ""
+        },
+        {
+          "album_id": "a3",
+          "artist": "Ray Conniff & His Orchestra",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": ""
+        }
+      ],
+      "out": [
+        "propagatable",
+        "Conniff, Ray"
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "Ray Conniff",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Conniff, Ray"
+        },
+        {
+          "album_id": "a2",
+          "artist": "Ray Conniff",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Conniff, Raymond"
+        }
+      ],
+      "out": [
+        "conflicting",
+        null
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "Buddy Holly",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Holly Buddy"
+        },
+        {
+          "album_id": "a2",
+          "artist": "Buddy Holly",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Holly Buddy"
+        }
+      ],
+      "out": [
+        "consistent",
+        "Holly Buddy"
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_id": "a1",
+          "artist": "X",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": " Y "
+        },
+        {
+          "album_id": "a2",
+          "artist": "X",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "Y"
+        },
+        {
+          "album_id": "a3",
+          "artist": "X",
+          "filenames": [
+            "01.flac"
+          ],
+          "kind": "track",
+          "sort": "  "
+        }
+      ],
+      "out": [
+        "propagatable",
+        "Y"
+      ]
+    },
+    {
+      "members": [
+        {
+          "album_artist": "X",
+          "album_id": "a1",
+          "kind": "album"
+        },
+        {
+          "album_id": "a2",
+          "kind": "album",
+          "sort": null
+        }
+      ],
+      "out": [
+        "unsorted",
+        null
+      ]
+    }
+  ],
+  "clock_base": "2026-01-01T00:00:00Z",
+  "fingerprint_renumbering": [
+    {
+      "id": "ok",
+      "local": [
+        {
+          "filename": "x.flac",
+          "recording_mbid": "r2"
+        },
+        {
+          "filename": "y.flac",
+          "recording_mbid": "r1"
+        }
+      ],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": "r1",
+          "title": "A"
+        },
+        {
+          "position": 2,
+          "recording_mbid": "r2",
+          "title": "B"
+        }
+      ],
+      "out": {
+        "x.flac": 2,
+        "y.flac": 1
+      }
+    },
+    {
+      "id": "unmatched-file",
+      "local": [
+        {
+          "filename": "x.flac",
+          "recording_mbid": null
+        }
+      ],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": "r1",
+          "title": "A"
+        }
+      ],
+      "out": null
+    },
+    {
+      "id": "not-in-mb",
+      "local": [
+        {
+          "filename": "x.flac",
+          "recording_mbid": "r9"
+        }
+      ],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": "r1",
+          "title": "A"
+        }
+      ],
+      "out": null
+    },
+    {
+      "id": "two-files-one-slot",
+      "local": [
+        {
+          "filename": "x.flac",
+          "recording_mbid": "r1"
+        },
+        {
+          "filename": "y.flac",
+          "recording_mbid": "r1"
+        }
+      ],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": "r1",
+          "title": "A"
+        }
+      ],
+      "out": null
+    },
+    {
+      "id": "mb-dup-recording",
+      "local": [
+        {
+          "filename": "x.flac",
+          "recording_mbid": "r1"
+        }
+      ],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": "r1",
+          "title": "A"
+        },
+        {
+          "position": 2,
+          "recording_mbid": "r1",
+          "title": "B"
+        }
+      ],
+      "out": null
+    },
+    {
+      "id": "mb-no-recordings",
+      "local": [
+        {
+          "filename": "x.flac",
+          "recording_mbid": "r1"
+        }
+      ],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "A"
+        }
+      ],
+      "out": null
+    },
+    {
+      "id": "mb-partial",
+      "local": [
+        {
+          "filename": "x.flac",
+          "recording_mbid": "r2"
+        }
+      ],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "A"
+        },
+        {
+          "position": 2,
+          "recording_mbid": "r2",
+          "title": "B"
+        }
+      ],
+      "out": {
+        "x.flac": 2
+      }
+    },
+    {
+      "id": "no-files",
+      "local": [],
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": "r1",
+          "title": "A"
+        }
+      ],
+      "out": null
+    }
+  ],
+  "generator": "tools/gen_checks_golden.py",
+  "match_local_to_mb": [
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "9"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        },
+        {
+          "name": "b.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "9"
+            ],
+            [
+              "TITLE",
+              "  two  "
+            ]
+          ]
+        }
+      ],
+      "id": "all-match",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "ONE"
+        },
+        {
+          "position": 2,
+          "recording_mbid": null,
+          "title": "Two"
+        }
+      ],
+      "out": {
+        "a.flac": 1,
+        "b.flac": 2
+      }
+    },
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        }
+      ],
+      "id": "extra-mb",
+      "mb": [
+        {
+          "position": 3,
+          "recording_mbid": null,
+          "title": "One"
+        },
+        {
+          "position": 4,
+          "recording_mbid": null,
+          "title": "Two"
+        }
+      ],
+      "out": {
+        "a.flac": 3
+      }
+    },
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        },
+        {
+          "name": "b.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "2"
+            ],
+            [
+              "TITLE",
+              "Bonus"
+            ]
+          ]
+        }
+      ],
+      "id": "unmatched-local",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "One"
+        }
+      ],
+      "out": null
+    },
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        }
+      ],
+      "id": "mb-dup-titles",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "One"
+        },
+        {
+          "position": 2,
+          "recording_mbid": null,
+          "title": "one"
+        }
+      ],
+      "out": null
+    },
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        }
+      ],
+      "id": "mb-blank-title",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": ""
+        }
+      ],
+      "out": null
+    },
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        },
+        {
+          "name": "b.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "2"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        }
+      ],
+      "id": "two-local-same",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "One"
+        },
+        {
+          "position": 2,
+          "recording_mbid": null,
+          "title": "Two"
+        }
+      ],
+      "out": null
+    },
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ]
+          ]
+        }
+      ],
+      "id": "no-title-tag",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "One"
+        }
+      ],
+      "out": null
+    },
+    {
+      "files": [
+        {
+          "name": "a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "One"
+            ]
+          ]
+        },
+        {
+          "name": "._a.flac",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "Junk"
+            ]
+          ]
+        },
+        {
+          "name": "notes.txt",
+          "tags": [
+            [
+              "TRACKNUMBER",
+              "1"
+            ],
+            [
+              "TITLE",
+              "x"
+            ]
+          ]
+        }
+      ],
+      "id": "ignores-dotunderscore",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "One"
+        }
+      ],
+      "out": {
+        "a.flac": 1
+      }
+    },
+    {
+      "files": [],
+      "id": "empty-dir",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "One"
+        }
+      ],
+      "out": null
+    },
+    {
+      "files": null,
+      "id": "not-a-dir",
+      "mb": [
+        {
+          "position": 1,
+          "recording_mbid": null,
+          "title": "One"
+        }
+      ],
+      "out": null
+    }
+  ],
+  "meta": [
+    {
+      "bulk_action_label": "Identify all",
+      "category": "external",
+      "cost": "cheap",
+      "description": "Albums that haven't been fully identified yet — either no AcoustID fingerprints have been computed for the tracks or no MusicBrainz release-group has been matched. Both are prerequisites: fingerprints power per-track recognition + duplicate detection, and the MBID anchor unlocks cover lookups, canonical tags, and tracklist matching. Run \"Identify all\" to fingerprint + match the whole library in one pass.",
+      "fix_kind": "ai-job",
+      "id": "unidentified-album",
+      "label": "Album not yet identified",
+      "runs_during_scan": true
+    },
+    {
+      "bulk_action_label": "Apply MusicBrainz canonical",
+      "category": "metadata",
+      "cost": "medium",
+      "description": "Albums where Vorbis tags drift from MusicBrainz's canonical values, are missing a required field (title / artist / year / genre), or are missing the *_SORT variants used by Plex and Roon for sidebar alphabetization. Fix applies all MusicBrainz-derivable corrections in one click and falls back to AI only for fields the resolver can't fill (genre, or anything on an unanchored album).",
+      "fix_kind": "ai-job",
+      "id": "tags-out-of-sync",
+      "label": "Tags don't match canonical",
+      "runs_during_scan": false
+    },
+    {
+      "bulk_action_label": "Try MusicBrainz on all",
+      "category": "metadata",
+      "cost": "cheap",
+      "description": "Albums whose track-number sequence has gaps (1, 2, 4) or repeats (1, 2, 2). Detected from tag inspection — fingerprints not required to detect, but Fix uses them when available. Cascade: MB title match → AcoustID fingerprint match → AI. Note: this is about the TAG; the duplicate-tracks check catches duplicate AUDIO regardless of tag.",
+      "fix_kind": "ai-job",
+      "id": "track-gaps",
+      "label": "Track-number gaps & duplicates",
+      "runs_during_scan": true
+    },
+    {
+      "bulk_action_label": "Propagate where possible",
+      "category": "metadata",
+      "cost": "cheap",
+      "description": "Clusters of albums whose album_artist values are credit permutations of the same primary artist (\"Ray Conniff\" / \"Ray Conniff & His Orchestra\" / \"Ray Conniff, his Orchestra and Chorus\") but whose sort tags don't agree. Setting the same album_artist_sort across the cluster groups them under one entry in Plex / Roon sidebars.",
+      "fix_kind": "deterministic",
+      "id": "inconsistent-artist-sort",
+      "label": "Inconsistent artist sort",
+      "runs_during_scan": true
+    },
+    {
+      "bulk_action_label": "Try MusicBrainz on all",
+      "category": "cover",
+      "cost": "cheap",
+      "description": "Albums missing both embedded cover art and a sidecar cover.jpg / folder.jpg / front.jpg. Fix tries MusicBrainz / Cover Art Archive first (free) and falls back to AI only when MB doesn't have a cover. Albums with a recent failed lookup are skipped so bulk passes don't keep retrying dead-ends.",
+      "fix_kind": "ai-job",
+      "id": "no-cover-art",
+      "label": "No cover art",
+      "runs_during_scan": true
+    },
+    {
+      "bulk_action_label": null,
+      "category": "duplicates",
+      "cost": "cheap",
+      "description": "Albums with multiple files AcoustID identified as the same canonical recording — i.e. literal copies of the same audio. Requires fingerprints first (run \"Albums not yet fingerprinted\" or click Fix on a track-gaps finding). The Resolve dialog lets you pick which copy to keep.",
+      "fix_kind": "deterministic",
+      "id": "duplicate-tracks",
+      "label": "Duplicate audio files",
+      "runs_during_scan": true
+    },
+    {
+      "bulk_action_label": null,
+      "category": "files",
+      "cost": "medium",
+      "description": "Albums where one or more FLAC filenames don't match your configured filename template (Settings → Filename templates). Filenames drift over time: different rippers use different conventions, metadata edits happen after the rip, you change your preferred format. The Resolve dialog shows current → expected for every track and renames in one safe two-pass operation.",
+      "fix_kind": "deterministic",
+      "id": "filename-mismatch",
+      "label": "Filename doesn't match template",
+      "runs_during_scan": false
+    }
+  ],
+  "never_normalize": [
+    {
+      "in": "Various Artists",
+      "out": true
+    },
+    {
+      "in": " various ",
+      "out": true
+    },
+    {
+      "in": "Soundtrack",
+      "out": true
+    },
+    {
+      "in": "VARIOUS COMPOSERS",
+      "out": true
+    },
+    {
+      "in": "Various Artist",
+      "out": false
+    },
+    {
+      "in": "",
+      "out": false
+    },
+    {
+      "in": "Unknown Artist",
+      "out": true
+    },
+    {
+      "in": "No Artist",
+      "out": true
+    },
+    {
+      "in": "original soundtrack",
+      "out": true
+    }
+  ],
+  "normalize": [
+    {
+      "in": "  A  b\tC ",
+      "out": "a b c"
+    },
+    {
+      "in": "ÉTÉ",
+      "out": "été"
+    },
+    {
+      "in": "x y",
+      "out": "x y"
+    }
+  ],
+  "normalize_cluster_member": [
+    {
+      "in": "nope",
+      "out": null
+    },
+    {
+      "in": {},
+      "out": null
+    },
+    {
+      "in": {
+        "album_artist": "X",
+        "album_artist_sort": "Y",
+        "dir_name": "D",
+        "id": "a1"
+      },
+      "out": {
+        "album_artist": "X",
+        "album_id": "a1",
+        "dir_name": "D",
+        "kind": "album",
+        "sort": "Y"
+      }
+    },
+    {
+      "in": {
+        "album_id": "a2"
+      },
+      "out": {
+        "album_artist": null,
+        "album_id": "a2",
+        "dir_name": null,
+        "kind": "album",
+        "sort": ""
+      }
+    },
+    {
+      "in": {
+        "album_id": "a3",
+        "kind": "album",
+        "sort": "s"
+      },
+      "out": {
+        "album_id": "a3",
+        "kind": "album",
+        "sort": "s"
+      }
+    },
+    {
+      "in": {
+        "album_id": "a4",
+        "filenames": "one.flac",
+        "kind": "track"
+      },
+      "out": {
+        "album_id": "a4",
+        "filenames": [
+          "one.flac"
+        ],
+        "kind": "track"
+      }
+    },
+    {
+      "in": {
+        "album_id": "a5",
+        "filenames": [
+          "a",
+          "",
+          null,
+          3
+        ],
+        "kind": "track"
+      },
+      "out": {
+        "album_id": "a5",
+        "filenames": [
+          "a",
+          "3"
+        ],
+        "kind": "track"
+      }
+    },
+    {
+      "in": {
+        "album_id": "a6",
+        "kind": "track"
+      },
+      "out": {
+        "album_id": "a6",
+        "filenames": [],
+        "kind": "track"
+      }
+    },
+    {
+      "in": {
+        "album_id": "a7",
+        "kind": "weird"
+      },
+      "out": {
+        "album_id": "a7",
+        "kind": "weird"
+      }
+    }
+  ],
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+  "parse_track_artists_json": [
+    {
+      "in": null,
+      "out": []
+    },
+    {
+      "in": "",
+      "out": []
+    },
+    {
+      "in": "nope",
+      "out": []
+    },
+    {
+      "in": "{}",
+      "out": []
+    },
+    {
+      "in": "[1, \"x\", {\"artist\": \"no filename\"}]",
+      "out": []
+    },
+    {
+      "in": "[{\"filename\": \"a.flac\", \"artist\": null, \"artist_sort\": 3}, {\"filename\": 7, \"artist\": \"B\"}]",
+      "out": [
+        {
+          "artist": "",
+          "artist_sort": "3",
+          "filename": "a.flac"
+        },
+        {
+          "artist": "B",
+          "artist_sort": "",
+          "filename": "7"
+        }
+      ]
+    }
+  ],
+  "primary_token": [
+    {
+      "in": "Ray Conniff",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff & His Orchestra",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff, his Orchestra and Chorus",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff, His Singers",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff Featuring The Singers",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff feat. X",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff ft. Y",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff with Z",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff and Her Singers",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff and the Singers",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff and the Singers Two Three",
+      "out": "ray conniff and the singers two three"
+    },
+    {
+      "in": "Tommy James & the Shondells",
+      "out": "tommy james"
+    },
+    {
+      "in": "Bill Haley &the Comets",
+      "out": "bill haley"
+    },
+    {
+      "in": "The Beatles",
+      "out": "beatles"
+    },
+    {
+      "in": "A Flock of Seagulls",
+      "out": "flock of seagulls"
+    },
+    {
+      "in": "An Emotional Fish",
+      "out": "emotional fish"
+    },
+    {
+      "in": "Theory of a Deadman",
+      "out": "theory of a deadman"
+    },
+    {
+      "in": "the  beatles ",
+      "out": "beatles"
+    },
+    {
+      "in": "X & His Orchestra Featuring Y",
+      "out": "x"
+    },
+    {
+      "in": "& His Orchestra",
+      "out": ""
+    },
+    {
+      "in": "His Orchestra",
+      "out": "his orchestra"
+    },
+    {
+      "in": "",
+      "out": ""
+    },
+    {
+      "in": "   ",
+      "out": ""
+    },
+    {
+      "in": "Spike Jones New Band",
+      "out": "spike jones new band"
+    },
+    {
+      "in": "Jones, Spike",
+      "out": "jones, spike"
+    },
+    {
+      "in": "Ålborg Kör & HIS BAND",
+      "out": "ålborg kör"
+    },
+    {
+      "in": "Ünïcode   Spaces\tTab",
+      "out": "ünïcode spaces tab"
+    },
+    {
+      "in": "Duke Ellington and his Famous Orchestra",
+      "out": "duke ellington"
+    },
+    {
+      "in": "Someone & Her",
+      "out": "someone & her"
+    },
+    {
+      "in": "A",
+      "out": "a"
+    },
+    {
+      "in": "The",
+      "out": "the"
+    },
+    {
+      "in": "Foo with",
+      "out": "foo with"
+    },
+    {
+      "in": "Foo with Bar with Baz",
+      "out": "foo"
+    },
+    {
+      "in": "Ray Conniff, his Orchestra",
+      "out": "ray conniff"
+    },
+    {
+      "in": "Ray Conniff,his Orchestra with Chorus extra",
+      "out": "ray conniff"
+    },
+    {
+      "in": "MIXED Case FEAT. Guest",
+      "out": "mixed case"
+    },
+    {
+      "in": "Trailing newline\n",
+      "out": "trailing newline"
+    },
+    {
+      "in": "İstanbul Orkestrası",
+      "out": "i̇stanbul orkestrası"
+    },
+    {
+      "in": "ΣΟΦΟΣ & His Band",
+      "out": "σοφος"
+    }
+  ],
+  "quick_fix_propagate": [
+    {
+      "calls": [
+        {
+          "album_id": "a1",
+          "in_bulk_run": true,
+          "suggestions": {
+            "album_artist_sort": "Conniff, Ray"
+          },
+          "track_suggestions": null
+        },
+        {
+          "album_id": "a2",
+          "in_bulk_run": true,
+          "suggestions": {
+            "album_artist_sort": "Conniff, Ray"
+          },
+          "track_suggestions": null
+        }
+      ],
+      "detail": {
+        "canonical_sort": "Conniff, Ray",
+        "members": [
+          {
+            "album_id": "a1",
+            "kind": "album"
+          },
+          {
+            "album_id": "a2",
+            "kind": "album"
+          }
+        ],
+        "state": "propagatable"
+      },
+      "message": "Propagated sort 'Conniff, Ray' to 2 member(s) in cluster",
+      "ok": true,
+      "published": [
+        "BulkBatchCompleted"
+      ]
+    },
+    {
+      "calls": [],
+      "detail": {
+        "canonical_sort": null,
+        "members": [
+          {
+            "album_id": "a1",
+            "kind": "album"
+          }
+        ],
+        "state": "unsorted"
+      },
+      "message": "Skipped (state=unsorted); needs user input via Resolve dialog",
+      "ok": false,
+      "published": []
+    },
+    {
+      "calls": [],
+      "detail": {
+        "canonical_sort": "",
+        "members": [
+          {
+            "album_id": "a1",
+            "kind": "album"
+          }
+        ],
+        "state": "propagatable"
+      },
+      "message": "Skipped (state=propagatable); needs user input via Resolve dialog",
+      "ok": false,
+      "published": []
+    },
+    {
+      "calls": [],
+      "detail": {
+        "canonical_sort": "X",
+        "members": [],
+        "state": "propagatable"
+      },
+      "message": "Skipped (state=propagatable); needs user input via Resolve dialog",
+      "ok": false,
+      "published": []
+    },
+    {
+      "calls": [],
+      "detail": null,
+      "message": "Skipped (state=None); needs user input via Resolve dialog",
+      "ok": false,
+      "published": []
+    }
+  ],
+  "readable_label": [
+    {
+      "in": "01 - Static Bloom.flac",
+      "out": "Static Bloom"
+    },
+    {
+      "in": "02. Feedback.FLAC",
+      "out": "Feedback"
+    },
+    {
+      "in": "03 - 04. Nested.flac",
+      "out": "Nested"
+    },
+    {
+      "in": "Song.flac",
+      "out": "Song"
+    },
+    {
+      "in": "1 - ",
+      "out": ""
+    },
+    {
+      "in": "x - y.flac",
+      "out": "x - y"
+    },
+    {
+      "in": " 12  - Spaced.flac",
+      "out": "Spaced"
+    },
+    {
+      "in": "٣ - Arabic digit.flac",
+      "out": "Arabic digit"
+    },
+    {
+      "in": "07.Dawn.flac",
+      "out": "07.Dawn"
+    },
+    {
+      "in": "01 - A - B.flac",
+      "out": "A - B"
+    },
+    {
+      "in": "",
+      "out": ""
+    },
+    {
+      "in": ".flac",
+      "out": ""
+    }
+  ],
+  "recommended_keep": [
+    {
+      "in": [],
+      "out": {
+        "filename": null,
+        "reason": null
+      }
+    },
+    {
+      "in": [
+        "a.flac"
+      ],
+      "out": {
+        "filename": "a.flac",
+        "reason": null
+      }
+    },
+    {
+      "in": [
+        "a.flac",
+        "b.flac"
+      ],
+      "out": {
+        "filename": null,
+        "reason": null
+      }
+    },
+    {
+      "in": [
+        "b?.flac",
+        "a.flac"
+      ],
+      "out": {
+        "filename": "a.flac",
+        "reason": "Other copies use characters that Windows filesystems and SMB shares reject (?, :, *, etc.). Keeping this one keeps the library portable to Windows backups, NAS shares, and external drives."
+      }
+    },
+    {
+      "in": [
+        "a:b.flac",
+        "c*d?.flac",
+        "z.flac"
+      ],
+      "out": {
+        "filename": "z.flac",
+        "reason": "Other copies use characters that Windows filesystems and SMB shares reject (?, :, *, etc.). Keeping this one keeps the library portable to Windows backups, NAS shares, and external drives."
+      }
+    },
+    {
+      "in": [
+        "x.",
+        "y.flac"
+      ],
+      "out": {
+        "filename": "y.flac",
+        "reason": "Other copies use characters that Windows filesystems and SMB shares reject (?, :, *, etc.). Keeping this one keeps the library portable to Windows backups, NAS shares, and external drives."
+      }
+    },
+    {
+      "in": [
+        "b.flac",
+        "a.flac",
+        "c<.flac"
+      ],
+      "out": {
+        "filename": "a.flac",
+        "reason": "Other copies use characters that Windows filesystems and SMB shares reject (?, :, *, etc.). Keeping this one keeps the library portable to Windows backups, NAS shares, and external drives."
+      }
+    },
+    {
+      "in": [
+        "e|.flac",
+        "d\\.flac"
+      ],
+      "out": {
+        "filename": null,
+        "reason": null
+      }
+    }
+  ],
+  "rotate_article": [
+    {
+      "in": "The Beatles",
+      "out": "Beatles, The",
+      "starts": true
+    },
+    {
+      "in": "the beatles",
+      "out": "beatles, the",
+      "starts": true
+    },
+    {
+      "in": "  The Who",
+      "out": "  Who, The",
+      "starts": true
+    },
+    {
+      "in": "A Tribe",
+      "out": "Tribe, A",
+      "starts": true
+    },
+    {
+      "in": "An Artist",
+      "out": "Artist, An",
+      "starts": true
+    },
+    {
+      "in": "THE END",
+      "out": "END, THE",
+      "starts": true
+    },
+    {
+      "in": "Thelonious",
+      "out": "Thelonious",
+      "starts": false
+    },
+    {
+      "in": "Anthem",
+      "out": "Anthem",
+      "starts": false
+    },
+    {
+      "in": "A",
+      "out": "A",
+      "starts": false
+    },
+    {
+      "in": "The",
+      "out": "The",
+      "starts": false
+    },
+    {
+      "in": "",
+      "out": "",
+      "starts": false
+    },
+    {
+      "in": "The  Double",
+      "out": " Double, The",
+      "starts": true
+    },
+    {
+      "in": "Ana",
+      "out": "Ana",
+      "starts": false
+    },
+    {
+      "in": "a b",
+      "out": "b, a",
+      "starts": true
+    },
+    {
+      "in": "\tThe Tab",
+      "out": "\tTab, The",
+      "starts": true
+    }
+  ],
+  "unidentified_summary": [
+    {
+      "needs_anchor": true,
+      "needs_fp": false,
+      "out": "Not yet identified on MusicBrainz",
+      "previously_attempted": false
+    },
+    {
+      "needs_anchor": true,
+      "needs_fp": false,
+      "out": "Re-checking after staleness window — last MB lookup was 2020-01-01T00:00:00Z",
+      "previously_attempted": true
+    },
+    {
+      "needs_anchor": false,
+      "needs_fp": true,
+      "out": "Not yet fingerprinted (AcoustID coverage missing)",
+      "previously_attempted": false
+    },
+    {
+      "needs_anchor": false,
+      "needs_fp": true,
+      "out": "Not yet fingerprinted (AcoustID coverage missing)",
+      "previously_attempted": true
+    },
+    {
+      "needs_anchor": true,
+      "needs_fp": true,
+      "out": "Not fingerprinted and not yet identified on MusicBrainz",
+      "previously_attempted": false
+    },
+    {
+      "needs_anchor": true,
+      "needs_fp": true,
+      "out": "Not fingerprinted; MusicBrainz match was attempted (2020-01-01T00:00:00Z) but staleness window has elapsed",
+      "previously_attempted": true
+    }
+  ]
+}

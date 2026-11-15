@@ -1,0 +1,27 @@
+{
+  "elapsed_ms": 8.8,
+  "request": {
+    "json": {
+      "scope": "all"
+    },
+    "method": "POST",
+    "params": null,
+    "path": "/api/checks/tags-out-of-sync/run"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "check_id": "tags-out-of-sync",
+      "completed_at": "2026-11-09T17:39:25Z",
+      "duration_ms": 5,
+      "error": null,
+      "id": 2,
+      "issue_count": 1,
+      "library_path": "<LIB>",
+      "scope": "all",
+      "started_at": "2026-11-09T17:39:25Z",
+      "status": "completed"
+    },
+    "status": 200
+  }
+}

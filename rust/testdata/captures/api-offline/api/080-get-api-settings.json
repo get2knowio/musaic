@@ -1,0 +1,28 @@
+{
+  "elapsed_ms": 5.4,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/settings"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "acoustid_api_key_set": true,
+      "ai_api_key_set": false,
+      "ai_max_parallel": 1,
+      "ai_model_id": "claude-sonnet-4-6",
+      "ai_provider_id": "claude",
+      "ai_queue_paused": false,
+      "dir_template_compilation": "Various Artists - {album} [FLAC]",
+      "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
+      "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
+      "filename_template_single_artist": "{tracknumber:02} - {title}",
+      "firecrawl_api_key_set": false,
+      "snapshot_min_interval_hours": 24.0,
+      "snapshot_retention_count": 10
+    },
+    "status": 200
+  }
+}

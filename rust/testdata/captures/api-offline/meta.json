@@ -1,0 +1,240 @@
+{
+  "album_id_map": {
+    "0c97baca60f74928": "Mono Harbor - Gaps [FLAC]",
+    "1f796a3255bbb8dc": "Mono Harbor - Dupes [FLAC]",
+    "20b0b3ad8877d2df": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+    "3198111a14155bc5": "Various Artists - Night Mix [FLAC]",
+    "330289bbbf2929fd": "Mono Harbor - Dotfiles [FLAC]",
+    "3a95f73281595529": "Aurora Fields - Second Light [FLAC]",
+    "44d2271332e406d7": "Mono Harbor - Sorted [FLAC]",
+    "76386d46b26c9798": "Café Orchestra - Été [FLAC]",
+    "771bdba82923774d": "Aurora Fields - Folder Art [FLAC]",
+    "98aa1d089f3d5025": "The Lanterns - Porchlight [FLAC]",
+    "99350b9ee78736a1": "Legacy Folder Name",
+    "bea26f7e4aa222d6": "Aurora Fields - First Light [FLAC]",
+    "ecbbf886397962f1": "Aurora Fields - Twin (disc 2 of 2) [FLAC]"
+  },
+  "authority": "controlled-replay",
+  "findings_summary": {
+    "duplicate-tracks": {
+      "albums": [
+        "Mono Harbor - Dupes [FLAC]"
+      ],
+      "count": 1,
+      "summaries": [
+        "Duplicate audio: \"Static Bloom\" (2 copies)"
+      ]
+    },
+    "filename-mismatch": {
+      "albums": [
+        "Café Orchestra - Été [FLAC]",
+        "Legacy Folder Name",
+        "Various Artists - Night Mix [FLAC]"
+      ],
+      "count": 3,
+      "summaries": [
+        "Album dir 'Legacy Folder Name' doesn't match the template",
+        "4 files in 'Various Artists - Night Mix [FLAC]' don't match the template",
+        "Album dir 'Café Orchestra - Été [FLAC]' doesn't match the template"
+      ]
+    },
+    "inconsistent-artist-sort": {
+      "albums": [
+        "Mono Harbor - Gaps [FLAC]"
+      ],
+      "count": 1,
+      "summaries": [
+        "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
+      ]
+    },
+    "no-cover-art": {
+      "albums": [
+        "Aurora Fields - Second Light [FLAC]"
+      ],
+      "count": 1,
+      "summaries": [
+        "No cover art (embedded or sidecar)"
+      ]
+    },
+    "tags-out-of-sync": {
+      "albums": [
+        "The Lanterns - Porchlight [FLAC]"
+      ],
+      "count": 1,
+      "summaries": [
+        "2 sort tag (no MB anchor — AI required)"
+      ]
+    },
+    "track-gaps": {
+      "albums": [
+        "Mono Harbor - Gaps [FLAC]"
+      ],
+      "count": 1,
+      "summaries": [
+        "Track-number gaps: missing 3"
+      ]
+    },
+    "unidentified-album": {
+      "albums": [
+        "Aurora Fields - First Light [FLAC]",
+        "Aurora Fields - Folder Art [FLAC]",
+        "Aurora Fields - Second Light [FLAC]",
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+        "Café Orchestra - Été [FLAC]",
+        "Legacy Folder Name",
+        "Mono Harbor - Dotfiles [FLAC]",
+        "Mono Harbor - Dupes [FLAC]",
+        "Mono Harbor - Gaps [FLAC]",
+        "Mono Harbor - Sorted [FLAC]",
+        "The Lanterns - Porchlight [FLAC]",
+        "Various Artists - Night Mix [FLAC]"
+      ],
+      "count": 13,
+      "summaries": [
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz",
+        "Not yet identified on MusicBrainz"
+      ]
+    }
+  },
+  "library_source": "fixtures/library",
+  "library_source_manifest": "176eb98b0e4bb253a9a271753cc56945aad605c9a39d06189b3585759a26ae87",
+  "limitations": [
+    "offline: /resolution called for one album only; MusicBrainz/AcoustID/CAA traffic blocked (see network/blocked.jsonl)",
+    "offline findings matched the fixture expectation",
+    "genre=Ambient apply was a no-op on 'Aurora Fields - First Light [FLAC]'; added apply genre='Drone' (events/apply-genre-change.jsonl)",
+    "album ids replaced by <ID:dir name>; paths by <LIB>/<CFG>/<WORK>"
+  ],
+  "mode": "offline",
+  "python_app": {
+    "git_dirty": false,
+    "git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "path": "../musaic"
+  },
+  "platform": "darwin",
+  "python": "3.13.15",
+  "recorded_at": "2026-11-09T17:39:41.132214+00:00",
+  "run_id": "api-offline",
+  "summary": {
+    "album_count": 13,
+    "dry_run_diff": [],
+    "dry_run_diff_clean": true,
+    "errors": 0,
+    "findings_per_check": {
+      "duplicate-tracks": 1,
+      "filename-mismatch": 3,
+      "inconsistent-artist-sort": 1,
+      "no-cover-art": 1,
+      "tags-out-of-sync": 1,
+      "track-gaps": 1,
+      "unidentified-album": 13
+    },
+    "library_events": [
+      [
+        "idle",
+        "ready"
+      ],
+      [
+        "scan",
+        "LibraryScanCompleted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "fingerprint-pool",
+        "TrackFingerprinted"
+      ],
+      [
+        "apply-genre",
+        "AlbumTagsChanged"
+      ],
+      [
+        "apply-genre-change",
+        "AlbumTagsChanged"
+      ],
+      [
+        "analyze-replaygain",
+        "AlbumTagsChanged"
+      ],
+      [
+        "analyze-bpm",
+        "AlbumTagsChanged"
+      ]
+    ],
+    "scan_stream_events": 28,
+    "track_fingerprints_rows": {
+      "after-apply": 42,
+      "after-apply-change": 42,
+      "after-bpm": 42,
+      "after-dry-run": 42,
+      "after-replaygain": 42,
+      "before": 42
+    }
+  },
+  "superseded_by": null,
+  "tool": "capture_api",
+  "tool_versions": {
+    "httpx": "0.28.1",
+    "musaic": "0.1.0",
+    "mutagen": "unknown",
+    "numpy": "2.5.4",
+    "soundfile": "0.14.0"
+  }
+}

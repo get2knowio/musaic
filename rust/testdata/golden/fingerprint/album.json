@@ -1,0 +1,4729 @@
+{
+  "edges": {
+    "albums": [
+      {
+        "album_artist": "Aurora Fields",
+        "artist": "Aurora Fields",
+        "dir_album": "Twin",
+        "dir_artist": "Aurora Fields",
+        "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+        "disc_number": 2,
+        "disc_total": 2,
+        "id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+        "title": "Twin",
+        "total_seconds": 30.0,
+        "track_count": 3
+      },
+      {
+        "album_artist": "Aurora Fields",
+        "artist": "Aurora Fields",
+        "dir_album": "Second Light",
+        "dir_artist": "Aurora Fields",
+        "dir_name": "Aurora Fields - Second Light [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Aurora Fields - Second Light [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+        "title": "Second Light",
+        "total_seconds": 40.0,
+        "track_count": 4
+      },
+      {
+        "album_artist": "The Lanterns",
+        "artist": "The Lanterns",
+        "dir_album": "Half Broken",
+        "dir_artist": "Corrupt Band",
+        "dir_name": "Corrupt Band - Half Broken [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Corrupt Band - Half Broken [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Corrupt Band - Half Broken [FLAC]",
+        "title": "Half Broken",
+        "total_seconds": 10.0,
+        "track_count": 2
+      },
+      {
+        "album_artist": "Mono Harbor",
+        "artist": "Mono Harbor",
+        "dir_album": "Dupes",
+        "dir_artist": "Mono Harbor",
+        "dir_name": "Mono Harbor - Dupes [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Mono Harbor - Dupes [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Mono Harbor - Dupes [FLAC]",
+        "title": "Dupes",
+        "total_seconds": 40.0,
+        "track_count": 4
+      },
+      {
+        "album_artist": "Quiet Atlas",
+        "artist": "Quiet Atlas",
+        "dir_album": null,
+        "dir_artist": null,
+        "dir_name": "Legacy Folder Name",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Legacy Folder Name>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Legacy Folder Name",
+        "title": "Old Rips",
+        "total_seconds": 20.0,
+        "track_count": 2
+      },
+      {
+        "album_artist": null,
+        "artist": "Sable & The Static",
+        "dir_album": "Night Mix",
+        "dir_artist": null,
+        "dir_name": "Various Artists - Night Mix [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Various Artists - Night Mix [FLAC]>",
+        "is_compilation": 1,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Various Artists - Night Mix [FLAC]",
+        "title": "Night Mix",
+        "total_seconds": 40.0,
+        "track_count": 4
+      },
+      {
+        "album_artist": "Aurora Fields",
+        "artist": "Aurora Fields",
+        "dir_album": "Folder Art",
+        "dir_artist": "Aurora Fields",
+        "dir_name": "Aurora Fields - Folder Art [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Aurora Fields - Folder Art [FLAC]",
+        "title": "Folder Art",
+        "total_seconds": 20.0,
+        "track_count": 2
+      },
+      {
+        "album_artist": "Mono Harbor",
+        "artist": "Mono Harbor",
+        "dir_album": "Sorted",
+        "dir_artist": "Mono Harbor",
+        "dir_name": "Mono Harbor - Sorted [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Mono Harbor - Sorted [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Mono Harbor - Sorted [FLAC]",
+        "title": "Sorted",
+        "total_seconds": 30.0,
+        "track_count": 3
+      },
+      {
+        "album_artist": "The Lanterns",
+        "artist": "The Lanterns",
+        "dir_album": "Porchlight",
+        "dir_artist": "The Lanterns",
+        "dir_name": "The Lanterns - Porchlight [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:The Lanterns - Porchlight [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+        "title": "Porchlight",
+        "total_seconds": 30.0,
+        "track_count": 3
+      },
+      {
+        "album_artist": "Aurora Fields",
+        "artist": "Aurora Fields",
+        "dir_album": "First Light",
+        "dir_artist": "Aurora Fields",
+        "dir_name": "Aurora Fields - First Light [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Aurora Fields - First Light [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+        "title": "First Light",
+        "total_seconds": 50.0,
+        "track_count": 5
+      },
+      {
+        "album_artist": "Aurora Fields",
+        "artist": "Aurora Fields",
+        "dir_album": "Twin",
+        "dir_artist": "Aurora Fields",
+        "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+        "disc_number": 1,
+        "disc_total": 2,
+        "id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+        "title": "Twin",
+        "total_seconds": 30.0,
+        "track_count": 3
+      },
+      {
+        "album_artist": "Café Orchestra",
+        "artist": "Café Orchestra",
+        "dir_album": "Été",
+        "dir_artist": "Café Orchestra",
+        "dir_name": "Café Orchestra - Été [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Café Orchestra - Été [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Café Orchestra - Été [FLAC]",
+        "title": "Été",
+        "total_seconds": 30.0,
+        "track_count": 3
+      },
+      {
+        "album_artist": "Mono Harbor",
+        "artist": "Mono Harbor",
+        "dir_album": "Dotfiles",
+        "dir_artist": "Mono Harbor",
+        "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+        "title": "Dotfiles",
+        "total_seconds": 20.0,
+        "track_count": 2
+      },
+      {
+        "album_artist": null,
+        "artist": "Mono Harbor",
+        "dir_album": "Gaps",
+        "dir_artist": "Mono Harbor",
+        "dir_name": "Mono Harbor - Gaps [FLAC]",
+        "disc_number": null,
+        "disc_total": null,
+        "id": "<ID:Mono Harbor - Gaps [FLAC]>",
+        "is_compilation": 0,
+        "library_path": "<LIB>",
+        "mb_release_group_mbid": null,
+        "missing_since": null,
+        "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+        "title": "Gaps",
+        "total_seconds": 40.0,
+        "track_count": 4
+      }
+    ],
+    "extra_albums": {
+      "Corrupt Band - Half Broken [FLAC]": [
+        "01 - Good.flac: copy of the first FLAC of The Lanterns - Porchlight [FLAC]",
+        "02 - Bad.flac: b'this is not a flac file\\n' * 64"
+      ]
+    },
+    "fpcalc_files": {
+      "Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8"
+      },
+      "Aurora Fields - First Light [FLAC]/02 - Low Sun.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867"
+      },
+      "Aurora Fields - First Light [FLAC]/03 - Meridian.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b"
+      },
+      "Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba"
+      },
+      "Aurora Fields - First Light [FLAC]/05 - Afterglow.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea"
+      },
+      "Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4"
+      },
+      "Aurora Fields - Folder Art [FLAC]/02 - Easel.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6"
+      },
+      "Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+      },
+      "Aurora Fields - Second Light [FLAC]/02 - Cirrus.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4"
+      },
+      "Aurora Fields - Second Light [FLAC]/03 - Halation.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5"
+      },
+      "Aurora Fields - Second Light [FLAC]/04 - Nightfall.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf"
+      },
+      "Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14"
+      },
+      "Aurora Fields - Twin (disc 1 of 2) [FLAC]/02 - Parallax.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca"
+      },
+      "Aurora Fields - Twin (disc 1 of 2) [FLAC]/03 - Echo.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2"
+      },
+      "Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60"
+      },
+      "Aurora Fields - Twin (disc 2 of 2) [FLAC]/02 - Doppler.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a"
+      },
+      "Aurora Fields - Twin (disc 2 of 2) [FLAC]/03 - Return.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6"
+      },
+      "Café Orchestra - Été [FLAC]/01 - Soirée.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd"
+      },
+      "Café Orchestra - Été [FLAC]/02 - Terrasse.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27"
+      },
+      "Café Orchestra - Été [FLAC]/03 - Crème.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef"
+      },
+      "Corrupt Band - Half Broken [FLAC]/01 - Good.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+      },
+      "Corrupt Band - Half Broken [FLAC]/02 - Bad.flac": {
+        "error": "FingerprintGenerationError"
+      },
+      "Legacy Folder Name/01 - Kitchen Radio.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619"
+      },
+      "Legacy Folder Name/02 - Porch Light.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837"
+      },
+      "Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25"
+      },
+      "Mono Harbor - Dotfiles [FLAC]/02 - Visible.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f"
+      },
+      "Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+      },
+      "Mono Harbor - Dupes [FLAC]/02 - Feedback Garden.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379"
+      },
+      "Mono Harbor - Dupes [FLAC]/03 - Static Bloom (Reprise).flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+      },
+      "Mono Harbor - Dupes [FLAC]/04 - Wall of Sound.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b"
+      },
+      "Mono Harbor - Gaps [FLAC]/01 - Pier One.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09"
+      },
+      "Mono Harbor - Gaps [FLAC]/02 - Breakwater.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1"
+      },
+      "Mono Harbor - Gaps [FLAC]/04 - Tidewater.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d"
+      },
+      "Mono Harbor - Gaps [FLAC]/05 - Lighthouse.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539"
+      },
+      "Mono Harbor - Sorted [FLAC]/01 - Ordered.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01"
+      },
+      "Mono Harbor - Sorted [FLAC]/02 - Indexed.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352"
+      },
+      "Mono Harbor - Sorted [FLAC]/03 - Filed.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4"
+      },
+      "The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+      },
+      "The Lanterns - Porchlight [FLAC]/02 - Fireflies.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29"
+      },
+      "The Lanterns - Porchlight [FLAC]/03 - Gravel Road.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a"
+      },
+      "Various Artists - Night Mix [FLAC]/02 - something.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662"
+      },
+      "Various Artists - Night Mix [FLAC]/04.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58"
+      },
+      "Various Artists - Night Mix [FLAC]/Night Mix 3.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535"
+      },
+      "Various Artists - Night Mix [FLAC]/trackA.flac": {
+        "duration_s": 10.0,
+        "fingerprint_sha256": "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd"
+      }
+    },
+    "library": "synthetic-edges",
+    "steps": [
+      {
+        "album": "<ID:Aurora Fields - First Light [FLAC]>",
+        "change": "none",
+        "events": [
+          {
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "filenames": [
+              "01 - Dawn Chorus.flac",
+              "02 - Low Sun.flac",
+              "03 - Meridian.flac",
+              "04 - Long Shadows.flac",
+              "05 - Afterglow.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "first",
+        "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "5ff1bddf98d13e007a86349f11eae5c55f48bd4f3893f73fd9fdd4e11fb58f35",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "815eebb6bb611ad2cbdcd5c3ff55ef3df37541bcf4b09f56b0adf935b99c71d5",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "0a525462e239b57d8e151a8240a44c40c73df230e7698baad59402b63628d6b0",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "25309b91e284a59b47e507017c3d1548b0dde94ad5972f133fca5621ce7b17f4",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "b9564376c6171c6b871f8fad932653463be2a812e19583319e8d712d421d6e52",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Dawn Chorus.flac",
+            "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Low Sun.flac",
+            "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Meridian.flac",
+            "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Long Shadows.flac",
+            "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Afterglow.flac",
+            "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Dawn Chorus.flac",
+            "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Low Sun.flac",
+            "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Meridian.flac",
+            "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Long Shadows.flac",
+            "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Afterglow.flac",
+            "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Aurora Fields - First Light [FLAC]>",
+        "change": "none",
+        "events": [
+          {
+            "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+            "filenames": [
+              "01 - Dawn Chorus.flac",
+              "02 - Low Sun.flac",
+              "03 - Meridian.flac",
+              "04 - Long Shadows.flac",
+              "05 - Afterglow.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": true,
+        "label": "force",
+        "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "5ff1bddf98d13e007a86349f11eae5c55f48bd4f3893f73fd9fdd4e11fb58f35",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "815eebb6bb611ad2cbdcd5c3ff55ef3df37541bcf4b09f56b0adf935b99c71d5",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "0a525462e239b57d8e151a8240a44c40c73df230e7698baad59402b63628d6b0",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "25309b91e284a59b47e507017c3d1548b0dde94ad5972f133fca5621ce7b17f4",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "b9564376c6171c6b871f8fad932653463be2a812e19583319e8d712d421d6e52",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Dawn Chorus.flac",
+            "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Low Sun.flac",
+            "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Meridian.flac",
+            "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Long Shadows.flac",
+            "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Afterglow.flac",
+            "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Dawn Chorus.flac",
+            "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Low Sun.flac",
+            "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Meridian.flac",
+            "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Long Shadows.flac",
+            "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Afterglow.flac",
+            "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Aurora Fields - Second Light [FLAC]>",
+        "change": "none",
+        "events": [
+          {
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "filenames": [
+              "01 - Blue Hour.flac",
+              "02 - Cirrus.flac",
+              "03 - Halation.flac",
+              "04 - Nightfall.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "first",
+        "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "3070d52d1cddeed53e54f3a8025005c03982bf41477b291373ce81067454b997",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "c54738aafea45af166f998d7a2fee00fce50ec4553b19d5673f9e12f0fa02be5",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "da0be1d1f4f1570ef6ee62df92308f62cd7714e2f7c63fd12eb891fdcf0244f8",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "911f50c0d96672733305e307c6ca3b2d4b265568e4328968f6eddecac4d5928a",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Blue Hour.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Cirrus.flac",
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Halation.flac",
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Nightfall.flac",
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Blue Hour.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Cirrus.flac",
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Halation.flac",
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Nightfall.flac",
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Aurora Fields - Second Light [FLAC]>",
+        "change": "copied 01 - Blue Hour.flac to 99 - Added Copy.flac",
+        "events": [
+          {
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "filenames": [
+              "01 - Blue Hour.flac",
+              "02 - Cirrus.flac",
+              "03 - Halation.flac",
+              "04 - Nightfall.flac",
+              "99 - Added Copy.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "file added",
+        "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "3070d52d1cddeed53e54f3a8025005c03982bf41477b291373ce81067454b997",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "c54738aafea45af166f998d7a2fee00fce50ec4553b19d5673f9e12f0fa02be5",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "da0be1d1f4f1570ef6ee62df92308f62cd7714e2f7c63fd12eb891fdcf0244f8",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "911f50c0d96672733305e307c6ca3b2d4b265568e4328968f6eddecac4d5928a",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "3070d52d1cddeed53e54f3a8025005c03982bf41477b291373ce81067454b997",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Blue Hour.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Cirrus.flac",
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Halation.flac",
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Nightfall.flac",
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "99 - Added Copy.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Blue Hour.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Cirrus.flac",
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Halation.flac",
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Nightfall.flac",
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "99 - Added Copy.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Aurora Fields - Second Light [FLAC]>",
+        "change": "deleted 99 - Added Copy.flac",
+        "events": [
+          {
+            "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+            "filenames": [
+              "01 - Blue Hour.flac",
+              "02 - Cirrus.flac",
+              "03 - Halation.flac",
+              "04 - Nightfall.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "file removed",
+        "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "3070d52d1cddeed53e54f3a8025005c03982bf41477b291373ce81067454b997",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "c54738aafea45af166f998d7a2fee00fce50ec4553b19d5673f9e12f0fa02be5",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "da0be1d1f4f1570ef6ee62df92308f62cd7714e2f7c63fd12eb891fdcf0244f8",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "911f50c0d96672733305e307c6ca3b2d4b265568e4328968f6eddecac4d5928a",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Blue Hour.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Cirrus.flac",
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Halation.flac",
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Nightfall.flac",
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Blue Hour.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Cirrus.flac",
+            "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Halation.flac",
+            "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Nightfall.flac",
+            "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "99 - Added Copy.flac",
+            "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Mono Harbor - Gaps [FLAC]>",
+        "change": "injected per file: {\"01 - Pier One.flac\": \"connection-error\", \"02 - Breakwater.flac\": \"http-503-html\", \"04 - Tidewater.flac\": \"http-400-json-error\", \"05 - Lighthouse.flac\": \"ok-below-floor\"}",
+        "events": [
+          {
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "filenames": [
+              "01 - Pier One.flac",
+              "02 - Breakwater.flac",
+              "04 - Tidewater.flac",
+              "05 - Lighthouse.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "injected": {
+          "01 - Pier One.flac": "connection-error",
+          "02 - Breakwater.flac": "http-503-html",
+          "04 - Tidewater.flac": "http-400-json-error",
+          "05 - Lighthouse.flac": "ok-below-floor"
+        },
+        "label": "lookup failures",
+        "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "b1cc2e98149108780b623438200075ab9bf9e1f89b8ed558195f41717c69a769",
+            "method": "POST",
+            "served": "injected:connection-error",
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "de6ab94259cc6eb7d3e36873d992c6d6f094e0e9785148169a07bcfe2a8eaaa6",
+            "method": "POST",
+            "served": "injected:http-503-html",
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "9ba6036321576a5cdf52772e7901107dfe53095f5d9e827593e97a1b10845bcb",
+            "method": "POST",
+            "served": "injected:http-400-json-error",
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "998f191b7668278f5bd82bf0179c38701a84de9e6a424d206549df6895c56170",
+            "method": "POST",
+            "served": "injected:ok-below-floor",
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Pier One.flac",
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Breakwater.flac",
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Tidewater.flac",
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Lighthouse.flac",
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Pier One.flac",
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Breakwater.flac",
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Tidewater.flac",
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Lighthouse.flac",
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Mono Harbor - Gaps [FLAC]>",
+        "change": "injections removed; replay serves every file",
+        "events": [],
+        "force": false,
+        "label": "after failures (cached)",
+        "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+        "requests": [],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Pier One.flac",
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Breakwater.flac",
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Tidewater.flac",
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Lighthouse.flac",
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Pier One.flac",
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Breakwater.flac",
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Tidewater.flac",
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Lighthouse.flac",
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Mono Harbor - Gaps [FLAC]>",
+        "change": "injections removed",
+        "events": [
+          {
+            "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+            "filenames": [
+              "01 - Pier One.flac",
+              "02 - Breakwater.flac",
+              "04 - Tidewater.flac",
+              "05 - Lighthouse.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": true,
+        "label": "after failures, force",
+        "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "b1cc2e98149108780b623438200075ab9bf9e1f89b8ed558195f41717c69a769",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "de6ab94259cc6eb7d3e36873d992c6d6f094e0e9785148169a07bcfe2a8eaaa6",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "9ba6036321576a5cdf52772e7901107dfe53095f5d9e827593e97a1b10845bcb",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "998f191b7668278f5bd82bf0179c38701a84de9e6a424d206549df6895c56170",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Pier One.flac",
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Breakwater.flac",
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Tidewater.flac",
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Lighthouse.flac",
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Pier One.flac",
+            "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Breakwater.flac",
+            "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "04 - Tidewater.flac",
+            "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "05 - Lighthouse.flac",
+            "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Corrupt Band - Half Broken [FLAC]>",
+        "change": "02 - Bad.flac is not FLAC",
+        "events": [
+          {
+            "album_id": "<ID:Corrupt Band - Half Broken [FLAC]>",
+            "filenames": [
+              "01 - Good.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "corrupt file",
+        "path": "<LIB>/Corrupt Band - Half Broken [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "e40e36a749eab55a4f555c015aedc89cd7fd3f2f339954f0b7a00cbd01c754cf",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Good.flac",
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Good.flac",
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Corrupt Band - Half Broken [FLAC]>",
+        "change": "none",
+        "events": [
+          {
+            "album_id": "<ID:Corrupt Band - Half Broken [FLAC]>",
+            "filenames": [
+              "01 - Good.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "corrupt file again",
+        "path": "<LIB>/Corrupt Band - Half Broken [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "e40e36a749eab55a4f555c015aedc89cd7fd3f2f339954f0b7a00cbd01c754cf",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Good.flac",
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Good.flac",
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Corrupt Band - Half Broken [FLAC]>",
+        "change": "deleted 01 - Good.flac",
+        "error": {
+          "code": "no-fingerprints",
+          "detail": "Couldn't fingerprint any files in this album"
+        },
+        "events": [],
+        "force": true,
+        "label": "only corrupt file",
+        "path": "<LIB>/Corrupt Band - Half Broken [FLAC]",
+        "requests": [],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Good.flac",
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+        "change": "none (directory holds ._ files)",
+        "events": [
+          {
+            "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+            "filenames": [
+              "01 - Hidden.flac",
+              "02 - Visible.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "first",
+        "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "50fa1bebadaa7920a552049e5fa280e81393805209aa10709d1c4f9a4d8ffe67",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "bfdbc9eaede8110da651aed73121503e6c14aec0fcd161fc7fa24b2e3b6b37c1",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Hidden.flac",
+            "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Visible.flac",
+            "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Hidden.flac",
+            "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Visible.flac",
+            "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      },
+      {
+        "album": "0000000000000000",
+        "change": "a directory with no FLAC",
+        "events": [],
+        "force": false,
+        "label": "no flac files",
+        "path": "<LIB>/Empty Dir",
+        "requests": [],
+        "result": [],
+        "rows_after": []
+      },
+      {
+        "album": "0000000000000001",
+        "change": "path does not exist",
+        "error": {
+          "code": "album-missing",
+          "detail": "Album directory not found: <LIB>/Not There [FLAC]"
+        },
+        "events": [],
+        "force": false,
+        "label": "album missing",
+        "path": "<LIB>/Not There [FLAC]",
+        "requests": [],
+        "rows_after": []
+      },
+      {
+        "album": "<ID:The Lanterns - Porchlight [FLAC]>",
+        "change": "acoustid_api_key set to empty",
+        "error": {
+          "code": "no-api-key",
+          "detail": "AcoustID API key not set (configure in Settings)"
+        },
+        "events": [],
+        "force": false,
+        "label": "no AcoustID key",
+        "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+        "requests": [],
+        "rows_after": []
+      },
+      {
+        "album": "<ID:The Lanterns - Porchlight [FLAC]>",
+        "change": "acoustid_api_key restored",
+        "events": [
+          {
+            "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+            "filenames": [
+              "01 - Screen Door.flac",
+              "02 - Fireflies.flac",
+              "03 - Gravel Road.flac"
+            ],
+            "type": "TrackFingerprinted"
+          }
+        ],
+        "force": false,
+        "label": "key restored",
+        "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+        "requests": [
+          {
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "e40e36a749eab55a4f555c015aedc89cd7fd3f2f339954f0b7a00cbd01c754cf",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "8c7404fd40bf8b2f18a9b35f72cf7e2b7d8c034090a6671dc7ff89a6ed8f9cb5",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          },
+          {
+            "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a",
+            "form": {
+              "client": "<REDACTED>",
+              "duration": "10",
+              "format": "json",
+              "meta": "recordings"
+            },
+            "key": "3e5b45b7c0015c54f49ad69cfe707e20a777852455f3514e6f744329fe419d94",
+            "method": "POST",
+            "served": "recorded",
+            "status": 200,
+            "url": "http://api.acoustid.org/v2/lookup"
+          }
+        ],
+        "result": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Screen Door.flac",
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Fireflies.flac",
+            "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Gravel Road.flac",
+            "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a"
+          }
+        ],
+        "rows_after": [
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "01 - Screen Door.flac",
+            "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "02 - Fireflies.flac",
+            "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          },
+          {
+            "acoustid_recording_mbid": null,
+            "acoustid_score": null,
+            "duration_s": 10.0,
+            "filename": "03 - Gravel Road.flac",
+            "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a",
+            "last_computed_at": "2001-01-01T00:00:00Z"
+          }
+        ]
+      }
+    ]
+  },
+  "fingerprints": {
+    "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd": "AQAAO0mUaEkSJpoCHMixA8CP44aP8vpw_MjJqPjRTjJ8HcDxQAgOHPixB9Qx1EZjFDl09Mdx4AkO5MQPHFfwHT96_MBlHNETAum8CAYsIdgDgiIhEDIlMWENWMpElQCSoAhimSKGgQE",
+    "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60": "AQAAO0mSREuSWEvwAwfw4zh-4EcPHHyy4zkTov1S4TgOHA-hg8cREfjx4yfcoz9y_Phf6M6Bsjn8AwAAAAAAAADohJEEBglIw4QJAVBzCDEOC0hMIaCcURQARJAwAg",
+    "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f": "AQAAO0mSREuSTNEIAAJfRDhw4PDRHwd-HOEP8S0OAAAAAAAAAAcOHMKB4HhwHA_KSwhu_AwUAE9mWMqRx5giwKk0IBkgcgEeAg",
+    "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25": "AQAAO8kSLUmiKBJwHDoB5Diu4Di242BSY96JHL8h9Adw_DiO4ziO68XhHjd8Yrrw62AVrNNkFAAOxACAAz56Az_y4-hHAKQIMQWBDBk7TBEBCFoQkU2EAiBYIBgbSzmiHFYA",
+    "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01": "AQAAO0mUaEkSRREDAAAAAAAAAABy_DiAB_9x4AfQ7-iRC6bzwTEO_ICKI8eBA8ePH4ePHz_engA2GRBRCAMpccIDJ7B5ZYbiCaEAWKqEAA",
+    "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6": "AQAAO8kSLUliLQEeHAo4DMHx4zjC4B-OJ4N-Db1UOD-OA8dx5DgOHD92UMd0HGiOEE9RH8CRAzhw48dx4ChOID_2PQCETGIKIWAVQYoJ5lxLYiGklFBKZATUOVkEMGXzwgg",
+    "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4": "AQAAO0mUaEkSLVIk4Dhy7AB-HMdr-Ecv_Djy4c_Ry_B1AAcO4QgOHAeOXgx-5LihoD8OHA8hAdGBAz8-uEeRH19xC7qL1t0GCZ8HpIiLHNgEMCKAEQJFUwrohmgWljAJKYMYUcYSSAA",
+    "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d": "AQAAO0mUaEkSLVIk4Dhy7MBx_MBr-EePHz9i8_iDXjJ8HcAPHDqO4HgAHOhJHEd-6Ef_AQAAAAAAAAAJnweyQIsc2cQ5QYQQQmhATslgAA8gUooA",
+    "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09": "AQAAO4mSSEmSKNMS4DgOAS9y7Ad-HOFxXMEJfQTzMTgOAAeQAz9wHP7Q4z-O_EAPA3hw_CBxAN_xAz6H_ULx4x56ANeSCZsgTTZGIDvmICEezGIKQa5giyaSUDgClRFIERE",
+    "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1": "AQAAO4mSiEmiKBIO4MRx_IAu_PjxQ3fQ7_iB_Xh6MAdw_MAPHAd-Aodv9FbwEf-P8ri2wwAAAAAAAAAAlJRJDiiKlFWMCSKEQoILQCAihyBLhQVCACoE",
+    "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca": "AQAAO0mUaEkSZSpw4PiJA_9xHD56A_hxWxp6ZilMXwBw_DiAAwcOfEe_BT_eG8eN_jgAAAAAAAAAaaJxhxgilmKOCIEiQ6WAKwxlhDCmhAM",
+    "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4": "AQAAO0mSREuSTNGIA8IRHD8O3DgK4OCDLkS-EzoO_Ah-AAd__LiBw-hxA3mOH-XhA3igA9GBF8eD8_DQHxcuXMR3NH0AKAzRLqR1iKFOIsgAFASCN4IikACBiDoyIcEYQctQCg",
+    "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf": "AQAAO0mUaEkSRVEFAAAAAAAAAMAP_MiBAz-AH0bPC8fx49WOkIeBA_iB49hx4PBxwy9x9NnREyGAIKV464QCpDIhAAuebInW4oALIQA",
+    "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662": "AQAAO8kSLUnCREqAA8FxAAfgpyguHPnRq_B13DgAAAAAAAAAAMcDATlw4Dn2g8JQG40R4tAJFshI3CmllAAOIVKSEgyB",
+    "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f": "AQAAO4mSiEmiKNJwHC9w5MePv_jx4PhwBz3xF9HBV9gTFAAAAAAAAAAAAAAAAAAAAJWSAhRZAZBAxEJBpAMC",
+    "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4": "AQAAO0mSREuSWEuA4wiAF8cP3EB4HAd_4jl6Kfhx4MBxCD9wnMbx44eP4rpwHto9HAaAHwd-XDj-Aj-KGye-ojO8A9fOCIU88ojRgDLhoCnFwqyuo4w0RZSyAqADAYwCkIomAA",
+    "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b": "AQAAO0mUaEkSRREDHMFxHPhxAT_QA8eXC-EDf3CMAzh0_IhwHMePHz7648DxHOEhHsAhBCeOJxdxHD-OX6hxIB-PD8oD14IUARxvqiHIOmSQg0khLoFSDikpGIXCFMdmCEhRCgQBAA",
+    "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837": "AQAAO0mUaEkSRVEF_MCPHDjwA8dh9Dx-4viP6wh5GDjw4QdwHAd89ALe43vwHL0uONuHA4eOHDh-48ePA__RDz8uBE-h9QUhgCCleHmFA5YKIxgE0ARLMFiGEIOkQQI5SAI7kGBAXkAMWwQFAQ",
+    "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2": "AQAAO0mUaEkSJpoC_MCPAzjw4wR89ARuHJ_QK4YPHABPHD-OHzt0HEaP3ziN9gz0HQYOAAcOHA-gH_0xA1eCQ7sSAIkgQ_E4LJVjhlgJUCYGMRHAIAIBJCASYBCgHAIL",
+    "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352": "AQAAO0mUaEmSKVoCAAAAAAAAAMDxH_8BHMdx4Pjxoj-OByVF4lse_MBxHMRJ4L2F4cdx-PhxA6YfPAM0hAJCkUNECI4KIZgBTrqBBACIGnSZRIIB",
+    "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6": "AQAAO0mUaEkSJYkOHIdwBDeA48JxNCd-HP8R_hAPAMdxHAAO-OiB48fRPBd-PMBx_AAOHDjwBf12_Hhv4AAggCmzWxiApcIIISk7gWSlHHMkCaAZWlGRAq4RlBGCAQ",
+    "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef": "AQAAO0mUaEkSRdFxAAJyHD-OH0cv_DhwHc34Izd0GDjw4wCO4_jgHz1-_HiOo7Q8nDqMA8dx4MABHB_6Lcfx_jgOAFUqnIWhGoWcKWGklBCRQ8RWSGFEFQXOCLRSJAVcAyghgGU",
+    "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29": "AQAAO8kSLUliLQBy4MBx7AeA6-DRU_hzhGfx4zgAAAAAAAAAAMcDHRGAA8cP9-hxHA_xCyEAFczYAiMpnBAKUOYQYjMppBlSDEk",
+    "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5": "AQAAO4mSiEmiKNJwHD-OH8cP5PiOHwd6Ii9-4TrWJZPBAMDBQ8UO_Dh-HO5RnNA140SN_3B8HNCR4_jx4wnw4_iB4jhyyCGmCjQAQcpB5AxRyFohgiBQIXQgQVYpZIgBwjkGkIJAFMQV0gAq",
+    "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14": "AQAAO0mUaEkSRdEBHIeOAfjxFz98FAcOHb0OHwAeHDgCDD8OqkeI48EU6-iLH_2AA_hxQf_w4fhx4cePHseOK9BvPACATshKAusQLBEJihBJTAFEnUOOQGTVcYIkZZAWRmkWBUAA",
+    "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba": "AQAAO0mUaEmSKRqAAz-IGziOExeOnsSB4dSN1nkAHDkOYPjxAThw9Ed_5CH4DT8O4ICQ4zhw_DiOoz-K__APCR02RHMvXBGAtTYCmJtQYTRl0KEXjSwOwiKFUUJA",
+    "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a": "AQAAO0mSREwSRZEAAAAAAAAAAAAAAAAAAABwHDiCH8fx4zhOPOhJAPmN5wCVknIkIaIQ5sIopQA",
+    "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8": "AQAAO4mSiEmiKNJwHMeLH8FP4MRx4Th6Hj_i48e6ZAIDHMeBAwcuABd64Ljwm-g_3McBCPlx4Dt-HMcvnOgvHB_Cozm0pQA0AFIOOaSIhYIRaRCErgUCrnKMCAaAcwCbwAmWMhJ0BKCaAg",
+    "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a": "AQAAO8kSLUmiKBIAAAAAAAAAAMcD4TiC47iwg-qx40azIcdzBzp6HDiOAy8OXDhxHB_64MSPE3skAYSgOaQQpZA6CiyTBgKIKASsZIIQAQ",
+    "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539": "AQAAO0mUaEkSZSoOAACOA-jxAcePU0Uf_MBx5Dhw4Dj-4jjg7-iFI_jRMjp8ANBxITiAH3_hoz8APEf4A0hAo5BYKi2B00R5RHGwJeMdccCIEjOTQCknBRMA",
+    "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379": "AQAAO0mUaEkSRVEFHMeH_BiO47vw4_B79MdxvDpuIfzw6jAAAAAAAAAAAAAAAAAAAACJlHEAEYqYW0QpBAOjhgg",
+    "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd": "AQAAO0mSREqSxFoC4PiB48BxHMdR3zhzgOkTvMGPAwAAAAAAAABwHMBxBccB_KiAHy8eHi0ABJ05hIQEBSGGM-igQAGG66BkwgA",
+    "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d": "AQAAO0mUaEkSRdFxAIeM48dxvECX44PwovCPEz4O_DgOHDhwFccPn-gV_DiAPjL8A8cP4DiOAz8BH3-G3sf1oMe1HQBRO5qwUKhBDiw0FYryjFCUYkQ4YoQAxERyCFJMGAEIFwI",
+    "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535": "AQAAO8kSLUmiKBIO4BB-BMBz_DgelEdw42egoN8B4CAXYMBxPMNhFAc-9If5FAcgBD9-HCd-nDg-_CjwI9CVY3IPNCASEgrOBXiIEGSQQIgQgJxkyrIkAkgEcSgBEgA",
+    "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8": "AQAAO8kSLUmiKBIOQD4QHDiOC8cd9PiRF7-hoN8B4MiPYz8OHD9--OhxID_eo3WyaPABHAGA4z1w_DjQ48eFPNgBFEwRoENFtHiEEAm4W44cIYlTijxBgFAnA1ACWsyCxQE",
+    "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27": "AQAAO0mSREwSRZFw4MCHHD9w4fiBO0dP_MiN4zmYHwAeQgdPHEeO48cH90WPHMd96Cdah9HgA8dxAj-CHziO40BPID5-kEsOlBRJjiikIFCEe4SYIohwF9VBjABlFBHEKDSAcsghhcCQyCo",
+    "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619": "AQAAO4mSiEmiKFIE_Djw4QdyXMdz4DvOBP0RveCFWUlR9wBwyMhxHM8LHAeO4vgRPfHxZ4I2XbjxAMfxIwcO_AB--OgvHD9-4z0AiZBCDhOBlBVUGI8EZIEVSWZMwRhAFNBMCiBIKV4MpRQDlgLBAA",
+    "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867": "AQAAO0mUaEkSRVEFHMeH_BhwXLvw44KfEj3OAxduIWQz-AcOCDmOH9clARd-HM9RHMjHQx_2oD8O4AQPRACu48fxH_5R8TiODweJlHEIUMRcEkEragQEykjiXFIsYQoEAEqYhYBHTCFFFNHKIhA",
+    "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58": "AQAAO0mSREuSTNEIHA90RAcOXMePw-gvnLg_nDnaIH2hGwdw_MhP_PgHHBf2nKCO6cCRH82Eh7lw4Dhw6ECAH8eBO-iJH_nxi1AAhJg6hCuEGEKKEEiRk8g6pChyogigFHkCAavSYEQKEBXRFjkC",
+    "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea": "AQAAO4mSSEmSbFoCHMchIC-O_cBxhMCHH7oK5pOC48cBHMeRA8dx4hmM3seFE-cRvgMM4AcOfPhx4MNx9AeO49QB1xIZmyCYmMOOOQBNSQOGVY1BhQkmESRHExG6Uo4RAQ",
+    "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b": "AQAAO0mUaEkSRRHxQwiO4_hxHDh6AEeeHPrRHjcO_DjOI8OB95h_HMcFn-iPH3-B6wh5GDjw4ziO4ziOG8aJLQ36fPhEHf0BCFkwxJMZTlUCSACcRCopBQAESHYlLDIAMQIE8CaRtBJaVAiBmAA"
+  },
+  "libraries": [
+    {
+      "albums": [
+        {
+          "album_artist": "Aurora Fields",
+          "artist": "Aurora Fields",
+          "dir_album": "Twin",
+          "dir_artist": "Aurora Fields",
+          "dir_name": "Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "disc_number": 2,
+          "disc_total": 2,
+          "id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "title": "Twin",
+          "total_seconds": 30.0,
+          "track_count": 3
+        },
+        {
+          "album_artist": "Aurora Fields",
+          "artist": "Aurora Fields",
+          "dir_album": "Second Light",
+          "dir_artist": "Aurora Fields",
+          "dir_name": "Aurora Fields - Second Light [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Aurora Fields - Second Light [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+          "title": "Second Light",
+          "total_seconds": 40.0,
+          "track_count": 4
+        },
+        {
+          "album_artist": "Mono Harbor",
+          "artist": "Mono Harbor",
+          "dir_album": "Dupes",
+          "dir_artist": "Mono Harbor",
+          "dir_name": "Mono Harbor - Dupes [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Mono Harbor - Dupes [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Mono Harbor - Dupes [FLAC]",
+          "title": "Dupes",
+          "total_seconds": 40.0,
+          "track_count": 4
+        },
+        {
+          "album_artist": "Quiet Atlas",
+          "artist": "Quiet Atlas",
+          "dir_album": null,
+          "dir_artist": null,
+          "dir_name": "Legacy Folder Name",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Legacy Folder Name>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Legacy Folder Name",
+          "title": "Old Rips",
+          "total_seconds": 20.0,
+          "track_count": 2
+        },
+        {
+          "album_artist": null,
+          "artist": "Sable & The Static",
+          "dir_album": "Night Mix",
+          "dir_artist": null,
+          "dir_name": "Various Artists - Night Mix [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Various Artists - Night Mix [FLAC]>",
+          "is_compilation": 1,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Various Artists - Night Mix [FLAC]",
+          "title": "Night Mix",
+          "total_seconds": 40.0,
+          "track_count": 4
+        },
+        {
+          "album_artist": "Aurora Fields",
+          "artist": "Aurora Fields",
+          "dir_album": "Folder Art",
+          "dir_artist": "Aurora Fields",
+          "dir_name": "Aurora Fields - Folder Art [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Aurora Fields - Folder Art [FLAC]",
+          "title": "Folder Art",
+          "total_seconds": 20.0,
+          "track_count": 2
+        },
+        {
+          "album_artist": "Mono Harbor",
+          "artist": "Mono Harbor",
+          "dir_album": "Sorted",
+          "dir_artist": "Mono Harbor",
+          "dir_name": "Mono Harbor - Sorted [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Mono Harbor - Sorted [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Mono Harbor - Sorted [FLAC]",
+          "title": "Sorted",
+          "total_seconds": 30.0,
+          "track_count": 3
+        },
+        {
+          "album_artist": "The Lanterns",
+          "artist": "The Lanterns",
+          "dir_album": "Porchlight",
+          "dir_artist": "The Lanterns",
+          "dir_name": "The Lanterns - Porchlight [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:The Lanterns - Porchlight [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+          "title": "Porchlight",
+          "total_seconds": 30.0,
+          "track_count": 3
+        },
+        {
+          "album_artist": "Aurora Fields",
+          "artist": "Aurora Fields",
+          "dir_album": "First Light",
+          "dir_artist": "Aurora Fields",
+          "dir_name": "Aurora Fields - First Light [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Aurora Fields - First Light [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+          "title": "First Light",
+          "total_seconds": 50.0,
+          "track_count": 5
+        },
+        {
+          "album_artist": "Aurora Fields",
+          "artist": "Aurora Fields",
+          "dir_album": "Twin",
+          "dir_artist": "Aurora Fields",
+          "dir_name": "Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "disc_number": 1,
+          "disc_total": 2,
+          "id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "title": "Twin",
+          "total_seconds": 30.0,
+          "track_count": 3
+        },
+        {
+          "album_artist": "Café Orchestra",
+          "artist": "Café Orchestra",
+          "dir_album": "Été",
+          "dir_artist": "Café Orchestra",
+          "dir_name": "Café Orchestra - Été [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Café Orchestra - Été [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Café Orchestra - Été [FLAC]",
+          "title": "Été",
+          "total_seconds": 30.0,
+          "track_count": 3
+        },
+        {
+          "album_artist": "Mono Harbor",
+          "artist": "Mono Harbor",
+          "dir_album": "Dotfiles",
+          "dir_artist": "Mono Harbor",
+          "dir_name": "Mono Harbor - Dotfiles [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+          "title": "Dotfiles",
+          "total_seconds": 20.0,
+          "track_count": 2
+        },
+        {
+          "album_artist": null,
+          "artist": "Mono Harbor",
+          "dir_album": "Gaps",
+          "dir_artist": "Mono Harbor",
+          "dir_name": "Mono Harbor - Gaps [FLAC]",
+          "disc_number": null,
+          "disc_total": null,
+          "id": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "is_compilation": 0,
+          "library_path": "<LIB>",
+          "mb_release_group_mbid": null,
+          "missing_since": null,
+          "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+          "title": "Gaps",
+          "total_seconds": 40.0,
+          "track_count": 4
+        }
+      ],
+      "calls": [
+        {
+          "album": "<ID:Aurora Fields - First Light [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Aurora Fields - First Light [FLAC]>",
+              "filenames": [
+                "01 - Dawn Chorus.flac",
+                "02 - Low Sun.flac",
+                "03 - Meridian.flac",
+                "04 - Long Shadows.flac",
+                "05 - Afterglow.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "5ff1bddf98d13e007a86349f11eae5c55f48bd4f3893f73fd9fdd4e11fb58f35",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "815eebb6bb611ad2cbdcd5c3ff55ef3df37541bcf4b09f56b0adf935b99c71d5",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "0a525462e239b57d8e151a8240a44c40c73df230e7698baad59402b63628d6b0",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "25309b91e284a59b47e507017c3d1548b0dde94ad5972f133fca5621ce7b17f4",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "b9564376c6171c6b871f8fad932653463be2a812e19583319e8d712d421d6e52",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Dawn Chorus.flac",
+              "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Low Sun.flac",
+              "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Meridian.flac",
+              "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Long Shadows.flac",
+              "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Afterglow.flac",
+              "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Dawn Chorus.flac",
+              "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Low Sun.flac",
+              "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Meridian.flac",
+              "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Long Shadows.flac",
+              "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Afterglow.flac",
+              "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - First Light [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Aurora Fields - First Light [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Dawn Chorus.flac",
+              "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Low Sun.flac",
+              "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Meridian.flac",
+              "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Long Shadows.flac",
+              "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Afterglow.flac",
+              "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Dawn Chorus.flac",
+              "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Low Sun.flac",
+              "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Meridian.flac",
+              "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Long Shadows.flac",
+              "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Afterglow.flac",
+              "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Folder Art [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Aurora Fields - Folder Art [FLAC]>",
+              "filenames": [
+                "01 - Canvas.flac",
+                "02 - Easel.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Aurora Fields - Folder Art [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "0c37b0dac9ea758ebcb9ed2fb60edd3af8b3979b020f00cd48cf317e3f9caa23",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "6fee4c2afd2fda835f471106e7e5d3e0c28599382e46a25c7829da75174cf273",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Canvas.flac",
+              "fingerprint_sha256": "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Easel.flac",
+              "fingerprint_sha256": "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Canvas.flac",
+              "fingerprint_sha256": "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Easel.flac",
+              "fingerprint_sha256": "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Folder Art [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Aurora Fields - Folder Art [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Canvas.flac",
+              "fingerprint_sha256": "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Easel.flac",
+              "fingerprint_sha256": "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Canvas.flac",
+              "fingerprint_sha256": "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Easel.flac",
+              "fingerprint_sha256": "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Second Light [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Aurora Fields - Second Light [FLAC]>",
+              "filenames": [
+                "01 - Blue Hour.flac",
+                "02 - Cirrus.flac",
+                "03 - Halation.flac",
+                "04 - Nightfall.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "3070d52d1cddeed53e54f3a8025005c03982bf41477b291373ce81067454b997",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "c54738aafea45af166f998d7a2fee00fce50ec4553b19d5673f9e12f0fa02be5",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "da0be1d1f4f1570ef6ee62df92308f62cd7714e2f7c63fd12eb891fdcf0244f8",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "911f50c0d96672733305e307c6ca3b2d4b265568e4328968f6eddecac4d5928a",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Blue Hour.flac",
+              "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Cirrus.flac",
+              "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Halation.flac",
+              "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Nightfall.flac",
+              "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Blue Hour.flac",
+              "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Cirrus.flac",
+              "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Halation.flac",
+              "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Nightfall.flac",
+              "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Second Light [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Aurora Fields - Second Light [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Blue Hour.flac",
+              "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Cirrus.flac",
+              "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Halation.flac",
+              "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Nightfall.flac",
+              "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Blue Hour.flac",
+              "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Cirrus.flac",
+              "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Halation.flac",
+              "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Nightfall.flac",
+              "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+              "filenames": [
+                "01 - Mirror.flac",
+                "02 - Parallax.flac",
+                "03 - Echo.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "35a384f256c1e87da40a5a4321654876d26de240d6d787e3bab338fb5b153f1e",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "956b7f9d3a2f8dd6fd086d3c7c3bf7104099ff0efe34800ac5afe1e203cfb09f",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "2f91b71e7f2707996d0d913f045ee47f93167ddd5dd568f87851b2a4dcc5151f",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Mirror.flac",
+              "fingerprint_sha256": "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Parallax.flac",
+              "fingerprint_sha256": "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Echo.flac",
+              "fingerprint_sha256": "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Mirror.flac",
+              "fingerprint_sha256": "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Parallax.flac",
+              "fingerprint_sha256": "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Echo.flac",
+              "fingerprint_sha256": "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Twin (disc 1 of 2) [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Aurora Fields - Twin (disc 1 of 2) [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Mirror.flac",
+              "fingerprint_sha256": "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Parallax.flac",
+              "fingerprint_sha256": "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Echo.flac",
+              "fingerprint_sha256": "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Mirror.flac",
+              "fingerprint_sha256": "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Parallax.flac",
+              "fingerprint_sha256": "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Echo.flac",
+              "fingerprint_sha256": "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+              "filenames": [
+                "01 - Reflection.flac",
+                "02 - Doppler.flac",
+                "03 - Return.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "00dc3fdf38e4d3e2d5a9c8e70bbd3bccdd85a7e0de9256889cb8523e65890831",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "29fd9ad611054b9f28f41ce05a9f67e5fec25a0710694a8d6657ce3e1ef760ce",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "c01684ccb5462c81efa0a842b198a7c0277e9a9e0353bc3c3427db738c8e2886",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Reflection.flac",
+              "fingerprint_sha256": "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Doppler.flac",
+              "fingerprint_sha256": "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Return.flac",
+              "fingerprint_sha256": "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Reflection.flac",
+              "fingerprint_sha256": "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Doppler.flac",
+              "fingerprint_sha256": "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Return.flac",
+              "fingerprint_sha256": "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Aurora Fields - Twin (disc 2 of 2) [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Aurora Fields - Twin (disc 2 of 2) [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Reflection.flac",
+              "fingerprint_sha256": "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Doppler.flac",
+              "fingerprint_sha256": "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Return.flac",
+              "fingerprint_sha256": "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Reflection.flac",
+              "fingerprint_sha256": "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Doppler.flac",
+              "fingerprint_sha256": "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Return.flac",
+              "fingerprint_sha256": "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Café Orchestra - Été [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Café Orchestra - Été [FLAC]>",
+              "filenames": [
+                "01 - Soirée.flac",
+                "02 - Terrasse.flac",
+                "03 - Crème.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Café Orchestra - Été [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "218237a0f54cb4af131a952b9d85178a4c121b4dbdef8e1b786870d3d0f7bea8",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "65fa0ea54dbb69e471ea0fc4c6abd264fab0f16feb160cf9f83af447f56d6a31",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "55da7a8d8cae7b55b292a1751b0c7c2a06e26e592c59f29ad30ef479d7207b1f",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Soirée.flac",
+              "fingerprint_sha256": "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Terrasse.flac",
+              "fingerprint_sha256": "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Crème.flac",
+              "fingerprint_sha256": "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Soirée.flac",
+              "fingerprint_sha256": "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Terrasse.flac",
+              "fingerprint_sha256": "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Crème.flac",
+              "fingerprint_sha256": "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Café Orchestra - Été [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Café Orchestra - Été [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Soirée.flac",
+              "fingerprint_sha256": "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Terrasse.flac",
+              "fingerprint_sha256": "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Crème.flac",
+              "fingerprint_sha256": "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Soirée.flac",
+              "fingerprint_sha256": "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Terrasse.flac",
+              "fingerprint_sha256": "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Crème.flac",
+              "fingerprint_sha256": "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Legacy Folder Name>",
+          "events": [
+            {
+              "album_id": "<ID:Legacy Folder Name>",
+              "filenames": [
+                "01 - Kitchen Radio.flac",
+                "02 - Porch Light.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Legacy Folder Name",
+          "requests": [
+            {
+              "fingerprint_sha256": "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "1ae33e1f28f8a033fbc56469e2787a715a2fd42f5ac1914150dfc3146bd10a88",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "0055a0bae11435684283f6777c34891b1b71653c1d76302398a02816b4ebd194",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Kitchen Radio.flac",
+              "fingerprint_sha256": "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Porch Light.flac",
+              "fingerprint_sha256": "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Kitchen Radio.flac",
+              "fingerprint_sha256": "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Porch Light.flac",
+              "fingerprint_sha256": "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Legacy Folder Name>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Legacy Folder Name",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Kitchen Radio.flac",
+              "fingerprint_sha256": "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Porch Light.flac",
+              "fingerprint_sha256": "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Kitchen Radio.flac",
+              "fingerprint_sha256": "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Porch Light.flac",
+              "fingerprint_sha256": "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+              "filenames": [
+                "01 - Hidden.flac",
+                "02 - Visible.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "50fa1bebadaa7920a552049e5fa280e81393805209aa10709d1c4f9a4d8ffe67",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "bfdbc9eaede8110da651aed73121503e6c14aec0fcd161fc7fa24b2e3b6b37c1",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Hidden.flac",
+              "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Visible.flac",
+              "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Hidden.flac",
+              "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Visible.flac",
+              "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Dotfiles [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Mono Harbor - Dotfiles [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Hidden.flac",
+              "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Visible.flac",
+              "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Hidden.flac",
+              "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Visible.flac",
+              "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Dupes [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Mono Harbor - Dupes [FLAC]>",
+              "filenames": [
+                "01 - Static Bloom.flac",
+                "02 - Feedback Garden.flac",
+                "03 - Static Bloom (Reprise).flac",
+                "04 - Wall of Sound.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Mono Harbor - Dupes [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "50f6ac99c73ec844be856c87b95ae7caa1a41641f3c72b50b6c9fb04dfb77b3e",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "30f00b025f73da5e5687c15a2078e1d2ecff9b249053d1190e8de39cedcd2d27",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "50f6ac99c73ec844be856c87b95ae7caa1a41641f3c72b50b6c9fb04dfb77b3e",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "ccc4643ffc840739f31617856878960d0cc1dc734f059123df7f58e2b3de49ad",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Static Bloom.flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Feedback Garden.flac",
+              "fingerprint_sha256": "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Static Bloom (Reprise).flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Wall of Sound.flac",
+              "fingerprint_sha256": "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Static Bloom.flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Feedback Garden.flac",
+              "fingerprint_sha256": "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Static Bloom (Reprise).flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Wall of Sound.flac",
+              "fingerprint_sha256": "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Dupes [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Mono Harbor - Dupes [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Static Bloom.flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Feedback Garden.flac",
+              "fingerprint_sha256": "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Static Bloom (Reprise).flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Wall of Sound.flac",
+              "fingerprint_sha256": "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Static Bloom.flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Feedback Garden.flac",
+              "fingerprint_sha256": "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Static Bloom (Reprise).flac",
+              "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Wall of Sound.flac",
+              "fingerprint_sha256": "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Mono Harbor - Gaps [FLAC]>",
+              "filenames": [
+                "01 - Pier One.flac",
+                "02 - Breakwater.flac",
+                "04 - Tidewater.flac",
+                "05 - Lighthouse.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "b1cc2e98149108780b623438200075ab9bf9e1f89b8ed558195f41717c69a769",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "de6ab94259cc6eb7d3e36873d992c6d6f094e0e9785148169a07bcfe2a8eaaa6",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "9ba6036321576a5cdf52772e7901107dfe53095f5d9e827593e97a1b10845bcb",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "998f191b7668278f5bd82bf0179c38701a84de9e6a424d206549df6895c56170",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Pier One.flac",
+              "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Breakwater.flac",
+              "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Tidewater.flac",
+              "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Lighthouse.flac",
+              "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Pier One.flac",
+              "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Breakwater.flac",
+              "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Tidewater.flac",
+              "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Lighthouse.flac",
+              "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Gaps [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Mono Harbor - Gaps [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Pier One.flac",
+              "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Breakwater.flac",
+              "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Tidewater.flac",
+              "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Lighthouse.flac",
+              "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Pier One.flac",
+              "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Breakwater.flac",
+              "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04 - Tidewater.flac",
+              "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "05 - Lighthouse.flac",
+              "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Sorted [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Mono Harbor - Sorted [FLAC]>",
+              "filenames": [
+                "01 - Ordered.flac",
+                "02 - Indexed.flac",
+                "03 - Filed.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Mono Harbor - Sorted [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "888abbb89c493b5a9008b47f031661c960aa0b30aa0cac2f794057f864ffb49d",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "6719475a6690065c14b5be78cfdf0f0d452e665dcd2a12cf1a80096a572ed8c1",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "bd52d105f49d318740a3c49d206bb42669dff84bc8cab6366b5514aaf873358f",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Ordered.flac",
+              "fingerprint_sha256": "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Indexed.flac",
+              "fingerprint_sha256": "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Filed.flac",
+              "fingerprint_sha256": "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Ordered.flac",
+              "fingerprint_sha256": "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Indexed.flac",
+              "fingerprint_sha256": "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Filed.flac",
+              "fingerprint_sha256": "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Mono Harbor - Sorted [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Mono Harbor - Sorted [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Ordered.flac",
+              "fingerprint_sha256": "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Indexed.flac",
+              "fingerprint_sha256": "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Filed.flac",
+              "fingerprint_sha256": "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Ordered.flac",
+              "fingerprint_sha256": "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Indexed.flac",
+              "fingerprint_sha256": "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Filed.flac",
+              "fingerprint_sha256": "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:The Lanterns - Porchlight [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:The Lanterns - Porchlight [FLAC]>",
+              "filenames": [
+                "01 - Screen Door.flac",
+                "02 - Fireflies.flac",
+                "03 - Gravel Road.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "e40e36a749eab55a4f555c015aedc89cd7fd3f2f339954f0b7a00cbd01c754cf",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "8c7404fd40bf8b2f18a9b35f72cf7e2b7d8c034090a6671dc7ff89a6ed8f9cb5",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "3e5b45b7c0015c54f49ad69cfe707e20a777852455f3514e6f744329fe419d94",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Screen Door.flac",
+              "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Fireflies.flac",
+              "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Gravel Road.flac",
+              "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Screen Door.flac",
+              "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Fireflies.flac",
+              "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Gravel Road.flac",
+              "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:The Lanterns - Porchlight [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/The Lanterns - Porchlight [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Screen Door.flac",
+              "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Fireflies.flac",
+              "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Gravel Road.flac",
+              "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "01 - Screen Door.flac",
+              "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - Fireflies.flac",
+              "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "03 - Gravel Road.flac",
+              "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Various Artists - Night Mix [FLAC]>",
+          "events": [
+            {
+              "album_id": "<ID:Various Artists - Night Mix [FLAC]>",
+              "filenames": [
+                "02 - something.flac",
+                "04.flac",
+                "Night Mix 3.flac",
+                "trackA.flac"
+              ],
+              "type": "TrackFingerprinted"
+            }
+          ],
+          "force": false,
+          "label": "first",
+          "path": "<LIB>/Various Artists - Night Mix [FLAC]",
+          "requests": [
+            {
+              "fingerprint_sha256": "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "b82811a34159c3e17d234b1f1591c8dab009ad983fc16a6e3219f4eceefbf88c",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "4f8c73377c5be5cfd3cf562f8dddded941e162bab820a775db7d573a80d565ed",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "56f7efaef6df9efdf1fff365d518787fdcf4b9d913303d90b8230b5d97fa345b",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            },
+            {
+              "fingerprint_sha256": "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd",
+              "form": {
+                "client": "<REDACTED>",
+                "duration": "10",
+                "format": "json",
+                "meta": "recordings"
+              },
+              "key": "4f552f69185729a9b3d0a36cf9901aee78f785cf26b001b73e15fd8b46fe4112",
+              "method": "POST",
+              "served": "recorded",
+              "status": 200,
+              "url": "http://api.acoustid.org/v2/lookup"
+            }
+          ],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - something.flac",
+              "fingerprint_sha256": "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04.flac",
+              "fingerprint_sha256": "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "Night Mix 3.flac",
+              "fingerprint_sha256": "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "trackA.flac",
+              "fingerprint_sha256": "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - something.flac",
+              "fingerprint_sha256": "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04.flac",
+              "fingerprint_sha256": "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "Night Mix 3.flac",
+              "fingerprint_sha256": "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "trackA.flac",
+              "fingerprint_sha256": "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        },
+        {
+          "album": "<ID:Various Artists - Night Mix [FLAC]>",
+          "events": [],
+          "force": false,
+          "label": "second (cached)",
+          "path": "<LIB>/Various Artists - Night Mix [FLAC]",
+          "requests": [],
+          "result": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - something.flac",
+              "fingerprint_sha256": "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04.flac",
+              "fingerprint_sha256": "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "Night Mix 3.flac",
+              "fingerprint_sha256": "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "trackA.flac",
+              "fingerprint_sha256": "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd"
+            }
+          ],
+          "rows_after": [
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "02 - something.flac",
+              "fingerprint_sha256": "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "04.flac",
+              "fingerprint_sha256": "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "Night Mix 3.flac",
+              "fingerprint_sha256": "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            },
+            {
+              "acoustid_recording_mbid": null,
+              "acoustid_score": null,
+              "duration_s": 10.0,
+              "filename": "trackA.flac",
+              "fingerprint_sha256": "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd",
+              "last_computed_at": "2001-01-01T00:00:00Z"
+            }
+          ]
+        }
+      ],
+      "fpcalc_files": {
+        "Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "854c2120ab5674b0dec573b46e104db1a69e84f3b90949f5d7b41a5bdd4694a8"
+        },
+        "Aurora Fields - First Light [FLAC]/02 - Low Sun.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "d8f1d1a258e89eb21bf31298ff0beba17a060d649d58706f4050bbde49c1d867"
+        },
+        "Aurora Fields - First Light [FLAC]/03 - Meridian.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "f47eee466c96644c85bbb0194559184041174a2a9fc63be46f406a3ab702211b"
+        },
+        "Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "753d992d380409c763ddc26505380147861ff12aebd610d3dca544f06126c1ba"
+        },
+        "Aurora Fields - First Light [FLAC]/05 - Afterglow.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "ee1197b8e8a2689405a062fb8ca5eb739df801c3196485d3e9ac9ee423c7ffea"
+        },
+        "Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "2df734bae7ff6e5aa5e686e938389a9378ac2861f61b8519e80ab12c55c14fe4"
+        },
+        "Aurora Fields - Folder Art [FLAC]/02 - Easel.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "2c452786f0b61d2440f82cb0d0a2ed4d05f71d5e30d402e89ceb2b204df69bd6"
+        },
+        "Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "d2d0a012e936936dee9d961be6de13f332e8a7966ab59e23d93d297b2e3295c8"
+        },
+        "Aurora Fields - Second Light [FLAC]/02 - Cirrus.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "45429176abcb008cb723a178d95a1cf460d133aa441c74b94a88821b803f9ad4"
+        },
+        "Aurora Fields - Second Light [FLAC]/03 - Halation.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "6ddcde60a97a314cfe8641715c7198cf87e224f994e58fb88d116eabee4519e5"
+        },
+        "Aurora Fields - Second Light [FLAC]/04 - Nightfall.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "4aceff910a0405662e97b8d40c353fd96d2c182dd6f0f047d537b8d5154a53cf"
+        },
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "74c2b63ddd6509e5ebe0aa0e32a758d27a88411660c5bca6afe50b2c1d70ae14"
+        },
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]/02 - Parallax.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "3dbd1e85a2fd84d9d21ce374424c4eb33e68646c4c57b9f08494b91ee5436cca"
+        },
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]/03 - Echo.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "5666c543767959e16a378c1fd70f3102c82ac797fc876097245fabf17b97c3b2"
+        },
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "1b47d797d509079e06a165a3d72e85d8a3600050f5b78e67c60dec27c2e9af60"
+        },
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]/02 - Doppler.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "84b21107150d33426d9e853dc9c55c4132ce77084225863dcce5f71ec10c018a"
+        },
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]/03 - Return.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "5be9a4e454fc705fc219ae1849bcd07b935ba671c5d29960e468d4092c1e37c6"
+        },
+        "Café Orchestra - Été [FLAC]/01 - Soirée.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "b325f4c9cce49ae6f63335c372b9cfe28d2490704bb00b3640ceb7e58cbd5bcd"
+        },
+        "Café Orchestra - Été [FLAC]/02 - Terrasse.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "d4dc978b2036733e691d158c2a33381e371d7aa239021e0220a028a9162a0f27"
+        },
+        "Café Orchestra - Été [FLAC]/03 - Crème.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "60d8f350fe9305e4554b67111f60d88e7cb52576f6aa0474ed149e0f62b722ef"
+        },
+        "Legacy Folder Name/01 - Kitchen Radio.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "d8a497359a5885df67b8f1d81b88564ed97ad22c2cec05b3f4c1e2c825cbb619"
+        },
+        "Legacy Folder Name/02 - Porch Light.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "55d9ab8dd60ea199e82e81e6bc0decd91d2e65d6549e69ed3472372b00057837"
+        },
+        "Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "1f81e8bff0ebdbcd4127527db202b86ebc049ea4b0f5b744e9f97e6ad76c1f25"
+        },
+        "Mono Harbor - Dotfiles [FLAC]/02 - Visible.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "1f3bdb29c015d51220e3538ae70f85a1eb59cec02c9cc40e1169d0f36540628f"
+        },
+        "Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+        },
+        "Mono Harbor - Dupes [FLAC]/02 - Feedback Garden.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "9e9ab8f20578a43c352e23210fca8c2600ca45fc64c3e952ba8c100be8276379"
+        },
+        "Mono Harbor - Dupes [FLAC]/03 - Static Bloom (Reprise).flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "4f81685b2f6a6650282d065dbc4cf05b151a65139a79169562ae499359a9031f"
+        },
+        "Mono Harbor - Dupes [FLAC]/04 - Wall of Sound.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "54817490ff130a17d5a79956dfdbbfe7b50cb2df49fef98721738f7d03c4e83b"
+        },
+        "Mono Harbor - Gaps [FLAC]/01 - Pier One.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "309aa2f5d2f0394924f2d3a56f6f68b38d9c887adc938cd87ab7c1ec8996ac09"
+        },
+        "Mono Harbor - Gaps [FLAC]/02 - Breakwater.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "30e0c06628169074acb1e1d54fc8ec6836dd6f2e29daf80818310e3275594ca1"
+        },
+        "Mono Harbor - Gaps [FLAC]/04 - Tidewater.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "bab415a87fbd92c4ec79edf387391dd7af822bcb288558833ddf88730b025e7d"
+        },
+        "Mono Harbor - Gaps [FLAC]/05 - Lighthouse.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "9c7e401b766eaec884e5f2744fc9f4ca0178e3cf7a9d07ccca4788b0b5fd4539"
+        },
+        "Mono Harbor - Sorted [FLAC]/01 - Ordered.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "24255bca2adb01487c6baf4daf634b4b161b53bdd836874b0decd881b3edec01"
+        },
+        "Mono Harbor - Sorted [FLAC]/02 - Indexed.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "57019ad66f7538836bd5bd77680325916eab743003b9dde57c1bdf95b4b68352"
+        },
+        "Mono Harbor - Sorted [FLAC]/03 - Filed.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "512b6ff26cff55cfbe6bb68f97f7da4a7ff8886d5c425503abd7a623a87cf9f4"
+        },
+        "The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "2edf1b031fad8f7d379f7b2c0cca81e3963c25f5b35ac7809f8163541ce9164d"
+        },
+        "The Lanterns - Porchlight [FLAC]/02 - Fireflies.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "615b49e013497b64a505d49348f529164ed79273259488f75f20bfab651f1d29"
+        },
+        "The Lanterns - Porchlight [FLAC]/03 - Gravel Road.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "922dd5d277e7ff1500ed97eed9fc696bba88c2a30ebb566a6606c51a2de99f3a"
+        },
+        "Various Artists - Night Mix [FLAC]/02 - something.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "4c39b04d6899f489229e8acbb3499c62abace1b720e8e1a81bae738232719662"
+        },
+        "Various Artists - Night Mix [FLAC]/04.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "e1cef04c9ba1e1b649991f4c5feccf830450c7a14a2aa3fa4d82f0bd18f46b58"
+        },
+        "Various Artists - Night Mix [FLAC]/Night Mix 3.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "cc698c37197b7a646d348ba62d9aaafbb904f3d3286643a2fadf8a946d72c535"
+        },
+        "Various Artists - Night Mix [FLAC]/trackA.flac": {
+          "duration_s": 10.0,
+          "fingerprint_sha256": "050f8dcd01faaea1d4dde8432a3083e188ce2db7aeffd5df0056cfd64a99c3fd"
+        }
+      },
+      "library": "synthetic"
+    }
+  ],
+  "provenance": {
+    "fpcalc": "fpcalc version 1.6.2 (FFmpeg Lavc63.1.102 Lavf63.1.102 SwR7.1.102)",
+    "network": "replay (fixtures/replay); injected failures marked per step",
+    "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
+    "row_timestamp": "2001-01-01T00:00:00Z",
+    "tool": "gen_fingerprint_golden"
+  }
+}

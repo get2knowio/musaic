@@ -1,0 +1,33 @@
+{
+  "elapsed_ms": 0.8,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/db/snapshots"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "snapshots": [
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20261109-173906Z-v16.db",
+          "modified_at": "2026-11-09T17:39:06Z",
+          "schema_version": 16,
+          "size_bytes": 147456,
+          "valid": true
+        }
+      ]
+    },
+    "status": 200
+  }
+}

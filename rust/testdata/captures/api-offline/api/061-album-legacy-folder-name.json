@@ -1,0 +1,62 @@
+{
+  "elapsed_ms": 1.0,
+  "request": {
+    "json": null,
+    "method": "GET",
+    "params": null,
+    "path": "/api/albums/<ID:Legacy Folder Name>"
+  },
+  "response": {
+    "content_type": "application/json",
+    "json": {
+      "album_artist": "Quiet Atlas",
+      "album_artist_sort": null,
+      "album_sort": null,
+      "artist": "Quiet Atlas",
+      "artist_sort": null,
+      "bits_per_sample": 16,
+      "channels": 2,
+      "cover_file": "cover.jpg",
+      "dir_album": null,
+      "dir_artist": null,
+      "dir_mtime": 1704067200.0,
+      "dir_name": "Legacy Folder Name",
+      "disc_number": null,
+      "disc_total": null,
+      "genre": "Folk",
+      "has_embedded_cover": false,
+      "id": "<ID:Legacy Folder Name>",
+      "is_compilation": false,
+      "mb_last_checked_at": null,
+      "mb_match_score": null,
+      "mb_release_group_mbid": null,
+      "mb_release_mbid": null,
+      "metadata_ai_acted_on_at": null,
+      "missing_since": null,
+      "path": "<LIB>/Legacy Folder Name",
+      "sample_rate": 44100,
+      "sample_track": "<LIB>/Legacy Folder Name/01 - Kitchen Radio.flac",
+      "title": "Old Rips",
+      "total_seconds": 20.0,
+      "track_artists": [
+        {
+          "artist": "Quiet Atlas",
+          "artist_sort": "",
+          "filename": "01 - Kitchen Radio.flac"
+        },
+        {
+          "artist": "Quiet Atlas",
+          "artist_sort": "",
+          "filename": "02 - Porch Light.flac"
+        }
+      ],
+      "track_count": 2,
+      "track_numbers": [
+        1,
+        2
+      ],
+      "year": "2009"
+    },
+    "status": 200
+  }
+}

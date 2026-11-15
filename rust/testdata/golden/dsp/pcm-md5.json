@@ -1,0 +1,395 @@
+{
+  "decoder": {
+    "libsndfile": "1.2.2",
+    "numpy": "2.5.4",
+    "soundfile": "0.14.0"
+  },
+  "generator": "tools/gen_pcm_md5_golden.py",
+  "libraries": {
+    "synthetic": {
+      "dir": "fixtures/library",
+      "file_count": 42,
+      "files": {
+        "Aurora Fields - First Light [FLAC]/01 - Dawn Chorus.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "de7e42e55bd99b09481e8b83f03bbba3",
+          "pcm_int_md5": "357b87b1e0478d90714cdf90697c7a1d",
+          "streaminfo_md5": "357b87b1e0478d90714cdf90697c7a1d"
+        },
+        "Aurora Fields - First Light [FLAC]/02 - Low Sun.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "ed76293bb2f3fec9675965eaa9965719",
+          "pcm_int_md5": "8c4209f2fc46d8986e4173b90f12b499",
+          "streaminfo_md5": "8c4209f2fc46d8986e4173b90f12b499"
+        },
+        "Aurora Fields - First Light [FLAC]/03 - Meridian.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "43641f4911a4bc4867589002b754deb5",
+          "pcm_int_md5": "e4c472ed098a5622034ddddd96f06014",
+          "streaminfo_md5": "e4c472ed098a5622034ddddd96f06014"
+        },
+        "Aurora Fields - First Light [FLAC]/04 - Long Shadows.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "511a3647f3a8d630a63aadce4aff5825",
+          "pcm_int_md5": "14a04b780bd7b3207e2bc8b94235bb8b",
+          "streaminfo_md5": "14a04b780bd7b3207e2bc8b94235bb8b"
+        },
+        "Aurora Fields - First Light [FLAC]/05 - Afterglow.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "3cdc28bef03092bd069d1269c224567f",
+          "pcm_int_md5": "d1598a2ead7949ea223b10e9b107d819",
+          "streaminfo_md5": "d1598a2ead7949ea223b10e9b107d819"
+        },
+        "Aurora Fields - Folder Art [FLAC]/01 - Canvas.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "9a2f48de136503df78ddf5be24a4f632",
+          "pcm_int_md5": "9209b1b5748d7fde8c25c27a92fd3d82",
+          "streaminfo_md5": "9209b1b5748d7fde8c25c27a92fd3d82"
+        },
+        "Aurora Fields - Folder Art [FLAC]/02 - Easel.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "d1baf27c1383cf737157bfdc3e1bd15c",
+          "pcm_int_md5": "b638aac662eb6b5695d8b94e6c3182af",
+          "streaminfo_md5": "b638aac662eb6b5695d8b94e6c3182af"
+        },
+        "Aurora Fields - Second Light [FLAC]/01 - Blue Hour.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "298416a266e483044d097b0d80587d80",
+          "pcm_int_md5": "67c84ce6cdb051f46e52f0f65166789f",
+          "streaminfo_md5": "67c84ce6cdb051f46e52f0f65166789f"
+        },
+        "Aurora Fields - Second Light [FLAC]/02 - Cirrus.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "ae680e9612fcde156012270c282b0ad4",
+          "pcm_int_md5": "a787c236efb10431b159675565a0f5d1",
+          "streaminfo_md5": "a787c236efb10431b159675565a0f5d1"
+        },
+        "Aurora Fields - Second Light [FLAC]/03 - Halation.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "78da9ab6bd8e073318f25eb491cc0345",
+          "pcm_int_md5": "7d5f82e17517a64f3cad9bc74027c545",
+          "streaminfo_md5": "7d5f82e17517a64f3cad9bc74027c545"
+        },
+        "Aurora Fields - Second Light [FLAC]/04 - Nightfall.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "eb8d7120558e132634f6bc1d04696545",
+          "pcm_int_md5": "978957b9342b52f4fd2ebb1e04a51aa6",
+          "streaminfo_md5": "978957b9342b52f4fd2ebb1e04a51aa6"
+        },
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]/01 - Mirror.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "629cc96b22ad2818263c35830bfa53e9",
+          "pcm_int_md5": "be9ae46e0db3212ceccba3fbc126e11b",
+          "streaminfo_md5": "be9ae46e0db3212ceccba3fbc126e11b"
+        },
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]/02 - Parallax.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "033583eeecb27f54df248a7be43c7c81",
+          "pcm_int_md5": "88de00c1b266e726f5c05b99c903e21d",
+          "streaminfo_md5": "88de00c1b266e726f5c05b99c903e21d"
+        },
+        "Aurora Fields - Twin (disc 1 of 2) [FLAC]/03 - Echo.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "59e58f2c0af2dd506c5a0c92300c8cc2",
+          "pcm_int_md5": "d71781a252f703d94c1b7709773e0060",
+          "streaminfo_md5": "d71781a252f703d94c1b7709773e0060"
+        },
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]/01 - Reflection.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "1464dc54ec68f3f28646789b43d453b3",
+          "pcm_int_md5": "9e9b006f8b0d58c105d192618776f1c3",
+          "streaminfo_md5": "9e9b006f8b0d58c105d192618776f1c3"
+        },
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]/02 - Doppler.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "4f1f046685374eab34a69fc81855c91e",
+          "pcm_int_md5": "0c70c3053785a2f9756098c3e08b9829",
+          "streaminfo_md5": "0c70c3053785a2f9756098c3e08b9829"
+        },
+        "Aurora Fields - Twin (disc 2 of 2) [FLAC]/03 - Return.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "0aebb1d1621f60d828fdc814e6f5aa8b",
+          "pcm_int_md5": "a70fb153576f072cc717acbeb542e999",
+          "streaminfo_md5": "a70fb153576f072cc717acbeb542e999"
+        },
+        "Café Orchestra - Été [FLAC]/01 - Soirée.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "9805ac2d8e0accd5a8bcd6fc7a845cb5",
+          "pcm_int_md5": "ee5c339e77d3b3eed1b270f429151f19",
+          "streaminfo_md5": "ee5c339e77d3b3eed1b270f429151f19"
+        },
+        "Café Orchestra - Été [FLAC]/02 - Terrasse.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "757f36ef3333764ce2c119a88e556da5",
+          "pcm_int_md5": "0a996ccdfc97ddfa992d516972a5f2b1",
+          "streaminfo_md5": "0a996ccdfc97ddfa992d516972a5f2b1"
+        },
+        "Café Orchestra - Été [FLAC]/03 - Crème.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "44163f05f8f495bad86b4a725dea52ff",
+          "pcm_int_md5": "6435463de021cc83bfef5ab5460b8525",
+          "streaminfo_md5": "6435463de021cc83bfef5ab5460b8525"
+        },
+        "Legacy Folder Name/01 - Kitchen Radio.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "e5c683d4082c4d7d2617de7151bda50b",
+          "pcm_int_md5": "81f8ec21b8eb30db30136a0c682775d7",
+          "streaminfo_md5": "81f8ec21b8eb30db30136a0c682775d7"
+        },
+        "Legacy Folder Name/02 - Porch Light.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "ea8021f5d7833fb4e1476064bc070315",
+          "pcm_int_md5": "dc3b8386b2dfa5a8b01b79a0218bda8e",
+          "streaminfo_md5": "dc3b8386b2dfa5a8b01b79a0218bda8e"
+        },
+        "Mono Harbor - Dotfiles [FLAC]/01 - Hidden.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "1a94df72905bbcc925fa215480ab2312",
+          "pcm_int_md5": "094855487356b41648872e0b009d9d25",
+          "streaminfo_md5": "094855487356b41648872e0b009d9d25"
+        },
+        "Mono Harbor - Dotfiles [FLAC]/02 - Visible.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "7af51191311877bddff0dfe0504e0872",
+          "pcm_int_md5": "2ef4a51f6823c08c042932176bf0f40b",
+          "streaminfo_md5": "2ef4a51f6823c08c042932176bf0f40b"
+        },
+        "Mono Harbor - Dupes [FLAC]/01 - Static Bloom.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "ef2445360e679c33148fa653423e6393",
+          "pcm_int_md5": "dab49dd9f27600f98fc74b52130ec0fd",
+          "streaminfo_md5": "dab49dd9f27600f98fc74b52130ec0fd"
+        },
+        "Mono Harbor - Dupes [FLAC]/02 - Feedback Garden.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "55f667dc40ae42e37eef8e85fbc984bd",
+          "pcm_int_md5": "fbdd6b2295038fdd5c5eec6fd5523f3c",
+          "streaminfo_md5": "fbdd6b2295038fdd5c5eec6fd5523f3c"
+        },
+        "Mono Harbor - Dupes [FLAC]/03 - Static Bloom (Reprise).flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "ef2445360e679c33148fa653423e6393",
+          "pcm_int_md5": "dab49dd9f27600f98fc74b52130ec0fd",
+          "streaminfo_md5": "dab49dd9f27600f98fc74b52130ec0fd"
+        },
+        "Mono Harbor - Dupes [FLAC]/04 - Wall of Sound.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "0081a056be238731d728d58bceb2d429",
+          "pcm_int_md5": "cdbbf5d569497a10d068c7b597b563bc",
+          "streaminfo_md5": "cdbbf5d569497a10d068c7b597b563bc"
+        },
+        "Mono Harbor - Gaps [FLAC]/01 - Pier One.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "8afeff39ce3ac253f6d807075feb1b2f",
+          "pcm_int_md5": "9ff88895ae10dba200678bf34d59fa58",
+          "streaminfo_md5": "9ff88895ae10dba200678bf34d59fa58"
+        },
+        "Mono Harbor - Gaps [FLAC]/02 - Breakwater.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "5688bbf1b4dacd43612e9113e7cd41b2",
+          "pcm_int_md5": "4e3e3f22184f4d51131e3ce3e1ecb44f",
+          "streaminfo_md5": "4e3e3f22184f4d51131e3ce3e1ecb44f"
+        },
+        "Mono Harbor - Gaps [FLAC]/04 - Tidewater.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "27dc245229d4aaf262229eebe36b3f1f",
+          "pcm_int_md5": "5d0c812719c1c57361f7cb5f39590177",
+          "streaminfo_md5": "5d0c812719c1c57361f7cb5f39590177"
+        },
+        "Mono Harbor - Gaps [FLAC]/05 - Lighthouse.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "8cb47106198a7248d5dba0e9a054731d",
+          "pcm_int_md5": "d822171fbdb32d080c7443e31a6fc766",
+          "streaminfo_md5": "d822171fbdb32d080c7443e31a6fc766"
+        },
+        "Mono Harbor - Sorted [FLAC]/01 - Ordered.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "033de662bde25cb3ee73281ec7510d0d",
+          "pcm_int_md5": "66f1c6d2f05ad4be1f08a82b32cb46bc",
+          "streaminfo_md5": "66f1c6d2f05ad4be1f08a82b32cb46bc"
+        },
+        "Mono Harbor - Sorted [FLAC]/02 - Indexed.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "a85f6d2fd35e2a3b6a1f10e84fab780a",
+          "pcm_int_md5": "4855e15a9de1ed9658be6721e8af0bcf",
+          "streaminfo_md5": "4855e15a9de1ed9658be6721e8af0bcf"
+        },
+        "Mono Harbor - Sorted [FLAC]/03 - Filed.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "6f540d83d7fda623ed7a6a3d67bc9774",
+          "pcm_int_md5": "7dd9a31b40b92e44fae76e66de0a61d2",
+          "streaminfo_md5": "7dd9a31b40b92e44fae76e66de0a61d2"
+        },
+        "The Lanterns - Porchlight [FLAC]/01 - Screen Door.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "58276b77dd749dddda80148c35f0e5ad",
+          "pcm_int_md5": "0ffed5f764177725efc09c96752ce0b0",
+          "streaminfo_md5": "0ffed5f764177725efc09c96752ce0b0"
+        },
+        "The Lanterns - Porchlight [FLAC]/02 - Fireflies.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "ede879825c3534a610f35e81468fa47f",
+          "pcm_int_md5": "d0859b3a8dd12966cdc1626f42e55b6e",
+          "streaminfo_md5": "d0859b3a8dd12966cdc1626f42e55b6e"
+        },
+        "The Lanterns - Porchlight [FLAC]/03 - Gravel Road.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "67f096fece55b283209ffb43d2404456",
+          "pcm_int_md5": "d03fbb9849d715c72de65dcf23d925c9",
+          "streaminfo_md5": "d03fbb9849d715c72de65dcf23d925c9"
+        },
+        "Various Artists - Night Mix [FLAC]/02 - something.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "5a8e7951b9a02291ce270840a804ea58",
+          "pcm_int_md5": "1685632c4aecbecf5ffd5edcd3596a61",
+          "streaminfo_md5": "1685632c4aecbecf5ffd5edcd3596a61"
+        },
+        "Various Artists - Night Mix [FLAC]/04.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "3ea05216aa621885681812efec710a82",
+          "pcm_int_md5": "d3994996c65ca2937516ec8009bc902b",
+          "streaminfo_md5": "d3994996c65ca2937516ec8009bc902b"
+        },
+        "Various Artists - Night Mix [FLAC]/Night Mix 3.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "133c4f3886773e6038557a6d7aa675a6",
+          "pcm_int_md5": "e8a88a2daaa1b31274f3f20b82b54964",
+          "streaminfo_md5": "e8a88a2daaa1b31274f3f20b82b54964"
+        },
+        "Various Artists - Night Mix [FLAC]/trackA.flac": {
+          "bits_per_sample": 16,
+          "channels": 2,
+          "frames": 441000,
+          "int_dtype": "int16",
+          "pcm_float64_md5": "c3db5a3f4b0502dec9492ffffe6856ee",
+          "pcm_int_md5": "c07d96c7df78abf6955e9bb7855503d2",
+          "streaminfo_md5": "c07d96c7df78abf6955e9bb7855503d2"
+        }
+      }
+    }
+  },
+  "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d"
+}

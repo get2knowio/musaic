@@ -27,9 +27,17 @@ import {
   useRetryJob,
 } from "@/hooks/useJobs";
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
+import { useAiStatus } from "@/hooks/useAiStatus";
+import {
+  canQueueJob,
+  metadataJobType,
+  modelFreeCoverage,
+  offersHintEntry,
+} from "@/lib/aiGating";
 import { useApplyStream } from "@/hooks/useApplyStream";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
 import { clearAlbumMbAnchor, removeAlbumFromLibrary } from "@/lib/api";
+import { jobCoverPreviewUrl } from "@/lib/coverPreview";
 import type {
   Album,
   CoverSuggestionResponse,
@@ -166,20 +174,23 @@ function SheetBody({
   // we mirror that in the button label so the user knows the click will
   // be free + fast rather than the usual long AI round-trip.
   const { data: resolution } = useAlbumResolution(album.id);
-  const deterministicCovered =
-    resolution?.anchor != null
-    && resolution.anchor.confidence >= 0.85
-    && resolution.unresolved_track_count === 0;
+  // Same thresholds as the worker's short-circuit (lib/aiGating.ts).
+  const coverage = modelFreeCoverage(resolution);
+  const deterministicCovered = coverage.metadata;
   // CAA cover already verified for the anchored release-group? The
   // worker will short-circuit ai.suggest_cover when this is true.
-  const coverFromMb =
-    resolution?.cover_url != null
-    && resolution.cover_url.confidence >= 0.85;
+  const coverFromMb = coverage.cover;
+  // Whether a model backend can run. Without one, only jobs the resolver
+  // covers may be queued, and they queue without the hint dialog.
+  const ai = useAiStatus();
 
   // Whether the album has any cover at all — drives auto-bundling. If
   // "Suggest fixes" is clicked on a coverless album, we enqueue a
   // metadata+cover job instead of metadata-only.
   const albumHasCover = album.has_embedded_cover || !!album.cover_file;
+  const metadataJob = metadataJobType(albumHasCover, coverage, ai);
+  const canQueueMetadata = canQueueJob(metadataJob, coverage, ai);
+  const canQueueCover = canQueueJob("cover", coverage, ai);
 
   // Hint dialog state. `pendingType` is the job type the user is about to
   // enqueue once they submit a hint.
@@ -290,6 +301,9 @@ function SheetBody({
       toast.error(e.message || "Couldn't retry job");
     }
   };
+  // Retrying a job that needs a model is certain to fail without one.
+  const canRetryFailed =
+    !recentFailedJob || canQueueJob(recentFailedJob.job_type, coverage, ai);
 
   // Live album for hero — use the apply-updated version once available.
   const displayAlbum: Album = apply.state.updatedAlbum ?? album;
@@ -297,15 +311,25 @@ function SheetBody({
   // ---- Click handlers ----
 
   const onSuggestMetadata = () => {
-    // Auto-bundle cover lookup when album has no cover.
-    setPendingType(albumHasCover ? "metadata" : "metadata+cover");
+    // Auto-bundle cover lookup when album has no cover (metadataJobType).
+    if (!canQueueMetadata) return;
+    if (offersHintEntry(ai)) setPendingType(metadataJob);
+    else void queueJob(metadataJob, "", true);
   };
-  const onSuggestCover = () => setPendingType("cover");
+  const onSuggestCover = () => {
+    if (!canQueueCover) return;
+    if (offersHintEntry(ai)) setPendingType("cover");
+    else void queueJob("cover", "", true);
+  };
 
   const onHintSubmit = async (hint: string, attachCover: boolean) => {
     const which = pendingType;
     setPendingType(null);
     if (!which) return;
+    await queueJob(which, hint, attachCover);
+  };
+
+  const queueJob = async (which: JobType, hint: string, attachCover: boolean) => {
     try {
       await enqueue.mutateAsync({
         albumId: album.id, jobType: which, hint, attachCover,
@@ -322,7 +346,10 @@ function SheetBody({
       if (e.status === 409 || (typeof detail === "object" && detail?.error === "active_job_exists")) {
         toast.warning("Already queued for this album", { duration: 4000 });
       } else {
-        toast.error("Could not queue job", { duration: 4000 });
+        toast.error("Could not queue job", {
+          description: (err as Error).message || undefined,
+          duration: 4000,
+        });
       }
     }
   };
@@ -402,9 +429,10 @@ function SheetBody({
       // useLibraryEventsStream subscriber — the backend publishes
       // AlbumTagsChanged after wiping the anchor.
       onDiscard();
+      const rerun = ai.ready ? " Re-run AI (a hint helps narrow the search)." : "";
       const toastMsg = res.blocked_mbid
-        ? `Rejected ${res.blocked_mbid.slice(0, 8)}… and added it to this album's blocklist. Re-run AI (a hint helps narrow the search).`
-        : "Cleared MusicBrainz match. Re-run AI (a hint helps narrow the search).";
+        ? `Rejected ${res.blocked_mbid.slice(0, 8)}… and added it to this album's blocklist.${rerun}`
+        : `Cleared MusicBrainz match.${rerun}`;
       toast.success(toastMsg, { duration: 6000 });
     } catch (err) {
       toast.error((err as Error).message || "Couldn't clear MusicBrainz anchor");
@@ -518,7 +546,12 @@ function SheetBody({
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => onRetryFailed(recentFailedJob.id)}
-                disabled={retryJob.isPending}
+                disabled={retryJob.isPending || !canRetryFailed}
+                title={
+                  canRetryFailed
+                    ? undefined
+                    : "This job can be retried once MusicBrainz covers this album."
+                }
                 className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 inline-flex items-center gap-1"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -548,11 +581,13 @@ function SheetBody({
             onClearAnchor={onClearAnchor}
             clearingAnchor={clearingAnchor}
             applying={isApplying}
+            coverPreviewSrc={activeJob ? jobCoverPreviewUrl(activeJob.id) : null}
+            aiReady={ai.ready}
           />
         ) : (
           <>
             <Section id="album-info" title="Album info">
-              <PropTable album={displayAlbum} />
+              <PropTable album={displayAlbum} aiReady={ai.ready} />
             </Section>
 
             {/* Findings (auto-hidden when this album has no open
@@ -691,13 +726,20 @@ function SheetBody({
                 running, or completed-not-yet-acted). One job per album. */}
             <button
               onClick={onSuggestCover}
-              disabled={!!activeJob}
+              disabled={!!activeJob || !canQueueCover}
               className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
               title={
+                // No AI wording when no model can run.
                 activeJob
-                  ? "An AI job already exists for this album — view it above"
+                  ? ai.ready
+                    ? "An AI job already exists for this album — view it above"
+                    : "A job already exists for this album — view it above"
+                  : !canQueueCover
+                  ? "A cover can be fetched once the Cover Art Archive has one for this album's MusicBrainz match."
                   : coverFromMb
-                  ? "Cover already verified in Cover Art Archive — no AI quota burned"
+                  ? ai.ready
+                    ? "Cover already verified in Cover Art Archive — no AI quota burned"
+                    : "Cover already verified in Cover Art Archive"
                   : undefined
               }
             >
@@ -706,14 +748,20 @@ function SheetBody({
             </button>
             <button
               onClick={onSuggestMetadata}
-              disabled={!!activeJob}
+              disabled={!!activeJob || !canQueueMetadata}
               className="h-8 px-3 rounded bg-accent text-accent-fg font-medium text-sm hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
               title={
                 activeJob
-                  ? "An AI job already exists for this album — view it above"
+                  ? ai.ready
+                    ? "An AI job already exists for this album — view it above"
+                    : "A job already exists for this album — view it above"
+                  : !canQueueMetadata
+                  ? "Corrections can be found once MusicBrainz identifies this album and every track."
                   : deterministicCovered
-                  ? "MusicBrainz already covers this album — suggestions appear instantly, no AI quota burned"
-                  : !albumHasCover
+                  ? ai.ready
+                    ? "MusicBrainz already covers this album — suggestions appear instantly, no AI quota burned"
+                    : "MusicBrainz already covers this album — suggestions appear instantly"
+                  : metadataJob === "metadata+cover"
                   ? "No cover on disk — will also search for cover art"
                   : undefined
               }
@@ -722,7 +770,7 @@ function SheetBody({
               <span>
                 {deterministicCovered
                   ? "Find MusicBrainz corrections"
-                  : `Suggest fixes${!albumHasCover && !activeJob ? " (+ cover)" : ""}`}
+                  : `Suggest fixes${metadataJob === "metadata+cover" && !activeJob ? " (+ cover)" : ""}`}
               </span>
             </button>
             <div className="flex-1" />

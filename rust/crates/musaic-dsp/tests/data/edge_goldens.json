@@ -1,0 +1,425 @@
+{
+ "generator": "rust/crates/musaic-dsp/tests/data/gen_edge_goldens.py",
+ "environment": {
+  "python": "3.13.15",
+  "numpy": "2.5.4",
+  "pyloudnorm": "0.2.0"
+ },
+ "reference_loudness": "-18.00 LUFS",
+ "signals": [
+  {
+   "name": "mono-noise-44100-2s",
+   "rate": 44100,
+   "channels": 1,
+   "seed": 1,
+   "segments": [
+    {
+     "frames": 88200,
+     "amp": 8000
+    }
+   ],
+   "check": {
+    "sum": -1738324,
+    "sum_sq": 1880214441222,
+    "len": 88200
+   },
+   "result": {
+    "lufs": -13.950943282779821,
+    "peak": 0.244140625,
+    "track_gain": "-4.05 dB",
+    "track_peak": "0.244141"
+   }
+  },
+  {
+   "name": "stereo-noise-48000-gated",
+   "rate": 48000,
+   "channels": 2,
+   "seed": 2,
+   "segments": [
+    {
+     "frames": 48000,
+     "amp": 20000
+    },
+    {
+     "frames": 96000,
+     "amp": 30
+    },
+    {
+     "frames": 24000,
+     "amp": 3000
+    }
+   ],
+   "check": {
+    "sum": -577216,
+    "sum_sq": 12963044206888,
+    "len": 336000
+   },
+   "result": {
+    "lufs": -3.6501122063759457,
+    "peak": 0.6103515625,
+    "track_gain": "-14.35 dB",
+    "track_peak": "0.610352"
+   }
+  },
+  {
+   "name": "stereo-silence-44100-1s",
+   "rate": 44100,
+   "channels": 2,
+   "seed": 3,
+   "segments": [
+    {
+     "frames": 44100,
+     "amp": 0
+    }
+   ],
+   "check": {
+    "sum": 0,
+    "sum_sq": 0,
+    "len": 88200
+   },
+   "result": {
+    "lufs": "-inf",
+    "peak": 0.0,
+    "track_gain": "+inf dB",
+    "track_peak": "0.000000"
+   }
+  },
+  {
+   "name": "stereo-near-silent-44100-1s",
+   "rate": 44100,
+   "channels": 2,
+   "seed": 4,
+   "segments": [
+    {
+     "frames": 44100,
+     "amp": 1
+    }
+   ],
+   "check": {
+    "sum": -410,
+    "sum_sq": 58784,
+    "len": 88200
+   },
+   "result": {
+    "lufs": "-inf",
+    "peak": 3.0517578125e-05,
+    "track_gain": "+inf dB",
+    "track_peak": "0.000031"
+   }
+  },
+  {
+   "name": "mono-too-short-44100",
+   "rate": 44100,
+   "channels": 1,
+   "seed": 5,
+   "segments": [
+    {
+     "frames": 17639,
+     "amp": 5000
+    }
+   ],
+   "check": {
+    "sum": -266186,
+    "sum_sq": 147390478848,
+    "len": 17639
+   },
+   "result": {
+    "error": "ValueError: Audio must have length greater than the block size."
+   }
+  },
+  {
+   "name": "mono-exactly-one-block-44100",
+   "rate": 44100,
+   "channels": 1,
+   "seed": 6,
+   "segments": [
+    {
+     "frames": 17640,
+     "amp": 5000
+    }
+   ],
+   "check": {
+    "sum": 314959,
+    "sum_sq": 145871289849,
+    "len": 17640
+   },
+   "result": {
+    "lufs": -18.058826447582234,
+    "peak": 0.152587890625,
+    "track_gain": "+0.06 dB",
+    "track_peak": "0.152588"
+   }
+  },
+  {
+   "name": "five-channels-22050-odd-length",
+   "rate": 22050,
+   "channels": 5,
+   "seed": 7,
+   "segments": [
+    {
+     "frames": 27211,
+     "amp": 12000
+    }
+   ],
+   "check": {
+    "sum": -1071023,
+    "sum_sq": 6526970993737,
+    "len": 136055
+   },
+   "result": {
+    "lufs": -3.0098161041505915,
+    "peak": 0.3662109375,
+    "track_gain": "-14.99 dB",
+    "track_peak": "0.366211"
+   }
+  },
+  {
+   "name": "six-channels-44100",
+   "rate": 44100,
+   "channels": 6,
+   "seed": 8,
+   "segments": [
+    {
+     "frames": 44100,
+     "amp": 1000
+    }
+   ],
+   "check": {
+    "sum": 221557,
+    "sum_sq": 88686901447,
+    "len": 264600
+   },
+   "result": {
+    "error": "ValueError: Audio must have five channels or less."
+   }
+  },
+  {
+   "name": "stereo-full-scale-96000",
+   "rate": 96000,
+   "channels": 2,
+   "seed": 9,
+   "segments": [
+    {
+     "frames": 100001,
+     "amp": 32767
+    }
+   ],
+   "check": {
+    "sum": -4837022,
+    "sum_sq": 71348545853976,
+    "len": 200002
+   },
+   "result": {
+    "lufs": 1.4170196475136687,
+    "peak": 0.999969482421875,
+    "track_gain": "-19.42 dB",
+    "track_peak": "0.999969"
+   }
+  }
+ ],
+ "albums": [
+  {
+   "tracks": [
+    [
+     60.0,
+     -10.0,
+     0.9
+    ],
+    [
+     60.0,
+     -30.0,
+     0.5
+    ]
+   ],
+   "result": {
+    "lufs": -12.967086218813385,
+    "peak": 0.9,
+    "album_gain": "-5.03 dB",
+    "album_peak": "0.900000"
+   }
+  },
+  {
+   "tracks": [
+    [
+     60.0,
+     -20.0,
+     0.8
+    ],
+    [
+     60.0,
+     "-inf",
+     0.0
+    ]
+   ],
+   "result": {
+    "lufs": -20.0,
+    "peak": 0.8,
+    "album_gain": "+2.00 dB",
+    "album_peak": "0.800000"
+   }
+  },
+  {
+   "tracks": [
+    [
+     0.0,
+     -20.0,
+     0.3
+    ],
+    [
+     12.5,
+     -14.25,
+     0.7
+    ],
+    [
+     7.75,
+     -22.1,
+     0.7
+    ]
+   ],
+   "result": {
+    "lufs": -15.924451348013779,
+    "peak": 0.7,
+    "album_gain": "-2.08 dB",
+    "album_peak": "0.700000"
+   }
+  },
+  {
+   "tracks": [
+    [
+     60.0,
+     "-inf",
+     0.4
+    ],
+    [
+     30.0,
+     "nan",
+     0.6
+    ]
+   ],
+   "result": null
+  },
+  {
+   "tracks": [
+    [
+     0.0,
+     -12.0,
+     0.2
+    ]
+   ],
+   "result": null
+  },
+  {
+   "tracks": [],
+   "result": null
+  },
+  {
+   "tracks": [
+    [
+     159.05333333333334,
+     -18.22853944850848,
+     0.9393310546875
+    ],
+    [
+     212.0,
+     -16.5,
+     0.996063232421875
+    ],
+    [
+     1.0,
+     -60.0,
+     0.1
+    ]
+   ],
+   "result": {
+    "lufs": -17.170474334957447,
+    "peak": 0.996063232421875,
+    "album_gain": "-0.83 dB",
+    "album_peak": "0.996063"
+   }
+  }
+ ],
+ "format_gain": [
+  {
+   "measured": -18.0,
+   "formatted": "+0.00 dB"
+  },
+  {
+   "measured": -18.125,
+   "formatted": "+0.12 dB"
+  },
+  {
+   "measured": -18.375,
+   "formatted": "+0.38 dB"
+  },
+  {
+   "measured": -17.995,
+   "formatted": "-0.00 dB"
+  },
+  {
+   "measured": -18.004,
+   "formatted": "+0.00 dB"
+  },
+  {
+   "measured": -17.999,
+   "formatted": "-0.00 dB"
+  },
+  {
+   "measured": -18.001,
+   "formatted": "+0.00 dB"
+  },
+  {
+   "measured": -22.0,
+   "formatted": "+4.00 dB"
+  },
+  {
+   "measured": -3.0,
+   "formatted": "-15.00 dB"
+  },
+  {
+   "measured": -40.123456,
+   "formatted": "+22.12 dB"
+  },
+  {
+   "measured": "-inf",
+   "formatted": "+inf dB"
+  },
+  {
+   "measured": "nan",
+   "formatted": "+nan dB"
+  }
+ ],
+ "format_peak": [
+  {
+   "peak": 0.0,
+   "formatted": "0.000000"
+  },
+  {
+   "peak": 1.0,
+   "formatted": "1.000000"
+  },
+  {
+   "peak": 0.9393310546875,
+   "formatted": "0.939331"
+  },
+  {
+   "peak": 0.3653564453125,
+   "formatted": "0.365356"
+  },
+  {
+   "peak": 5e-07,
+   "formatted": "0.000000"
+  },
+  {
+   "peak": 1.5e-06,
+   "formatted": "0.000002"
+  },
+  {
+   "peak": 0.9999995,
+   "formatted": "1.000000"
+  },
+  {
+   "peak": 0.123456789,
+   "formatted": "0.123457"
+  }
+ ]
+}
