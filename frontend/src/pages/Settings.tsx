@@ -841,7 +841,7 @@ function FireCrawlSection() {
             FireCrawl<ExternalLink className="w-3 h-3" />
           </a>
           . The system prompt tells the model to treat FireCrawl as a last
-          resort — each call burns your paid FireCrawl quota.
+          resort — each call uses up your FireCrawl quota.
         </p>
 
         <div className="border border-line rounded p-3 bg-panel">

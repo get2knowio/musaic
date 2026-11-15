@@ -15,6 +15,8 @@ Security.
 
 ### Changed
 
+- Wording: the transient AI-job error no longer points at a script that does not exist, and
+  the Settings text about FireCrawl and the Backup page no longer say "paid".
 - Health no longer asks you to run checks one by one: the per-check "Run now" buttons,
   the "Last run" / "Never run" column, the "Recent runs" list, the category column and
   the check count are gone. Until every check runs automatically in the background, a

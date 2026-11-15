@@ -136,7 +136,7 @@ impl fmt::Display for ProviderError {
 impl std::error::Error for ProviderError {}
 
 /// `_friendly_agent_error`'s text for `RuntimeTransientError`.
-pub const TRANSIENT_MESSAGE: &str = "The agent backend reported a transient failure \u{2014} most often a rate-limit hit (subscriptions have shared rolling windows), a brief upstream outage, or a model/tool incompatibility. Hit Retry on the AI Jobs page after a moment. To triage, run `.venv/bin/python diagnose_claude.py <album_id>`.";
+pub const TRANSIENT_MESSAGE: &str = "The agent backend reported a transient failure \u{2014} most often a rate-limit hit (subscriptions have shared rolling windows), a brief upstream outage, or a model/tool incompatibility. Hit Retry on the AI Jobs page after a moment.";
 
 /// What `GET /api/ai/providers` reports for a provider
 /// (`provider_runtime_status` + the auth model).
