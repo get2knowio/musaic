@@ -1,16 +1,20 @@
-import type { ScanState } from "@/hooks/useScanStream";
+import { isScanBusy, type ScanState } from "@/hooks/useScanStream";
 
 interface ScanRibbonProps {
   scan: ScanState;
+  /** Ask the running scan to stop (nothing it read is saved). */
+  onCancel: () => void;
 }
 
 /**
  * Sticky ribbon at the top of the main canvas while a scan is in progress.
- * Hidden when scan is idle/done. Once the backend emits a "currently
- * processing" file path, we'll show that here too (per design handoff).
+ * Hidden once the scan is over (done, cancelled, aborted, error). Once the
+ * backend emits a "currently processing" file path, we'll show that here
+ * too (per design handoff).
  */
-export default function ScanRibbon({ scan }: ScanRibbonProps) {
-  if (scan.status !== "scanning" && scan.status !== "loading-cache") return null;
+export default function ScanRibbon({ scan, onCancel }: ScanRibbonProps) {
+  if (!isScanBusy(scan.status)) return null;
+  const cancelling = scan.status === "cancelling";
 
   const pct = scan.total > 0 ? Math.min(100, (scan.scanned / scan.total) * 100) : 0;
 
@@ -22,7 +26,11 @@ export default function ScanRibbon({ scan }: ScanRibbonProps) {
       <div className="flex items-center gap-2 min-w-[260px]">
         <span className="w-2 h-2 rounded-full bg-accent animate-[pulse_1.6s_infinite]" />
         <span className="font-medium">
-          {scan.status === "loading-cache" ? "Loading library…" : "Scanning library…"}
+          {cancelling
+            ? "Cancelling scan…"
+            : scan.status === "loading-cache"
+              ? "Loading library…"
+              : "Scanning library…"}
         </span>
         {scan.total > 0 && (
           <span className="mono tabular-nums text-fg-3">
@@ -53,9 +61,14 @@ export default function ScanRibbon({ scan }: ScanRibbonProps) {
       </div>
 
       <div className="flex items-center gap-1.5">
-        {/* Pause/Cancel placeholders — backend doesn't support them yet */}
-        <button className="h-7 px-2.5 border border-line rounded bg-panel text-fg-3 text-xs cursor-not-allowed opacity-60" disabled>
-          Cancel
+        <button
+          type="button"
+          className="h-7 px-2.5 border border-line rounded bg-panel text-fg-2 text-xs hover:bg-bg-3 transition focus:outline-none focus:ring-2 focus:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={!scan.canCancel || cancelling}
+          onClick={onCancel}
+          title="Stop the scan. Nothing it has read is saved; the library keeps its previous scan."
+        >
+          {cancelling ? "Cancelling…" : "Cancel"}
         </button>
       </div>
     </div>

@@ -178,20 +178,24 @@ fn state_with(
     b.build().unwrap()
 }
 
-/// The thumbnails present at the instant `LibraryScanCompleted` is
-/// published (a bus subscriber runs synchronously on the scan thread).
-fn record_thumbs_at_event(
-    st: &musaic_api::AppState,
-    thumbs: std::path::PathBuf,
-) -> std::sync::Arc<std::sync::Mutex<Vec<Vec<String>>>> {
+type SeenAtEvent = std::sync::Arc<std::sync::Mutex<Vec<(&'static str, Vec<String>)>>>;
+
+/// The thumbnails present at the instant the scan's end is published
+/// (`LibraryScanCompleted`, or `LibraryScanStopped` for a scan that saved
+/// nothing; a bus subscriber runs synchronously on the scan thread), with
+/// the event's name.
+fn record_thumbs_at_event(st: &musaic_api::AppState, thumbs: std::path::PathBuf) -> SeenAtEvent {
     use musaic_events::{Event, Subscriber, Topic};
-    let seen: std::sync::Arc<std::sync::Mutex<Vec<Vec<String>>>> = Default::default();
+    let seen: SeenAtEvent = Default::default();
     let s2 = seen.clone();
     st.bus().register(
         Topic::Event,
         Subscriber::from_fn(move |ev| {
-            if let Event::LibraryScanCompleted { .. } = ev {
-                s2.lock().unwrap().push(thumb_ids(&thumbs));
+            if matches!(
+                ev,
+                Event::LibraryScanCompleted { .. } | Event::LibraryScanStopped { .. }
+            ) {
+                s2.lock().unwrap().push((ev.name(), thumb_ids(&thumbs)));
             }
             Ok(())
         })
@@ -231,7 +235,8 @@ async fn every_thumbnail_exists_when_library_scan_completed_is_published() {
     want.sort();
     let seen = seen.lock().unwrap().clone();
     assert_eq!(seen.len(), 1, "one LibraryScanCompleted");
-    assert_eq!(seen[0], want, "thumbnails present at the event");
+    assert_eq!(seen[0].0, "LibraryScanCompleted");
+    assert_eq!(seen[0].1, want, "thumbnails present at the event");
 }
 
 /// The error path (services/scan.py:395-404: `except` emits `error`, the
@@ -239,7 +244,9 @@ async fn every_thumbnail_exists_when_library_scan_completed_is_published() {
 /// publishes): a scan whose body panics after three albums ends in
 /// `error`, the thumbnails of the albums it submitted exist when the event
 /// is published, and the restore gate is free once the status is `error`
-/// (the gate does not outlive the reported end of the scan).
+/// (the gate does not outlive the reported end of the scan). Deliberate
+/// change: the event is `LibraryScanStopped` (reason `error`), not the
+/// Python app's `LibraryScanCompleted`: the failed scan saved nothing.
 #[tokio::test(flavor = "multi_thread")]
 async fn failing_scan_drains_thumbnails_before_the_event_and_releases_the_gate() {
     let sb = Sandbox::new();
@@ -307,6 +314,7 @@ async fn failing_scan_drains_thumbnails_before_the_event_and_releases_the_gate()
     want.sort();
     assert!(!want.is_empty(), "at least one submitted album has a cover");
     let seen = seen.lock().unwrap().clone();
-    assert_eq!(seen.len(), 1, "one LibraryScanCompleted");
-    assert_eq!(seen[0], want, "thumbnails present at the event");
+    assert_eq!(seen.len(), 1, "one end-of-scan event");
+    assert_eq!(seen[0].0, "LibraryScanStopped");
+    assert_eq!(seen[0].1, want, "thumbnails present at the event");
 }

@@ -40,6 +40,23 @@ export function openScanStream(
     onEvent({ type: "done", ...data });
     es.close();
   });
+  es.addEventListener("cancelling", (ev) => {
+    const data = JSON.parse((ev as MessageEvent).data);
+    onEvent({ type: "cancelling", ...data });
+  });
+  // The two other terminal events: the scan ended without saving. Closing
+  // here also keeps the server's end of stream from surfacing as an
+  // `error` (EventSource reports a closed connection that way).
+  es.addEventListener("cancelled", (ev) => {
+    const data = JSON.parse((ev as MessageEvent).data);
+    onEvent({ type: "cancelled", ...data });
+    es.close();
+  });
+  es.addEventListener("aborted", (ev) => {
+    const data = JSON.parse((ev as MessageEvent).data);
+    onEvent({ type: "aborted", ...data });
+    es.close();
+  });
   // Backend emits a custom 'error' event on failure (with a JSON detail).
   es.addEventListener("error", (ev) => {
     const messageEv = ev as MessageEvent;

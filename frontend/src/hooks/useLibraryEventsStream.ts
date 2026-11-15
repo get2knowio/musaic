@@ -48,6 +48,11 @@
  *   LibraryScanCompleted              → broad refresh (snapshot + every
  *                                       per-album tracks/resolution).
  *   BulkBatchCompleted                → same.
+ *   LibraryScanStopped(reason)        → ["albums-snapshot"] only: an
+ *                                       aborted / cancelled / failed scan
+ *                                       wrote no album, but a cancelled
+ *                                       Rescan leaves the library's
+ *                                       scanned_at reset. Nothing per-album.
  *
  * Reconnect resync: EventSource auto-reconnects on transient network
  * drops, but events published during the gap are lost (relay's per-
@@ -191,6 +196,9 @@ export function useLibraryEventsStream() {
     });
     es.addEventListener("LibraryScanCompleted", () => onLibraryWide());
     es.addEventListener("BulkBatchCompleted", () => onLibraryWide());
+    es.addEventListener("LibraryScanStopped", () => {
+      qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
+    });
 
     es.addEventListener("error", () => {
       // EventSource auto-reconnects; the "open" listener above

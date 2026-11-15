@@ -34,7 +34,7 @@ export default function LibraryPage() {
   usePageTitle("Library");
   const config = useLibraryConfig();
   const enabled = config.data?.exists === true;
-  const { albums: scannedAlbums, scan, libraryDir, snapshotSyncs } = useScanStream({ enabled });
+  const { albums: scannedAlbums, scan, libraryDir, cancel, snapshotSyncs } = useScanStream({ enabled });
 
   // Local overrides from apply flow — when the sheet emits an updated album,
   // we splice it into the scanned list so the tile reflects the change without
@@ -120,7 +120,7 @@ export default function LibraryPage() {
         scannedAt={scan.scannedAt}
         activeFilterLabel={filterKey ? FILTERS_BY_KEY[filterKey].label : undefined}
       />
-      <ScanRibbon scan={scan} />
+      <ScanRibbon scan={scan} onCancel={() => void cancel()} />
       <ScrollPersistedArea storageKey={`mm.library.scroll.${view}`}>
         {albums.length === 0 && scan.status === "done" ? (
           <EmptyLibrary />

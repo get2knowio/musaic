@@ -9,6 +9,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
+const toast = vi.hoisted(() =>
+  Object.assign(vi.fn(), { warning: vi.fn(), error: vi.fn(), success: vi.fn() }),
+);
+vi.mock("sonner", () => ({ toast }));
+
 import { requestScanOnNextLoad, useScanStream } from "@/hooks/useScanStream";
 import { MockEventSource } from "@/test/setup";
 import { makeAlbum } from "@/test/fixtures";
@@ -25,18 +30,32 @@ function setup() {
   return { qc, hook };
 }
 
+let cancelOutcome = "requested";
+let cancelCalls = 0;
+
 beforeEach(() => {
   MockEventSource.instances.length = 0;
   requestScanOnNextLoad();
+  toast.mockClear();
+  toast.warning.mockClear();
+  cancelOutcome = "requested";
+  cancelCalls = 0;
   server = [makeAlbum({ id: "a", has_embedded_cover: false, cover_file: null })];
   vi.stubGlobal(
     "fetch",
-    vi.fn(async () =>
-      new Response(
+    vi.fn(async (url: string) => {
+      if (String(url).includes("/api/scan/cancel")) {
+        cancelCalls += 1;
+        return new Response(
+          JSON.stringify({ outcome: cancelOutcome, scan: { status: "cancelling" } }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response(
         JSON.stringify({ albums: server, count: server.length, library_dir: "/music", scanned_at: 1 }),
         { status: 200, headers: { "content-type": "application/json" } },
-      ),
-    ),
+      );
+    }),
   );
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -91,5 +110,83 @@ describe("useScanStream follows the albums snapshot", () => {
     expect(hook.result.current.albums.map((a) => a.id)).toContain("fresh");
     expect(hook.result.current.albums.map((a) => a.id)).not.toContain("stale");
     expect(hook.result.current.snapshotSyncs).toBe(0);
+  });
+});
+
+/**
+ * A scan that ends without saving (cancelled, or aborted by the backend's
+ * sanity check) is not reported as a finished scan: no "done" status, no
+ * "Library up to date" message; the list goes back to what the database
+ * holds (albums the stream showed but never stored drop out), and a toast
+ * says what happened.
+ */
+describe("useScanStream: scans that end without saving", () => {
+  it("cancel: requests it, shows cancelling, then reloads from the cache", async () => {
+    const { hook } = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    await waitFor(() => expect(hook.result.current.scan.canCancel).toBe(true));
+    act(() => MockEventSource.last!.emit("start", { library_dir: "/music", total: 3, cached_count: 1, force: false }));
+    act(() => MockEventSource.last!.emit("album", makeAlbum({ id: "unsaved" })));
+    expect(hook.result.current.albums.map((a) => a.id)).toContain("unsaved");
+
+    await act(async () => {
+      await hook.result.current.cancel();
+    });
+    expect(cancelCalls).toBe(1);
+    expect(hook.result.current.scan.status).toBe("cancelling");
+
+    act(() => MockEventSource.last!.emit("cancelling", { scanned: 1, total: 3 }));
+    act(() =>
+      MockEventSource.last!.emit("cancelled", {
+        reason: "cancelled",
+        phase: "albums",
+        scanned: 1,
+        total: 3,
+        detail: "Scan cancelled after 1 of 3 album(s). Nothing was saved.",
+      }),
+    );
+    expect(MockEventSource.last!.closed).toBe(true);
+    await waitFor(() => expect(hook.result.current.albums.map((a) => a.id)).toEqual(["a"]));
+    const scan = hook.result.current.scan;
+    expect(scan.status).toBe("cancelled");
+    expect(scan.canCancel).toBe(false);
+    expect(scan.message).toContain("Nothing was saved");
+    expect(toast).toHaveBeenCalledWith("Scan cancelled", expect.anything());
+  });
+
+  it("a cancel that comes too late leaves the scan to finish", async () => {
+    cancelOutcome = "too_late";
+    const { hook } = setup();
+    await waitFor(() => expect(hook.result.current.scan.canCancel).toBe(true));
+    act(() => MockEventSource.last!.emit("start", { library_dir: "/music", total: 1, cached_count: 1, force: false }));
+    await act(async () => {
+      await hook.result.current.cancel();
+    });
+    expect(hook.result.current.scan.status).toBe("scanning");
+    act(() => MockEventSource.last!.emit("done", { count: 1, scanned_at: 2 }));
+    await waitFor(() => expect(hook.result.current.scan.status).toBe("done"));
+  });
+
+  it("aborted: warns with the backend's reason and does not report done", async () => {
+    const { hook } = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    act(() => MockEventSource.last!.emit("start", { library_dir: "/music", total: 1, cached_count: 12, force: false }));
+    act(() => MockEventSource.last!.emit("album", makeAlbum({ id: "unsaved" })));
+    act(() =>
+      MockEventSource.last!.emit("aborted", {
+        reason: "vanish_ratio_exceeded",
+        detail: "Scan aborted: 11 of 12 cached album(s) appear to be missing from disk.",
+        vanish_count: 11,
+        cached_count: 12,
+      }),
+    );
+    await waitFor(() => expect(hook.result.current.albums.map((a) => a.id)).toEqual(["a"]));
+    expect(hook.result.current.scan.status).toBe("aborted");
+    expect(hook.result.current.scan.message).toContain("missing from disk");
+    expect(toast.warning).toHaveBeenCalledWith(
+      "Scan stopped without saving",
+      expect.objectContaining({ description: expect.stringContaining("missing from disk") }),
+    );
+    expect(toast).not.toHaveBeenCalled();
   });
 });

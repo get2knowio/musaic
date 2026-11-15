@@ -532,9 +532,11 @@ async fn shutdown_waits_for_a_stuck_pool_only_so_long() {
 
 // scan.py:184-206, 400-404: a panic inside the scan job is the
 // Python app's exception path: an `error` event with the detail, status
-// `error` (never stuck at `running`), `LibraryScanCompleted` published, no
-// pool pass started (only clean scans warm it), the restore gate released,
-// and the next scan runs normally.
+// `error` (never stuck at `running`), no pool pass started (only clean
+// scans warm it), the restore gate released, and the next scan runs
+// normally. Deliberate change: the Python app published
+// `LibraryScanCompleted` here too; a failed scan saved nothing, so it now
+// publishes `LibraryScanStopped(reason="error")` instead.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_panicking_scan_ends_in_error_and_frees_everything() {
     let sb = Sandbox::new();
@@ -556,8 +558,16 @@ async fn a_panicking_scan_ends_in_error_and_frees_everything() {
         st.bus().register(
             musaic_events::Topic::Event,
             musaic_events::Subscriber::from_fn(move |ev| {
-                if matches!(ev, musaic_events::Event::LibraryScanCompleted { .. }) {
-                    c.fetch_add(1, Ordering::SeqCst);
+                match ev {
+                    musaic_events::Event::LibraryScanStopped { reason, .. }
+                        if reason == "error" =>
+                    {
+                        c.fetch_add(1, Ordering::SeqCst);
+                    }
+                    musaic_events::Event::LibraryScanCompleted { .. } => {
+                        c.fetch_add(100, Ordering::SeqCst);
+                    }
+                    _ => {}
                 }
                 Ok(())
             }),
@@ -580,13 +590,17 @@ async fn a_panicking_scan_ends_in_error_and_frees_everything() {
     assert!(s["completed_at"].is_string());
     // Published and released by the job right after the terminal status
     // the stream ends on.
-    eventually("LibraryScanCompleted", || {
+    eventually("LibraryScanStopped(error)", || {
         completed.load(Ordering::SeqCst) == 1
     })
     .await;
     eventually("guard released", || st.gate().snapshot() == (0, false)).await;
     tokio::time::sleep(Duration::from_millis(50)).await;
-    assert_eq!(completed.load(Ordering::SeqCst), 1, "published once");
+    assert_eq!(
+        completed.load(Ordering::SeqCst),
+        1,
+        "stopped published once, completion never"
+    );
     assert_eq!(
         st.pool().state().status,
         PoolStatus::Idle,

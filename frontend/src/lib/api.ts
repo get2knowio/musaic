@@ -12,6 +12,7 @@ import type {
   Job,
   JobStatus,
   JobType,
+  ScanCancelResponse,
   TracksResponse,
 } from "./types";
 import { errorDetailText } from "./errors";
@@ -146,6 +147,11 @@ export function clearAlbumMbAnchor(
 
 export function rescanLibrary(): Promise<{ status: string; library_dir: string }> {
   return request("/api/scan/rescan", { method: "POST" });
+}
+
+/** Ask the running scan to stop; nothing it read is saved. */
+export function cancelScan(): Promise<ScanCancelResponse> {
+  return request("/api/scan/cancel", { method: "POST" });
 }
 
 export function getFingerprintPoolStatus(): Promise<FingerprintPoolStatus> {

@@ -31,6 +31,7 @@ pub mod work;
 
 pub use app::{
     App, AppBuilder, AppInner, Pause, RestoreHook, SHUTDOWN_CHECKPOINT_WAIT, SHUTDOWN_POOL_WAIT,
-    SharedAnalyzer, SharedSecrets, ShutdownReport, StartupError, WallClock, open_conn,
+    SHUTDOWN_SCAN_WAIT, SharedAnalyzer, SharedSecrets, ShutdownReport, StartupError, WallClock,
+    open_conn,
 };
 pub use work::WorkSnapshot;

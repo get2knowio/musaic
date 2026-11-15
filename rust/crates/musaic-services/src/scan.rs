@@ -4,12 +4,38 @@
 //!
 //! # State machine
 //!
-//! `idle -> running -> done | error`, at most one scan at a time.
-//! [`ScanService::start_scan`] while a scan runs returns the running state
-//! unchanged ([`StartScan::AlreadyRunning`]); otherwise it resets the state
-//! and the event buffer and hands back a [`ScanJob`] the host runs on a
-//! blocking thread ([`ScanService::start_scan_thread`] does that with
-//! `std::thread`).
+//! `idle -> running -> done | aborted | cancelled | error`, at most one scan
+//! at a time. [`ScanService::start_scan`] while a scan runs returns the
+//! running state unchanged ([`StartScan::AlreadyRunning`]); otherwise it
+//! resets the state and the event buffer and hands back a [`ScanJob`] the
+//! host runs on a blocking thread ([`ScanService::start_scan_thread`] does
+//! that with `std::thread`).
+//!
+//! `done`: the snapshot was saved. `aborted`: the sanity check judged the
+//! walk untrustworthy (too many albums vanished at once) and nothing was
+//! written. `cancelled`: [`ScanService::cancel`] stopped it and nothing was
+//! written. `error`: the scan failed (a failed save is rolled back, so
+//! nothing was written either). The Python app had no `aborted` /
+//! `cancelled`: an aborted scan ended `done`, and a scan could not be
+//! cancelled (deliberate change).
+//!
+//! # Cancelling
+//!
+//! [`ScanService::cancel`] sets a flag the worker reads at every directory
+//! of the discovery walk and before every album; while the flag is set and
+//! the scan has not ended, the status reads `cancelling` (still a running
+//! scan: [`ScanService::is_running`] is true and a new scan cannot start).
+//! The save is the commit point: once the worker has decided to write the
+//! snapshot (one transaction), a cancel is refused as
+//! [`CancelScan::TooLate`] and the scan ends `done`. Before that point
+//! nothing is written, so a cancelled scan leaves the database exactly as
+//! the previous scan left it: no album inserted or updated, nobody marked
+//! Missing or returned, `scanned_at` untouched. (A Rescan resets the
+//! library's `scanned_at` and the rows' `dir_mtime` before its scan
+//! starts; a cancelled Rescan keeps that reset, so the next scan still
+//! reads every album afresh. The rows themselves are unchanged.)
+//! Thumbnails already written for albums read before the cancel stay; they
+//! are a cache keyed by album id.
 //!
 //! # Buffer
 //!
@@ -25,6 +51,13 @@
 //! 200, else every `total // 100`), then `aborted {...}` (the sanity check), or
 //! `marked_missing {id, path}`* + `done {count, marked_missing_count,
 //! newly_missing_count, returned_count, scanned_at}`, or `error {detail}`.
+//! A cancel adds `cancelling {scanned, total}` when it is accepted (at any
+//! point, also before `start`) and ends the scan with `cancelled {reason,
+//! phase, scanned, total, detail}` (`phase`: `discovery` or `albums`)
+//! instead of the rest. Exactly one of `done` / `aborted` / `cancelled` /
+//! `error` ends every scan. `aborted` and `cancelled` are pushed together
+//! with the terminal status (one lock), so a client that sees them finds
+//! the scan over and can start the next one at once.
 //!
 //! Deliberate change: the sanity check counts only albums that were
 //! Present before this scan (`vanish_count` = Present cached albums absent
@@ -37,14 +70,20 @@
 //!
 //! `AlbumMarkedMissing` / `AlbumTagsChanged(fields=["missing_since"])` for the
 //! save's Missing transitions (in the database's rowid order, the order the
-//! Python app's query returns), then `LibraryScanCompleted(album_count=scanned)`
-//! after the worker returns, on every path including errors and aborts.
-//! `on_worker_done` (the thumbnail pool drain) runs after the worker returns
-//! and before that event, on every path, as the Python app's worker `finally`.
-//! `after_scan` (the fingerprint pool kick-off) runs after a clean return or
-//! an abort, never after an error. Reproduced from the Python app: no
-//! cancellation, and an aborted scan still publishes `LibraryScanCompleted`
-//! and runs `after_scan`.
+//! Python app's query returns), then, after the worker returns:
+//!
+//! * a saved scan (`done`): `LibraryScanCompleted(album_count=scanned)`, then
+//!   `after_scan` (the fingerprint pool kick-off);
+//! * an aborted, cancelled or failed scan:
+//!   `LibraryScanStopped(reason, album_count=scanned)` (`reason`:
+//!   `vanish_ratio_exceeded`, `cancelled` or `error`) and no `after_scan`.
+//!
+//! Deliberate change: the Python app published `LibraryScanCompleted` on
+//! every path and ran the pool kick-off after an abort, so post-scan check
+//! reruns and the fingerprint pool started against a library just judged
+//! unreachable. `on_worker_done` (the thumbnail pool drain) runs after the
+//! worker returns and before any of this, on every path, as the Python
+//! app's worker `finally`.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::Path;
@@ -63,11 +102,23 @@ use crate::json::Json;
 /// `_MAX_BUFFER`.
 pub const MAX_BUFFER: usize = 50_000;
 
+/// `LibraryScanStopped.reason` (and `aborted.reason`) of a sanity-check abort.
+pub const ABORT_REASON: &str = "vanish_ratio_exceeded";
+/// `LibraryScanStopped.reason` (and `cancelled.reason`) of a cancelled scan.
+pub const CANCEL_REASON: &str = "cancelled";
+/// `LibraryScanStopped.reason` of a failed scan.
+pub const ERROR_REASON: &str = "error";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScanStatus {
     Idle,
     Running,
     Done,
+    /// The sanity check refused to write (deliberate change: the Python app
+    /// reported `done`).
+    Aborted,
+    /// Cancelled before the save; nothing written.
+    Cancelled,
     Error,
 }
 
@@ -77,7 +128,52 @@ impl ScanStatus {
             ScanStatus::Idle => "idle",
             ScanStatus::Running => "running",
             ScanStatus::Done => "done",
+            ScanStatus::Aborted => "aborted",
+            ScanStatus::Cancelled => "cancelled",
             ScanStatus::Error => "error",
+        }
+    }
+
+    /// A scan ran and is over.
+    pub fn is_terminal(self) -> bool {
+        matches!(
+            self,
+            ScanStatus::Done | ScanStatus::Aborted | ScanStatus::Cancelled | ScanStatus::Error
+        )
+    }
+}
+
+/// The result of [`ScanService::cancel`], each with the state after it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CancelScan {
+    /// The scan will stop at the next directory or album and end
+    /// `cancelled`.
+    Requested(ScanState),
+    /// A cancel was already requested; nothing changed.
+    AlreadyRequested(ScanState),
+    /// The scan is saving its result (the commit point); it ends `done`.
+    TooLate(ScanState),
+    /// No scan is running (it may have just ended on its own).
+    NotRunning(ScanState),
+}
+
+impl CancelScan {
+    /// The wire name of the outcome (`POST /api/scan/cancel`).
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CancelScan::Requested(_) => "requested",
+            CancelScan::AlreadyRequested(_) => "already_requested",
+            CancelScan::TooLate(_) => "too_late",
+            CancelScan::NotRunning(_) => "not_running",
+        }
+    }
+
+    pub fn state(&self) -> &ScanState {
+        match self {
+            CancelScan::Requested(s)
+            | CancelScan::AlreadyRequested(s)
+            | CancelScan::TooLate(s)
+            | CancelScan::NotRunning(s) => s,
         }
     }
 }
@@ -95,6 +191,8 @@ pub struct ScanState {
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
     pub error: Option<String>,
+    /// [`ScanService::cancel`] was accepted for this scan.
+    pub cancel_requested: bool,
 }
 
 impl ScanState {
@@ -110,13 +208,26 @@ impl ScanState {
             started_at: None,
             completed_at: None,
             error: None,
+            cancel_requested: false,
         }
     }
 
-    /// `GET /api/scan/status` body (key order of `to_dict`).
+    /// The status as reported: `cancelling` for a running scan whose
+    /// cancel was accepted, else [`ScanStatus::as_str`].
+    pub fn status_str(&self) -> &'static str {
+        if self.status == ScanStatus::Running && self.cancel_requested {
+            "cancelling"
+        } else {
+            self.status.as_str()
+        }
+    }
+
+    /// `GET /api/scan/status` body (key order of `to_dict`). The cancel is
+    /// visible only through `status` (`cancelling`, then `cancelled`), so
+    /// the body keeps the Python app's keys.
     pub fn to_json(&self) -> Json {
         Json::obj([
-            ("status", Json::from(self.status.as_str())),
+            ("status", Json::from(self.status_str())),
             ("library_dir", Json::from(self.library_dir.clone())),
             ("force", Json::from(self.force)),
             ("total", Json::from(self.total)),
@@ -149,6 +260,20 @@ struct Inner {
     state: ScanState,
     events: VecDeque<ScanEvent>,
     next_seq: u64,
+    /// The worker passed the commit point (it is saving the snapshot): a
+    /// cancel can no longer stop it.
+    saving: bool,
+}
+
+impl Inner {
+    fn push(&mut self, name: &'static str, data: Json) {
+        let seq = self.next_seq;
+        self.next_seq += 1;
+        self.events.push_back(ScanEvent { seq, name, data });
+        while self.events.len() > MAX_BUFFER {
+            self.events.pop_front();
+        }
+    }
 }
 
 struct Shared {
@@ -163,14 +288,7 @@ impl Shared {
 
     /// `_push_event`.
     fn push(&self, name: &'static str, data: Json) {
-        let mut g = self.lock();
-        let seq = g.next_seq;
-        g.next_seq += 1;
-        g.events.push_back(ScanEvent { seq, name, data });
-        while g.events.len() > MAX_BUFFER {
-            g.events.pop_front();
-        }
-        drop(g);
+        self.lock().push(name, data);
         self.changed.notify_all();
     }
 
@@ -178,6 +296,42 @@ impl Shared {
         f(&mut self.lock().state);
         self.changed.notify_all();
     }
+
+    /// A cancel was accepted (the worker stops at its next check).
+    fn cancel_requested(&self) -> bool {
+        self.lock().state.cancel_requested
+    }
+
+    /// The commit point: `true` (and no cancel can stop the scan from now
+    /// on) unless a cancel was accepted first.
+    fn enter_save(&self) -> bool {
+        let mut g = self.lock();
+        if g.state.cancel_requested {
+            return false;
+        }
+        g.saving = true;
+        true
+    }
+
+    /// The terminal status and the terminal event under one lock, so no
+    /// subscriber sees one without the other.
+    fn finish(&self, f: impl FnOnce(&mut ScanState), name: &'static str, data: Json) {
+        let mut g = self.lock();
+        f(&mut g.state);
+        g.push(name, data);
+        drop(g);
+        self.changed.notify_all();
+    }
+}
+
+/// How the worker ended when it did not fail.
+enum Outcome {
+    /// The snapshot was saved (`done` is in the buffer).
+    Saved,
+    /// The sanity check refused to write: the `aborted` payload.
+    Aborted(Json),
+    /// Cancelled before the save: the `cancelled` payload.
+    Cancelled(Json),
 }
 
 /// Opens the library database for the worker thread.
@@ -250,6 +404,7 @@ impl ScanService {
                     state: ScanState::idle(),
                     events: VecDeque::new(),
                     next_seq: 0,
+                    saving: false,
                 }),
                 changed: Condvar::new(),
             }),
@@ -281,6 +436,7 @@ impl ScanService {
         g.state.force = force;
         g.events.clear();
         g.next_seq = 0;
+        g.saving = false;
         g.state.status = ScanStatus::Running;
         g.state.started_at = Some((deps.clock)());
         let snapshot = g.state.clone();
@@ -310,6 +466,58 @@ impl ScanService {
                 s
             }
         }
+    }
+
+    /// Ask the running scan to stop (module docs, "Cancelling"). Safe at any
+    /// moment and from any thread; returns at once. An accepted cancel
+    /// pushes `cancelling` to the event buffer; the scan then ends
+    /// `cancelled` at its next directory or album, after the album being
+    /// read.
+    pub fn cancel(&self) -> CancelScan {
+        let mut g = self.shared.lock();
+        if g.state.status != ScanStatus::Running {
+            return CancelScan::NotRunning(g.state.clone());
+        }
+        if g.saving {
+            return CancelScan::TooLate(g.state.clone());
+        }
+        if g.state.cancel_requested {
+            return CancelScan::AlreadyRequested(g.state.clone());
+        }
+        g.state.cancel_requested = true;
+        let (scanned, total) = (g.state.scanned, g.state.total);
+        g.push(
+            "cancelling",
+            Json::obj([
+                ("scanned", Json::from(scanned)),
+                ("total", Json::from(total)),
+            ]),
+        );
+        let state = g.state.clone();
+        drop(g);
+        self.shared.changed.notify_all();
+        CancelScan::Requested(state)
+    }
+
+    /// Wait up to `timeout` for the status to leave `running`; `true` when
+    /// no scan runs at the end. The terminal status is set after the
+    /// worker closed its database connection.
+    pub fn wait_until_stopped(&self, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        let mut g = self.shared.lock();
+        while g.state.status == ScanStatus::Running {
+            let now = Instant::now();
+            if now >= deadline {
+                return false;
+            }
+            g = self
+                .shared
+                .changed
+                .wait_timeout(g, deadline - now)
+                .unwrap_or_else(|e| e.into_inner())
+                .0;
+        }
+        true
     }
 
     /// `subscribe(from_seq)`.
@@ -352,7 +560,7 @@ impl ScanSubscription {
                 self.last_yielded = ev.seq as i64;
                 return Poll::Event(ev);
             }
-            let terminal = matches!(g.state.status, ScanStatus::Done | ScanStatus::Error);
+            let terminal = g.state.status.is_terminal();
             if terminal && self.last_yielded >= g.next_seq as i64 - 1 {
                 return Poll::Finished;
             }
@@ -387,8 +595,8 @@ impl Iterator for ScanSubscription {
 }
 
 impl ScanJob {
-    /// `_run_scan`: the worker, then the bus event, the hook and the
-    /// terminal status.
+    /// `_run_scan`: the worker, then the terminal status, the bus event and
+    /// (after a saved scan) the hook.
     pub fn run(self) {
         let ScanJob {
             shared,
@@ -420,15 +628,48 @@ impl ScanJob {
             }
         }
         let scanned = shared.lock().state.scanned as i64;
-        if let Err(detail) = result {
-            shared.update(|s| {
-                s.status = ScanStatus::Error;
-                s.error = Some(detail);
-                s.completed_at = Some((deps.clock)());
-            });
-            deps.bus.publish(&BusEvent::LibraryScanCompleted {
+        // Deliberate change: only a saved scan announces completion and
+        // restarts the fingerprint pool. An aborted, cancelled or failed
+        // scan wrote nothing, so post-scan reruns and the pool have
+        // nothing new to look at (and after an abort the library was just
+        // judged unreachable); subscribers learn the scan ended, and why,
+        // from `LibraryScanStopped`.
+        let (status, reason, name, payload) = match result {
+            Ok(Outcome::Saved) => (ScanStatus::Done, "", "", Json::Null),
+            Ok(Outcome::Aborted(payload)) => {
+                (ScanStatus::Aborted, ABORT_REASON, "aborted", payload)
+            }
+            Ok(Outcome::Cancelled(payload)) => {
+                (ScanStatus::Cancelled, CANCEL_REASON, "cancelled", payload)
+            }
+            Err(detail) => {
+                shared.update(|s| {
+                    s.status = ScanStatus::Error;
+                    s.error = Some(detail);
+                    s.completed_at = Some((deps.clock)());
+                });
+                deps.bus.publish(&BusEvent::LibraryScanStopped {
+                    reason: ERROR_REASON.to_string(),
+                    album_count: scanned,
+                });
+                return;
+            }
+        };
+        if status != ScanStatus::Done {
+            let now = (deps.clock)();
+            shared.finish(
+                |s| {
+                    s.status = status;
+                    s.completed_at = Some(now);
+                },
+                name,
+                payload,
+            );
+            deps.bus.publish(&BusEvent::LibraryScanStopped {
+                reason: reason.to_string(),
                 album_count: scanned,
             });
+            drop(guard);
             return;
         }
         deps.bus.publish(&BusEvent::LibraryScanCompleted {
@@ -518,11 +759,7 @@ fn panic_text(p: &(dyn std::any::Any + Send)) -> String {
 /// so its album is found once and the counts are right. The Python app walks
 /// it twice.
 pub fn discover_album_dirs(root: &Path) -> Vec<String> {
-    discover_album_dirs_with(root, &|dir: &Path| {
-        std::fs::read_dir(dir)
-            .ok()
-            .map(|rd| rd.flatten().map(|e| e.file_name()).collect())
-    })
+    discover_album_dirs_with(root, &list_dir)
 }
 
 /// [`discover_album_dirs`] over `list`, which returns the entry names of a
@@ -533,13 +770,31 @@ pub fn discover_album_dirs_with(
     root: &Path,
     list: &dyn Fn(&Path) -> Option<Vec<std::ffi::OsString>>,
 ) -> Vec<String> {
+    discover_album_dirs_until(root, list, &|| false).unwrap_or_default()
+}
+
+/// [`discover_album_dirs_with`] that asks `stop` before listing each
+/// directory and gives up (`None`) as soon as it answers true: a cancel
+/// during the walk of a large or slow library takes effect at the next
+/// directory.
+#[doc(hidden)]
+pub fn discover_album_dirs_until(
+    root: &Path,
+    list: &dyn Fn(&Path) -> Option<Vec<std::ffi::OsString>>,
+    stop: &dyn Fn() -> bool,
+) -> Option<Vec<String>> {
+    struct Stopped;
     fn walk(
         dir: &Path,
         list: &dyn Fn(&Path) -> Option<Vec<std::ffi::OsString>>,
+        stop: &dyn Fn() -> bool,
         found: &mut Vec<String>,
-    ) {
+    ) -> Result<(), Stopped> {
+        if stop() {
+            return Err(Stopped);
+        }
         let Some(mut names) = list(dir) else {
-            return;
+            return Ok(());
         };
         names.sort();
         let mut seen = std::collections::HashSet::new();
@@ -567,15 +822,22 @@ pub fn discover_album_dirs_with(
             let is_link =
                 std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink());
             if !is_link {
-                walk(&path, list, found);
+                walk(&path, list, stop, found)?;
             }
         }
+        Ok(())
     }
     let mut found = Vec::new();
     if root.exists() {
-        walk(root, list, &mut found);
+        walk(root, list, stop, &mut found).ok()?;
     }
-    found
+    Some(found)
+}
+
+fn list_dir(dir: &Path) -> Option<Vec<std::ffi::OsString>> {
+    std::fs::read_dir(dir)
+        .ok()
+        .map(|rd| rd.flatten().map(|e| e.file_name()).collect())
 }
 
 fn mtime(p: &Path) -> Option<f64> {
@@ -598,16 +860,26 @@ fn cached_row_is_complete(a: &Album) -> bool {
     !a.track_artists.is_empty() || !a.is_compilation
 }
 
-fn rowid_order(conn: &Connection, ids: Vec<String>) -> rusqlite::Result<Vec<String>> {
+/// `ids` in rowid order. Runs after the save committed, so a failed lookup
+/// only costs the order (logged), never the scan.
+fn rowid_order(conn: &Connection, ids: Vec<String>, deps: &ScanDeps) -> Vec<String> {
     let mut keyed: Vec<(i64, String)> = Vec::with_capacity(ids.len());
-    for id in ids {
-        let rowid: i64 = conn.query_row("SELECT rowid FROM albums WHERE id = ?1", [&id], |r| {
-            r.get(0)
-        })?;
-        keyed.push((rowid, id));
+    for id in &ids {
+        match conn.query_row("SELECT rowid FROM albums WHERE id = ?1", [id], |r| {
+            r.get::<_, i64>(0)
+        }) {
+            Ok(rowid) => keyed.push((rowid, id.clone())),
+            Err(e) => {
+                log_line(
+                    deps,
+                    &format!("scan: rowid lookup failed after the save (order kept): {e}"),
+                );
+                return ids;
+            }
+        }
     }
     keyed.sort();
-    Ok(keyed.into_iter().map(|(_, id)| id).collect())
+    keyed.into_iter().map(|(_, id)| id).collect()
 }
 
 /// `_scan_worker`. Pushes `error` itself before failing.
@@ -616,7 +888,7 @@ fn scan_worker(
     library_dir: &str,
     force: bool,
     deps: &ScanDeps,
-) -> Result<(), String> {
+) -> Result<Outcome, String> {
     // `except Exception as e: emit("error", ...); raise`: a panic in the
     // scan body (or in a hook it calls) is an error like any other.
     let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -632,12 +904,41 @@ fn scan_worker(
     res
 }
 
+/// The `cancelled` payload.
+fn cancelled_payload(shared: &Shared, phase: &str) -> Outcome {
+    let (scanned, total) = {
+        let g = shared.lock();
+        (g.state.scanned, g.state.total)
+    };
+    Outcome::Cancelled(Json::obj([
+        ("reason", Json::from(CANCEL_REASON)),
+        ("phase", Json::from(phase)),
+        ("scanned", Json::from(scanned)),
+        ("total", Json::from(total)),
+        (
+            "detail",
+            Json::from(format!(
+                "Scan cancelled {}. Nothing was saved: the library keeps the result of its \
+                 previous scan.",
+                if phase == "discovery" {
+                    "while looking for album folders".to_string()
+                } else {
+                    format!("after {scanned} of {total} album(s)")
+                }
+            )),
+        ),
+    ]))
+}
+
 fn scan_body(
     shared: &Shared,
     library_dir: &str,
     force: bool,
     deps: &ScanDeps,
-) -> Result<(), String> {
+) -> Result<Outcome, String> {
+    if shared.cancel_requested() {
+        return Ok(cancelled_payload(shared, "discovery"));
+    }
     let mut conn = (deps.open_db)()?;
     let resolved = py_resolve(Path::new(library_dir))
         .to_string_lossy()
@@ -654,7 +955,11 @@ fn scan_body(
     }
     let cached_count = cached_by_path.len();
 
-    let candidates = discover_album_dirs(Path::new(library_dir));
+    let stop = || shared.cancel_requested();
+    let Some(candidates) = discover_album_dirs_until(Path::new(library_dir), &list_dir, &stop)
+    else {
+        return Ok(cancelled_payload(shared, "discovery"));
+    };
     let candidate_set: HashSet<&str> = candidates.iter().map(String::as_str).collect();
     let total = candidates.len();
     shared.update(|s| {
@@ -675,6 +980,10 @@ fn scan_body(
     let mut collected: Vec<(String, Album)> = Vec::new();
     let mut scanned = 0usize;
     for path in &candidates {
+        // The album boundary: an album being read is finished first.
+        if shared.cancel_requested() {
+            return Ok(cancelled_payload(shared, "albums"));
+        }
         let cached = cached_by_path.get(path).map(|&i| &cached_rows[i]);
         let current = effective_mtime(Path::new(path));
         let (status, mut dict, album) = match cached {
@@ -731,21 +1040,28 @@ fn scan_body(
 
     // Refuse to write when a large part of the Present cache vanished
     // (">30% of >= 10 albums", both over Present albums).
+    // A cancel that came in during the last album wins over the verdict.
+    if shared.cancel_requested() {
+        return Ok(cancelled_payload(shared, "albums"));
+    }
+    // Pushed by `ScanJob::run` together with the terminal status.
     if let Some(abort) =
         musaic_db::albums::scan_sanity_check(present_count, removed.len(), library_dir)
     {
-        shared.push(
-            "aborted",
-            Json::obj([
-                ("reason", Json::from("vanish_ratio_exceeded")),
-                ("vanish_ratio", Json::Float(abort.vanish_ratio)),
-                ("vanish_count", Json::from(abort.vanish_count)),
-                ("cached_count", Json::from(abort.cached_count)),
-                ("threshold", Json::Float(abort.threshold)),
-                ("detail", Json::from(abort.detail)),
-            ]),
-        );
-        return Ok(());
+        return Ok(Outcome::Aborted(Json::obj([
+            ("reason", Json::from(ABORT_REASON)),
+            ("vanish_ratio", Json::Float(abort.vanish_ratio)),
+            ("vanish_count", Json::from(abort.vanish_count)),
+            ("cached_count", Json::from(abort.cached_count)),
+            ("threshold", Json::Float(abort.threshold)),
+            ("detail", Json::from(abort.detail)),
+        ])));
+    }
+
+    // The commit point: from here on a cancel is refused (`TooLate`) and
+    // the scan saves. Nothing before this line wrote to the database.
+    if !shared.enter_save() {
+        return Ok(cancelled_payload(shared, "albums"));
     }
 
     // Announced only for Present -> Missing transitions.
@@ -766,8 +1082,10 @@ fn scan_body(
     let transitions =
         musaic_db::albums::save_snapshot(&mut conn, &resolved, &scanned_at, &now, &albums_in)
             .map_err(|e| e.to_string())?;
-    let newly_missing = rowid_order(&conn, transitions.newly_missing).map_err(|e| e.to_string())?;
-    let returned = rowid_order(&conn, transitions.returned).map_err(|e| e.to_string())?;
+    // The snapshot is committed: nothing after this point fails the scan,
+    // so a saved scan always ends `done` and announces completion.
+    let newly_missing = rowid_order(&conn, transitions.newly_missing, deps);
+    let returned = rowid_order(&conn, transitions.returned, deps);
     // One event per transition, after the commit.
     for id in &newly_missing {
         deps.bus.publish(&BusEvent::AlbumMarkedMissing {
@@ -806,5 +1124,5 @@ fn scan_body(
             ("scanned_at", Json::from(scanned_at)),
         ]),
     );
-    Ok(())
+    Ok(Outcome::Saved)
 }

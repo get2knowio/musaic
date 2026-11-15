@@ -8,21 +8,41 @@
  *   3. Tracks progress for the scan ribbon UI.
  *
  * Returns a stable map of albums (sorted), the current scan state, and
- * imperative `rescan()` / `loadCachedOnly()` controls.
+ * imperative `rescan()` / `cancel()` controls.
+ *
+ * A scan ends in exactly one of `done` (saved), `cancelled` (the user
+ * stopped it) or `aborted` (the backend's sanity check refused to save: too
+ * many albums vanished at once), or `error`. Only `done` reports the library
+ * as freshly scanned; after `cancelled` / `aborted` nothing was saved, so the
+ * list is reloaded from the cached snapshot (albums the stream showed but
+ * the database never stored drop out) and a toast says why.
  *
  * One stream open per library_dir at a time; switching libraries closes
  * the previous one.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { listAlbums, rescanLibrary } from "@/lib/api";
+import { toast } from "sonner";
+
+import { cancelScan, listAlbums, rescanLibrary } from "@/lib/api";
 import { openScanStream } from "@/lib/sse";
 import { registerRescan, setScanning } from "@/lib/rescanController";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import type { Album } from "@/lib/types";
 
 export interface ScanState {
-  status: "idle" | "loading-cache" | "scanning" | "done" | "error";
+  status:
+    | "idle"
+    | "loading-cache"
+    | "scanning"
+    | "cancelling"
+    | "done"
+    | "cancelled"
+    | "aborted"
+    | "error";
+  /** The scan stream is open: a scan runs (or is about to), so Cancel
+   *  has something to stop. */
+  canCancel: boolean;
   total: number;
   scanned: number;
   cachedCount: number;
@@ -34,6 +54,7 @@ export interface ScanState {
 
 const INITIAL: ScanState = {
   status: "idle",
+  canCancel: false,
   total: 0,
   scanned: 0,
   cachedCount: 0,
@@ -48,6 +69,8 @@ export interface UseScanStreamResult {
   scan: ScanState;
   libraryDir: string | null;
   rescan: () => Promise<void>;
+  /** Ask the running scan to stop (`POST /api/scan/cancel`). */
+  cancel: () => Promise<void>;
   /** Counts the times the list was replaced by a newer ["albums-snapshot"]
    *  fetch (see the sync effect); Library drops its apply overrides then. */
   snapshotSyncs: number;
@@ -70,6 +93,16 @@ let _initialScanDone = false;
  */
 export function requestScanOnNextLoad(): void {
   _initialScanDone = false;
+}
+
+/** The scan is over and the list holds what the database holds. */
+export function isSettled(status: ScanState["status"]): boolean {
+  return status === "done" || status === "cancelled" || status === "aborted";
+}
+
+/** A scan is in progress (the ribbon shows, Rescan is disabled). */
+export function isScanBusy(status: ScanState["status"]): boolean {
+  return status === "scanning" || status === "loading-cache" || status === "cancelling";
 }
 
 /**
@@ -157,15 +190,31 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
         return;
       }
 
+      // The scan ended without saving: show what the database holds.
+      const reloadFromCache = async () => {
+        try {
+          const cached = await listAlbums();
+          if (cancelled) return;
+          const map = new Map<string, Album>();
+          for (const a of cached.albums) map.set(a.id, a);
+          setAlbumsById(map);
+          setScan((s) => ({ ...s, scannedAt: cached.scanned_at || null }));
+        } catch {
+          /* keep the streamed list; the next snapshot sync replaces it */
+        }
+      };
+
       // 2. Open the SSE stream to refresh + extend.
       const url = `/api/scan/stream${force ? "?force=true" : ""}`;
+      setScan((s) => ({ ...s, canCancel: true }));
       const handle = openScanStream(url, (ev) => {
         if (cancelled) return;
         switch (ev.type) {
           case "start":
             setScan((s) => ({
               ...s,
-              status: "scanning",
+              // A cancel accepted during discovery precedes `start`.
+              status: s.status === "cancelling" ? "cancelling" : "scanning",
               total: ev.total,
               cachedCount: ev.cached_count,
               scanned: 0,
@@ -202,10 +251,29 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
             setScan((s) => ({ ...s, scanned: ev.scanned, total: ev.total }));
             break;
 
+          case "cancelling":
+            setScan((s) => ({ ...s, status: "cancelling", message: "Cancelling…" }));
+            break;
+
+          case "cancelled":
+            setScan((s) => ({ ...s, status: "cancelled", canCancel: false, message: ev.detail }));
+            toast("Scan cancelled", {
+              description: "Nothing was saved; the library keeps its previous scan.",
+            });
+            void reloadFromCache();
+            break;
+
+          case "aborted":
+            setScan((s) => ({ ...s, status: "aborted", canCancel: false, message: ev.detail }));
+            toast.warning("Scan stopped without saving", { description: ev.detail });
+            void reloadFromCache();
+            break;
+
           case "done":
             setScan((s) => ({
               ...s,
               status: "done",
+              canCancel: false,
               scannedAt: ev.scanned_at,
               message:
                 s.freshCount === 0 && s.markedMissingCount === 0
@@ -215,7 +283,7 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
             break;
 
           case "error":
-            setScan((s) => ({ ...s, status: "error", message: ev.detail }));
+            setScan((s) => ({ ...s, status: "error", canCancel: false, message: ev.detail }));
             break;
         }
       });
@@ -293,8 +361,24 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
     return () => registerRescan(null);
   }, [rescan]);
 
+  const cancel = useCallback(async () => {
+    try {
+      const r = await cancelScan();
+      if (r.outcome === "requested" || r.outcome === "already_requested") {
+        // The stream's `cancelling` event says the same; this is just sooner.
+        setScan((s) => (isScanBusy(s.status) ? { ...s, status: "cancelling", message: "Cancelling…" } : s));
+      } else if (r.outcome === "too_late") {
+        toast("The scan is already saving its result", {
+          description: "It will finish in a moment.",
+        });
+      }
+    } catch (err) {
+      toast.error((err as Error).message || "Couldn't cancel the scan");
+    }
+  }, []);
+
   useEffect(() => {
-    setScanning(scan.status === "scanning" || scan.status === "loading-cache");
+    setScanning(isScanBusy(scan.status));
   }, [scan.status]);
 
   // Follow the bus while no scan runs (public issue: an uploaded cover
@@ -307,10 +391,10 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
   const settledAt = useRef(0);
   const [snapshotSyncs, setSnapshotSyncs] = useState(0);
   useEffect(() => {
-    if (scan.status === "done") settledAt.current = Date.now();
+    if (isSettled(scan.status)) settledAt.current = Date.now();
   }, [scan.status, scan.scannedAt]);
   useEffect(() => {
-    if (!enabled || scan.status !== "done") return;
+    if (!enabled || !isSettled(scan.status)) return;
     if (!snapshot.data || snapshot.isFetching) return;
     if (snapshot.dataUpdatedAt <= settledAt.current) return;
     settledAt.current = snapshot.dataUpdatedAt;
@@ -320,5 +404,5 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
     setSnapshotSyncs((n) => n + 1);
   }, [enabled, scan.status, snapshot.data, snapshot.dataUpdatedAt, snapshot.isFetching]);
 
-  return { albums, scan, libraryDir, rescan, snapshotSyncs };
+  return { albums, scan, libraryDir, rescan, cancel, snapshotSyncs };
 }

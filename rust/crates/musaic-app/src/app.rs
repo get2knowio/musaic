@@ -112,6 +112,10 @@ pub struct AppBuilder {
 /// exit after cancelling it (it stops between two files; one file rarely
 /// takes more than a few seconds).
 pub const SHUTDOWN_POOL_WAIT: Duration = Duration::from_secs(15);
+/// How long [`App::shutdown`] waits for a running scan to end after
+/// cancelling it (it stops after the album it is reading, then waits for
+/// the thumbnails already queued).
+pub const SHUTDOWN_SCAN_WAIT: Duration = Duration::from_secs(15);
 /// How long the final WAL checkpoint on shutdown waits for any connection
 /// still open (a scan or check rerun ending at the same moment).
 pub const SHUTDOWN_CHECKPOINT_WAIT: Duration = Duration::from_secs(5);
@@ -119,6 +123,9 @@ pub const SHUTDOWN_CHECKPOINT_WAIT: Duration = Duration::from_secs(5);
 /// What [`App::shutdown`] did.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShutdownReport {
+    /// No scan was running at the end of the wait (a running one was
+    /// cancelled).
+    pub scan_stopped: bool,
     /// The fingerprint pool's thread exited within the wait (or none ran).
     pub pool_stopped: bool,
     /// The final WAL checkpoint, or why it could not run.
@@ -654,13 +661,32 @@ impl App {
         musaic_core::AiWording::for_readiness(self.ai_ready())
     }
 
-    /// The lifespan's shutdown, blocking: cancel the fingerprint pool and
-    /// wait (at most [`AppBuilder::shutdown_pool_wait`]) for its thread to
-    /// exit, stop the AI worker, give an unfinished secret scrub one more
-    /// try, then fold the WAL into the main database file and truncate it
-    /// ([`musaic_db::checkpoint_on_close`]) so a stop in the middle of a
-    /// pass leaves no un-checkpointed WAL behind.
+    /// The lifespan's shutdown, blocking: cancel a running scan and wait (at
+    /// most [`SHUTDOWN_SCAN_WAIT`]) for it to end, cancel the fingerprint
+    /// pool and wait (at most [`AppBuilder::shutdown_pool_wait`]) for its
+    /// thread to exit, stop the AI worker, give an unfinished secret scrub
+    /// one more try, then fold the WAL into the main database file and
+    /// truncate it ([`musaic_db::checkpoint_on_close`]) so a stop in the
+    /// middle of a pass leaves no un-checkpointed WAL behind.
+    ///
+    /// The scan goes first, through the same cancel as `POST
+    /// /api/scan/cancel`: a cancelled scan writes nothing and does not
+    /// start the pool, and its connection is closed before the checkpoint.
+    /// (Before, shutdown left the scan running: the process could exit in
+    /// the middle of the walk, the checkpoint could find the scan's
+    /// connection open, and a scan finishing during shutdown restarted the
+    /// pool that had just been stopped.)
     pub fn shutdown(&self) -> ShutdownReport {
+        let scan_stopped = self.cancel_scan_and_wait(SHUTDOWN_SCAN_WAIT);
+        if !scan_stopped {
+            self.0.log.warn(
+                SHUTDOWN_TARGET,
+                &format!(
+                    "library scan still stopping after {} s; closing the database without waiting for it",
+                    SHUTDOWN_SCAN_WAIT.as_secs_f64()
+                ),
+            );
+        }
         let pool_stopped = self.0.pool.stop_within(self.0.shutdown_pool_wait);
         if !pool_stopped {
             self.0.log.warn(
@@ -710,6 +736,7 @@ impl App {
             ),
         }
         ShutdownReport {
+            scan_stopped,
             pool_stopped,
             checkpoint,
         }

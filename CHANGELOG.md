@@ -13,6 +13,15 @@ Security.
 
 ## [Unreleased]
 
+### Fixed
+
+- A library scan can be cancelled: the scan ribbon's Cancel button (and quitting the
+  app) stops it after the album being read, and nothing it read is saved. A scan that
+  ends without saving (cancelled, aborted because too many albums seemed to vanish, or
+  failed) no longer announces completion: no post-scan check reruns, no fingerprinting
+  pass, no "up to date" message; the scan reports `cancelled` / `aborted` instead, and
+  the bus publishes `LibraryScanStopped`. New route `POST /api/scan/cancel` (#193).
+
 ## [0.2.0-rc.1] - 2026-11-14
 
 A rewrite. The Python/FastAPI backend and the Electron shell are replaced by a Rust

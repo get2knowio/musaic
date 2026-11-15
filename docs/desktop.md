@@ -48,8 +48,9 @@ the UI's transport.
 Closing the window, Cmd-Q, `AppHandle::exit`, SIGTERM / SIGINT / SIGHUP on Unix
 and Ctrl-C on Windows all end in Tauri's exit event: every SSE stream is ended,
 the server drains for up to 3 seconds (then remaining connections are aborted),
-the application shuts down (fingerprint pool joined, job worker stopped) and the
-instance file is removed. No child processes are ever spawned.
+the application shuts down (a running library scan cancelled, so it saves nothing
+and starts nothing, and waited for; fingerprint pool joined, job worker stopped) and
+the instance file is removed. No child processes are ever spawned.
 
 ### Quitting while work runs
 

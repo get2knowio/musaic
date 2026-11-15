@@ -91,6 +91,6 @@ pub use apply::{
 };
 pub use json::Json;
 pub use scan::{
-    Poll, ScanDeps, ScanEvent, ScanJob, ScanService, ScanState, ScanStatus, ScanSubscription,
-    StartScan,
+    CancelScan, Poll, ScanDeps, ScanEvent, ScanJob, ScanService, ScanState, ScanStatus,
+    ScanSubscription, StartScan,
 };

@@ -178,7 +178,21 @@ export type ScanEvent =
   // never delivered.
   | { type: "marked_missing"; id: string; path: string }
   | { type: "done"; count: number; marked_missing_count: number; scanned_at: string }
+  // A cancel was accepted (POST /api/scan/cancel); the scan ends with
+  // `cancelled` at its next album.
+  | { type: "cancelling"; scanned: number; total: number }
+  // The scan ended without saving anything: cancelled, or aborted by the
+  // backend's sanity check (too many albums vanished at once, e.g. an
+  // unmounted drive). The library keeps its previous scan.
+  | { type: "cancelled"; reason: "cancelled"; phase: string; scanned: number; total: number; detail: string }
+  | { type: "aborted"; reason: string; detail: string; vanish_count: number; cached_count: number }
   | { type: "error"; detail: string };
+
+/** `POST /api/scan/cancel`. */
+export interface ScanCancelResponse {
+  outcome: "requested" | "already_requested" | "too_late" | "not_running";
+  scan: { status: string };
+}
 
 export type ApiError = { status: number; detail: string };
 
