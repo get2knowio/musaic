@@ -29,23 +29,24 @@ application packaged with Tauri 2. The React interface and the SQLite database f
 kept; an existing database is migrated in place. The Python implementation is preserved
 at the tag `python-final`.
 
-**About these builds.** Installers are published for macOS (Apple Silicon and Intel),
-Windows (x64, NSIS installer) and Linux (x64, AppImage and deb), with their SHA-256 sums
-in `SHA256SUMS.txt`. They are **not code-signed or notarised**.
+**About these builds.** Installers are published for macOS (Apple Silicon and Intel)
+and Linux (x64, AppImage and deb), with their SHA-256 sums in `SHA256SUMS.txt`. They are
+**not code-signed or notarised**.
 
-- **Run by a person so far: only the macOS Apple Silicon build.** The macOS Intel,
-  Windows and Linux builds are produced by CI from the same source and have not been
-  tested by hand yet. Reports of what works and what does not are very welcome.
-  The automated tests pass on macOS and Linux. On Windows about one in six of them
-  still fails (not yet investigated), so treat the Windows build as experimental and
-  keep a backup of your music before letting it change files.
+**No Windows build.** The automated tests do not yet pass on Windows, so no Windows
+installer is published until they do. A Windows installer was attached to this release
+at first and has been withdrawn for that reason. Progress is tracked in
+[#178](https://github.com/get2knowio/musaic/issues/178).
+
+- **Run by a person so far: only the macOS Apple Silicon build.** The macOS Intel and
+  Linux builds are produced by CI from the same source and have not been tested by hand
+  yet. Reports of what works and what does not are very welcome. The automated tests
+  pass on macOS and Linux.
 - **Opening the unsigned app on macOS:** install with the one-line `install.sh` command
   from the README (a `curl` download should not be quarantined; this is not yet confirmed on a second machine), or, for a `.dmg` downloaded in a
   browser, use **System Settings → Privacy & Security → Open Anyway** after the first
   refusal, or run `xattr -dr com.apple.quarantine /Applications/Musaic.app`. The
   browser-download route has not been tested.
-- **Windows:** SmartScreen warns about the unsigned installer; choose **More info → Run
-  anyway**.
 - **Cover downloads now refuse plain `http` URLs and local-network addresses** (for
   example a NAS, `localhost` or a `192.168.x.x` address); only `https` URLs on public hosts
   are fetched. Use **Upload** on the album's cover for an image on your own machine or
