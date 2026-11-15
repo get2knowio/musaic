@@ -146,6 +146,19 @@ pub struct FileChange {
     pub warnings: Vec<String>,
 }
 
+/// A file whose TRACKNUMBER was written but which kept its old name (its
+/// `FileDone` carried `renamed_to`). Not in the Python app's events, which
+/// only logged these.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenameFailure {
+    /// The name the file has now.
+    pub filename: String,
+    /// The name it was to get.
+    pub new_filename: String,
+    /// Why it was not renamed.
+    pub error: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     CoverDownloaded {
@@ -187,6 +200,8 @@ pub enum Event {
         suggestions_applied: Vec<(String, String)>,
         /// As in [`Event::Start`].
         cleared: Vec<String>,
+        /// Files whose tags were written but whose rename did not happen.
+        rename_failures: Vec<RenameFailure>,
     },
     CoverSaved {
         path: PathBuf,
@@ -385,18 +400,20 @@ pub fn apply_to_album_iter(
         has_cover_change: pic.is_some(),
         track_change_count: per_file.len(),
     });
-    let done = |saved_count, art_changed_count, renamed_count, errors| Event::Done {
-        album_path: album_dir.to_path_buf(),
-        dry_run,
-        saved_count,
-        art_changed_count,
-        renamed_count,
-        errors,
-        suggestions_applied: user_friendly.clone(),
-        cleared: cleared.clone(),
-    };
+    let done =
+        |saved_count, art_changed_count, renamed_count, errors, rename_failures| Event::Done {
+            album_path: album_dir.to_path_buf(),
+            dry_run,
+            saved_count,
+            art_changed_count,
+            renamed_count,
+            errors,
+            suggestions_applied: user_friendly.clone(),
+            cleared: cleared.clone(),
+            rename_failures,
+        };
     if flacs.is_empty() {
-        emit(done(0, 0, 0, 0));
+        emit(done(0, 0, 0, 0, Vec::new()));
         return Ok(());
     }
 
@@ -515,48 +532,64 @@ pub fn apply_to_album_iter(
     }
 
     let mut renamed_count = 0;
+    let mut rename_failures: Vec<RenameFailure> = Vec::new();
     if !pending_renames.is_empty() && !dry_run {
+        let name_of = |p: &Path| {
+            p.file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default()
+        };
         // Two-pass rename so swapped numbers never collide mid-flight.
         let mut staged: Vec<(PathBuf, PathBuf, PathBuf)> = Vec::new();
-        let result = (|| -> io::Result<()> {
-            for (orig, target_name) in &pending_renames {
-                let name = orig
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_default();
-                let tmp = orig.with_file_name(format!(".{name}.renaming.tmp"));
-                std::fs::rename(orig, &tmp)?;
-                staged.push((orig.clone(), tmp, orig.with_file_name(target_name)));
+        // Per staged entry: settled (renamed, or rolled back and reported).
+        let mut settled: Vec<bool> = Vec::new();
+        // The entry the batch stopped at, and why.
+        let mut failed: Option<(String, io::Error)> = None;
+        for (orig, target_name) in &pending_renames {
+            let tmp = orig.with_file_name(format!(".{}.renaming.tmp", name_of(orig)));
+            if let Err(e) = std::fs::rename(orig, &tmp) {
+                failed = Some((name_of(orig), e));
+                break;
             }
-            for (orig, tmp, fin) in &staged {
+            staged.push((orig.clone(), tmp, orig.with_file_name(target_name)));
+            settled.push(false);
+        }
+        if failed.is_none() {
+            for (k, (orig, tmp, fin)) in staged.iter().enumerate() {
                 if fin.exists() {
                     // tags.py:277
                     musaic_log::warning(
                         "musaic.tags",
                         &format!("rename target exists, rolling back: {}", fin.display()),
                     );
-                    std::fs::rename(tmp, orig)?;
+                    if let Err(e) = std::fs::rename(tmp, orig) {
+                        failed = Some((name_of(orig), e));
+                        break;
+                    }
                     errors += 1;
+                    settled[k] = true;
+                    rename_failures.push(RenameFailure {
+                        filename: name_of(orig),
+                        new_filename: name_of(fin),
+                        error: format!("{} already exists", name_of(fin)),
+                    });
                     continue;
                 }
-                std::fs::rename(tmp, fin)?;
+                if let Err(e) = std::fs::rename(tmp, fin) {
+                    failed = Some((name_of(orig), e));
+                    break;
+                }
+                settled[k] = true;
                 renamed_count += 1;
                 emit(Event::FileRenamed {
                     old_path: orig.clone(),
                     new_path: fin.clone(),
-                    old_filename: orig
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                    new_filename: fin
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
+                    old_filename: name_of(orig),
+                    new_filename: name_of(fin),
                 });
             }
-            Ok(())
-        })();
-        if let Err(e) = result {
+        }
+        if let Some((at, e)) = failed {
             // tags.py:290 `logger.exception(...)`: ERROR with a traceback;
             // here the error text stands in for the traceback.
             musaic_log::error(
@@ -564,14 +597,54 @@ pub fn apply_to_album_iter(
                 &format!("rename batch failed; attempting rollback: {e}"),
             );
             errors += 1;
-            for (orig, tmp, _) in &staged {
-                if tmp.exists() && !orig.exists() {
-                    let _ = std::fs::rename(tmp, orig);
+            // Every file not renamed is reported by name: its TRACKNUMBER
+            // was written, its name was not changed.
+            for (k, (orig, tmp, fin)) in staged.iter().enumerate() {
+                if settled[k] {
+                    continue;
                 }
+                let mut error = if name_of(orig) == at {
+                    e.to_string()
+                } else {
+                    format!("not renamed: the batch stopped at {at}")
+                };
+                if tmp.exists() && !orig.exists() {
+                    if let Err(e2) = std::fs::rename(tmp, orig) {
+                        error = format!("{error}; the file is left as {}: {e2}", name_of(tmp));
+                    }
+                } else if tmp.exists() {
+                    error = format!(
+                        "{error}; the file is left as {}: its name is taken",
+                        name_of(tmp)
+                    );
+                }
+                rename_failures.push(RenameFailure {
+                    filename: name_of(orig),
+                    new_filename: name_of(fin),
+                    error,
+                });
+            }
+            // Entries the first pass never reached keep their names too.
+            for (orig, target_name) in &pending_renames[staged.len()..] {
+                rename_failures.push(RenameFailure {
+                    filename: name_of(orig),
+                    new_filename: target_name.clone(),
+                    error: if name_of(orig) == at {
+                        e.to_string()
+                    } else {
+                        format!("not renamed: the batch stopped at {at}")
+                    },
+                });
             }
         }
     }
-    emit(done(saved_count, art_changed_count, renamed_count, errors));
+    emit(done(
+        saved_count,
+        art_changed_count,
+        renamed_count,
+        errors,
+        rename_failures,
+    ));
     Ok(())
 }
 

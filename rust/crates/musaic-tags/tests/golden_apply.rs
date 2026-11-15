@@ -338,8 +338,11 @@ fn event_json(e: &Event, album: &Path) -> Value {
             errors,
             suggestions_applied,
             cleared,
+            rename_failures,
         } => {
             assert!(cleared.is_empty());
+            // No golden scenario has a rename that fails.
+            assert!(rename_failures.is_empty());
             json!({
             "album_path": rel(album_path, album), "dry_run": dry_run, "saved_count": saved_count,
             "art_changed_count": art_changed_count, "renamed_count": renamed_count, "errors": errors,

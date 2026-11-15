@@ -547,10 +547,19 @@ export interface DuplicateClusterPreview {
   removed_filenames: string[];
 }
 
+/** A plan entry the rename left alone. */
+export interface SkippedRename {
+  old: string;
+  new: string;
+  reason: "source_missing" | "already_renamed";
+}
+
 export interface FilenameRenameResult {
   ok: boolean;
   renamed: number;
   errors: string[];
+  /** The message also sums these up. Present only when non-empty. */
+  skipped?: SkippedRename[];
   message: string;
   /** True when the album dir was renamed as part of this apply. */
   dir_renamed?: boolean;
@@ -605,13 +614,20 @@ export interface FileChange {
   warnings?: string[];
 }
 
+/** A file whose TRACKNUMBER was written but which kept its old name. */
+export interface RenameFailure {
+  filename: string;
+  new_filename: string;
+  error: string;
+}
+
 export type ApplyEvent =
   | { type: "cover_downloading"; url: string }
   | { type: "cover_downloaded"; bytes: number; mime: string }
   | { type: "start"; album_path: string; dry_run: boolean; file_count: number; suggestions_applied: Record<string, string>; cleared?: string[]; has_cover_change: boolean }
   | { type: "file_started"; index: number; filename: string; path: string }
   | { type: "file_done"; change: FileChange }
-  | { type: "done"; saved_count: number; art_changed_count: number; errors: number; suggestions_applied: Record<string, string>; cleared?: string[] }
+  | { type: "done"; saved_count: number; art_changed_count: number; errors: number; suggestions_applied: Record<string, string>; cleared?: string[]; rename_failures?: RenameFailure[] }
   | { type: "updated_album"; album: Album }
   | { type: "removed_album"; id: string; path: string }
   | { type: "error"; detail: string };

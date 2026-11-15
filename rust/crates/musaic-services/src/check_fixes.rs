@@ -1342,6 +1342,25 @@ pub fn rename_outcome_json(o: &RenameOutcome) -> Json {
     if o.already_renamed {
         pairs.push(("already_renamed".into(), Json::Bool(true)));
     }
+    // Only when there is something to say, so the body stays the Python
+    // app's otherwise.
+    if !o.skipped.is_empty() {
+        pairs.push((
+            "skipped".into(),
+            Json::Arr(
+                o.skipped
+                    .iter()
+                    .map(|e| {
+                        Json::obj([
+                            ("old", Json::from(e.old.as_str())),
+                            ("new", Json::from(e.new.as_str())),
+                            ("reason", Json::from(e.reason.as_str())),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ));
+    }
     if let Some(d) = &o.detail {
         pairs.push((
             "errors".into(),
@@ -1374,6 +1393,8 @@ pub fn rename_outcome_json(o: &RenameOutcome) -> Json {
 /// an unknown finding, 400 without an album or with neither a plan nor a
 /// dir rename, 409 when nothing happened and the call failed (its message);
 /// else the result. Publishes the `AlbumRenamed` the rename produced.
+/// Deliberate change: a Missing album is refused (409, the apply
+/// pipeline's text) before anything is touched.
 pub fn apply_filename_rename(
     env: &mut FixEnv<'_>,
     finding_id: i64,
@@ -1389,6 +1410,7 @@ pub fn apply_filename_rename(
     if plan.is_empty() && dir_rename.is_none() {
         return Err(err(400, "plan or dir_rename is required"));
     }
+    crate::apply::refuse_missing(env.conn, &album_id)?;
     let now = (env.now)();
     let renv = RenameEnv {
         library_dir: env.library_dir,

@@ -376,16 +376,14 @@ fn run_scenario(sc: &J, album_cols: &str, delta: Delta) -> usize {
         .unwrap();
     }
 
+    let mut initial = sc["initial"].clone();
+    initial_delta(id, &mut initial);
     assert_eq!(
         listing(&lib, false),
-        sc["initial"]["files"],
+        initial["files"],
         "{id}: initial files"
     );
-    assert_eq!(
-        cx.dump(conn, album_cols),
-        sc["initial"]["db"],
-        "{id}: initial db"
-    );
+    assert_eq!(cx.dump(conn, album_cols), initial["db"], "{id}: initial db");
 
     let lib_s = cx.lib_s.clone();
     let env = RenameEnv {
@@ -657,14 +655,14 @@ scenarios! {
     targets_exist => "targets-exist", d_targets_exist, "Existing dir / unrelated file refused; two-pass swap. Delta: sidecar rewritten.";
     multi_disc => "multi-disc", d_multi_disc, "'(disc N of M)' insertion and {disc}. Delta: blocklist repointed.";
     unnumbered => "unnumbered", same, "Unnumbered tracks; compilation templates; already-renamed resubmit.";
-    noop => "noop", same, "An empty plan still yields AlbumRenamed(id, id).";
-    refusals => "refusals", same, "Separators, empty target, unknown / Missing / vanished album.";
+    noop => "noop", d_noop, "An empty plan still yields AlbumRenamed(id, id). Delta: a skipped entry is named in the message.";
+    refusals => "refusals", d_refusals, "Separators, empty target, unknown / Missing / vanished album. Delta: a Missing album is refused first.";
     dir_then_file_refused => "dir-then-file-refused", d_dir_then_file_refused, "Dir rename, then a refused file rename. Delta: refused before the dir rename.";
     blocklist_fk => "blocklist-fk", d_blocklist_fk, "Album with a blocked release group. Delta: blocklist repointed, rename succeeds.";
     duplicate_targets => "duplicate-targets", d_duplicate_targets, "Two files onto one name. Delta: refused, nothing renamed.";
     track_tags_migration => "track-tags-migration", same, "track_tags union-move and sidecar rewrite.";
     trash => "trash", d_trash, "Trash layout and collision naming. Delta: no trashed copy is overwritten.";
-    cover_discovery => "cover-discovery", same, "Cover discovery order and case fallback.";
+    cover_discovery => "cover-discovery", d_cover_discovery, "Cover discovery order and case fallback. Delta: the on-disk spelling is reported.";
     duplicate_targets_folded => "duplicate-targets-folded", d_duplicate_targets_folded, "Targets equal by case / normalisation refused.";
     trash_burst => "trash-burst", d_trash_burst, "Trash burst: counter after the stamp, nothing replaced.";
     fingerprint_at_target => "fingerprint-at-target", d_fingerprint_at_target, "Fingerprint rows follow renames.";
@@ -682,6 +680,69 @@ scenarios! {
 type Delta = fn(&J, usize, &mut J);
 
 fn same(_: &J, _: usize, _: &mut J) {}
+
+/// Deltas to a scenario's initial snapshot (taken by the scan, before any
+/// step), stated per scenario like the step deltas.
+fn initial_delta(id: &str, init: &mut J) {
+    if id == "cover-discovery" {
+        cover_spellings(init);
+    }
+}
+
+/// Cover discovery reports the name as the directory spells it. The
+/// golden was recorded on a case-insensitive volume, where the Python app's
+/// probe for `cover.jpg` found `Cover.JPG` and reported its own spelling.
+const COVER_SPELLINGS: [(&str, &str, &str); 3] = [
+    ("C1 [FLAC]", "cover.jpg", "Cover.JPG"),
+    ("C2 [FLAC]", "folder.jpeg", "FOLDER.JPEG"),
+    ("C3 [FLAC]", "front.png", "front.PNG"),
+];
+
+fn cover_spellings(snapshot: &mut J) {
+    for r in snapshot["db"]["albums"].as_array_mut().unwrap() {
+        for (dir, probed, on_disk) in COVER_SPELLINGS {
+            if r["dir_name"] == dir {
+                assert_eq!(r["cover_file"], probed, "recorded cover_file of {dir}");
+                r["cover_file"] = json!(on_disk);
+            }
+        }
+    }
+}
+
+fn d_cover_discovery(_: &J, i: usize, st: &mut J) {
+    cover_spellings(st);
+    if let Some((dir, probed, on_disk)) = COVER_SPELLINGS.get(i) {
+        assert_eq!(st["result"]["cover_file"], *probed);
+        st["result"]["cover_file"] = json!(on_disk);
+        assert_eq!(st["result"]["disk_path"], format!("<LIB>/{dir}/{probed}"));
+        st["result"]["disk_path"] = json!(format!("<LIB>/{dir}/{on_disk}"));
+    }
+}
+
+/// A plan entry whose source is gone is named in the message (it was only
+/// logged).
+fn d_noop(_: &J, i: usize, st: &mut J) {
+    if i == 2 {
+        let out = &mut st["result"]["output"];
+        assert_eq!(out["message"], "Nothing to rename");
+        out["message"] = json!("Nothing to rename; 1 not found, skipped: 'ghost.flac'");
+    }
+}
+
+/// A Missing album is refused before its directory is looked at (the
+/// Python app went on and failed on the vanished directory).
+fn d_refusals(_: &J, i: usize, st: &mut J) {
+    if i == 8 {
+        let out = &mut st["result"]["output"];
+        assert_eq!(
+            out["message"],
+            "Album directory missing: <LIB>/Mono Harbor - Gone [FLAC]"
+        );
+        out["message"] = json!(
+            "Album is missing from disk (missing since 2026-02-01T00:00:00Z); nothing was renamed"
+        );
+    }
+}
 
 const SIDECAR: &str = ".media-manager-tags.json";
 const BLOCKLIST_KEY: &str = "album_blocked_mb_release_groups";

@@ -157,6 +157,28 @@ Security.
 - Windows: `~\Music` is expanded to the home folder like `~/Music`.
 - Windows: file errors during BPM / ReplayGain analysis read "Permission denied" / "No
   such file or directory", as on other platforms.
+- The filename Resolve no longer renames a Missing album: it is refused (409, "Album is
+  missing from disk …") before any file is touched
+  ([#212](https://github.com/get2knowio/musaic/issues/212)).
+- After a filename rename the album row stays in its own library instead of moving to
+  the library currently configured (#212).
+- A cover file is recorded with the name it has on disk (`Cover.JPG`, not `cover.jpg`) on
+  case-insensitive volumes too (#212).
+- Moving a file to Musaic's trash on another volume keeps its modification time, and a
+  copy whose original cannot then be removed is deleted again, so a failed move never
+  leaves the file twice (#212).
+- A filename rename says what it left alone and what failed: the message names files
+  that were not found ("1 not found, skipped: '3 c.flac'"), counts ones already renamed,
+  names files that kept their old name after an error, and says when a file could not
+  be moved back from its temporary name; the response carries the skipped entries as
+  `skipped`. A staging failure names the file and says that nothing was renamed
+  ([#217](https://github.com/get2knowio/musaic/issues/217)).
+- An apply that writes new track numbers but cannot rename a file names it: the stream's
+  `done` event carries `rename_failures` (file, intended name, reason), including files
+  rolled back after another file failed (#217).
+- A MusicBrainz name search answered with an HTTP error (such as a 503 when rate
+  limited) or with a body that is not JSON is logged in `server.log`, not only in the
+  resolution trace (#217).
 
 ## [0.2.0-rc.1] - 2026-11-14
 

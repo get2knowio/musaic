@@ -577,6 +577,16 @@ pub fn find_release(
     let body = match mb.search_release_groups(&artist, &title) {
         Ok(b) => b,
         Err(e) => {
+            // Deliberate change: every failure of the search is logged. The
+            // Python app logged only a `requests` exception
+            // (mb_lookup.py:170), so a 503 (rate limiting) or an unreadable
+            // body never reached the server log.
+            if !matches!(e, NetError::Network(_)) {
+                musaic_log::warning(
+                    "musaic.mb_lookup",
+                    &format!("MusicBrainz search failed: {e}"),
+                );
+            }
             let (notes, source) = match &e {
                 NetError::Http(s) => (
                     format!("HTTP {s} from MusicBrainz"),
@@ -589,8 +599,7 @@ pub fn find_release(
                 // The Python app writes `{type(e).__name__}: {e}` of the requests
                 // exception; this build has no such type name.
                 NetError::Network(d) => {
-                    // mb_lookup.py:170: only a `requests` exception is
-                    // logged; an HTTP or parse failure is not.
+                    // mb_lookup.py:170 (its text has no "network error: ").
                     musaic_log::warning(
                         "musaic.mb_lookup",
                         &format!("MusicBrainz search failed: {d}"),
@@ -607,6 +616,11 @@ pub fn find_release(
         }
     };
     let Ok(data) = serde_json::from_slice::<Value>(&body) else {
+        // Logged too (see above); the Python app did not.
+        musaic_log::warning(
+            "musaic.mb_lookup",
+            "MusicBrainz search failed: search response was not valid JSON",
+        );
         return MbMatch {
             notes: "Search response was not valid JSON".to_owned(),
             source: "MusicBrainz (parse error)".to_owned(),
