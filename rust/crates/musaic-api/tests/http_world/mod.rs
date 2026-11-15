@@ -170,6 +170,17 @@ impl World {
         let r = self.get("/api/scan/stream").await;
         assert_eq!(r.status, 200);
         assert!(r.text().contains("event: done"), "{}", r.text());
+        // The stream's `done` precedes the scan thread's last steps (pool
+        // kick-off, end-of-scan log) and the release of its work guard, so a
+        // test that takes the restore gate next would race them.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while self.state.gate().snapshot().0 != 0 {
+            assert!(
+                std::time::Instant::now() < deadline,
+                "work still running 30 s after the scan's done event"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
     }
 
     pub fn take_events(&self) -> Vec<Value> {
