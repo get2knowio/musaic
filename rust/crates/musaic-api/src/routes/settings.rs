@@ -22,11 +22,6 @@ use crate::http::{ApiError, ApiResult, blocking, ok_value};
 use crate::lax::{Fields, err, parse_json_body, unprocessable};
 use crate::state::AppState;
 
-/// The only provider the Rust build knows (there is no
-/// provider selection; "claude" and "" are accepted so existing rows and
-/// the unchanged frontend keep working).
-const INSTALLED_PROVIDERS: &[&str] = &["claude"];
-
 /// The settings body: musaic-secrets' view (the Python app's shape plus
 /// `keyring_available`) plus `keys_pending_removal`, true while an
 /// unfinished secret scrub leaves keys (or old copies of them) in the
@@ -101,14 +96,11 @@ pub async fn patch_settings(State(st): State<AppState>, body: Bytes) -> ApiResul
     blocking(move || {
         let _guard = guard;
         let conn = st.conn()?;
-        settings_patch::apply_patch(
-            conn,
-            st.0.secrets.as_ref(),
-            patch,
-            INSTALLED_PROVIDERS,
-            st.log(),
-        )
-        .map_err(patch_error)?;
+        // The providers `GET /api/ai/providers` lists (issue #199).
+        let listed = st.ai_provider_ids();
+        let listed: Vec<&str> = listed.iter().map(String::as_str).collect();
+        settings_patch::apply_patch(conn, st.0.secrets.as_ref(), patch, &listed, st.log())
+            .map_err(patch_error)?;
         // `notify_jobs_changed()` (api/settings.py:136): wake the AI
         // dispatcher (a max_parallel bump or an unpause) and the jobs streams.
         st.ai_jobs_changed();

@@ -126,12 +126,18 @@ fn py_float(s: &str) -> Option<f64> {
     lower.parse().ok()
 }
 
-fn snapshot_min_interval_hours(conn: &Connection) -> musaic_db::Result<f64> {
+/// `snapshot_min_interval_hours` as the settings body and the startup
+/// snapshot read it: 24 when unset, unreadable or not finite, negative
+/// values (and -0.0) as 0. A non-finite value is treated as unreadable
+/// (issue #213): the Python app turned NaN into 0 (snapshot on every
+/// start) and kept infinity (never snapshot again), which JSON cannot
+/// even carry; the PATCH now refuses both.
+pub fn snapshot_min_interval_hours(conn: &Connection) -> musaic_db::Result<f64> {
     Ok(match get_raw(conn, "snapshot_min_interval_hours")? {
         None => 24.0,
         Some(raw) => match py_float(&raw) {
+            Some(v) if !v.is_finite() => 24.0,
             None => 24.0,
-            // max(0.0, v): NaN and -0.0 give 0.0, as in Python.
             Some(v) if v > 0.0 => v,
             Some(_) => 0.0,
         },

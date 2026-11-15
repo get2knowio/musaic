@@ -7,8 +7,8 @@
 //! * snapshots live in `<config dir>/backups/` as
 //!   `library-<YYYYMMDD-HHMMSSZ>-v<schema>.db`, a same-second clash adding
 //!   `.1`, `.2`, ... before `.db`; listing is newest first by
-//!   `(modified_at, filename)` descending, and retention prunes everything
-//!   past the newest N files matching `library-*.db` (valid or not);
+//!   `(modified_at, tag, version, clash number)` descending, and retention
+//!   prunes everything past the newest N snapshots (valid or not);
 //! * a snapshot name is a bare file name: empty, containing `/` or `\`, or
 //!   starting with `.` is rejected before touching the disk, and a name whose
 //!   resolved path leaves the snapshot dir (a symlink) is rejected after;
@@ -30,6 +30,15 @@
 //! * the schema version in new file names is this build's (v17).
 //! * a name containing NUL is rejected as invalid (the Python app raises
 //!   `ValueError`, an HTTP 500).
+//! * only file names the app writes count as snapshots
+//!   ([`parse_snapshot_name`]); the Python app took every `library-*.db`
+//!   file for one (and restored from or deleted any named file), so a stray
+//!   file in `backups/` could be listed, pruned, restored or deleted. Now it
+//!   is never touched.
+//! * same-second snapshots are ordered by their clash number, so `.2` is
+//!   newer than `.1`, which is newer than the plain name (the Python app
+//!   compared names as text, which put the plain name first and pruned `.1`
+//!   before it, and `.10` before `.9`).
 //!
 //! The clock is a parameter everywhere (`tag`, `now`) so tests can script it.
 
@@ -497,15 +506,62 @@ pub struct SnapshotEntry {
     pub modified_unix: i64,
 }
 
-fn is_snapshot_name(name: &str) -> bool {
-    name.len() >= SNAPSHOT_PREFIX.len() + SNAPSHOT_SUFFIX.len()
-        && name.starts_with(SNAPSHOT_PREFIX)
-        && name.ends_with(SNAPSHOT_SUFFIX)
+/// What a snapshot's file name says about it, in age order: the tag
+/// (`YYYYMMDD-HHMMSSZ`, which sorts as text), the schema version, and the
+/// clash number (0 for the plain name, then 1, 2, ...).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SnapshotName<'a> {
+    pub tag: &'a str,
+    pub version: u64,
+    pub clash: u64,
 }
 
-/// Every regular file (or link to one) named `library-*.db` in `dir`, newest
-/// first. Files that do not open as a Musaic database are listed with
-/// `valid: false` so they can be deleted. Creates `dir` if needed.
+/// `name` as [`create_snapshot`] (or the Python app) writes it:
+/// `library-<YYYYMMDD-HHMMSSZ>-v<schema>.db`, or with `.<n>` before `.db`
+/// after a same-second clash. Anything else is not a snapshot: the app
+/// never lists, prunes, restores from or deletes it.
+pub fn parse_snapshot_name(name: &str) -> Option<SnapshotName<'_>> {
+    fn number(s: &str) -> Option<u64> {
+        if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+            return None;
+        }
+        s.parse().ok()
+    }
+    let rest = name
+        .strip_prefix(SNAPSHOT_PREFIX)?
+        .strip_suffix(SNAPSHOT_SUFFIX)?;
+    let tag = rest.get(..16)?;
+    let b = tag.as_bytes();
+    let tag_ok = b.iter().enumerate().all(|(i, c)| match i {
+        8 => *c == b'-',
+        15 => *c == b'Z',
+        _ => c.is_ascii_digit(),
+    });
+    if !tag_ok {
+        return None;
+    }
+    let rest = rest[16..].strip_prefix("-v")?;
+    let (version, clash) = match rest.split_once('.') {
+        Some((v, n)) => (number(v)?, number(n)?),
+        None => (number(rest)?, 0),
+    };
+    Some(SnapshotName {
+        tag,
+        version,
+        clash,
+    })
+}
+
+/// Whether `name` is a snapshot file name the app writes ([`parse_snapshot_name`]).
+pub fn is_snapshot_name(name: &str) -> bool {
+    parse_snapshot_name(name).is_some()
+}
+
+/// Every regular file (or link to one) in `dir` whose name is a snapshot
+/// name ([`parse_snapshot_name`]), newest first: by whole-second mtime, then
+/// by what the name says (tag, version, clash number). Files that do not
+/// open as a Musaic database are listed with `valid: false` so they can be
+/// deleted. Creates `dir` if needed.
 pub fn list_snapshots(dir: &Path) -> std::io::Result<Vec<SnapshotEntry>> {
     std::fs::create_dir_all(dir)?;
     let mut entries = Vec::new();
@@ -546,12 +602,18 @@ pub fn list_snapshots(dir: &Path) -> std::io::Result<Vec<SnapshotEntry>> {
         }
         entries.push(entry);
     }
-    entries.sort_by(|a, b| (&b.modified_at, &b.filename).cmp(&(&a.modified_at, &a.filename)));
+    // Every listed name parses (checked above).
+    fn key(e: &SnapshotEntry) -> (i64, Option<SnapshotName<'_>>) {
+        (e.modified_unix, parse_snapshot_name(&e.filename))
+    }
+    entries.sort_by(|a, b| key(b).cmp(&key(a)));
     Ok(entries)
 }
 
 /// A snapshot name to its path inside `dir`, refusing anything that is not a
-/// bare file name or that resolves outside `dir`.
+/// bare file name, that resolves outside `dir`, that is not there, or whose
+/// name the app does not write ([`parse_snapshot_name`]; checked last, so a
+/// missing file still answers "not found" as the Python app does).
 pub fn resolve_snapshot(dir: &Path, name: &str) -> Result<PathBuf, RestoreError> {
     if name.is_empty()
         || name.contains('/')
@@ -568,6 +630,9 @@ pub fn resolve_snapshot(dir: &Path, name: &str) -> Result<PathBuf, RestoreError>
     }
     if !p.is_file() {
         return Err(RestoreError::NotFound(name.to_owned()));
+    }
+    if !is_snapshot_name(name) {
+        return Err(RestoreError::InvalidName(name.to_owned()));
     }
     Ok(p)
 }

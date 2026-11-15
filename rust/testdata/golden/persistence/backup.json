@@ -26,25 +26,12 @@
   ],
   "delete_snapshot": {
     "again": {
-      "restore_error": "Snapshot not found: plain-file"
+      "restore_error": "Invalid snapshot name: 'plain-file'"
     },
-    "first": true,
+    "first": {
+      "restore_error": "Invalid snapshot name: 'plain-file'"
+    },
     "listing_after": [
-      {
-        "counts": {
-          "ai_jobs": 0,
-          "albums": 0,
-          "albums_with_mbid": 0,
-          "check_findings_open": 0,
-          "tag_vocabulary": 0,
-          "track_fingerprints": 0,
-          "track_tags": 0
-        },
-        "filename": "library-20260103-000000Z-v16.db",
-        "modified_at": "2026-01-03T00:00:00Z",
-        "schema_version": 16,
-        "valid": true
-      },
       {
         "counts": {
           "ai_jobs": 0,
@@ -70,13 +57,29 @@
           "track_fingerprints": 0,
           "track_tags": 0
         },
+        "filename": "library-20260103-000000Z-v16.db",
+        "modified_at": "2026-01-03T00:00:00Z",
+        "schema_version": 16,
+        "valid": true
+      },
+      {
+        "counts": {
+          "ai_jobs": 0,
+          "albums": 0,
+          "albums_with_mbid": 0,
+          "check_findings_open": 0,
+          "tag_vocabulary": 0,
+          "track_fingerprints": 0,
+          "track_tags": 0
+        },
         "filename": "library-20260102-000000Z-v16.db",
         "modified_at": "2026-01-02T00:00:00Z",
         "schema_version": 16,
         "valid": true
       }
     ],
-    "name": "plain-file"
+    "name": "plain-file",
+    "note": "deliberate (issue #213): a file the app did not write is refused and left on disk (the Python app deleted it)"
   },
   "fixture_counts": {
     "counts": {
@@ -150,7 +153,8 @@
     },
     {
       "name": "plain-file",
-      "ok": "plain-file"
+      "note": "deliberate (issue #213): an existing file whose name the app never writes is refused (the Python app accepted it)",
+      "restore_error": "Invalid snapshot name: 'plain-file'"
     },
     {
       "name": "nul\u0000byte",
@@ -237,7 +241,7 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260101-000000Z-v16.db",
+          "filename": "library-20260101-000000Z-v16.1.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -252,7 +256,7 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260101-000000Z-v16.1.db",
+          "filename": "library-20260101-000000Z-v16.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -280,21 +284,6 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260101-000000Z-v16.db",
-          "modified_at": "2026-01-01T00:00:00Z",
-          "schema_version": 16,
-          "valid": true
-        },
-        {
-          "counts": {
-            "ai_jobs": 0,
-            "albums": 0,
-            "albums_with_mbid": 0,
-            "check_findings_open": 0,
-            "tag_vocabulary": 0,
-            "track_fingerprints": 0,
-            "track_tags": 0
-          },
           "filename": "library-20260101-000000Z-v16.2.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
@@ -311,6 +300,21 @@
             "track_tags": 0
           },
           "filename": "library-20260101-000000Z-v16.1.db",
+          "modified_at": "2026-01-01T00:00:00Z",
+          "schema_version": 16,
+          "valid": true
+        },
+        {
+          "counts": {
+            "ai_jobs": 0,
+            "albums": 0,
+            "albums_with_mbid": 0,
+            "check_findings_open": 0,
+            "tag_vocabulary": 0,
+            "track_fingerprints": 0,
+            "track_tags": 0
+          },
+          "filename": "library-20260101-000000Z-v16.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -353,7 +357,7 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260101-000000Z-v16.db",
+          "filename": "library-20260101-000000Z-v16.2.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -368,7 +372,7 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260101-000000Z-v16.2.db",
+          "filename": "library-20260101-000000Z-v16.1.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -379,7 +383,7 @@
       "result": {
         "filename": "library-20260102-000000Z-v16.db",
         "pruned": [
-          "library-20260101-000000Z-v16.1.db"
+          "library-20260101-000000Z-v16.db"
         ],
         "schema_version": 16
       },
@@ -420,7 +424,7 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260101-000000Z-v16.db",
+          "filename": "library-20260101-000000Z-v16.2.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -435,27 +439,14 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260101-000000Z-v16.2.db",
+          "filename": "library-20260101-000000Z-v16.1.db",
           "modified_at": "2026-01-01T00:00:00Z",
           "schema_version": 16,
           "valid": true
-        },
-        {
-          "counts": {},
-          "filename": "library-junk.db",
-          "modified_at": "2025-12-31T00:00:00Z",
-          "schema_version": null,
-          "valid": false
-        },
-        {
-          "counts": {},
-          "filename": "library-.db",
-          "modified_at": "2025-12-31T00:00:00Z",
-          "schema_version": null,
-          "valid": false
         }
       ],
       "mtime": 1767139200,
+      "note": "deliberate (issue #213): none of these files has a name the app writes, so none is listed (the Python app listed library-junk.db and library-.db)",
       "op": "add foreign files"
     },
     {
@@ -496,10 +487,8 @@
       "result": {
         "filename": "library-20260103-000000Z-v16.db",
         "pruned": [
-          "library-20260101-000000Z-v16.db",
           "library-20260101-000000Z-v16.2.db",
-          "library-junk.db",
-          "library-.db"
+          "library-20260101-000000Z-v16.1.db"
         ],
         "schema_version": 16
       },
@@ -518,7 +507,7 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260103-000000Z-v16.db",
+          "filename": "library-20260103-000000Z-v16.1.db",
           "modified_at": "2026-01-03T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -533,7 +522,7 @@
             "track_fingerprints": 0,
             "track_tags": 0
           },
-          "filename": "library-20260103-000000Z-v16.1.db",
+          "filename": "library-20260103-000000Z-v16.db",
           "modified_at": "2026-01-03T00:00:00Z",
           "schema_version": 16,
           "valid": true
@@ -565,6 +554,7 @@
       "tag": "20260103-000000Z"
     }
   ],
+  "snapshot_steps_note": "deliberate (issue #213): listings and pruned lists differ from the Python app's: only names the app writes count, and same-second snapshots order by clash suffix (.2 newer than .1 newer than the plain name), so the oldest of them is pruned first",
   "suggested_backup_filename": {
     "name": "musaic-v16-20260101-120000Z.db",
     "tag": "20260101-120000Z"

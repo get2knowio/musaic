@@ -28,6 +28,18 @@ Security.
   through the link. Anything that could not be kept, including a hard link that the
   rewrite breaks, is listed as a warning next to the file in the apply and audio
   analysis progress ([#211](https://github.com/get2knowio/musaic/issues/211)).
+- Snapshots: only files named the way Musaic names its snapshots
+  (`library-<date>-<time>Z-v<schema>.db`, with `.1`, `.2`, … after a same-second clash)
+  are listed, counted for retention, pruned, restored from or deleted. Other files in
+  `backups/` are left alone. (#213)
+- Snapshots taken in the same second are now ordered by their clash number, so retention
+  removes the oldest of them first (it removed `.1` before the un-numbered file, and
+  `.10` before `.9`). (#213)
+- `snapshot_min_interval_hours` refuses infinity and NaN; a stored non-finite value reads
+  as the 24-hour default instead of `null` (infinity) or 0 (NaN), and the startup
+  snapshot uses the same reading as the Settings page. (#213)
+- Settings accepts every AI provider that `GET /api/ai/providers` lists, and a refused
+  provider's message names those providers. (#199)
 
 ## [0.2.0-rc.1] - 2026-11-14
 

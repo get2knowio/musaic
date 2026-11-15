@@ -156,10 +156,8 @@ fn deltas() -> Vec<Delta> {
             json!(
                 "Unknown or not-installed provider 'bedrock'. Installed: claude, github-copilot, opencode. Install its airframe extra to add more."
             ),
-            json!(
-                "Unknown or not-installed provider 'bedrock'. Installed: claude. Install its airframe extra to add more."
-            ),
-            "no other provider in this build: only 'claude' is known; the Python app lists the airframe extras installed on the recording machine",
+            json!("Unknown or not-installed provider 'bedrock'. Installed: unconfigured."),
+            "no other provider in this build: the message names the providers GET /api/ai/providers lists (issue #199); the Python app lists the airframe extras installed on the recording machine",
         ),
         set(
             "run filename-mismatch",

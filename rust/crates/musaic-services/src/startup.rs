@@ -187,12 +187,10 @@ pub fn acoustid_key(secrets: &(dyn SecretStore + Send + Sync)) -> Option<String>
         .filter(|k| !k.is_empty())
 }
 
+/// The same reading as the settings body shows (one accessor), so the
+/// interval the user sees is the one the startup snapshot obeys.
 fn snapshot_interval(conn: &Connection) -> f64 {
-    musaic_db::settings::get_raw(conn, "snapshot_min_interval_hours")
-        .ok()
-        .flatten()
-        .and_then(|s| s.trim().parse::<f64>().ok())
-        .map_or(24.0, |v| if v > 0.0 { v } else { 0.0 })
+    musaic_secrets::snapshot_min_interval_hours(conn).unwrap_or(24.0)
 }
 
 /// The checks' clock over the host's wall clock.
