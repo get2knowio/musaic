@@ -86,7 +86,7 @@ impl Ctx {
             for e in rd.flatten() {
                 let p = e.path();
                 if e.file_type().unwrap().is_dir() {
-                    let rel = p.strip_prefix(root).unwrap().to_string_lossy().into_owned();
+                    let rel = musaic_testdata::slash_path(p.strip_prefix(root).unwrap());
                     ids.insert(album_id(&py_resolve(&p).to_string_lossy()), rel);
                     walk(&p, root, ids);
                 }
@@ -101,10 +101,11 @@ impl Ctx {
         match v {
             J::String(x) => match self.ids.get(&x) {
                 Some(rel) => json!(format!("<ID:{rel}>")),
-                None => json!(
-                    x.replace(&self.trash_s, "<TRASH>")
-                        .replace(&self.lib_s, "<LIB>")
-                ),
+                None => json!(musaic_testdata::replace_root(
+                    &musaic_testdata::replace_root(&x, &self.trash_s, "<TRASH>"),
+                    &self.lib_s,
+                    "<LIB>"
+                )),
             },
             J::Array(a) => J::Array(a.into_iter().map(|x| self.norm(x)).collect()),
             J::Object(o) => J::Object(o.into_iter().map(|(k, x)| (k, self.norm(x))).collect()),
@@ -166,7 +167,7 @@ fn listing(root: &Path, with_text: bool) -> J {
         };
         for e in rd.flatten() {
             let p = e.path();
-            let rel = p.strip_prefix(root).unwrap().to_str().unwrap().to_string();
+            let rel = musaic_testdata::slash_path(p.strip_prefix(root).unwrap());
             if e.file_type().unwrap().is_dir() {
                 out.push(json!({"path": rel, "kind": "dir"}));
                 walk(&p, root, out, with_text);
@@ -270,7 +271,7 @@ fn probe_normalization_insensitive(d: &Path) -> bool {
 fn run_scenario(sc: &J, album_cols: &str, delta: Delta) -> usize {
     let id = s(&sc["id"]);
     let tmp = tempfile::tempdir().unwrap();
-    let base = tmp.path().canonicalize().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
     let lib = base.join("lib");
     std::fs::create_dir(&lib).unwrap();
     let trash_root = trash::trash_dir(&base.join("config"));

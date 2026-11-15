@@ -19,7 +19,7 @@ impl Norm {
     fn text(&self, s: &str) -> String {
         match self.ids.get(s) {
             Some(dir) => format!("<ID:{dir}>"),
-            None => s.replace(&self.lib, "<LIB>"),
+            None => musaic_testdata::replace_root(s, &self.lib, "<LIB>"),
         }
     }
 

@@ -404,7 +404,7 @@ fn http(port: u16, method: &str, path: &str, body: Option<&str>) -> String {
 fn sigterm_during_a_pool_pass_checkpoints_the_database() {
     use std::io::{BufRead, BufReader};
     let td = tempfile::tempdir().unwrap();
-    let root = td.path().canonicalize().unwrap();
+    let root = musaic_testdata::canonical(td.path());
     let cfg = root.join("cfg");
     let lib = root.join("library");
     copy_tree(&musaic_testdata::synthetic_library(), &lib);

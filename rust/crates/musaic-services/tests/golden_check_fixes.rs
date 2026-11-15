@@ -170,7 +170,8 @@ impl World {
 
     fn n(&self, s: &str) -> String {
         let cfg = self.cfg.to_string_lossy();
-        self.norm.str(&s.replace(cfg.as_ref(), "<CFG>"))
+        self.norm
+            .str(&musaic_testdata::replace_root(s, cfg.as_ref(), "<CFG>"))
     }
 
     fn nv(&self, v: &Value) -> Value {
@@ -203,7 +204,7 @@ impl World {
                     walk(root, &p, out);
                     continue;
                 }
-                let rel = p.strip_prefix(root).unwrap().to_string_lossy().into_owned();
+                let rel = musaic_testdata::slash_path(p.strip_prefix(root).unwrap());
                 if rel.to_lowercase().ends_with(".flac") {
                     let meta = musaic_scan::flacmeta::read(&p).unwrap();
                     let mut tags = serde_json::Map::new();
@@ -236,7 +237,9 @@ impl World {
                 if p.is_dir() {
                     walk(root, &p, out);
                 } else {
-                    out.push(json!(p.strip_prefix(root).unwrap().to_string_lossy()));
+                    out.push(json!(musaic_testdata::slash_path(
+                        p.strip_prefix(root).unwrap()
+                    )));
                 }
             }
         }

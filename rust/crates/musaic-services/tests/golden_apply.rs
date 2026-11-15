@@ -924,7 +924,7 @@ fn mask_sse(body: &str, norm: &Norm) -> String {
         rest = &rest[end..];
     }
     out.push_str(rest);
-    let mut out = out.replace(&norm.lib, "<LIB>");
+    let mut out = musaic_testdata::replace_root(&out, &norm.lib, "<LIB>");
     let ids: HashMap<&String, &String> = norm.ids.iter().collect();
     for (real, label) in ids {
         out = out.replace(real.as_str(), &format!("<ID:{label}>"));

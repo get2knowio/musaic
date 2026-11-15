@@ -99,7 +99,7 @@ fn copy_db_and_wal(from: &Path, to: &Path) {
 /// the WAL and the overwritten `OLD` value sits in free space.
 fn python_wal_state() -> (tempfile::TempDir, PathBuf) {
     let t = tempfile::tempdir().unwrap();
-    let root = t.path().canonicalize().unwrap();
+    let root = musaic_testdata::canonical(t.path());
     let stage = root.join("stage");
     std::fs::create_dir_all(&stage).unwrap();
     std::fs::copy(
@@ -375,7 +375,7 @@ fn wal_resume_after_delete_before_checkpoint() {
               WHERE key IN ('ai_api_key', 'firecrawl_api_key', 'acoustid_api_key');",
         )
         .unwrap();
-    let crashed = t.path().canonicalize().unwrap().join("crashed");
+    let crashed = musaic_testdata::canonical(t.path()).join("crashed");
     let db = crash_and_reopen(db, &cfg, &crashed);
     assert_precondition(!leaks(&crashed).is_empty(), "the crash left a trace");
     let r = migrate_settings_secrets(&db, &store).unwrap();
@@ -401,7 +401,7 @@ fn wal_resume_after_live_scrub_during_backup_scrub() {
     let stale = format!("{}{SCRUB_TMP_SUFFIX}", b.display());
     std::fs::write(&stale, &backup_before).unwrap();
     std::fs::write(format!("{stale}-journal"), KEY).unwrap();
-    let crashed = t.path().canonicalize().unwrap().join("crashed");
+    let crashed = musaic_testdata::canonical(t.path()).join("crashed");
     let db = crash_and_reopen(db, &cfg, &crashed);
     std::fs::copy(
         format!("{stale}-journal"),

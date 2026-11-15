@@ -22,6 +22,15 @@ on:
         required: false
         type: boolean
         default: false
+      library-from-linux:
+        description: >-
+          Test with the synthetic library generated on Linux instead of on
+          this runner. On Windows the generator's audio differs in a few
+          files (floating-point maths in the platform's maths library), while
+          the tests compare against the committed manifest and goldens.
+        required: false
+        type: boolean
+        default: false
     outputs:
       outcome:
         description: "success or failure of fmt + clippy + tests on this platform"
@@ -49,8 +58,38 @@ env:
   MUSAIC_PRIVATE_TESTDATA: ""
 
 jobs:
+  library:
+    name: synthetic library (Linux, for ${{ inputs.os }})
+    if: inputs.library-from-linux
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.SYNTH_PYTHON_VERSION }}
+      - name: Generate and check the synthetic test library
+        working-directory: rust
+        run: |
+          # shellcheck disable=SC2086 # SYNTH_PACKAGES is a list of arguments
+          python -m pip install --disable-pip-version-check $SYNTH_PACKAGES
+          python testdata/synthetic-library/gen_fixture_library.py
+          git checkout -- testdata/synthetic-library/library.manifest.json
+          python testdata/synthetic-library/verify_library.py
+          # tar keeps the pinned mtimes the scanner tests depend on.
+          tar -C testdata/synthetic-library -cf "$RUNNER_TEMP/synthetic-library.tar" library
+      - uses: actions/upload-artifact@v7
+        with:
+          name: synthetic-library-${{ inputs.os }}
+          path: ${{ runner.temp }}/synthetic-library.tar
+          retention-days: 1
+          if-no-files-found: error
+
   rust:
     name: rust (${{ inputs.os }})
+    needs: library
+    # Runs when the library job was skipped (the usual case) or passed.
+    if: ${{ !cancelled() && needs.library.result != 'failure' }}
     runs-on: ${{ inputs.os }}
     continue-on-error: ${{ inputs.allowed-to-fail }}
     timeout-minutes: 90
@@ -111,6 +150,7 @@ jobs:
         with:
           python-version: ${{ env.SYNTH_PYTHON_VERSION }}
       - name: Generate the synthetic test library
+        if: ${{ !inputs.library-from-linux }}
         working-directory: rust
         run: |
           # shellcheck disable=SC2086 # SYNTH_PACKAGES is a list of arguments
@@ -120,12 +160,28 @@ jobs:
           before="$(digest)"
           python testdata/synthetic-library/gen_fixture_library.py
           after="$(digest)"
-          if [ "$before" != "$after" ]; then
-            echo "::warning::synthetic library differs from the committed manifest on ${{ runner.os }} ($before -> $after); tests that hash audio may fail"
-          fi
           # The generator rewrites the manifest (at least its timestamp);
           # keep the committed one so the tests compare against it.
           git checkout -- "$manifest"
+          if [ "$before" != "$after" ]; then
+            echo "::warning::synthetic library differs from the committed manifest on ${{ runner.os }} ($before -> $after); tests that hash audio may fail"
+            python testdata/synthetic-library/verify_library.py || true
+          fi
+
+      - name: Download the synthetic test library generated on Linux
+        if: inputs.library-from-linux
+        uses: actions/download-artifact@v8
+        with:
+          name: synthetic-library-${{ inputs.os }}
+          path: ${{ runner.temp }}/synthetic-library
+      - name: Unpack and check the synthetic test library
+        if: inputs.library-from-linux
+        working-directory: rust
+        run: |
+          rm -rf testdata/synthetic-library/library
+          # --force-local: a Windows path such as D:\a\_temp is not a remote host.
+          tar --force-local -C testdata/synthetic-library -xf "$RUNNER_TEMP/synthetic-library/synthetic-library.tar"
+          python testdata/synthetic-library/verify_library.py
 
       - name: Format
         id: fmt

@@ -162,12 +162,7 @@ impl Norm {
             let Ok(rd) = fs::read_dir(dir) else { return };
             for e in rd.flatten() {
                 if e.file_type().is_ok_and(|t| t.is_dir()) {
-                    let rel = e
-                        .path()
-                        .strip_prefix(root)
-                        .unwrap()
-                        .to_string_lossy()
-                        .into_owned();
+                    let rel = musaic_testdata::slash_path(e.path().strip_prefix(root).unwrap());
                     n.learn_dir(&rel);
                     walk(n, root, &e.path());
                 }
@@ -184,7 +179,7 @@ impl Norm {
         if is_now_like(s) && !s.starts_with("2001-") {
             return "<NOW>".into();
         }
-        s.replace(&self.lib, "<LIB>")
+        musaic_testdata::replace_root(s, &self.lib, "<LIB>")
     }
 
     pub fn value(&self, v: &Value) -> Value {
@@ -411,7 +406,7 @@ pub fn describe_lib(lib: &Path) -> Vec<Value> {
         entries.sort_by_key(|e| e.file_name());
         for e in entries {
             let p = e.path();
-            let rel = p.strip_prefix(root).unwrap().to_string_lossy().into_owned();
+            let rel = musaic_testdata::slash_path(p.strip_prefix(root).unwrap());
             if e.file_type().unwrap().is_dir() {
                 out.push(json!({"path": rel, "kind": "dir"}));
                 walk(root, &p, out);

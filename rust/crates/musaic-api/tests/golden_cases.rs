@@ -517,7 +517,7 @@ async fn replay(clock: Option<Arc<ScriptedClock>>) -> Vec<String> {
                     .method(method)
                     .uri(&path)
                     .header("content-type", "application/json")
-                    .body(Body::from(norm.unnorm(raw.as_str().unwrap())))
+                    .body(Body::from(norm.unnorm_json_text(raw.as_str().unwrap())))
                     .unwrap(),
             )
             .await

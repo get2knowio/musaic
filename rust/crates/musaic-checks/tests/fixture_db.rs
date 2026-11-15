@@ -51,7 +51,7 @@ fn open_set(conn: &rusqlite::Connection) -> Vec<FindingRow> {
 fn checks_on_the_fixture_library_match_the_python() {
     let src_lib = musaic_testdata::synthetic_library();
     let tmp = tempfile::tempdir().unwrap();
-    let root = tmp.path().canonicalize().unwrap();
+    let root = musaic_testdata::canonical(tmp.path());
     let db_path = root.join("library.db");
     std::fs::copy(
         musaic_testdata::public("db/v16-synthetic-offline.db"),

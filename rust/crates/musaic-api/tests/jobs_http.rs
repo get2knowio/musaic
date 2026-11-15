@@ -116,7 +116,7 @@ struct Run {
 
 impl Run {
     fn n(&self, s: &str) -> String {
-        let mut s = s.replace(&self.w.lib_str(), "<LIB>");
+        let mut s = musaic_testdata::replace_root(s, &self.w.lib_str(), "<LIB>");
         for (id, d) in &self.ids {
             s = s.replace(id, &format!("<ID:{d}>"));
         }

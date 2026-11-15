@@ -65,12 +65,21 @@ fn inode_key(_meta: &std::fs::Metadata) -> Option<(u64, u64)> {
 /// the canonical spelling. On a case-insensitive filesystem the caller's own
 /// spelling of each name survives, which matters because the album id hashes
 /// this string.
+///
+/// On Windows, Python's `Path.resolve()` does ask the OS (`ntpath.realpath`):
+/// 8.3 short names are expanded, each name gets its on-disk case, and no
+/// `\\?\` prefix is left. That is followed there
+/// ([`musaic_core::config::windows_realpath`]), so one folder has one id
+/// however its path was typed.
 pub fn py_resolve(path: &Path) -> PathBuf {
     let abs = if path.is_absolute() {
         path.to_path_buf()
     } else {
         std::env::current_dir().unwrap_or_default().join(path)
     };
+    if cfg!(windows) {
+        return musaic_core::config::windows_realpath(&abs);
+    }
     resolve_abs(&abs, 0)
 }
 

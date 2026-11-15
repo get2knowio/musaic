@@ -166,7 +166,8 @@ impl ConfigDir {
 }
 
 /// `Path.expanduser()` for `~` and `~/...`. `~user` forms are left as they are
-/// (Python looks the user up in the password database).
+/// (Python looks the user up in the password database). On Windows `~\...`
+/// is expanded too, as `ntpath.expanduser` does.
 pub fn expand_user(path: &str, home: Option<&Path>) -> PathBuf {
     if let Some(home) = home {
         if path == "~" {
@@ -174,6 +175,11 @@ pub fn expand_user(path: &str, home: Option<&Path>) -> PathBuf {
         }
         if let Some(rest) = path.strip_prefix("~/") {
             return home.join(rest.trim_start_matches('/'));
+        }
+        if cfg!(windows)
+            && let Some(rest) = path.strip_prefix("~\\")
+        {
+            return home.join(rest.trim_start_matches(['/', '\\']));
         }
     }
     PathBuf::from(path)
@@ -185,6 +191,9 @@ pub fn expand_user(path: &str, home: Option<&Path>) -> PathBuf {
 /// its target. Components that do not exist are kept as written. Unlike
 /// `std::fs::canonicalize`, names keep the spelling given (macOS realpath(3)
 /// would return the on-disk case).
+///
+/// On Windows it follows `ntpath.realpath` instead, as `Path.resolve()` does
+/// there: see [`windows_realpath`].
 pub fn resolve_path(path: &Path) -> io::Result<PathBuf> {
     let path = if path.as_os_str().is_empty() {
         PathBuf::from(".")
@@ -196,6 +205,9 @@ pub fn resolve_path(path: &Path) -> io::Result<PathBuf> {
     } else {
         std::env::current_dir()?.join(path)
     };
+    if cfg!(windows) {
+        return Ok(windows_realpath(&abs));
+    }
     let mut out = PathBuf::new();
     let mut links_followed = 0usize;
     walk(&mut out, &abs, &mut links_followed);
@@ -203,6 +215,84 @@ pub fn resolve_path(path: &Path) -> io::Result<PathBuf> {
         out.push(Component::RootDir.as_os_str());
     }
     Ok(out)
+}
+
+/// `ntpath.realpath(abs)` (non-strict), which is what `Path.resolve()` does on
+/// Windows: `.` and `..` are removed lexically first, then the longest
+/// existing leading part is replaced by the name the OS reports for it (the
+/// final path: links and junctions followed, 8.3 short names expanded, the
+/// on-disk case of every name), and a missing tail is kept as written.
+///
+/// Unlike `posixpath.realpath`, this asks the OS for the spelling. That is
+/// what keeps an album id (which hashes this string) the same however the
+/// library folder was typed: NTFS is case-insensitive, and `C:\Users\RUNNER~1`
+/// and `C:\Users\runneradmin` are one folder. The `\\?\` prefix
+/// `std::fs::canonicalize` adds is dropped again, as Python drops it, so the
+/// result is an ordinary path that may be joined with `/` and shown to people.
+///
+/// On other systems this is the lexical normalisation only (it is not called
+/// there outside tests).
+pub fn windows_realpath(abs: &Path) -> PathBuf {
+    let mut norm = PathBuf::new();
+    for c in abs.components() {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                // Never pops the prefix or root: `C:\..` is `C:\`.
+                if matches!(norm.components().next_back(), Some(Component::Normal(_))) {
+                    norm.pop();
+                }
+            }
+            other => norm.push(other.as_os_str()),
+        }
+    }
+    if !cfg!(windows) {
+        return norm;
+    }
+    let mut head = norm.clone();
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    loop {
+        if let Ok(real) = std::fs::canonicalize(&head) {
+            let mut out = strip_verbatim(real);
+            for name in tail.iter().rev() {
+                out.push(name);
+            }
+            return out;
+        }
+        match head.file_name() {
+            Some(name) => {
+                tail.push(name.to_owned());
+                head.pop();
+            }
+            None => return norm,
+        }
+    }
+}
+
+/// `\\?\C:\x` → `C:\x` and `\\?\UNC\server\share\x` → `\\server\share\x`,
+/// when the plain form is a valid path (shorter than `MAX_PATH`); anything
+/// else is returned unchanged.
+fn strip_verbatim(p: PathBuf) -> PathBuf {
+    const MAX_PATH: usize = 260;
+    let Some(s) = p.to_str() else { return p };
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        if rest.len() + 2 < MAX_PATH {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        return p;
+    }
+    if let Some(rest) = s.strip_prefix(r"\\?\") {
+        let b = rest.as_bytes();
+        if b.len() >= 3
+            && b[0].is_ascii_alphabetic()
+            && b[1] == b':'
+            && b[2] == b'\\'
+            && rest.len() < MAX_PATH
+        {
+            return PathBuf::from(rest);
+        }
+    }
+    p
 }
 
 /// Symlink hops after which a path is treated as a loop and kept unresolved
@@ -254,6 +344,37 @@ mod tests {
 
     // A trivial structural check; the Python app comparisons live in
     // tests/config_python_app.rs.
+    #[test]
+    fn verbatim_prefix_is_dropped_when_the_plain_path_is_valid() {
+        let p = |s: &str| PathBuf::from(s);
+        assert_eq!(strip_verbatim(p(r"\\?\C:\Music\A")), p(r"C:\Music\A"));
+        assert_eq!(
+            strip_verbatim(p(r"\\?\UNC\nas\share\Music")),
+            p(r"\\nas\share\Music")
+        );
+        // Not a drive path: kept.
+        assert_eq!(
+            strip_verbatim(p(r"\\?\Volume{0}\Music")),
+            p(r"\\?\Volume{0}\Music")
+        );
+        // Too long for a plain path: kept.
+        let long = format!(r"\\?\C:\{}", "x".repeat(300));
+        assert_eq!(strip_verbatim(p(&long)), p(&long));
+        assert_eq!(strip_verbatim(p("/plain/path")), p("/plain/path"));
+    }
+
+    // On Windows the result also depends on the disk (tests/windows_paths.rs);
+    // the lexical part is the same everywhere.
+    #[cfg(not(windows))]
+    #[test]
+    fn windows_realpath_removes_dots_lexically() {
+        assert_eq!(
+            windows_realpath(Path::new("/a/./b/../c/..")),
+            PathBuf::from("/a")
+        );
+        assert_eq!(windows_realpath(Path::new("/..")), PathBuf::from("/"));
+    }
+
     #[test]
     fn file_locations_sit_in_the_dir() {
         let c = ConfigDir::new("/x/cfg");

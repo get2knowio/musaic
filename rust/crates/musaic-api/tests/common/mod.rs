@@ -49,7 +49,7 @@ pub struct Sandbox {
 impl Sandbox {
     pub fn new() -> Sandbox {
         let tmp = tempfile::tempdir().unwrap();
-        let root = tmp.path().canonicalize().unwrap();
+        let root = musaic_testdata::canonical(tmp.path());
         let work = root.join("api-golden");
         let cfg = root.join("api-golden-config");
         std::fs::create_dir_all(&work).unwrap();
@@ -239,7 +239,7 @@ impl Norm {
     pub fn text(&self, s: &str) -> String {
         let mut s = s.to_string();
         for (k, v) in &self.repl {
-            s = s.replace(k, v);
+            s = musaic_testdata::replace_root(&s, k, v);
         }
         let s = self.iso.replace_all(&s, "<NOW>").into_owned();
         self.tag.replace_all(&s, "<TAG>").into_owned()
@@ -286,6 +286,17 @@ impl Norm {
         let mut s = s.to_string();
         for (k, v) in &self.repl {
             s = s.replace(v, k);
+        }
+        s
+    }
+
+    /// [`Norm::unnorm`] for raw JSON text: each path is put in JSON-escaped
+    /// (a Windows path's `\` must become `\\` inside a JSON string).
+    pub fn unnorm_json_text(&self, s: &str) -> String {
+        let mut s = s.to_string();
+        for (k, v) in &self.repl {
+            let escaped = serde_json::to_string(k).unwrap();
+            s = s.replace(v, &escaped[1..escaped.len() - 1]);
         }
         s
     }

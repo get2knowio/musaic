@@ -49,7 +49,7 @@ fn build_tree(dir: &Path, linked_album: &str) -> Vec<(String, PathBuf)> {
 /// As the golden stores it: the library-relative part under the recording
 /// checkout's library directory.
 fn rel(p: &str) -> String {
-    let lib = musaic_testdata::synthetic_library().canonicalize().unwrap();
+    let lib = musaic_testdata::canonical(musaic_testdata::synthetic_library());
     let under = Path::new(p)
         .strip_prefix(&lib)
         .unwrap_or_else(|_| panic!("{p} is not under the synthetic library"));

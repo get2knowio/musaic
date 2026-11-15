@@ -140,7 +140,7 @@ impl World {
         };
         let album = sc["album"].as_str().unwrap();
         let td = tempfile::tempdir().unwrap();
-        let root = td.path().canonicalize().unwrap();
+        let root = musaic_testdata::canonical(td.path());
         let lib = root.join("lib");
         let album_dir = lib.join(album);
         copy_dir(&source_album_dir(&src_root, album), &album_dir);
@@ -220,9 +220,8 @@ impl World {
             "<ID:{}>",
             self.album_dir.file_name().unwrap().to_string_lossy()
         );
-        let s = s
-            .replace(&self.album_id, &label)
-            .replace(&self.lib.to_string_lossy().into_owned(), "<LIB>");
+        let s = s.replace(&self.album_id, &label);
+        let s = musaic_testdata::replace_root(&s, &self.lib.to_string_lossy(), "<LIB>");
         regex::Regex::new(r#""dir_mtime": -?[0-9.e+-]+"#)
             .unwrap()
             .replace_all(&s, r#""dir_mtime": "<MTIME>""#)
@@ -535,11 +534,18 @@ async fn present_album_with_its_folder_gone_is_refused_before_streaming() {
     std::fs::remove_dir_all(&w.album_dir).unwrap();
     let got = w.analyze(json!({"what": sc["what"]})).await;
     assert_eq!(got.status, 409, "{}", got.text());
+    // The OS's own error for listing a missing directory: ENOENT on Unix,
+    // ERROR_PATH_NOT_FOUND (3) on Windows.
+    let gone = std::fs::read_dir(&w.album_dir).unwrap_err();
+    assert_eq!(gone.kind(), std::io::ErrorKind::NotFound);
+    if cfg!(unix) {
+        assert_eq!(gone.raw_os_error(), Some(2));
+    }
     assert_eq!(
         got.json(),
         json!({"detail": musaic_services::analyze::unreachable_album_detail(
             &w.album_dir,
-            &std::io::Error::from_raw_os_error(2), // ENOENT
+            &gone,
         )})
     );
     eventually("guard released", || w.st.gate().snapshot() == (0, false)).await;

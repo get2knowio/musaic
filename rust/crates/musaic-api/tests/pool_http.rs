@@ -156,7 +156,7 @@ impl Stream {
 /// ISO timestamps and the library path, normalised on both sides.
 fn norm_frame(f: &str, lib: &str) -> String {
     let iso = Regex::new(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ").unwrap();
-    iso.replace_all(&f.replace(lib, "<LIB>"), "<NOW>")
+    iso.replace_all(&musaic_testdata::replace_root(f, lib, "<LIB>"), "<NOW>")
         .into_owned()
 }
 

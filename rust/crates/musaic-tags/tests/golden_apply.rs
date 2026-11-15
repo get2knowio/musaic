@@ -262,12 +262,13 @@ fn brief(dir: &Path) -> Vec<Value> {
 
 // ---------- events -> golden JSON shape ----------
 
+/// `<ALBUM>/name` for a path inside the album; the golden spells it with `/`
+/// on every platform.
 fn rel(p: &Path, album: &Path) -> String {
-    let s = p.to_string_lossy();
-    let a = album.to_string_lossy();
-    match s.strip_prefix(a.as_ref()) {
-        Some(rest) => format!("<ALBUM>{rest}"),
-        None => s.into_owned(),
+    match p.strip_prefix(album) {
+        Ok(rest) if rest.as_os_str().is_empty() => "<ALBUM>".into(),
+        Ok(rest) => format!("<ALBUM>/{}", musaic_testdata::slash_path(rest)),
+        Err(_) => p.to_string_lossy().into_owned(),
     }
 }
 

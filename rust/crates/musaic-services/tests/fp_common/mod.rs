@@ -105,7 +105,7 @@ impl Lib {
         if let Some(rel) = self.ids.get(s) {
             return format!("<ID:{rel}>");
         }
-        s.replace(&self.lib_str(), "<LIB>")
+        musaic_testdata::replace_root(s, &self.lib_str(), "<LIB>")
     }
 
     pub fn norm_value(&self, v: &Value) -> Value {
