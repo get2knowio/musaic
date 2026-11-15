@@ -30,6 +30,7 @@ fn variant(e: &TransportError) -> &'static str {
         TransportError::TooManyRedirects { .. } => "TooManyRedirects",
         TransportError::BodyTooLarge { .. } => "BodyTooLarge",
         TransportError::Refused { .. } => "Refused",
+        TransportError::Stopped => "Stopped",
         TransportError::Other(_) => "Other",
     }
 }
@@ -166,6 +167,21 @@ fn no_error_message_contains_the_key() {
         );
         // `Other` is built from text the transport scrubbed (live.rs).
         transport_errors.push(TransportError::Other(base.scrub(&format!("echo {key}"))));
+        // `Stopped`: a background request whose stop flag is already set.
+        transport_errors.push(
+            musaic_net::BackgroundPaced::new(
+                LiveTransport::with_static_dns(refused_addr, &[]),
+                std::sync::Arc::new(musaic_net::Limiter::new(
+                    musaic_net::SystemClock,
+                    musaic_net::PacingPolicy::default(),
+                )),
+                musaic_net::RetryPolicy::default(),
+                || false,
+                std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            )
+            .send(&base)
+            .unwrap_err(),
+        );
 
         // Client-level errors from AcoustID lookups with this key.
         for body in [
@@ -193,6 +209,7 @@ fn no_error_message_contains_the_key() {
             "TooManyRedirects",
             "BodyTooLarge",
             "Refused",
+            "Stopped",
             "Other",
             "Status",
             "Parse",
