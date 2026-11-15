@@ -30,9 +30,31 @@ Security.
   follows the config folder). The Resolve buttons on findings get icons that fit each
   check instead of a copy icon. The requests the dialogs send are unchanged
   ([#196](https://github.com/get2knowio/musaic/issues/196)).
+- **The album sheet is now a side panel beside the library grid**
+  ([#190](https://github.com/get2knowio/musaic/issues/190)). The grid is no longer
+  dimmed or blocked: it narrows to make room (keeping at least 320 px), and clicking
+  another album shows that album in the panel. Browsing albums this way replaces the
+  history entry instead of adding one per album. Closing an album opened from another
+  page (Health, Jobs) goes back to that page; otherwise it returns to the library with
+  the same filters. Esc closes the panel when focus is in it, F6 moves focus between the
+  grid and the panel, Enter on a tile opens the album with focus in the panel, and
+  closing puts focus back on the album's tile. The open album's tile is highlighted and
+  scrolled into view. The resize handle also works from the keyboard (arrow keys,
+  Home / End) and a double-click restores the default width. Dialogs opened from the
+  panel are ordinary dialogs over the whole window. When the window is too narrow for
+  both the grid (320 px) and the panel (360 px), the panel takes the whole width; the
+  grid waits underneath with its scroll position and comes back on close.
+- Applying changes no longer holds the album open: you can switch albums or close the
+  panel while tags are written (the app finishes the write either way), and the
+  progress, or the result, is shown again when you reopen that album.
 
 ### Fixed
 
+- The titlebar no longer makes the window content wider than the window, which cut off
+  the right-hand controls at the default 1280 px width and anything narrower
+  ([#201](https://github.com/get2knowio/musaic/issues/201), first item). The location
+  and search box shrink; below 1024 px the tile-size slider is hidden and Rescan shows
+  only its icon.
 - A library scan can be cancelled: the scan ribbon's Cancel button (and quitting the
   app) stops it after the album being read, and nothing it read is saved. A scan that
   ends without saving (cancelled, aborted because too many albums seemed to vanish, or

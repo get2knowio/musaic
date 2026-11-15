@@ -1,5 +1,6 @@
 import { CloudOff, Music } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
+import { requestPanelFocus } from "@/components/DetailSheet/panelFocus";
 import { coverUrl } from "@/lib/api";
 import { displayArtist as displayArtistField } from "@/lib/albumFields";
 import type { Album, Job } from "@/lib/types";
@@ -12,8 +13,10 @@ interface TileProps {
 }
 
 /**
- * One album tile. Clicking it routes to /library/:id which opens the
- * detail sheet (sheet implementation comes in the next milestone).
+ * One album tile. Clicking it routes to /library/:id, which shows the album
+ * in the panel beside the grid. With a panel already open the click replaces
+ * the history entry, so browsing albums does not fill the back stack.
+ * Opening from the keyboard (Enter) moves focus into the panel.
  *
  * Missing albums (album.missing_since is set) render greyed-out with
  * a "Missing" pill in the top-right corner. The tile stays clickable
@@ -23,6 +26,8 @@ interface TileProps {
  */
 export default function Tile({ album, activeJob }: TileProps) {
   const location = useLocation();
+  const { albumId: openAlbumId } = useParams<{ albumId: string }>();
+  const isOpen = openAlbumId === album.id;
   const artist = displayArtist(album);
   const subParts = [
     album.year,
@@ -35,11 +40,19 @@ export default function Tile({ album, activeJob }: TileProps) {
       // Preserve current ?filter= and ?q= so opening an album doesn't drop
       // the user out of their filtered view when they come back from the sheet.
       to={`/library/${encodeURIComponent(album.id)}${location.search}`}
-      className={`group relative flex flex-col overflow-hidden rounded-md border bg-panel transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+      replace={!!openAlbumId}
+      state={location.state}
+      onClick={(e) => {
+        // detail 0: activated from the keyboard, not a pointer.
+        if (e.detail === 0) requestPanelFocus(album.id);
+      }}
+      data-album-id={album.id}
+      aria-current={isOpen ? "true" : undefined}
+      className={`group relative flex flex-col overflow-hidden rounded-md border bg-panel transition cursor-pointer scroll-m-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
         isMissing
           ? "border-warn/30 hover:border-warn/60"
           : "border-line hover:border-accent hover:-translate-y-0.5 hover:shadow-card"
-      }`}
+      } ${isOpen ? "ring-2 ring-accent ring-offset-2 ring-offset-bg" : ""}`}
       title={
         isMissing
           ? `Missing since ${formatMissingDate(album.missing_since!)} — ${album.path}`

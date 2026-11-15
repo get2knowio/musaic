@@ -76,9 +76,11 @@ export default function AlbumHero({ album }: AlbumHeroProps) {
           )}
           <ResolutionBadge albumId={album.id} />
         </div>
-        <h2 className="text-lg font-semibold leading-tight truncate" title={album.title || album.dir_name}>
+        {/* Not a heading: the panel's header carries the album title as
+            its h2 (the panel's label and keyboard focus target). */}
+        <p className="text-lg font-semibold leading-tight truncate" title={album.title || album.dir_name}>
           {album.title || album.dir_name}
-        </h2>
+        </p>
         <div className="text-md text-fg-2 truncate mt-0.5" title={artist}>
           {artist}
         </div>

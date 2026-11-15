@@ -1,12 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Disc3 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import FilterBar from "@/components/FilterBar";
 import ScanRibbon from "@/components/ScanRibbon";
 import TileGrid from "@/components/TileGrid";
 import AlbumList from "@/components/AlbumList";
-import DetailSheet from "@/components/DetailSheet";
+import AlbumPanel from "@/components/DetailSheet";
+import {
+  findAlbumTile,
+  focusAlbumTileOrMain,
+  focusMain,
+} from "@/components/DetailSheet/panelFocus";
+import { panelFillsRow } from "@/components/DetailSheet/layout";
+import { albumOpenedFrom } from "@/hooks/useRememberedLibraryUrl";
 import LibraryPathForm from "@/components/LibraryPathForm";
 import { libraryPathHelp } from "@/lib/desktop";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
@@ -23,8 +30,12 @@ import {
 import { parseSort, sortAlbums } from "@/lib/albumSort";
 import type { Album } from "@/lib/types";
 
+/** The grid keeps at least this much width beside the album panel. */
+const GRID_MIN_WIDTH = 320;
+
 /**
- * Library page — initial scan + tile grid.
+ * Library page — initial scan + tile grid, and the album panel docked beside
+ * the grid when the URL is /library/:albumId.
  *
  * Reads the current search query from the URL (`?q=…`) so the Titlebar's
  * search input can drive filtering without a shared context. Filtering is
@@ -92,6 +103,89 @@ export default function LibraryPage() {
       ? Math.max(0, scan.total - albums.length)
       : 0;
 
+  // ---- Album panel ------------------------------------------------------
+
+  const { albumId } = useParams<{ albumId: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const openAlbum = albumId ? albums.find((a) => a.id === albumId) : undefined;
+  // Effects key on the id, not the object: the album list is rebuilt on
+  // every scan / snapshot update.
+  const openId = openAlbum?.id;
+  const panelRef = useRef<HTMLElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [rowRef, rowWidth] = useElementWidth<HTMLDivElement>();
+  // Too narrow for grid and panel side by side: the panel covers the row
+  // and the grid stays mounted (scroll position, state) but inert.
+  const panelCoversGrid = !!openId && panelFillsRow(rowWidth, GRID_MIN_WIDTH);
+
+  // Close: back to the page the album was opened from (Health, Jobs, …),
+  // else to the library with the same filters. Focus goes to the album's
+  // tile, or to <main> when leaving the page or the tile is filtered out.
+  const closePanel = useCallback(() => {
+    if (!albumId) return;
+    if (albumOpenedFrom(location.key)) {
+      focusMain();
+      navigate(-1);
+    } else {
+      // The grid may be inert under a full-width panel; inert elements
+      // cannot take focus, so lift it now rather than after the re-render.
+      gridRef.current?.removeAttribute("inert");
+      focusAlbumTileOrMain(albumId);
+      navigate(`/library${location.search}`);
+    }
+  }, [albumId, location.key, location.search, navigate]);
+
+  // The panel went away some other way (browser Back) while it held focus:
+  // the focus fell to <body>; put it on the album's tile instead.
+  const lastOpenId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    const previous = lastOpenId.current;
+    lastOpenId.current = openId;
+    if (previous && !openId && (!document.activeElement || document.activeElement === document.body)) {
+      focusAlbumTileOrMain(previous);
+    }
+  }, [openId]);
+
+  // Keep the open album's tile in view: on deep-link opens, when the grid
+  // reflows narrower as the panel appears, and when the grid comes back from
+  // under a full-width panel. Not while covered: the grid keeps its scroll.
+  const openTileListed = !!openId && filtered.some((a) => a.id === openId);
+  useEffect(() => {
+    if (!openId || !openTileListed || panelCoversGrid) return;
+    const raf = requestAnimationFrame(() => {
+      findAlbumTile(openId, gridRef.current ?? document)?.scrollIntoView?.({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [openId, openTileListed, panelCoversGrid]);
+
+  // F6 moves focus between the grid and the panel (nothing to move to while
+  // the panel covers the grid).
+  useEffect(() => {
+    if (!openId || panelCoversGrid) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "F6") return;
+      const panel = panelRef.current;
+      const grid = gridRef.current;
+      if (!panel || !grid) return;
+      const active = document.activeElement;
+      // A modal dialog owns focus while it is open.
+      if (active?.closest('[role="dialog"], [role="alertdialog"]')) return;
+      e.preventDefault();
+      if (active && panel.contains(active)) {
+        const target =
+          findAlbumTile(openId, grid) ??
+          grid.querySelector<HTMLElement>("[data-album-id]") ??
+          grid;
+        target.focus();
+      } else {
+        panel.querySelector<HTMLElement>("[data-panel-heading]")?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openId, panelCoversGrid]);
+
   // ---- Empty / loading shells -------------------------------------------
 
   if (config.isLoading) {
@@ -121,26 +215,37 @@ export default function LibraryPage() {
         activeFilterLabel={filterKey ? FILTERS_BY_KEY[filterKey].label : undefined}
       />
       <ScanRibbon scan={scan} onCancel={() => void cancel()} />
-      <ScrollPersistedArea storageKey={`mm.library.scroll.${view}`}>
-        {albums.length === 0 && scan.status === "done" ? (
-          <EmptyLibrary />
-        ) : filtered.length === 0 && (query || filterKey) ? (
-          <EmptyFilter query={query} filterKey={filterKey} />
-        ) : view === "list" ? (
-          <AlbumList
-            albums={filtered}
-            skeletonCount={query || filterKey ? 0 : skeletonCount}
-            activeJobs={activeJobsMap}
-          />
-        ) : (
-          <TileGrid
-            albums={filtered}
-            skeletonCount={query || filterKey ? 0 : skeletonCount}
-            activeJobs={activeJobsMap}
+      <div ref={rowRef} className="relative flex-1 min-h-0 flex">
+        <ScrollPersistedArea ref={gridRef} inert={panelCoversGrid} storageKey={`mm.library.scroll.${view}`}>
+          {albums.length === 0 && scan.status === "done" ? (
+            <EmptyLibrary />
+          ) : filtered.length === 0 && (query || filterKey) ? (
+            <EmptyFilter query={query} filterKey={filterKey} />
+          ) : view === "list" ? (
+            <AlbumList
+              albums={filtered}
+              skeletonCount={query || filterKey ? 0 : skeletonCount}
+              activeJobs={activeJobsMap}
+            />
+          ) : (
+            <TileGrid
+              albums={filtered}
+              skeletonCount={query || filterKey ? 0 : skeletonCount}
+              activeJobs={activeJobsMap}
+            />
+          )}
+        </ScrollPersistedArea>
+        {openAlbum && (
+          <AlbumPanel
+            ref={panelRef}
+            album={openAlbum}
+            onClose={closePanel}
+            onAlbumUpdated={onAlbumUpdated}
+            availableWidth={rowWidth}
+            listMinWidth={GRID_MIN_WIDTH}
           />
         )}
-      </ScrollPersistedArea>
-      <DetailSheet albums={albums} onAlbumUpdated={onAlbumUpdated} />
+      </div>
     </>
   );
 }
@@ -229,11 +334,18 @@ function EmptyFilter({ query, filterKey }: { query: string; filterKey: FilterKey
 function ScrollPersistedArea({
   storageKey,
   children,
+  ref: outerRef,
+  inert = false,
 }: {
   storageKey: string;
   children: React.ReactNode;
+  ref?: React.Ref<HTMLDivElement>;
+  /** Covered by a full-width album panel: out of the tab order and the
+   *  accessibility tree, but still laid out so its scroll position holds. */
+  inert?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  useImperativeHandle(outerRef, () => ref.current as HTMLDivElement);
 
   useEffect(() => {
     const el = ref.current;
@@ -260,10 +372,31 @@ function ScrollPersistedArea({
   }, [storageKey]);
 
   return (
-    <div ref={ref} className="flex-1 overflow-y-auto">
+    // tabIndex -1: F6 can land here when no tile is rendered.
+    <div ref={ref} tabIndex={-1} inert={inert} className="flex-1 min-w-0 overflow-y-auto outline-none">
       {children}
     </div>
   );
+}
+
+// ---------- layout ----------
+
+/** A callback ref and the element's current width (null until measured). */
+function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, number | null] {
+  const [width, setWidth] = useState<number | null>(null);
+  const observer = useRef<ResizeObserver | null>(null);
+  const ref = useCallback((el: T | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    setWidth(el.getBoundingClientRect().width);
+    observer.current = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w !== undefined) setWidth(w);
+    });
+    observer.current.observe(el);
+  }, []);
+  return [ref, width];
 }
 
 // ---------- filtering ----------

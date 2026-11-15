@@ -1,39 +1,67 @@
 /**
- * useResizableWidth — drives the DetailSheet's drag-to-resize behavior.
+ * useResizableWidth — width of a panel docked on the RIGHT of a row, resized
+ * from a handle on its left edge: dragging left makes it wider, dragging
+ * right narrower.
  *
- * The handle is anchored on the LEFT edge of a right-anchored panel: dragging
- * left makes it wider, dragging right makes it narrower. Width is bounded
- * between `min` and `min(max, 95vw)` and persisted to localStorage.
+ * The user's preferred width is persisted to localStorage. The width actually
+ * used is that preference clamped to `[minWidth, maxWidth]` and, when the
+ * row's width is known (`available`), to what leaves `reserve` px for the
+ * content beside the panel. `minWidth` wins when the row is too narrow for
+ * both.
+ *
+ * The handle is a focusable `role="separator"`: ArrowLeft / ArrowRight change
+ * the width by `step` px, Home / End jump to the minimum / maximum, and a
+ * double-click restores the default.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Options {
   /** localStorage key for persisting the width. */
   storageKey: string;
-  /** Initial width if nothing's persisted. */
+  /** Initial width if nothing's persisted; also what double-click restores. */
   defaultWidth: number;
   /** Smallest allowed width in px. */
   minWidth: number;
-  /** Largest allowed width in px (additionally clamped to 95vw). */
+  /** Largest allowed width in px. */
   maxWidth: number;
+  /** Width of the row the panel is docked in, when measured. */
+  available?: number | null;
+  /** Px to leave for the content beside the panel. */
+  reserve?: number;
+  /** Keyboard step in px. */
+  step?: number;
 }
 
-export function useResizableWidth({ storageKey, defaultWidth, minWidth, maxWidth }: Options) {
-  const [width, setWidth] = useState<number>(() => loadWidth(storageKey, defaultWidth));
+export function useResizableWidth({
+  storageKey,
+  defaultWidth,
+  minWidth,
+  maxWidth,
+  available = null,
+  reserve = 0,
+  step = 16,
+}: Options) {
+  const [preferred, setPreferred] = useState<number>(() => loadWidth(storageKey, defaultWidth));
   const [resizing, setResizing] = useState(false);
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
 
-  // Reapply storage on mount in case the entry was added by another tab/window.
+  const max =
+    available !== null && available > 0
+      ? Math.max(minWidth, Math.min(maxWidth, available - reserve))
+      : maxWidth;
+  const width = clamp(preferred, minWidth, max);
+
+  // Reapply storage on mount in case the entry was added by another window.
   useEffect(() => {
-    setWidth(clamp(loadWidth(storageKey, defaultWidth), minWidth, maxWidth));
-  }, [storageKey, defaultWidth, minWidth, maxWidth]);
+    setPreferred(loadWidth(storageKey, defaultWidth));
+  }, [storageKey, defaultWidth]);
 
   // Persist width whenever it settles (i.e. at the end of a drag).
   useEffect(() => {
     if (resizing) return;
-    try { localStorage.setItem(storageKey, String(Math.round(width))); } catch { /* ignore */ }
-  }, [width, resizing, storageKey]);
+    try { localStorage.setItem(storageKey, String(Math.round(preferred))); } catch { /* ignore */ }
+  }, [preferred, resizing, storageKey]);
 
   const onPointerDown = useCallback(
     (event: React.PointerEvent) => {
@@ -47,8 +75,7 @@ export function useResizableWidth({ storageKey, defaultWidth, minWidth, maxWidth
       const onMove = (e: PointerEvent) => {
         // Right-anchored panel: dragging cursor LEFT (smaller clientX) widens.
         const delta = startXRef.current - e.clientX;
-        const next = clamp(startWidthRef.current + delta, minWidth, Math.min(maxWidth, window.innerWidth * 0.95));
-        setWidth(next);
+        setPreferred(clamp(startWidthRef.current + delta, minWidth, max));
       };
       const onUp = () => {
         setResizing(false);
@@ -63,10 +90,34 @@ export function useResizableWidth({ storageKey, defaultWidth, minWidth, maxWidth
       document.body.style.cursor = "col-resize";
       document.body.style.userSelect = "none";
     },
-    [width, minWidth, maxWidth],
+    [width, minWidth, max],
   );
 
-  return { width, resizing, onPointerDown };
+  const onKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      let next: number | null = null;
+      switch (event.key) {
+        case "ArrowLeft": next = width + step; break;
+        case "ArrowRight": next = width - step; break;
+        case "Home": next = minWidth; break;
+        case "End": next = max; break;
+      }
+      if (next === null) return;
+      event.preventDefault();
+      setPreferred(clamp(next, minWidth, max));
+    },
+    [width, step, minWidth, max],
+  );
+
+  const onDoubleClick = useCallback(() => setPreferred(defaultWidth), [defaultWidth]);
+
+  return {
+    width,
+    min: minWidth,
+    max,
+    resizing,
+    handleProps: { onPointerDown, onKeyDown, onDoubleClick },
+  };
 }
 
 function loadWidth(key: string, fallback: number): number {

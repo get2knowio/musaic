@@ -1,4 +1,5 @@
 import * as Dialog from "@radix-ui/react-dialog";
+import { useReturnFocus } from "./useReturnFocus";
 import { AlertTriangle, Image as ImageIcon, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -143,6 +144,8 @@ export default function HintDialog({
 
   const handleSubmit = () => onSubmit(hint.trim(), attachCover);
 
+  const returnFocus = useReturnFocus(open);
+
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
       <Dialog.Portal>
@@ -150,6 +153,7 @@ export default function HintDialog({
         <Dialog.Content
           className="fixed top-1/2 left-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[min(560px,95vw)] bg-panel border border-line rounded-lg shadow-popup outline-none flex flex-col"
           aria-describedby={undefined}
+          onCloseAutoFocus={returnFocus}
           onKeyDown={(e) => {
             // Cmd/Ctrl + Enter to submit
             if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
