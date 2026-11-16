@@ -20,7 +20,7 @@ unicode-normalization = "0.1"
 
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
-base64 = "0.22"
+base64 = "0.23"
 musaic-net = { path = "../musaic-net" }
 tempfile.workspace = true
 form_urlencoded = "1"
