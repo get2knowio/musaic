@@ -5,7 +5,7 @@
  * a finding whose album is Missing.
  */
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
@@ -227,5 +227,82 @@ describe("Back from an album", () => {
     renderAt("/start");
     fireEvent.click(screen.getByRole("link", { name: "go" }));
     expect(scrollerEl().scrollTop).toBe(0);
+  });
+});
+
+describe("ignored findings", () => {
+  const ignored = finding(9, {
+    ignored_at: "2026-01-02T00:00:00Z",
+    summary: "ignored gap",
+    severity: "warn",
+  });
+
+  function stubIgnored() {
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).startsWith("/api/checks/findings?include_ignored=true")) {
+        return new Response(JSON.stringify({ findings: [...findings, ignored] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({}), { status: 200, headers: { "content-type": "application/json" } });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("are not counted or on the default view; they can be listed and restored", async () => {
+    const fetchMock = stubIgnored();
+    renderAt("/attention");
+    expect(screen.queryByText("ignored gap")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Show ignored/ })).toBeNull();
+    expect(document.querySelector("[aria-live]")!.textContent).toBe("5 items");
+
+    fireEvent.click(screen.getByRole("button", { name: /Other/ }));
+    expect(screen.queryByText("ignored gap")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show ignored" }));
+    expect(await screen.findByText("ignored gap")).toBeTruthy();
+    // Still not counted anywhere.
+    expect(document.querySelector("[aria-live]")!.textContent).toBe("5 items");
+    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).toContain("5");
+
+    const row = screen.getByText("ignored gap").closest("div.px-3")!;
+    fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Restore" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/checks/track-gaps/findings/9/unignore",
+        expect.objectContaining({ method: "POST" }),
+      ),
+    );
+  });
+
+  it("can be listed in a check-filtered view", async () => {
+    stubIgnored();
+    renderAt("/attention?check=track-gaps");
+    fireEvent.click(screen.getByRole("button", { name: "Show ignored" }));
+    expect(await screen.findByText("ignored gap")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Hide ignored" }));
+    expect(screen.queryByText("ignored gap")).toBeNull();
+  });
+});
+
+describe("long lists", () => {
+  const many = Array.from({ length: 60 }, (_, i) => finding(100 + i, { summary: `many ${i}` }));
+
+  it("caps a check's section at 50 rows with a Show all N button; counts stay true", () => {
+    renderAt("/attention", client(many, []));
+    expect(screen.getAllByText(/^many \d+$/)).toHaveLength(50);
+    expect(document.querySelector("[aria-live]")!.textContent).toBe("60 items");
+    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).toContain("60");
+    expect(document.querySelector("#check-track-gaps")!.textContent).toContain("60");
+    fireEvent.click(screen.getByRole("button", { name: "Show all 60" }));
+    expect(screen.getAllByText(/^many \d+$/)).toHaveLength(60);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
+  });
+
+  it("a check-filtered view lists everything for that check", () => {
+    renderAt("/attention?check=track-gaps", client(many, []));
+    expect(screen.getAllByText(/^many \d+$/)).toHaveLength(60);
+    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
   });
 });

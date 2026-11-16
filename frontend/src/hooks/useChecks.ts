@@ -63,6 +63,21 @@ export function useFindings() {
   });
 }
 
+/**
+ * Open findings the user has ignored (`include_ignored`; the plain list
+ * leaves them out). Fetched only while `enabled` (the "Show ignored"
+ * toggle), and refreshed with the rest of ["findings"] by useChecksStream.
+ */
+export function useIgnoredFindings(enabled: boolean) {
+  return useQuery<Finding[]>({
+    queryKey: [...FINDINGS_QUERY_KEY, "ignored"],
+    queryFn: async () =>
+      (await listFindings({ includeIgnored: true })).findings.filter((f) => !!f.ignored_at),
+    enabled,
+    staleTime: Infinity,  // SSE keeps it fresh (the stream invalidates ["findings"])
+  });
+}
+
 /** Open findings for a single album. Used by the detail-sheet section. */
 export function useFindingsForAlbum(albumId: string | null | undefined): Finding[] {
   const { data: findings = [] } = useFindings();

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigationType, useSearchParams } from "react-router-dom";
-import { AlertCircle, CheckCircle2, Trash2, X, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, EyeOff, Trash2, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { BulkQuickFixDialog } from "@/components/BulkQuickFixDialog";
@@ -14,7 +14,7 @@ import {
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { useAttention } from "@/hooks/useAttention";
-import { useChecks } from "@/hooks/useChecks";
+import { useChecks, useIgnoredFindings } from "@/hooks/useChecks";
 import { useBulkDeleteJobs, useDeleteJob, useJobs } from "@/hooks/useJobs";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import type { Album, CheckSummary, Finding, Job } from "@/lib/types";
@@ -37,6 +37,9 @@ import type { Album, CheckSummary, Finding, Job } from "@/lib/types";
  * nothing to run from here.
  */
 export type AttentionView = "decision" | "other";
+
+/** Findings listed per check before "Show all N" (a check filter lists all). */
+export const SECTION_ROW_LIMIT = 50;
 
 const SCROLL_KEY = "mm.attention.scroll";
 const JOB_COLS = "100px minmax(0, 1.2fr) 110px 110px 72px";
@@ -64,6 +67,12 @@ export default function AttentionPage() {
   const view: AttentionView = params.get("view") === "other" ? "other" : "decision";
   const checkFilter = params.get("check");
   const linkedJobId = params.get("job");
+  // Ignored findings are never counted; they are listed on request in the
+  // Other view and in a check-filtered view, where they can be restored.
+  const canShowIgnored = view === "other" || !!checkFilter;
+  const showIgnored = params.get("ignored") === "1" && canShowIgnored;
+  const ignoredQ = useIgnoredFindings(showIgnored);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
 
   const attention = useAttention();
   const { data: checks = [] } = useChecks();
@@ -107,8 +116,9 @@ export default function AttentionPage() {
       : view === "decision"
         ? attention.findings
         : attention.infoFindings;
+    const all = showIgnored ? [...findings, ...(ignoredQ.data ?? [])] : findings;
     const m = new Map<string, Finding[]>();
-    for (const f of findings) {
+    for (const f of all) {
       if (checkFilter && f.check_id !== checkFilter) continue;
       const list = m.get(f.check_id) ?? [];
       list.push(f);
@@ -119,7 +129,7 @@ export default function AttentionPage() {
     return [...m.entries()].sort(
       (a, b) => (order.get(a[0]) ?? 1e9) - (order.get(b[0]) ?? 1e9),
     );
-  }, [attention.findings, attention.infoFindings, view, checks, checkFilter]);
+  }, [attention.findings, attention.infoFindings, view, checks, checkFilter, showIgnored, ignoredQ.data]);
 
   const showJobs = !checkFilter;
   const proposed = view === "decision" && showJobs ? attention.proposed : [];
@@ -139,6 +149,12 @@ export default function AttentionPage() {
     const p = new URLSearchParams(params);
     if (next === "other") p.set("view", "other");
     else p.delete("view");
+    setParams(p, { replace: true });
+  };
+  const toggleIgnored = () => {
+    const p = new URLSearchParams(params);
+    if (showIgnored) p.delete("ignored");
+    else p.set("ignored", "1");
     setParams(p, { replace: true });
   };
   const clearCheck = () => {
@@ -209,6 +225,17 @@ export default function AttentionPage() {
           {attention.count === 1 ? "item" : "items"}
         </span>
         <div className="flex-1" />
+        {canShowIgnored && (
+          <button
+            type="button"
+            aria-pressed={showIgnored}
+            onClick={toggleIgnored}
+            className="inline-flex items-center gap-1 h-7 px-2 text-xs text-fg-3 hover:text-fg transition"
+          >
+            {showIgnored ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            {showIgnored ? "Hide ignored" : "Show ignored"}
+          </button>
+        )}
         <div role="group" aria-label="Show" className="flex items-center gap-1.5 py-1">
           {(
             [
@@ -323,7 +350,7 @@ export default function AttentionPage() {
                   }
                 >
                   <div className="rounded-md border border-line bg-panel-2 overflow-hidden divide-y divide-line">
-                    {list.map((f) => (
+                    {(checkFilter || expanded.has(checkId) ? list : list.slice(0, SECTION_ROW_LIMIT)).map((f) => (
                       <FindingRow
                         key={f.id}
                         checkId={checkId}
@@ -334,6 +361,15 @@ export default function AttentionPage() {
                       />
                     ))}
                   </div>
+                  {!checkFilter && !expanded.has(checkId) && list.length > SECTION_ROW_LIMIT && (
+                    <button
+                      type="button"
+                      onClick={() => setExpanded((prev) => new Set(prev).add(checkId))}
+                      className="mt-2 h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition"
+                    >
+                      Show all {list.length}
+                    </button>
+                  )}
                 </Section>
               );
             })}
