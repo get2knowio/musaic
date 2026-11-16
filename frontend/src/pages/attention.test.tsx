@@ -138,15 +138,73 @@ describe("what is listed and counted", () => {
     expect(screen.getByText("In progress")).toBeTruthy();
   });
 
-  it("the Other view lists informational findings and finished jobs", () => {
+  it("the Suggestions view lists informational findings, then finished jobs", () => {
     renderAt("/attention");
-    fireEvent.click(screen.getByRole("button", { name: /Other \(2\)/ }));
-    expect(where()).toBe("/attention?view=other");
+    // The tab counts suggestion findings only (one), not the finished job.
+    fireEvent.click(screen.getByRole("button", { name: "Suggestions (1)" }));
+    expect(where()).toBe("/attention?view=suggestions");
     expect(screen.getByText("just so you know")).toBeTruthy();
     expect(screen.getByText("Album done")).toBeTruthy();
     expect(screen.queryByText("gap 1")).toBeNull();
     // Still 5 in the badge.
     expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).toContain("5");
+  });
+
+  it("?view=other, the old name, lands on the Suggestions view", () => {
+    renderAt("/attention?view=other");
+    expect(screen.getByRole("button", { name: "Suggestions (1)", pressed: true })).toBeTruthy();
+    expect(screen.getByText("just so you know")).toBeTruthy();
+    expect(screen.queryByText("gap 1")).toBeNull();
+  });
+
+  it("lists finished jobs in their own section below the findings", () => {
+    renderAt("/attention?view=suggestions");
+    const finding = screen.getByText("just so you know");
+    const heading = screen.getByRole("heading", { name: "Finished jobs" });
+    expect(finding.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("shows finished jobs, not the empty state, when there are no suggestion findings", () => {
+    renderAt("/attention?view=suggestions", client([finding(1)], [job("done", "acted_on")]));
+    expect(screen.getByText("Album done")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "No suggestions" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Suggestions (0)" })).toBeTruthy();
+  });
+
+  it("the Suggestions view is empty when it has neither findings nor jobs", () => {
+    renderAt("/attention?view=suggestions", client([finding(1)], []));
+    expect(screen.getByRole("heading", { name: "No suggestions" })).toBeTruthy();
+  });
+
+  describe("the pointer to suggestions", () => {
+    it("shows the count and switches to the Suggestions view", () => {
+      renderAt("/attention");
+      fireEvent.click(screen.getByRole("button", { name: "1 suggestion" }));
+      expect(where()).toBe("/attention?view=suggestions");
+      // Not shown on the view it points to.
+      expect(screen.queryByRole("button", { name: /^\d+ suggestions?$/ })).toBeNull();
+    });
+
+    it("is plural for more than one", () => {
+      renderAt("/attention", client([finding(1), finding(3, { severity: "info" }), finding(6, { severity: "info" })]));
+      expect(screen.getByRole("button", { name: "2 suggestions" })).toBeTruthy();
+    });
+
+    it("is absent at zero", () => {
+      renderAt("/attention", client([finding(1)]));
+      expect(screen.queryByRole("button", { name: /suggestion/ })).toBeNull();
+    });
+
+    it("is on the empty state, so a quiet badge is not read as nothing to do", () => {
+      renderAt("/attention", client([finding(3, { severity: "info" })], []));
+      expect(screen.getByRole("heading", { name: "Nothing needs attention" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "1 suggestion" })).toBeTruthy();
+    });
+
+    it("is absent under a check filter", () => {
+      renderAt("/attention?check=track-gaps");
+      expect(screen.queryByRole("button", { name: /^\d+ suggestions?$/ })).toBeNull();
+    });
   });
 
   it("says nothing needs attention when there is nothing to decide", () => {
@@ -209,16 +267,16 @@ describe("redirects keep deep links", () => {
 
 describe("Back from an album", () => {
   it("returns to the same view and scroll position", async () => {
-    renderAt("/attention?view=other");
+    renderAt("/attention?view=suggestions");
     scrollerEl().scrollTop = 120;
     fireEvent.scroll(scrollerEl());
-    expect(sessionStorage.getItem("mm.attention.scroll.other.")).toBe("120");
+    expect(sessionStorage.getItem("mm.attention.scroll.suggestions.")).toBe("120");
     // The album link on a row opens the library with that album's panel.
     fireEvent.click(screen.getAllByRole("link", { name: "View album detail" })[0]);
     expect(where()).toMatch(/^\/library\/present/);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await waitFor(() => expect(where()).toBe("/attention?view=other"));
-    expect(screen.getByRole("button", { name: /Other/, pressed: true })).toBeTruthy();
+    await waitFor(() => expect(where()).toBe("/attention?view=suggestions"));
+    expect(screen.getByRole("button", { name: /Suggestions/, pressed: true })).toBeTruthy();
     expect(scrollerEl().scrollTop).toBe(120);
   });
 
@@ -258,7 +316,7 @@ describe("ignored findings", () => {
     expect(screen.queryByRole("button", { name: /Show ignored/ })).toBeNull();
     expect(document.querySelector("[aria-live]")!.textContent).toBe("5 items");
 
-    fireEvent.click(screen.getByRole("button", { name: /Other/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Suggestions/ }));
     expect(screen.queryByText("ignored gap")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Show ignored" }));
     expect(await screen.findByText("ignored gap")).toBeTruthy();

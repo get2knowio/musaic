@@ -1,6 +1,6 @@
 /**
  * The Needs attention entry looks active for any /attention URL, whatever
- * its query string (a check filter, the Other view, a linked job).
+ * its query string (a check filter, the Suggestions view, a linked job).
  */
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -29,6 +29,7 @@ describe("sidebar active state", () => {
   for (const url of [
     "/attention",
     "/attention?check=filename-mismatch",
+    "/attention?view=suggestions",
     "/attention?view=other",
     "/attention?job=j1",
   ]) {
