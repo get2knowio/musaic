@@ -1,5 +1,6 @@
 import { CheckCircle2, Download, XCircle } from "lucide-react";
 import type { ApplyState } from "@/hooks/useApplyStream";
+import RenameFailures from "./RenameFailures";
 import RewriteWarnings from "./RewriteWarnings";
 
 interface ApplyProgressProps {
@@ -65,6 +66,8 @@ export default function ApplyProgress({ state }: ApplyProgressProps) {
       {(state.status === "writing" || state.status === "done") && (
         <RewriteWarnings warnings={state.warnings} />
       )}
+
+      {state.status === "done" && <RenameFailures failures={state.renameFailures} />}
 
       {state.status === "error" && state.error && (
         <div className="flex items-center gap-2 text-sm text-err">
