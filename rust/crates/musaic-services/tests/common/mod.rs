@@ -233,7 +233,7 @@ fn sql_value(v: ValueRef<'_>) -> Value {
 pub fn dump_db(conn: &Connection, norm: &Norm, album_columns: &[String]) -> Value {
     let rows = |sql: &str| -> Vec<Value> {
         let mut stmt = conn.prepare(sql).unwrap();
-        let names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+        let names: Vec<String> = stmt.column_names().map(|s| s.to_string()).collect();
         stmt.query_map([], |r| {
             let mut o = Map::new();
             for (i, n) in names.iter().enumerate() {

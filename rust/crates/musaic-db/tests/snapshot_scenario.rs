@@ -34,7 +34,7 @@ impl Norm {
         let mut stmt = conn
             .prepare("SELECT * FROM albums ORDER BY dir_name")
             .unwrap();
-        let names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+        let names: Vec<String> = stmt.column_names().map(|s| s.to_string()).collect();
         let albums: Vec<Value> = stmt
             .query_map([], |r| {
                 let mut o = Map::new();
