@@ -35,6 +35,11 @@ pub struct Resolution {
     pub canonical_year: Option<Fact>,
     pub canonical_album_artist_sort: Option<Fact>,
     pub tracks: Vec<TrackMatch>,
+    /// A MusicBrainz request failed while resolving (network down,
+    /// offline, a server error): the canonical values may be missing for
+    /// that reason rather than because MusicBrainz has none, so a check
+    /// must not take this answer as the album's state.
+    pub network_failed: bool,
 }
 
 fn fact(v: &Value) -> Option<Fact> {
@@ -81,6 +86,7 @@ impl Resolution {
             canonical_year: f("canonical_year"),
             canonical_album_artist_sort: f("canonical_album_artist_sort"),
             tracks,
+            network_failed: false,
         })
     }
 }
@@ -89,6 +95,14 @@ impl Resolution {
 /// `Err` is what the Python app's checks catch and treat as "no resolution".
 pub trait ResolutionSource: Send + Sync {
     fn resolve(&self, conn: &Connection, album_id: &str) -> Result<Resolution, String>;
+
+    /// `true` once this source has been told to stop (the background sweep
+    /// is shutting down or yielding to a restore): an answer it gave since
+    /// may be a refusal rather than a real "no resolution", so a check that
+    /// sees it ends its run as failed instead of recording findings from it.
+    fn interrupted(&self) -> bool {
+        false
+    }
 }
 
 /// A source that never resolves (every call is an error, so anchored albums

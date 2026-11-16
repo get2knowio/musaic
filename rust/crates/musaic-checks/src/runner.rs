@@ -127,6 +127,10 @@ fn panic_message(p: Box<dyn std::any::Any + Send>) -> String {
 /// that errors (or panics) marks the run `failed` with the message; findings
 /// it emitted before failing stay and are counted in its `issue_count` (the
 /// Python app reported 0), and nothing is auto-resolved.
+///
+/// A run that completes records what it ran against in `check_inputs`
+/// ([`crate::inputs::run_digests`], digests taken before the run), so the
+/// background check sweep does not run it again until those inputs change.
 pub fn run_check(
     conn: &Connection,
     env: &CheckEnv,
@@ -160,6 +164,21 @@ pub fn run_check(
         albums,
     };
 
+    // What this run reads, taken before it reads it: recorded only if the
+    // run completes (crate::inputs). A failure here only means the run is
+    // not recorded (the background sweep will run it again).
+    let inputs = match crate::inputs::run_digests(&CheckCtx::new(conn, env), check.as_ref(), &scope)
+    {
+        Ok(d) => d,
+        Err(e) => {
+            musaic_log::error(
+                "musaic.checks.runner",
+                &format!("check {check_id}: could not read its inputs: {e}"),
+            );
+            None
+        }
+    };
+
     let started_at = env.clock.now_iso();
     let started = Instant::now();
     let scope_str = match (scope_kind, album_ids) {
@@ -174,9 +193,12 @@ pub fn run_check(
     // Counted outside the run so a failed run still reports the findings it
     // upserted before failing.
     let mut issue_count = 0i64;
+    // Albums the check could not evaluate (folder unreadable, network
+    // failed): their findings stay as they are, their inputs unrecorded.
+    let mut unevaluated: std::collections::BTreeSet<String> = Default::default();
     let outcome: Result<(), CheckError> = (|| {
         let mut seen: HashSet<i64> = HashSet::new();
-        let ctx = CheckCtx { conn, env };
+        let ctx = CheckCtx::new(conn, env);
         let mut emit = |f: Finding| -> Result<(), CheckError> {
             let detail = f.detail.as_ref().map(PyJson::dumps);
             let now = env.clock.now_iso();
@@ -193,8 +215,17 @@ pub fn run_check(
             issue_count += 1;
             Ok(())
         };
-        catch_unwind(AssertUnwindSafe(|| check.run(&ctx, &scope, &mut emit)))
-            .unwrap_or_else(|p| Err(CheckError::Failed(panic_message(p))))?;
+        let ran = catch_unwind(AssertUnwindSafe(|| check.run(&ctx, &scope, &mut emit)))
+            .unwrap_or_else(|p| Err(CheckError::Failed(panic_message(p))));
+        unevaluated = ctx.unevaluated();
+        ran?;
+        if !unevaluated.is_empty() {
+            seen.extend(findings::open_finding_ids(
+                conn,
+                check_id,
+                &unevaluated.iter().cloned().collect::<Vec<_>>(),
+            )?);
+        }
         if scope.can_resolve() {
             let now = env.clock.now_iso();
             let mut seen: Vec<i64> = seen.into_iter().collect();
@@ -222,6 +253,31 @@ pub fn run_check(
 
     let completed_at = env.clock.now_iso();
     let duration_ms = started.elapsed().as_millis() as i64;
+    // A library-wide record needs every album evaluated; per-album records
+    // leave out the albums that were not.
+    let inputs = inputs.and_then(|d| {
+        if unevaluated.is_empty() {
+            return Some(d);
+        }
+        if d.iter().any(|(a, _)| a.is_empty()) {
+            return None;
+        }
+        Some(
+            d.into_iter()
+                .filter(|(a, _)| !unevaluated.contains(a))
+                .collect(),
+        )
+    });
+    if outcome.is_ok()
+        && let Some(digests) = &inputs
+        && let Err(e) =
+            musaic_db::check_inputs::record(conn, check_id, library_path, digests, &started_at)
+    {
+        musaic_log::error(
+            "musaic.checks.runner",
+            &format!("check {check_id}: could not record its inputs: {e}"),
+        );
+    }
     match outcome {
         Ok(()) => findings::complete_run(conn, run_id, &completed_at, issue_count, duration_ms)?,
         Err(e) => findings::fail_run(

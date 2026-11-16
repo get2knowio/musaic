@@ -99,8 +99,15 @@ pub async fn patch_settings(State(st): State<AppState>, body: Bytes) -> ApiResul
         // The providers `GET /api/ai/providers` lists (issue #199).
         let listed = st.ai_provider_ids();
         let listed: Vec<&str> = listed.iter().map(String::as_str).collect();
-        settings_patch::apply_patch(conn, st.0.secrets.as_ref(), patch, &listed, st.log())
-            .map_err(patch_error)?;
+        settings_patch::apply_patch(
+            conn,
+            st.0.secrets.as_ref(),
+            patch,
+            &listed,
+            st.log(),
+            &st.0.bus,
+        )
+        .map_err(patch_error)?;
         // `notify_jobs_changed()` (api/settings.py:136): wake the AI
         // dispatcher (a max_parallel bump or an unpause) and the jobs streams.
         st.ai_jobs_changed();
@@ -251,10 +258,14 @@ pub async fn db_restore(
     let mut tmp = Some(tmp);
     blocking(move || {
         let _guard = guard;
-        // The fingerprint pool never holds the gate; a restore stops it
-        // before the file is swapped (see `state.rs`).
+        // Neither the fingerprint pool nor the check sweep holds the
+        // gate; a restore stops the one and suspends the other before the
+        // file is swapped (see `state.rs`).
         let info = db_admin::restore_with(
-            &st.0.pool,
+            db_admin::BackgroundWork {
+                pool: &st.0.pool,
+                sweeper: &st.0.sweeper,
+            },
             st.0.on_restore.as_deref(),
             &st.0.db_gate,
             || st.db(),
@@ -348,10 +359,14 @@ pub async fn restore_snapshot(
     let guard = st.0.gate.begin_restore()?;
     blocking(move || {
         let _guard = guard;
-        // The fingerprint pool never holds the gate; a restore stops it
-        // before the file is swapped (see `state.rs`).
+        // Neither the fingerprint pool nor the check sweep holds the
+        // gate; a restore stops the one and suspends the other before the
+        // file is swapped (see `state.rs`).
         let info = db_admin::restore_with(
-            &st.0.pool,
+            db_admin::BackgroundWork {
+                pool: &st.0.pool,
+                sweeper: &st.0.sweeper,
+            },
             st.0.on_restore.as_deref(),
             &st.0.db_gate,
             || st.db(),

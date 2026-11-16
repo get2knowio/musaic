@@ -54,6 +54,18 @@ impl Check for FilenameMismatch {
         &META
     }
 
+    /// The four templates the expected names are rendered from.
+    fn input_extras(&self, ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
+        let t = Templates::from_settings(ctx.conn)?;
+        Ok(serde_json::json!([
+            t.filename_single,
+            t.filename_compilation,
+            t.dir_single,
+            t.dir_compilation
+        ])
+        .to_string())
+    }
+
     fn run(
         &self,
         ctx: &CheckCtx<'_>,
@@ -83,13 +95,15 @@ impl Check for FilenameMismatch {
                 .collect::<rusqlite::Result<_>>()?
         };
         for r in rows {
-            let Some(path) = r
-                .path
-                .as_deref()
-                .filter(|p| !p.is_empty() && Path::new(p).is_dir())
-            else {
+            let Some(path) = r.path.as_deref().filter(|p| !p.is_empty()) else {
                 continue;
             };
+            // A folder that cannot be read (an unmounted drive, a folder
+            // gone since the last scan) says nothing about its names.
+            if !Path::new(path).is_dir() {
+                ctx.could_not_evaluate(&r.id);
+                continue;
+            }
             let (template, dir_template) = if r.is_compilation {
                 (&templates.filename_compilation, &templates.dir_compilation)
             } else {
@@ -109,6 +123,7 @@ impl Check for FilenameMismatch {
                         "musaic.checks.filename_mismatch",
                         &format!("filename-mismatch: error scanning album {path}: {e}"),
                     );
+                    ctx.could_not_evaluate(&r.id);
                     continue;
                 }
             };

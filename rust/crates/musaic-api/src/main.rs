@@ -553,6 +553,10 @@ async fn main() {
         .allowed_hosts(allowed)
         .secrets(secrets)
         .network(network)
+        // Every health check runs on its own (issue #187); checks that
+        // need the network only when there is one.
+        .check_sweep(true)
+        .sweep_network(network_name != "offline")
         .frontend_dir(frontend)
         .log_sink(log.sink())
         .log_masks(masks)

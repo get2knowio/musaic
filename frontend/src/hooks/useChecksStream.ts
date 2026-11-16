@@ -7,6 +7,10 @@
  * list. We mirror that into the ["checks"] cache and also invalidate
  * ["findings"] so the per-album / per-check finding views refetch.
  *
+ * The same stream carries a "sweep" event with the background check
+ * sweep's progress (after the first "state", then on every change); it is
+ * written into the sweep-status cache the titlebar pill reads.
+ *
  * Why invalidate findings rather than push them in the SSE payload?
  * Findings can grow into the hundreds; the summary already gives us a
  * change signal, and a single invalidation triggers one targeted REST
@@ -16,7 +20,8 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { CHECKS_QUERY_KEY, FINDINGS_QUERY_KEY } from "./useChecks";
-import type { CheckSummary } from "@/lib/types";
+import { CHECK_SWEEP_STATUS_KEY } from "./useCheckSweepStatus";
+import type { CheckSummary, CheckSweepStatus } from "@/lib/types";
 
 export function useChecksStream() {
   const qc = useQueryClient();
@@ -39,6 +44,16 @@ export function useChecksStream() {
       // invalidate that too so an open detail page refreshes when a
       // finding gets fixed/ignored from a dialog elsewhere.
       qc.invalidateQueries({ queryKey: ["check"] });
+    });
+
+    es.addEventListener("sweep", (ev) => {
+      let payload: CheckSweepStatus;
+      try {
+        payload = JSON.parse((ev as MessageEvent).data);
+      } catch {
+        return;
+      }
+      qc.setQueryData(CHECK_SWEEP_STATUS_KEY, payload);
     });
 
     es.addEventListener("error", () => {

@@ -9,6 +9,9 @@
 //!   out of scope, `check_runs` bookkeeping, change notification. The SQL for
 //!   findings and runs lives in `musaic_db::findings`; each check's detection
 //!   query lives in its module here, over a `&rusqlite::Connection`.
+//! * [`inputs`] — the digest of what a check last ran against
+//!   (`check_inputs`, schema v19), recorded by every completed run, and
+//!   the staleness rule the background check sweep plans from.
 //! * [`post_scan`] — the guarded post-scan sweep and the check-runner side of
 //!   musaic-events' `SideEffects` (bus-driven reruns really run).
 //! * [`checks`] — detection for all seven checks, plus the pure parts of the
@@ -31,6 +34,7 @@
 
 pub mod base;
 pub mod checks;
+pub mod inputs;
 pub mod post_scan;
 pub mod pyjson;
 pub mod registry;
@@ -40,7 +44,7 @@ pub mod wording;
 
 pub use base::{
     Check, CheckCtx, CheckEnv, CheckError, CheckMeta, CheckScope, Clock, Cost, Emit, Finding,
-    FixKind, FixResult, ScopeAlbum, ScopeKind, Severity, SystemClock,
+    FixKind, FixResult, Granularity, ScopeAlbum, ScopeKind, Severity, SystemClock,
 };
 pub use post_scan::{ChecksSideEffects, SweepEntry, post_scan_sweep, run_post_scan_checks};
 pub use registry::Registry;

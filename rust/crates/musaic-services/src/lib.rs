@@ -21,6 +21,8 @@
 //!   database file lock ([`gate::DbGate`]).
 //! - [`gated_reruns`]: the bus-driven check reruns under the restore gate,
 //!   their log lines, and their replay after a restore.
+//! - [`check_sweep`]: the background check sweep, which reruns every check
+//!   whose inputs changed, yielding to scans, other work and restores.
 //! - [`production`]: the production sources a host hands to the services
 //!   ([`production::Network`], [`production::Fingerprinting`],
 //!   [`production::ChecksResolution`], [`production::NetCovers`],
@@ -58,6 +60,7 @@ pub mod analyze;
 pub mod apply;
 pub mod check_fixes;
 pub mod check_ops;
+pub mod check_sweep;
 pub mod clock;
 pub mod covers;
 pub mod db_admin;

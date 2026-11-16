@@ -407,3 +407,24 @@ pub fn all_runs(conn: &Connection) -> Result<Vec<RunRow>> {
     let rows = stmt.query_map([], run_from)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
+
+/// The ids of `check_id`'s open (unresolved) findings on these albums.
+pub fn open_finding_ids(
+    conn: &Connection,
+    check_id: &str,
+    album_ids: &[String],
+) -> Result<Vec<i64>> {
+    if album_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let sql = format!(
+        "SELECT id FROM check_findings WHERE check_id = ? AND resolved_at IS NULL \
+         AND album_id IN ({})",
+        marks(album_ids.len())
+    );
+    let mut args: Vec<rusqlite::types::Value> = vec![check_id.to_string().into()];
+    args.extend(album_ids.iter().map(|s| s.clone().into()));
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = stmt.query_map(rusqlite::params_from_iter(args), |r| r.get(0))?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}

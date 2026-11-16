@@ -154,12 +154,34 @@ fn payloads_match_python_bytes() {
     assert_eq!(ready_frame(), g["ready_frame"].as_str().unwrap());
 }
 
-/// Deliberate addition (issue #193): `LibraryScanStopped`, which the Python
-/// app does not have. A plain `Event` (not album-scoped), like
-/// `LibraryScanCompleted`; nothing in the catalog subscribes to it by name,
-/// so only the `Event`-wide subscribers (findings notify, SSE relay) run.
+/// Deliberate additions the Python app does not have, both plain `Event`s
+/// (not album-scoped), like `LibraryScanCompleted`; nothing in the catalog
+/// subscribes to them by name, so only the `Event`-wide subscribers
+/// (findings notify, check sweep wake, SSE relay) run:
+///
+/// * `LibraryScanStopped` (issue #193): a scan that ended without saving;
+/// * `SettingsChanged` (issue #187): a settings write, with the names of the
+///   settings written, for the background check sweep.
+///
 /// Every other kind must match the recording.
-const ADDED_KINDS: &[EventKind] = &[EventKind::LibraryScanStopped];
+const ADDED_KINDS: &[EventKind] = &[EventKind::LibraryScanStopped, EventKind::SettingsChanged];
+
+/// Deliberate addition (issue #187): the background check sweep's
+/// subscriber, on every event, between the findings notify and the relay.
+/// Every other registration must match the recording.
+const ADDED_SLOTS: &[&str] = &["_check_sweep_wake"];
+
+/// `infos` without [`ADDED_SLOTS`], after checking the added slot is there
+/// exactly where the catalog puts it for an `Event`-wide topic.
+fn without_added_slots(mut v: Value, event_wide: bool) -> Value {
+    let a = v.as_array_mut().unwrap();
+    let before = a.len();
+    a.retain(|r| !ADDED_SLOTS.contains(&r["name"].as_str().unwrap()));
+    if event_wide {
+        assert_eq!(before, a.len() + ADDED_SLOTS.len(), "added slot missing");
+    }
+    v
+}
 
 fn recorded_kinds() -> impl Iterator<Item = EventKind> {
     EventKind::ALL
@@ -186,13 +208,47 @@ fn mro_matches_python() {
         g["mro"].as_object().unwrap().len(),
         EventKind::ALL.len() - ADDED_KINDS.len()
     );
-    // The added kind: absent from the recording, shaped like
+    // The added kinds: absent from the recording, shaped like
     // LibraryScanCompleted.
-    let stopped = EventKind::LibraryScanStopped;
-    assert!(g["mro"].get(stopped.name()).is_none());
-    let names: Vec<&str> = stopped.mro().iter().map(|t| t.name()).collect();
-    assert_eq!(names, ["LibraryScanStopped", "Event"]);
-    assert!(!stopped.is_album_scoped());
+    for added in ADDED_KINDS {
+        assert!(g["mro"].get(added.name()).is_none());
+        let names: Vec<&str> = added.mro().iter().map(|t| t.name()).collect();
+        assert_eq!(names, [added.name(), "Event"]);
+        assert!(!added.is_album_scoped());
+    }
+}
+
+/// `SettingsChanged`'s relay frame (setting names only) and its keyword
+/// constructor.
+#[test]
+fn settings_changed_payload_and_fields() {
+    let e = Event::SettingsChanged {
+        keys: vec![
+            "filename_template_single_artist".into(),
+            "acoustid_api_key".into(),
+        ],
+    };
+    assert_eq!(
+        RelayMessage::from_event(&e).frame(),
+        "event: SettingsChanged\ndata: {\"keys\": [\"filename_template_single_artist\", \"acoustid_api_key\"]}\n\n"
+    );
+    assert_eq!(
+        Event::from_fields(
+            "SettingsChanged",
+            [(
+                "keys",
+                ArgValue::StrList(vec![
+                    "filename_template_single_artist".into(),
+                    "acoustid_api_key".into()
+                ])
+            )],
+        ),
+        Ok(e)
+    );
+    assert_eq!(
+        Event::from_fields("SettingsChanged", []),
+        Ok(Event::SettingsChanged { keys: vec![] })
+    );
 }
 
 /// The added event's relay frame and its keyword constructor.
@@ -261,29 +317,51 @@ fn catalog_registry_and_dispatch_plan_match_python() {
     for t in all_topics() {
         let regs = bus.registrations(t);
         if !regs.is_empty() {
-            registry.insert(t.name().to_owned(), info_json(regs));
+            registry.insert(
+                t.name().to_owned(),
+                without_added_slots(info_json(regs), t == Topic::Event),
+            );
         }
     }
     assert_eq!(serde_json::to_value(registry).unwrap(), g["registry"]);
     for kind in recorded_kinds() {
         assert_eq!(
-            info_json(bus.dispatch_plan(kind)),
+            without_added_slots(info_json(bus.dispatch_plan(kind)), true),
             g["dispatch_plan"][kind.name()],
             "{kind:?}"
         );
     }
-    // The added kind (ADDED_KINDS): only the Event-wide subscribers, i.e.
+    // The added kinds (ADDED_KINDS): only the Event-wide subscribers, i.e.
     // what BulkBatchCompleted gets minus its library-wide rerun. No check
-    // rerun follows a scan that saved nothing.
+    // rerun follows a scan that saved nothing, nor a settings write.
     let mut want = g["dispatch_plan"]["BulkBatchCompleted"].clone();
     want.as_array_mut()
         .unwrap()
         .retain(|r| !r["name"].as_str().unwrap().starts_with("_post_scan_rerun"));
     assert_eq!(want.as_array().unwrap().len(), 2, "{want}");
-    assert_eq!(
-        info_json(bus.dispatch_plan(EventKind::LibraryScanStopped)),
-        want
-    );
+    for added in ADDED_KINDS {
+        assert_eq!(
+            without_added_slots(info_json(bus.dispatch_plan(*added)), true),
+            want,
+            "{added:?}"
+        );
+    }
+    // Where the sweep's slot runs: after the findings notify, before the
+    // relay, inline.
+    let plan = info_json(bus.dispatch_plan(EventKind::AlbumTagsChanged));
+    let names: Vec<&str> = plan
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["name"].as_str().unwrap())
+        .collect();
+    let at = names
+        .iter()
+        .position(|n| *n == "_check_sweep_wake")
+        .unwrap();
+    assert_eq!(names[at - 1], "_findings_runner_notify");
+    assert_eq!(names[at + 1], musaic_events::relay::RELAY_NAME);
+    assert_eq!(plan[at]["background"], json!(false));
 }
 
 fn run_catalog_scenario(name: &str) {

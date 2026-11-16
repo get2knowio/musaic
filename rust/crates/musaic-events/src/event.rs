@@ -14,7 +14,8 @@
 //!        ├─ AlbumRenamed(old_album_id, new_album_id)
 //!        ├─ LibraryScanCompleted(album_count)
 //!        ├─ BulkBatchCompleted()
-//!        └─ LibraryScanStopped(reason, album_count)   (not in the Python app)
+//!        ├─ LibraryScanStopped(reason, album_count)   (not in the Python app)
+//!        └─ SettingsChanged(keys)                      (not in the Python app)
 //! ```
 //!
 //! `LibraryScanStopped` is new (deliberate change): a scan that ended
@@ -22,6 +23,11 @@
 //! it instead of `LibraryScanCompleted`, so nothing reruns after a scan
 //! that changed nothing, while subscribers still learn that the scan ended
 //! and why. `reason` is `vanish_ratio_exceeded`, `cancelled` or `error`.
+//!
+//! `SettingsChanged` is new too (deliberate change): a settings write
+//! publishes it with the names of the settings it wrote (never a value), so
+//! the background check sweep can mark the checks whose results depend on
+//! one of them (templates, the AcoustID key) stale.
 //!
 //! Here the concrete classes are one enum ([`Event`]); the two abstract
 //! classes become [`Topic::Event`] / [`Topic::AlbumScoped`], and
@@ -70,6 +76,9 @@ pub enum Event {
         reason: String,
         album_count: i64,
     },
+    SettingsChanged {
+        keys: Vec<String>,
+    },
 }
 
 /// The concrete event class, without its data.
@@ -85,6 +94,7 @@ pub enum EventKind {
     LibraryScanCompleted,
     BulkBatchCompleted,
     LibraryScanStopped,
+    SettingsChanged,
 }
 
 /// What a subscriber registers for: one concrete class, or one of the two
@@ -98,7 +108,7 @@ pub enum Topic {
 }
 
 impl EventKind {
-    pub const ALL: [EventKind; 10] = [
+    pub const ALL: [EventKind; 11] = [
         EventKind::AlbumTagsChanged,
         EventKind::AlbumCoverChanged,
         EventKind::AlbumRenamed,
@@ -109,6 +119,7 @@ impl EventKind {
         EventKind::LibraryScanCompleted,
         EventKind::BulkBatchCompleted,
         EventKind::LibraryScanStopped,
+        EventKind::SettingsChanged,
     ];
 
     /// The Python class name: the SSE `event:` name.
@@ -124,6 +135,7 @@ impl EventKind {
             EventKind::LibraryScanCompleted => "LibraryScanCompleted",
             EventKind::BulkBatchCompleted => "BulkBatchCompleted",
             EventKind::LibraryScanStopped => "LibraryScanStopped",
+            EventKind::SettingsChanged => "SettingsChanged",
         }
     }
 
@@ -139,6 +151,7 @@ impl EventKind {
                 | EventKind::LibraryScanCompleted
                 | EventKind::BulkBatchCompleted
                 | EventKind::LibraryScanStopped
+                | EventKind::SettingsChanged
         )
     }
 
@@ -167,6 +180,7 @@ impl EventKind {
             EventKind::LibraryScanCompleted => plain!(LibraryScanCompleted),
             EventKind::BulkBatchCompleted => plain!(BulkBatchCompleted),
             EventKind::LibraryScanStopped => plain!(LibraryScanStopped),
+            EventKind::SettingsChanged => plain!(SettingsChanged),
         }
     }
 }
@@ -257,6 +271,7 @@ impl Event {
             Event::LibraryScanCompleted { .. } => EventKind::LibraryScanCompleted,
             Event::BulkBatchCompleted => EventKind::BulkBatchCompleted,
             Event::LibraryScanStopped { .. } => EventKind::LibraryScanStopped,
+            Event::SettingsChanged { .. } => EventKind::SettingsChanged,
         }
     }
 
@@ -320,6 +335,7 @@ impl Event {
                 reason,
                 album_count,
             } => vec![("reason", Str(reason)), ("album_count", Int(*album_count))],
+            Event::SettingsChanged { keys } => vec![("keys", StrList(keys))],
         }
     }
 
@@ -430,6 +446,9 @@ impl Event {
                     None => return Err(FromFieldsError::Missing("album_count")),
                     Some(_) => return Err(FromFieldsError::WrongType("album_count")),
                 },
+            },
+            EventKind::SettingsChanged => Event::SettingsChanged {
+                keys: list_or("keys", take("keys"))?,
             },
         };
         if let Some((k, _)) = args.first() {

@@ -47,6 +47,13 @@ pub trait SideEffects: Send + Sync + 'static {
     ) -> Result<(), SubscriberError>;
     /// `checks.runner.notify_changed()` (wakes `/api/checks/stream`).
     fn notify_findings_changed(&self) -> Result<(), SubscriberError>;
+    /// Tell the background check sweep that `ev` happened (not in the
+    /// Python app): it works out what became stale itself, so this only
+    /// records what to look at and wakes it. Must not block. Default: no
+    /// sweep.
+    fn check_sweep_wake(&self, _ev: &Event) -> Result<(), SubscriberError> {
+        Ok(())
+    }
 }
 
 /// The Python app subscriber function a slot runs.
@@ -61,6 +68,7 @@ pub enum Handler {
     PostScanRerunLibraryWide,
     FilenameMismatchRerun,
     FindingsRunnerNotify,
+    CheckSweepWake,
     SseEventRelay,
 }
 
@@ -79,6 +87,7 @@ impl Handler {
             Handler::PostScanRerunLibraryWide => "_post_scan_rerun_library_wide",
             Handler::FilenameMismatchRerun => "_filename_mismatch_rerun",
             Handler::FindingsRunnerNotify => "_findings_runner_notify",
+            Handler::CheckSweepWake => "_check_sweep_wake",
             Handler::SseEventRelay => "_enqueue",
         }
     }
@@ -192,6 +201,16 @@ pub const CATALOG: &[SubscriberSlot] = &[
         false,
         Handler::FindingsRunnerNotify,
     ),
+    // Not in the Python app: the background check sweep learns of every
+    // event (it decides from the stored inputs what is stale). Inline: it
+    // only records the event and wakes the sweep thread.
+    slot(
+        "_check_sweep_wake",
+        Topic::Event,
+        300,
+        false,
+        Handler::CheckSweepWake,
+    ),
     // Relay tier (400).
     slot(
         crate::relay::RELAY_NAME,
@@ -235,6 +254,7 @@ pub fn failure_message(handler: Handler, ev: &Event) -> String {
             format!("_filename_mismatch_rerun failed for {new} (continuing)")
         }
         Handler::FindingsRunnerNotify => "_findings_runner_notify failed (continuing)".to_string(),
+        Handler::CheckSweepWake => "_check_sweep_wake failed (continuing)".to_string(),
         Handler::SseEventRelay => "_sse_event_relay failed".to_string(),
     }
 }
@@ -317,6 +337,10 @@ fn run_handler(handler: Handler, fx: &dyn SideEffects, ev: &Event) -> Result<(),
             with_post_scan_rerun(|| fx.run_check_scoped("filename-mismatch", &lib, &ids))
         }
         Handler::FindingsRunnerNotify => fx.notify_findings_changed(),
+        // Every event, whatever the guard flags: waking the sweep is cheap
+        // and idempotent, and the sweep itself waits for scans, bulk runs
+        // and restores to end.
+        Handler::CheckSweepWake => fx.check_sweep_wake(ev),
         Handler::SseEventRelay => Ok(()), // wired by Relay::register_on
     }
 }

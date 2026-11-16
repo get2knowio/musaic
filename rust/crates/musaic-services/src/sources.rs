@@ -26,6 +26,7 @@
 
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use musaic_events::{Bus, Event};
 use musaic_net::{AcoustIdClient, CoverArtClient, FrontCover, MusicBrainzClient, Transport};
@@ -47,6 +48,10 @@ use crate::fingerprint::{
 pub struct NetMusicBrainz<T> {
     pub musicbrainz: MusicBrainzClient<T>,
     pub cover_art: CoverArtClient<T>,
+    /// Set when a MusicBrainz request failed for a reason other than an
+    /// answer (network, server error, rate limit, unreadable body): what
+    /// was resolved through this source may be incomplete.
+    pub failed: Arc<AtomicBool>,
 }
 
 impl<T: Transport + Clone> NetMusicBrainz<T> {
@@ -55,13 +60,29 @@ impl<T: Transport + Clone> NetMusicBrainz<T> {
         Self {
             musicbrainz: MusicBrainzClient::new(transport.clone()),
             cover_art: CoverArtClient::new(transport),
+            failed: Arc::default(),
         }
+    }
+}
+
+/// A failure that says nothing about MusicBrainz's data: anything but an
+/// answer of "not found" or another client error.
+fn is_outage(e: &NetError) -> bool {
+    match e {
+        NetError::Http(s) => *s == 429 || *s >= 500,
+        NetError::Network(_) | NetError::Parse(_) => true,
     }
 }
 
 impl<T: Transport> NetMusicBrainz<T> {
     fn body(&self, req: musaic_net::Request) -> Result<Vec<u8>, NetError> {
-        self.musicbrainz.body(req).map_err(net_error)
+        let r = self.musicbrainz.body(req).map_err(net_error);
+        if let Err(e) = &r
+            && is_outage(e)
+        {
+            self.failed.store(true, Ordering::SeqCst);
+        }
+        r
     }
 }
 
@@ -304,12 +325,43 @@ impl<T: Transport + Clone> ResolveParts<T> {
         hint: &str,
         force: bool,
     ) -> Result<Arc<AlbumResolution>, String> {
+        self.resolve_checked(conn, library_dir, album_id, hint, force)
+            .map(|(r, _)| r)
+    }
+
+    /// [`Self::resolve`], also saying whether a MusicBrainz request failed
+    /// on the way (the resolution may then be incomplete). Such a
+    /// resolution is not kept in the resolver's memo, so the next call asks
+    /// again rather than serving it as an answer.
+    ///
+    /// An `AlbumMbAnchorSet` is published only when the album's anchor
+    /// changed (another release group or release), not for a refresh that
+    /// only re-stamps the time and score of the same match: nothing a
+    /// subscriber caches depends on those, and a background sweep
+    /// refreshing many anchors would otherwise make the UI reload the
+    /// album list over and over.
+    pub fn resolve_checked(
+        &self,
+        conn: &Connection,
+        library_dir: Option<&str>,
+        album_id: &str,
+        hint: &str,
+        force: bool,
+    ) -> Result<(Arc<AlbumResolution>, bool), String> {
+        let identity = |id: &str| {
+            musaic_db::mb_anchor::get_album_mb_anchor(conn, id)
+                .ok()
+                .flatten()
+                .map(|a| (a.release_group_mbid, a.release_mbid))
+        };
+        let before = identity(album_id);
         let now_iso = (self.now_iso)();
         let mb = NetMusicBrainz::new(self.transport.clone());
         let albums = DbAlbums { conn, library_dir };
         let store = DbStore {
             conn,
             now_iso: now_iso.clone(),
+            read: Default::default(),
         };
         let client = self
             .acoustid_key
@@ -334,12 +386,19 @@ impl<T: Transport + Clone> ResolveParts<T> {
             .resolver
             .resolve(&env, album_id, hint, force)
             .map_err(|e| e.to_string())?;
+        let failed = mb.failed.load(Ordering::SeqCst);
+        if failed {
+            self.resolver.invalidate(Some(album_id));
+        }
         for ev in &resolved.events {
+            if ev.album_id == album_id && identity(album_id) == before {
+                continue;
+            }
             self.bus.publish(&Event::AlbumMbAnchorSet {
                 album_id: ev.album_id.clone(),
                 source: ev.source.clone(),
             });
         }
-        Ok(resolved.resolution)
+        Ok((resolved.resolution, failed))
     }
 }

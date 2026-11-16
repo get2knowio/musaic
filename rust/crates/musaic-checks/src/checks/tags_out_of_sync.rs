@@ -103,6 +103,10 @@ pub struct AlbumDiffs {
     pub applicable_tracks: Vec<(String, Vec<(&'static str, String)>)>,
     pub has_anchor: bool,
     pub summary: String,
+    /// What these diffs rest on could not be read (a MusicBrainz request
+    /// failed, the album's folder could not be read): they are not the
+    /// album's state.
+    pub unevaluated: bool,
 }
 
 impl AlbumDiffs {
@@ -253,10 +257,11 @@ fn album_diffs(a: &TagsRow, res: Option<&Resolution>) -> Vec<AlbumFieldDiff> {
 }
 
 /// Per-track artist drift for tracks the resolver matched, read from the
-/// FLACs on disk.
-fn track_diffs(a: &TagsRow, res: Option<&Resolution>) -> Vec<TrackFieldDiff> {
+/// FLACs on disk. The flag is `false` when the album's folder could not be
+/// read (the diffs then say nothing).
+fn track_diffs(a: &TagsRow, res: Option<&Resolution>) -> (Vec<TrackFieldDiff>, bool) {
     let Some(res) = res.filter(|r| r.anchor.is_some()) else {
-        return Vec::new();
+        return (Vec::new(), true);
     };
     let candidates: Vec<_> = res
         .tracks
@@ -264,11 +269,11 @@ fn track_diffs(a: &TagsRow, res: Option<&Resolution>) -> Vec<TrackFieldDiff> {
         .filter(|t| t.canonical_artist.is_some())
         .collect();
     if candidates.is_empty() {
-        return Vec::new();
+        return (Vec::new(), true);
     }
     let album_path = Path::new(a.path.as_deref().unwrap_or(""));
     if !album_path.is_dir() {
-        return Vec::new();
+        return (Vec::new(), false);
     }
     let mut out = Vec::new();
     for tr in candidates {
@@ -283,6 +288,9 @@ fn track_diffs(a: &TagsRow, res: Option<&Resolution>) -> Vec<TrackFieldDiff> {
             continue;
         }
         let flac = album_path.join(&tr.filename);
+        // A single track that is not there or does not read is skipped,
+        // as in the Python app (the case recordings rely on it); only a
+        // folder that cannot be read at all leaves the album unevaluated.
         if !flac.is_file() {
             continue;
         }
@@ -300,7 +308,7 @@ fn track_diffs(a: &TagsRow, res: Option<&Resolution>) -> Vec<TrackFieldDiff> {
             canonical,
         });
     }
-    out
+    (out, true)
 }
 
 fn sort_proposals(a: &TagsRow, mb_album_artist_sort: Option<&str>) -> Vec<(&'static str, String)> {
@@ -330,9 +338,10 @@ pub fn compute_diffs(
         Some(m) if !m.is_empty() => resolver.resolve(conn, &a.id).ok(),
         _ => None,
     };
+    let network_failed = resolution.as_ref().is_some_and(|r| r.network_failed);
     let res = resolution.as_ref();
     let album_diffs = album_diffs(a, res);
-    let track_diffs = track_diffs(a, res);
+    let (track_diffs, tracks_read) = track_diffs(a, res);
     let mb_sort = res
         .and_then(|r| r.canonical_album_artist_sort.as_ref())
         .map(|f| strip(&f.value).to_string())
@@ -394,6 +403,7 @@ pub fn compute_diffs(
         applicable_tracks,
         has_anchor,
         summary,
+        unevaluated: network_failed || !tracks_read,
     }
 }
 
@@ -407,7 +417,11 @@ pub fn check_album(
     resolver: &dyn ResolutionSource,
     a: &TagsRow,
 ) -> Option<Finding> {
-    let d = compute_diffs(conn, resolver, a);
+    finding_for(a, &compute_diffs(conn, resolver, a))
+}
+
+/// The finding for `a` from its diffs.
+fn finding_for(a: &TagsRow, d: &AlbumDiffs) -> Option<Finding> {
     if !d.has_any() {
         return None;
     }
@@ -476,9 +490,24 @@ pub fn check_album(
     })
 }
 
+/// How long a run's result stands without any input changing: the
+/// canonical values come from MusicBrainz, which can change on its own. The
+/// resolver's own anchor refresh window (`CACHE_REFRESH_DAYS`).
+pub const REFRESH_AFTER: std::time::Duration = std::time::Duration::from_secs(
+    crate::checks::unidentified_album::CACHE_REFRESH_DAYS * 24 * 3600,
+);
+
 impl Check for TagsOutOfSync {
     fn meta(&self) -> &CheckMeta {
         &META
+    }
+
+    fn uses_network(&self) -> bool {
+        true
+    }
+
+    fn refresh_after(&self) -> Option<std::time::Duration> {
+        Some(REFRESH_AFTER)
     }
 
     fn run(
@@ -518,7 +547,19 @@ impl Check for TagsOutOfSync {
             .collect::<rusqlite::Result<_>>()?
         };
         for row in &rows {
-            if let Some(f) = check_album(ctx.conn, ctx.env.resolver.as_ref(), row) {
+            let diffs = compute_diffs(ctx.conn, ctx.env.resolver.as_ref(), row);
+            // A resolver told to stop answers with refusals that look like
+            // "no resolution"; nothing from it is recorded.
+            if ctx.env.resolver.interrupted() {
+                return Err(CheckError::Interrupted);
+            }
+            // MusicBrainz unreachable, or the files unreadable: the album's
+            // findings stay as they are and it is checked again later.
+            if diffs.unevaluated {
+                ctx.could_not_evaluate(&row.id);
+                continue;
+            }
+            if let Some(f) = finding_for(row, &diffs) {
                 emit(f)?;
             }
         }

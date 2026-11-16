@@ -279,6 +279,10 @@ const DELTAS: &[(&str, &str)] = &[
         "ai_wording",
         "no AI provider is ready, so check descriptions, the unanchored trace note and unanchored tags-out-of-sync summaries are shown without AI wording",
     ),
+    (
+        "settings_changed",
+        "deliberate addition (issue #187): a settings write publishes SettingsChanged (setting names only), which the library-events stream relays",
+    ),
 ];
 
 fn use_delta(used: &mut BTreeMap<&'static str, usize>, id: &'static str) {
@@ -900,6 +904,15 @@ async fn api_offline_capture_replays() {
         .lock()
         .unwrap()
         .iter()
+        .filter(|(e, d)| {
+            if e != "SettingsChanged" {
+                return true;
+            }
+            // Names only, never a value.
+            assert!(d["keys"].is_array(), "{d}");
+            use_delta(&mut run.deltas_used, "settings_changed");
+            false
+        })
         .map(|(e, d)| json!({"event": e, "data": d}))
         .collect();
     let got = run.norm.value(&json!(got), None);

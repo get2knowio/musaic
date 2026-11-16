@@ -25,6 +25,8 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use crate::apply::CoverSource;
 use crate::check_fixes::{
@@ -60,14 +62,50 @@ pub enum Network {
     /// followed hop by hop as the live transport would; a miss fails as
     /// unobserved.
     Replay(PathBuf),
-    /// Real HTTPS through musaic-net's paced live transport.
+    /// Any transport the host supplies (tests, logged offline / replay
+    /// modes). Background work goes through it too, waiting while the app
+    /// is busy and stopping when told to ([`Network::background`]).
     Live(SharedTransport),
+    /// Real HTTPS through musaic-net's paced live transport (what
+    /// [`Network::live`] builds): background work takes the shared limiter's
+    /// quiet slots ([`musaic_net::BackgroundPaced`]), so a request the user
+    /// is waiting for always goes first.
+    Paced(Arc<musaic_net::live::LivePaced>),
+}
+
+/// The longest a background request sleeps before looking again at its stop
+/// flag and the app's busy state, on the transports that are not paced
+/// ([`musaic_net::BACKGROUND_POLL`] on the paced one).
+pub const BACKGROUND_POLL: Duration = musaic_net::BACKGROUND_POLL;
+
+/// A background transport over one that is not paced: before each request
+/// it stops with [`TransportError::Stopped`] once `stop` is set, and waits
+/// while `busy`.
+struct Yielding {
+    inner: SharedTransport,
+    busy: Arc<dyn Fn() -> bool + Send + Sync>,
+    stop: Arc<AtomicBool>,
+}
+
+impl Transport for Yielding {
+    fn send(&self, request: &Request) -> Result<Response, TransportError> {
+        loop {
+            if self.stop.load(Ordering::SeqCst) {
+                return Err(TransportError::Stopped);
+            }
+            if !(self.busy)() {
+                break;
+            }
+            std::thread::sleep(BACKGROUND_POLL);
+        }
+        self.inner.send(request)
+    }
 }
 
 impl Network {
     /// The paced live transport the binary uses.
     pub fn live() -> Self {
-        Network::Live(Arc::new(musaic_net::live::live_paced(
+        Network::Paced(Arc::new(musaic_net::live::live_paced(
             musaic_net::LiveTransport::new(),
         )))
     }
@@ -78,6 +116,28 @@ impl Network {
             Network::Offline => Arc::new(OfflineTransport),
             Network::Replay(dir) => Arc::new(FollowRedirects(ReplayTransport::new(dir))),
             Network::Live(t) => Arc::clone(t),
+            Network::Paced(p) => Arc::clone(p) as SharedTransport,
+        }
+    }
+
+    /// The transport for background work (the check sweep), over the same
+    /// connections and limiter as `foreground` (this network's
+    /// [`Self::shared`]): it yields to foreground requests, waits while
+    /// `busy` is true and stops with [`TransportError::Stopped`] once `stop`
+    /// is set.
+    pub fn background(
+        &self,
+        foreground: &SharedTransport,
+        busy: Arc<dyn Fn() -> bool + Send + Sync>,
+        stop: Arc<AtomicBool>,
+    ) -> SharedTransport {
+        match self {
+            Network::Paced(p) => Arc::new(p.background(move || busy(), stop)),
+            _ => Arc::new(Yielding {
+                inner: Arc::clone(foreground),
+                busy,
+                stop,
+            }),
         }
     }
 }
@@ -154,9 +214,37 @@ impl musaic_checks::resolution::ResolutionSource for ChecksResolution {
         album_id: &str,
     ) -> Result<musaic_checks::Resolution, String> {
         let lib = (self.library_dir)();
-        let r = (self.parts)().resolve(conn, lib.as_deref(), album_id, "", false)?;
-        musaic_checks::Resolution::from_python_json(&r.to_dict())
-            .ok_or_else(|| "resolution is not an object".to_string())
+        let (r, failed) =
+            (self.parts)().resolve_checked(conn, lib.as_deref(), album_id, "", false)?;
+        let mut res = musaic_checks::Resolution::from_python_json(&r.to_dict())
+            .ok_or_else(|| "resolution is not an object".to_string())?;
+        res.network_failed = failed;
+        Ok(res)
+    }
+}
+
+/// A resolution source for background work: `inner`'s answers, and
+/// [`interrupted`](musaic_checks::ResolutionSource::interrupted) once
+/// `stop` is set (its transport then refuses every request).
+pub struct StoppableResolution {
+    pub inner: Arc<dyn musaic_checks::ResolutionSource>,
+    pub stop: Arc<AtomicBool>,
+}
+
+impl musaic_checks::resolution::ResolutionSource for StoppableResolution {
+    fn resolve(
+        &self,
+        conn: &Connection,
+        album_id: &str,
+    ) -> Result<musaic_checks::Resolution, String> {
+        if self.stop.load(Ordering::SeqCst) {
+            return Err("stopped".into());
+        }
+        self.inner.resolve(conn, album_id)
+    }
+
+    fn interrupted(&self) -> bool {
+        self.stop.load(Ordering::SeqCst)
     }
 }
 
@@ -369,5 +457,56 @@ impl FixSources for AppFixSources<'_> {
             confident: m.confident,
             tracklist: gap_tracks(&m),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicUsize;
+
+    struct Counting(Arc<AtomicUsize>);
+
+    impl Transport for Counting {
+        fn send(&self, _request: &Request) -> Result<Response, TransportError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(Response {
+                status: 200,
+                headers: Vec::new(),
+                body: Vec::new(),
+            })
+        }
+    }
+
+    // A transport that is not paced still yields in the background: it
+    // sends nothing once stopped, waits while the app is busy, and sends
+    // as usual otherwise.
+    #[test]
+    fn background_over_an_unpaced_transport_stops_and_waits() {
+        let sent = Arc::new(AtomicUsize::new(0));
+        let fg: SharedTransport = Arc::new(Counting(sent.clone()));
+        let net = Network::Live(fg.clone());
+        let busy = Arc::new(AtomicBool::new(true));
+        let stop = Arc::new(AtomicBool::new(false));
+        let b2 = busy.clone();
+        let bg = net.background(
+            &fg,
+            Arc::new(move || b2.load(Ordering::SeqCst)),
+            stop.clone(),
+        );
+        let req = Request::get("https://musicbrainz.org", "/ws/2/x");
+        let waiter = {
+            let bg = bg.clone();
+            let req = req.clone();
+            std::thread::spawn(move || bg.send(&req).map(|r| r.status))
+        };
+        std::thread::sleep(BACKGROUND_POLL * 2);
+        assert_eq!(sent.load(Ordering::SeqCst), 0, "sent while busy");
+        busy.store(false, Ordering::SeqCst);
+        assert_eq!(waiter.join().unwrap().unwrap(), 200);
+        assert_eq!(sent.load(Ordering::SeqCst), 1);
+        stop.store(true, Ordering::SeqCst);
+        assert!(matches!(bg.send(&req), Err(TransportError::Stopped)));
+        assert_eq!(sent.load(Ordering::SeqCst), 1);
     }
 }

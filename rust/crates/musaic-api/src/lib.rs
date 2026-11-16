@@ -79,7 +79,15 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         SCAN_CANCEL_ROUTE,
         "cancel the running library scan (the Python app could not cancel a scan); not a route of the Python app",
     ),
+    (
+        "GET",
+        CHECK_SWEEP_ROUTE,
+        "the background check sweep's progress (issue #187: every check runs on its own); not a route of the Python app",
+    ),
 ];
+
+/// `GET /api/checks/sweep` ([`EXTRA_ROUTES`]).
+pub const CHECK_SWEEP_ROUTE: &str = "/api/checks/sweep";
 
 /// `POST /api/scan/cancel` ([`EXTRA_ROUTES`]).
 pub const SCAN_CANCEL_ROUTE: &str = "/api/scan/cancel";
@@ -212,6 +220,8 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             post(settings::restore_snapshot),
         )
         .route("/api/checks/stream", get(checks::checks_stream))
+        // Not a Python app route: the check sweep's progress ([`EXTRA_ROUTES`]).
+        .route(CHECK_SWEEP_ROUTE, get(checks::sweep_status))
         .route(
             "/api/checks/findings",
             get(checks::list_all_findings).query(&[

@@ -33,7 +33,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 |---|---|
 | `musaic-core` | Shared primitives: album ids (first 16 hex chars of the SHA-1 of the album's resolved path), config (`config.json`, config dir), the album-field accessors, Python-compatible string helpers the stored data depends on |
 | `musaic-log` | Small logging facade for the lower crates; `musaic-app` installs the sink that writes `server.log` |
-| `musaic-db` | Opens, creates and migrates the SQLite database (schema v18; a v16 file from the Python app is backed up, then migrated); all SQL for albums, findings, fingerprints, tags, backups and snapshots |
+| `musaic-db` | Opens, creates and migrates the SQLite database (schema v19; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots |
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |
@@ -43,8 +43,8 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 | `musaic-net` | Outbound HTTP: MusicBrainz, AcoustID and Cover Art Archive clients, pacing and retry, the public-HTTPS rule for cover downloads, replay transport for tests |
 | `musaic-resolve` | The metadata resolver rules as pure functions: AcoustID vote, name search acceptance, tracklist alignment, similarity |
 | `musaic-events` | In-process event bus, the post-scan / bulk-run guard flags, the subscriber catalog, the SSE relay core |
-| `musaic-checks` | Health-check framework: `Check` trait, registry of the seven checks, findings runner, post-scan reruns |
-| `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, analysis (BPM / ReplayGain), check fixes, library operations |
+| `musaic-checks` | Health-check framework: `Check` trait, registry of the seven checks, findings runner, post-scan reruns, the inputs digest each completed run records (`inputs.rs`) |
+| `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, the background check sweep, analysis (BPM / ReplayGain), check fixes, library operations |
 | `musaic-ai` | The job queue: persistence, worker loop, the resolver synthesizer; a provider trait with no network provider in this build |
 | `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log |
 | `musaic-api` | The HTTP face on axum: every `/api` route, SSE streams, Host/Origin check, launch-cookie gate; also a standalone server binary (`musaic-api`) used for UI development |
@@ -179,13 +179,20 @@ the SSE relay). Callers never call those directly.
 - Event types: `rust/crates/musaic-events/src/event.rs` (`AlbumTagsChanged`,
   `AlbumCoverChanged`, `AlbumRenamed`, `AlbumMbAnchorSet`, `TrackFingerprinted`,
   `AlbumDeleted`, `AlbumMarkedMissing`, `LibraryScanCompleted`, `BulkBatchCompleted`,
-  `LibraryScanStopped`). Only a scan that saved its snapshot publishes
+  `LibraryScanStopped`, `SettingsChanged`). Only a scan that saved its snapshot publishes
   `LibraryScanCompleted` (post-scan reruns, fingerprint pool kick-off); an aborted,
   cancelled or failed scan publishes `LibraryScanStopped(reason)` and starts nothing.
 - Bus (priorities, background subscribers, isolation): `musaic-events/src/bus.rs`.
 - The subscriber list: `musaic-events/src/catalog.rs` (`CATALOG`, `register_all`); the
   real side effects: `musaic-checks/src/post_scan.rs` and
   `musaic-services/src/gated_reruns.rs`; wired in `musaic-app/src/app.rs`.
+- The background check sweep (`musaic-services/src/check_sweep.rs`) is one more
+  subscriber (`_check_sweep_wake`): every event wakes it, and it reruns each check where
+  the inputs digest recorded by its last completed run (`check_inputs`,
+  `musaic-checks/src/inputs.rs`) no longer matches. It yields to scans, restores and
+  any work holding the work gate, uses the background network path (and skips network
+  checks offline), plans nothing while the library folder is absent, and writes only
+  what a check run writes. A settings write publishes `SettingsChanged` (names only).
 - Recursion guard and bulk suppression: `musaic-events/src/context.rs`
   (`in_post_scan_rerun`, `in_bulk_run`). A bulk loop runs under `in_bulk_run` and
   publishes `BulkBatchCompleted` once at the end, for one library-wide rerun instead of N.
@@ -292,6 +299,14 @@ See `SECURITY.md`.
 3. A fix, if any, goes in `musaic-services/src/check_fixes.rs`, and mutates through the
    apply pipeline or publishes the matching event (rule 1).
 4. Exclude Missing albums (rule 6); store references in findings (rule 2).
+5. Tell the background sweep what the check depends on (`Check` in `base.rs`):
+   `granularity()` (per album, or the whole library), `input_extras()` for settings or
+   resolver configuration it reads (never a secret value), `refresh_after()` if its
+   result also changes with time or with MusicBrainz, `uses_network()` if it resolves.
+   A setting it reads must be listed in `checks_for_setting` in `check_sweep.rs`.
+6. An album it cannot look at (folder unreadable, MusicBrainz request failed) is reported
+   with `ctx.could_not_evaluate(album_id)`, never as "nothing wrong": the runner then keeps
+   that album's findings and does not record its inputs.
 
 ## Conventions
 

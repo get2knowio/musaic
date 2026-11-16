@@ -17,6 +17,13 @@
 //! [`musaic_services::gate::WorkGuard`] and is
 //! therefore refused while the restore runs.
 //!
+//! The check sweep (`musaic_services::check_sweep`) is the same: it takes
+//! no work guard (a quit does not ask about it, a restore is not refused
+//! because of it); a restore suspends it before touching the database, and
+//! shutdown stops it first. It is off unless the host asks for it
+//! ([`AppBuilder::check_sweep`]; both binaries do), so a test app's check
+//! runs are only the ones the test makes.
+//!
 //! The pool stream: one listener on the pool's change
 //! event bumps a [`watch`] counter; every stream connection holds its own
 //! receiver, so each connection is woken once per change it has not sent
@@ -35,6 +42,7 @@ use musaic_resolve::Resolver;
 use musaic_scan::TrackOrder;
 use musaic_services::analyze::{Analyzer, DspAnalyzer};
 use musaic_services::check_fixes::FixSources;
+use musaic_services::check_sweep::{CheckSweeper, SweepDeps};
 use musaic_services::fingerprint_pool::{FingerprintPool, PoolDeps, PoolSleeper, RealSleeper};
 use musaic_services::startup;
 use musaic_services::{ScanDeps, ScanService};
@@ -45,6 +53,7 @@ use musaic_services::gate::{DbGate, WorkGate};
 use musaic_services::keyscrub::{KeyScrub, Logger, Retry, ScrubOutcome};
 use musaic_services::production::{
     ChecksResolution, Fingerprinting, Network, Parts, PartsFactory, SharedTransport,
+    StoppableResolution,
 };
 use musaic_services::thumb_pool::ThumbPool;
 
@@ -77,6 +86,8 @@ pub enum StartupError {
     ConfigDir(PathBuf, std::io::Error),
     #[error("database: {0}")]
     Db(#[from] musaic_db::Error),
+    #[error(transparent)]
+    PreUpgradeCopy(#[from] musaic_services::startup::PreUpgradeCopyFailed),
 }
 
 /// Builds an [`App`].
@@ -106,6 +117,10 @@ pub struct AppBuilder {
     ai_job_ids: Option<crate::ai::JobIds>,
     ai_call_timeout: Duration,
     shutdown_pool_wait: Duration,
+    check_sweep: bool,
+    sweep_settle: Duration,
+    sweep_network: Option<bool>,
+    sweep_refresh_tick: Duration,
 }
 
 /// How long [`App::shutdown`] waits for the fingerprint pool's thread to
@@ -116,6 +131,10 @@ pub const SHUTDOWN_POOL_WAIT: Duration = Duration::from_secs(15);
 /// cancelling it (it stops after the album it is reading, then waits for
 /// the thumbnails already queued).
 pub const SHUTDOWN_SCAN_WAIT: Duration = Duration::from_secs(15);
+/// How long [`App::shutdown`] waits for the check sweep's thread (it stops
+/// its network request at once and ends after the batch of local checks in
+/// progress).
+pub const SHUTDOWN_SWEEP_WAIT: Duration = Duration::from_secs(5);
 /// How long the final WAL checkpoint on shutdown waits for any connection
 /// still open (a scan or check rerun ending at the same moment).
 pub const SHUTDOWN_CHECKPOINT_WAIT: Duration = Duration::from_secs(5);
@@ -128,6 +147,8 @@ pub struct ShutdownReport {
     pub scan_stopped: bool,
     /// The fingerprint pool's thread exited within the wait (or none ran).
     pub pool_stopped: bool,
+    /// The check sweep's thread exited within the wait (or none ran).
+    pub sweep_stopped: bool,
     /// The final WAL checkpoint, or why it could not run.
     pub checkpoint: Result<musaic_db::CloseCheckpoint, String>,
 }
@@ -164,7 +185,42 @@ impl AppBuilder {
             ai_job_ids: None,
             ai_call_timeout: musaic_ai::worker::WALL_CLOCK_TIMEOUT,
             shutdown_pool_wait: SHUTDOWN_POOL_WAIT,
+            check_sweep: false,
+            sweep_settle: musaic_services::check_sweep::SETTLE,
+            sweep_network: None,
+            sweep_refresh_tick: musaic_services::check_sweep::REFRESH_TICK,
         }
+    }
+
+    /// Whether the sweep may run checks that use the network. Default:
+    /// unless the network is [`Network::Offline`]; a host whose offline
+    /// mode is another transport (a logged one) says so here.
+    pub fn sweep_network(mut self, on: bool) -> Self {
+        self.sweep_network = Some(on);
+        self
+    }
+
+    /// How often the sweep looks again without an event (default
+    /// [`musaic_services::check_sweep::REFRESH_TICK`]; tests shorten it).
+    pub fn sweep_refresh_tick(mut self, d: Duration) -> Self {
+        self.sweep_refresh_tick = d;
+        self
+    }
+
+    /// Run the background check sweep (`musaic_services::check_sweep`):
+    /// every check reruns on its own where its inputs changed. Off by
+    /// default, so a test's check runs are its own; the binaries turn it on.
+    /// Needs the bus subscribers ([`Self::subscribers`]) to hear of changes.
+    pub fn check_sweep(mut self, on: bool) -> Self {
+        self.check_sweep = on;
+        self
+    }
+
+    /// How long the sweep waits after the last event before a pass
+    /// (default [`musaic_services::check_sweep::SETTLE`]; tests shorten it).
+    pub fn sweep_settle(mut self, d: Duration) -> Self {
+        self.sweep_settle = d;
+        self
     }
 
     /// How long shutdown waits for the fingerprint pool's thread (default
@@ -334,8 +390,17 @@ impl AppBuilder {
         let key_scrub = Arc::new(KeyScrub::new(log.clone(), self.key_scrub_delays));
         let startup_scrub;
         {
-            // No database yet: created at the current schema (no backup:
-            // there is nothing to go back to).
+            // A database this build wrote is copied (as a snapshot) before
+            // a schema step; no copy, no upgrade. No database yet: created
+            // at the current schema (no backup: nothing to go back to).
+            if let Some(name) =
+                startup::snapshot_before_schema_step(&db_path, &config.snapshot_dir(), clock())?
+            {
+                log.info(
+                    "musaic.db",
+                    &format!("database copied to snapshot {name} before the schema upgrade"),
+                );
+            }
             let (db, opened) = Db::open_or_create(&db_path)?;
             startup::log_opened(&log, &db_path, &opened);
             // Secret rows leave SQLite on every open. This
@@ -381,6 +446,7 @@ impl AppBuilder {
         };
         let thumbs_dir = config.dir().join("thumbs");
         let gate = WorkGate::new();
+        let sweeper = CheckSweeper::new();
         if self.subscribers {
             let db_for_fx = db_path.clone();
             let r2 = resolver.clone();
@@ -404,6 +470,9 @@ impl AppBuilder {
                 gate.clone(),
                 Arc::new(log.clone()),
             );
+            if self.check_sweep {
+                gated.set_sweeper(sweeper.clone());
+            }
             musaic_events::register_all(&bus, gated, Some(&relay));
         } else {
             // The relay alone: the SSE stream still sees every event.
@@ -418,6 +487,14 @@ impl AppBuilder {
         pool.changed().add_listener(Arc::new(move || {
             tx.send_modify(|n| *n = n.wrapping_add(1));
         }));
+
+        let (sweep_changes, _) = watch::channel(0u64);
+        let tx = sweep_changes.clone();
+        sweeper.changed().add_listener(Arc::new(move || {
+            tx.send_modify(|n| *n = n.wrapping_add(1));
+        }));
+        let sweep_resolution = self.checks_resolution.clone();
+        let network = self.network.clone();
 
         let state = App(Arc::new(AppInner {
             config,
@@ -452,6 +529,8 @@ impl AppBuilder {
             ),
             shutting_down: watch::channel(false).0,
             shutdown_pool_wait: self.shutdown_pool_wait,
+            sweeper,
+            sweep_changes,
             ai: crate::ai::AiQueue::new(
                 self.ai_provider
                     .unwrap_or_else(|| Arc::new(musaic_ai::Unconfigured)),
@@ -478,6 +557,18 @@ impl AppBuilder {
         }
         if startup_scrub == (ScrubOutcome::Pending { retry: true }) {
             state.schedule_key_scrub_retry();
+        }
+        if self.check_sweep {
+            let online = self
+                .sweep_network
+                .unwrap_or(!matches!(network, Network::Offline));
+            state.start_check_sweep(
+                &network,
+                sweep_resolution,
+                self.sweep_settle,
+                online,
+                self.sweep_refresh_tick,
+            );
         }
         Ok(state)
     }
@@ -551,6 +642,11 @@ pub struct AppInner {
     pub shutting_down: watch::Sender<bool>,
     /// How long [`App::shutdown`] waits for the fingerprint pool.
     pub shutdown_pool_wait: Duration,
+    /// The background check sweep (idle unless started:
+    /// [`AppBuilder::check_sweep`]).
+    pub sweeper: CheckSweeper,
+    /// Bumped on every sweep state change; one receiver per checks stream.
+    pub sweep_changes: watch::Sender<u64>,
 }
 
 /// The application (cheap to clone).
@@ -614,6 +710,73 @@ impl App {
         &self.0.pool
     }
 
+    /// The background check sweep.
+    pub fn sweeper(&self) -> &CheckSweeper {
+        &self.0.sweeper
+    }
+
+    /// True while the sweep should not start a batch: a restore, a scan,
+    /// or any work holding the work gate (applies, bulk runs, user-started
+    /// check runs, short writes).
+    pub fn sweep_should_wait(&self) -> bool {
+        let (active, restoring) = self.0.gate.snapshot();
+        restoring || active > 0 || self.0.scan.is_running()
+    }
+
+    /// Start the check sweep: its checks resolve through the background
+    /// network path (`network`'s, over this app's transport) and stop with
+    /// the sweep; `resolution` replaces the resolver (tests).
+    fn start_check_sweep(
+        &self,
+        network: &Network,
+        resolution: Option<Arc<dyn ResolutionSource>>,
+        settle: Duration,
+        online: bool,
+        refresh_tick: Duration,
+    ) {
+        let inner = &self.0;
+        let stop = inner.sweeper.stop_flag();
+        let weak = Arc::downgrade(&self.0);
+        let busy: Arc<dyn Fn() -> bool + Send + Sync> =
+            Arc::new(move || weak.upgrade().is_some_and(|i| App(i).sweep_should_wait()));
+        let background = network.background(&inner.transport, busy.clone(), stop.clone());
+        let resolution = resolution.unwrap_or_else(|| {
+            let cfg = inner.config.clone();
+            Arc::new(ChecksResolution {
+                parts: startup::parts_factory(
+                    inner.resolver.clone(),
+                    background,
+                    inner.secrets.clone(),
+                    inner.fingerprinting.fingerprinter(),
+                    inner.bus.clone(),
+                    inner.clock.clone(),
+                ),
+                library_dir: Arc::new(move || cfg.load().library_dir),
+            })
+        });
+        let env = CheckEnv {
+            resolver: Arc::new(StoppableResolution {
+                inner: resolution,
+                stop,
+            }),
+            ..inner.checks_env.clone()
+        };
+        let db_path = inner.db_path.clone();
+        let cfg = inner.config.clone();
+        let clock = inner.clock.clone();
+        inner.sweeper.start(SweepDeps {
+            open_db: Arc::new(move || open_conn(&db_path).map_err(|e| e.to_string())),
+            library_dir: Arc::new(move || cfg.load().library_dir),
+            env,
+            busy,
+            now: Arc::new(move || clock()),
+            log: Arc::new(inner.log.clone()),
+            settle,
+            network: online,
+            refresh_tick,
+        });
+    }
+
     /// Start shutting down: every open SSE stream ends cleanly
     /// (its body finishes, so the client sees the end of the response and
     /// the server's graceful drain is not held up by `EventSource`s), and
@@ -661,7 +824,8 @@ impl App {
         musaic_core::AiWording::for_readiness(self.ai_ready())
     }
 
-    /// The lifespan's shutdown, blocking: cancel a running scan and wait (at
+    /// The lifespan's shutdown, blocking: stop the check sweep (waiting at
+    /// most [`SHUTDOWN_SWEEP_WAIT`]), cancel a running scan and wait (at
     /// most [`SHUTDOWN_SCAN_WAIT`]) for it to end, cancel the fingerprint
     /// pool and wait (at most [`AppBuilder::shutdown_pool_wait`]) for its
     /// thread to exit, stop the AI worker, give an unfinished secret scrub
@@ -677,6 +841,18 @@ impl App {
     /// connection open, and a scan finishing during shutdown restarted the
     /// pool that had just been stopped.)
     pub fn shutdown(&self) -> ShutdownReport {
+        // The sweep first: it stops its request in flight at once, and it
+        // must not start a batch after the scan below ends.
+        let sweep_stopped = self.0.sweeper.stop_within(SHUTDOWN_SWEEP_WAIT);
+        if !sweep_stopped {
+            self.0.log.warn(
+                SHUTDOWN_TARGET,
+                &format!(
+                    "check sweep still busy after {} s; closing the database without waiting for it",
+                    SHUTDOWN_SWEEP_WAIT.as_secs_f64()
+                ),
+            );
+        }
         let scan_stopped = self.cancel_scan_and_wait(SHUTDOWN_SCAN_WAIT);
         if !scan_stopped {
             self.0.log.warn(
@@ -738,6 +914,7 @@ impl App {
         ShutdownReport {
             scan_stopped,
             pool_stopped,
+            sweep_stopped,
             checkpoint,
         }
     }

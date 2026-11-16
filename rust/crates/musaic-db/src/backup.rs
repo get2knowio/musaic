@@ -27,7 +27,7 @@
 //!   the Python app migrates it (only a version below `OLDEST_SCHEMA_VERSION` is
 //!   refused); the newest accepted version is this build's, not
 //!   the Python app's v16.
-//! * the schema version in new file names is this build's (v17).
+//! * the schema version in new file names is this build's ([`SCHEMA_VERSION`]).
 //! * a name containing NUL is rejected as invalid (the Python app raises
 //!   `ValueError`, an HTTP 500).
 //! * only file names the app writes count as snapshots
@@ -369,7 +369,7 @@ pub struct RestoreInfo {
     pub restored_at: String,
     /// Where the previous `library.db` (and any `-wal` / `-shm`) went.
     pub aside_paths: Vec<PathBuf>,
-    /// What reopening did (a v16 upload is migrated to v17).
+    /// What reopening did (an older upload is migrated to [`SCHEMA_VERSION`]).
     pub opened: Opened,
 }
 
@@ -394,7 +394,7 @@ impl std::fmt::Debug for RestoreFailed {
 ///
 /// Order: validate (nothing touched on failure) -> checkpoint and close the
 /// live connection -> move `library.db`, `-wal`, `-shm` aside -> copy the
-/// upload in -> open it (migrating v16 to v17). A failure after the move puts
+/// upload in -> open it (migrating an older file to [`SCHEMA_VERSION`]). A failure after the move puts
 /// the previous files back and reopens them.
 ///
 /// Secrets: an upload written by the Python app may carry API keys in its
@@ -684,7 +684,9 @@ pub fn create_snapshot(
     })
 }
 
-fn prune_snapshots(dir: &Path, retention: i64) -> std::io::Result<Vec<String>> {
+/// Delete the oldest snapshots beyond `retention` (none when it is 0 or
+/// less). Returns the names removed.
+pub fn prune_snapshots(dir: &Path, retention: i64) -> std::io::Result<Vec<String>> {
     if retention <= 0 {
         return Ok(Vec::new());
     }

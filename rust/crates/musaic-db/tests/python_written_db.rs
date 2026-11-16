@@ -86,10 +86,11 @@ fn v16_is_backed_up_then_migrated() {
     );
     assert_eq!(db.schema_version().unwrap(), SCHEMA_VERSION);
 
-    // Every table has the rows it had; the one table v18 adds is empty
-    // (enumerated delta).
+    // Every table has the rows it had; the tables v18 and v19 add are
+    // empty (enumerated deltas).
     let mut want = before.clone();
     want.push(("fingerprint_rejects".into(), 0));
+    want.push(("check_inputs".into(), 0));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     // Rows with a recording came from a completed lookup; the
@@ -313,11 +314,11 @@ fn settings_read_and_write() {
 }
 
 /// A v17 database (this build's, before v18)
-/// is migrated in place to v18 with no backup file; its rows are kept, a
-/// row with a recording is marked as looked up, and the rejects table is
-/// added. Reopening changes nothing.
+/// is migrated in place to the current version with no backup file; its
+/// rows are kept, a row with a recording is marked as looked up, and the
+/// rejects and check-inputs tables are added. Reopening changes nothing.
 #[test]
-fn v17_is_migrated_to_v18_without_a_backup() {
+fn v17_is_migrated_without_a_backup() {
     let (dir, path) = fixture_copy();
     // A v17 file as the previous build left it: the v16 fixture plus the
     // v17 step, and its pre-migration backup removed to see none is written.
@@ -347,6 +348,7 @@ fn v17_is_migrated_to_v18_without_a_backup() {
     assert!(!dir.path().join(BACKUP_FILE_NAME).exists());
     let mut want = before;
     want.push(("fingerprint_rejects".into(), 0));
+    want.push(("check_inputs".into(), 0));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     let (done, matched, impls): (i64, i64, i64) = db
@@ -360,6 +362,105 @@ fn v17_is_migrated_to_v18_without_a_backup() {
         )
         .unwrap();
     assert_eq!((done, matched, impls), (3, 3, 42));
+    drop(db);
+    let (_, opened) = Db::open(&path).unwrap();
+    assert_eq!(opened, Opened::Current);
+}
+
+/// The v18 statements as the previous build ran them (its
+/// `migrate::V18_STATEMENTS`), to build a v18 file from the v16 fixture.
+const V18_AS_SHIPPED: &str = "
+    ALTER TABLE track_fingerprints ADD COLUMN fingerprint_impl TEXT NOT NULL DEFAULT 'fpcalc';
+    UPDATE schema_version SET version = 17;
+    ALTER TABLE track_fingerprints ADD COLUMN acoustid_lookup_state TEXT;
+    ALTER TABLE track_fingerprints ADD COLUMN acoustid_lookup_failures INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE track_fingerprints ADD COLUMN acoustid_retry_after TEXT;
+    UPDATE track_fingerprints SET acoustid_lookup_state = 'done'
+     WHERE acoustid_recording_mbid IS NOT NULL;
+    CREATE TABLE fingerprint_rejects (
+        album_id          TEXT NOT NULL,
+        filename          TEXT NOT NULL,
+        file_signature    TEXT NOT NULL,
+        fingerprint_impl  TEXT NOT NULL,
+        rejected_at       TEXT NOT NULL,
+        PRIMARY KEY (album_id, filename),
+        FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE ON UPDATE CASCADE
+    );
+    UPDATE schema_version SET version = 18;
+";
+
+/// A v18 database (this build's, before v19) is migrated in place to v19
+/// with no backup file (the v18 -> v19 step only adds an empty table and an
+/// index, in one transaction): every table keeps its rows, `check_inputs`
+/// is added empty, and reopening changes nothing.
+#[test]
+fn v18_is_migrated_to_v19_without_a_backup() {
+    let (dir, path) = fixture_copy();
+    {
+        let c = Connection::open(&path).unwrap();
+        c.execute_batch(V18_AS_SHIPPED).unwrap();
+        // A remembered reject, to see v18's own rows kept.
+        c.execute(
+            "INSERT INTO fingerprint_rejects VALUES \
+             ((SELECT id FROM albums ORDER BY id LIMIT 1), 'x.flac', '1:2:3', 'rust-chromaprint', \
+              '2001-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+    }
+    let before = table_counts(&Connection::open(&path).unwrap());
+    assert!(before.iter().all(|(t, _)| t != "check_inputs"));
+    let (db, opened) = Db::open(&path).unwrap();
+    assert_eq!(
+        opened,
+        Opened::Migrated {
+            from: 18,
+            backup: None
+        }
+    );
+    assert_eq!(SCHEMA_VERSION, 19);
+    assert_eq!(db.schema_version().unwrap(), 19);
+    assert!(
+        musaic_db::existing_backup(dir.path()).is_none(),
+        "no backup for a v18 file"
+    );
+    let mut want = before;
+    want.push(("check_inputs".into(), 0));
+    want.sort();
+    assert_eq!(table_counts(db.connection()), want);
+    // The new index is there and covers the inputs query.
+    let plan: String = db
+        .connection()
+        .query_row(
+            "EXPLAIN QUERY PLAN SELECT album_id, filename, fingerprint_impl, last_computed_at, \
+                    acoustid_recording_mbid, acoustid_score \
+             FROM track_fingerprints ORDER BY album_id, filename",
+            [],
+            |r| r.get(3),
+        )
+        .unwrap();
+    assert!(
+        plan.contains("COVERING INDEX idx_track_fingerprints_inputs"),
+        "{plan}"
+    );
+    // The table works: record, read back, forget.
+    let c = db.connection();
+    musaic_db::check_inputs::record(
+        c,
+        "track-gaps",
+        "/lib",
+        &[("a1".into(), "d1".into()), ("".into(), "d0".into())],
+        "2001-01-01T00:00:00Z",
+    )
+    .unwrap();
+    let rows = musaic_db::check_inputs::rows_for_library(c, "/lib").unwrap();
+    assert_eq!(rows.len(), 2);
+    // "a1" is no album: pruned; the library row stays.
+    assert_eq!(musaic_db::check_inputs::prune_orphans(c).unwrap(), 1);
+    assert_eq!(
+        musaic_db::check_inputs::forget_check(c, "track-gaps").unwrap(),
+        1
+    );
     drop(db);
     let (_, opened) = Db::open(&path).unwrap();
     assert_eq!(opened, Opened::Current);

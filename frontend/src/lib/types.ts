@@ -95,6 +95,23 @@ export interface TracksResponse {
   tracks: Track[];
 }
 
+// ---- Check sweep ----
+
+/** Progress of the background check sweep (GET /api/checks/sweep, and the
+ * `sweep` event of /api/checks/stream). Every check runs on its own; the
+ * sweep reruns the ones whose inputs changed. `total` / `completed` count
+ * units of work (one album of one check, or one library-wide run).
+ * "waiting": it has work but lets a scan, a restore or other work finish
+ * first. */
+export interface CheckSweepStatus {
+  status: "idle" | "running" | "waiting";
+  total: number;
+  completed: number;
+  current_check: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 // ---- Fingerprint pool ----
 
 /** Status of the eager AcoustID-fingerprinting pool that runs after

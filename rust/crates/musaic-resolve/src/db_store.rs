@@ -1,6 +1,7 @@
 //! [`AnchorStore`] over the library database (`musaic_db::mb_anchor`).
 
-use std::collections::BTreeSet;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::Connection;
 
@@ -11,6 +12,21 @@ use crate::source::{AnchorStore, FingerprintRow, StoreError, StoredAnchor};
 pub struct DbStore<'a> {
     pub conn: &'a Connection,
     pub now_iso: String,
+    /// The release group each album had when this store last read (or
+    /// wrote) it. A write is a compare-and-set against it
+    /// (`set_album_mb_anchor_if`), so a user's change made while the
+    /// resolver was waiting on MusicBrainz is never overwritten.
+    pub read: RefCell<BTreeMap<String, Option<String>>>,
+}
+
+impl<'a> DbStore<'a> {
+    pub fn new(conn: &'a Connection, now_iso: String) -> Self {
+        DbStore {
+            conn,
+            now_iso,
+            read: RefCell::default(),
+        }
+    }
 }
 
 fn err(e: musaic_db::Error) -> StoreError {
@@ -19,16 +35,17 @@ fn err(e: musaic_db::Error) -> StoreError {
 
 impl AnchorStore for DbStore<'_> {
     fn anchor(&self, album_id: &str) -> Result<Option<StoredAnchor>, StoreError> {
-        Ok(
-            musaic_db::mb_anchor::get_album_mb_anchor(self.conn, album_id)
-                .map_err(err)?
-                .map(|r| StoredAnchor {
-                    release_group_mbid: r.release_group_mbid,
-                    release_mbid: r.release_mbid,
-                    score: r.score,
-                    last_checked_at: r.last_checked_at,
-                }),
-        )
+        let row = musaic_db::mb_anchor::get_album_mb_anchor(self.conn, album_id).map_err(err)?;
+        self.read.borrow_mut().insert(
+            album_id.to_string(),
+            row.as_ref().map(|r| r.release_group_mbid.clone()),
+        );
+        Ok(row.map(|r| StoredAnchor {
+            release_group_mbid: r.release_group_mbid,
+            release_mbid: r.release_mbid,
+            score: r.score,
+            last_checked_at: r.last_checked_at,
+        }))
     }
 
     fn set_anchor(
@@ -38,16 +55,33 @@ impl AnchorStore for DbStore<'_> {
         release_mbid: Option<&str>,
         score: i64,
     ) -> Result<(), StoreError> {
-        musaic_db::mb_anchor::set_album_mb_anchor(
+        // Not read yet by this store: what is there now.
+        let expected = match self.read.borrow().get(album_id) {
+            Some(e) => e.clone(),
+            None => musaic_db::mb_anchor::get_album_mb_anchor(self.conn, album_id)
+                .map_err(err)?
+                .map(|r| r.release_group_mbid),
+        };
+        let written = musaic_db::mb_anchor::set_album_mb_anchor_if(
             self.conn,
             album_id,
+            expected.as_deref(),
             release_group_mbid,
             release_mbid,
             score,
             &self.now_iso,
         )
-        .map(|_| ())
-        .map_err(err)
+        .map_err(err)?;
+        if !written {
+            return Err(StoreError(
+                "the album's MusicBrainz match changed or was blocked meanwhile; not overwritten"
+                    .into(),
+            ));
+        }
+        self.read
+            .borrow_mut()
+            .insert(album_id.to_string(), Some(release_group_mbid.to_string()));
+        Ok(())
     }
 
     fn blocked(&self, album_id: &str) -> Result<BTreeSet<String>, StoreError> {

@@ -149,6 +149,7 @@ pub async fn album_cover_preview(
                 conn: &conn,
                 // Only stamped on writes; this route only reads.
                 now_iso: String::new(),
+                read: Default::default(),
             };
             anchored_cover_url(&store, &album_id)
                 .map_err(ApiError::internal)?
