@@ -2510,7 +2510,7 @@ dependencies = [
  "axum",
  "base64 0.23.1",
  "bytes",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "http-body",
  "http-body-util",
  "image",
@@ -2621,7 +2621,7 @@ version = "0.2.0-rc.1"
 dependencies = [
  "axum",
  "fd-lock",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "http-body-util",
  "musaic-api",
  "musaic-core",
