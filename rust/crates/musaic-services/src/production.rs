@@ -132,7 +132,7 @@ impl Network {
         stop: Arc<AtomicBool>,
     ) -> SharedTransport {
         match self {
-            Network::Paced(p) => Arc::new(p.background(move || busy(), stop)),
+            Network::Paced(p) => paced_background(p, busy, stop),
             _ => Arc::new(Yielding {
                 inner: Arc::clone(foreground),
                 busy,
@@ -140,6 +140,22 @@ impl Network {
             }),
         }
     }
+}
+
+/// The background twin of a paced transport: the same inner transport and
+/// limiter, taking a slot only when the host has been quiet. Generic so a
+/// test can run the wiring over a recorded or offline transport and a
+/// scripted clock instead of the live one.
+fn paced_background<T, C>(
+    paced: &musaic_net::Paced<T, C>,
+    busy: Arc<dyn Fn() -> bool + Send + Sync>,
+    stop: Arc<AtomicBool>,
+) -> SharedTransport
+where
+    T: Transport + Clone + Send + Sync + 'static,
+    C: musaic_net::Clock + Send + Sync + 'static,
+{
+    Arc::new(paced.background(move || busy(), stop))
 }
 
 struct OfflineTransport;
@@ -508,5 +524,99 @@ mod tests {
         stop.store(true, Ordering::SeqCst);
         assert!(matches!(bg.send(&req), Err(TransportError::Stopped)));
         assert_eq!(sent.load(Ordering::SeqCst), 1);
+    }
+
+    /// A virtual clock: `sleep` moves time on.
+    #[derive(Default)]
+    struct VirtualClock(std::sync::Mutex<Duration>);
+
+    impl musaic_net::Clock for VirtualClock {
+        fn now(&self) -> Duration {
+            *self.0.lock().unwrap()
+        }
+        fn sleep(&self, d: Duration) {
+            *self.0.lock().unwrap() += d;
+        }
+    }
+
+    fn mb_request() -> Request {
+        Request::get("https://musicbrainz.org", "/ws/2/release-group/x")
+    }
+
+    /// The paced background path, with no network: a recorded transport
+    /// that has no answer, and one that fails like offline mode, fail the
+    /// request instead of making it look answered; a transport that answers
+    /// is sent to only after the host has been quiet, shares the limiter
+    /// with the foreground, and stops when told to.
+    #[test]
+    fn paced_background_waits_for_a_quiet_host_and_never_turns_a_failure_into_an_answer() {
+        use musaic_net::{BACKGROUND_QUIET, Clock, Paced, RetryPolicy};
+
+        let clock = VirtualClock::default();
+        let limiter = Arc::new(musaic_net::Limiter::new(clock, Default::default()));
+
+        // Recorded traffic with no recording for the request.
+        let empty = tempfile::tempdir().unwrap();
+        let replay = Paced::shared(
+            Arc::new(FollowRedirects(ReplayTransport::new(empty.path()))),
+            limiter.clone(),
+            RetryPolicy::default(),
+        );
+        let stop = Arc::new(AtomicBool::new(false));
+        let bg = paced_background(&replay, Arc::new(|| false), stop.clone());
+        assert!(bg.send(&mb_request()).is_err(), "a miss is not an answer");
+
+        // Offline mode's transport.
+        let offline = Paced::shared(
+            Arc::new(OfflineTransport),
+            limiter.clone(),
+            RetryPolicy::default(),
+        );
+        let bg_off = paced_background(&offline, Arc::new(|| false), stop.clone());
+        assert!(matches!(
+            bg_off.send(&mb_request()),
+            Err(TransportError::Dns { .. })
+        ));
+
+        // A transport that answers.
+        let sent = Arc::new(AtomicUsize::new(0));
+        let counting = Paced::shared(
+            Arc::new(Counting(sent.clone())),
+            limiter.clone(),
+            RetryPolicy::default(),
+        );
+        let bg = paced_background(&counting, Arc::new(|| false), stop.clone());
+        // The foreground has just used the host.
+        let before = limiter.clock().now();
+        assert_eq!(counting.send(&mb_request()).unwrap().status, 200);
+        assert_eq!(sent.load(Ordering::SeqCst), 1);
+        assert_eq!(bg.send(&mb_request()).unwrap().status, 200);
+        assert_eq!(sent.load(Ordering::SeqCst), 2);
+        assert!(
+            limiter.clock().now() - before >= BACKGROUND_QUIET,
+            "the background request went before the host had been quiet"
+        );
+        // The shared limiter paces the foreground behind it.
+        let t = limiter.clock().now();
+        counting.send(&mb_request()).unwrap();
+        assert!(limiter.clock().now() > t, "foreground was not paced");
+
+        // Stopped: nothing more is sent.
+        stop.store(true, Ordering::SeqCst);
+        assert!(matches!(
+            bg.send(&mb_request()),
+            Err(TransportError::Stopped)
+        ));
+        assert_eq!(sent.load(Ordering::SeqCst), 3);
+
+        // Busy: nothing is sent, and it stops promptly once told to.
+        let stop2 = Arc::new(AtomicBool::new(false));
+        let busy_bg = paced_background(&counting, Arc::new(|| true), stop2.clone());
+        stop2.store(true, Ordering::SeqCst);
+        assert!(matches!(
+            busy_bg.send(&mb_request()),
+            Err(TransportError::Stopped)
+        ));
+        assert_eq!(sent.load(Ordering::SeqCst), 3);
     }
 }

@@ -65,11 +65,18 @@ impl<T: Transport + Clone> NetMusicBrainz<T> {
     }
 }
 
-/// A failure that says nothing about MusicBrainz's data: anything but an
-/// answer of "not found" or another client error.
-fn is_outage(e: &NetError) -> bool {
+/// A failure that says nothing about MusicBrainz's data: anything but the
+/// answer "not found" (404). A proxy's 403 or 407, a rate limit, a 5xx or any
+/// other status is not MusicBrainz telling us about the release, so the
+/// resolution it leaves behind is incomplete and is not trusted.
+///
+/// 400 is not an answer either: MusicBrainz sends it for a malformed MBID or
+/// search query, which says our request was wrong, not that there is nothing
+/// to find, and an album recorded as checked on that basis would never be
+/// looked at again.
+pub(crate) fn is_outage(e: &NetError) -> bool {
     match e {
-        NetError::Http(s) => *s == 429 || *s >= 500,
+        NetError::Http(s) => *s != 404,
         NetError::Network(_) | NetError::Parse(_) => true,
     }
 }
@@ -105,13 +112,25 @@ impl<T: Transport> MusicBrainzSource for NetMusicBrainz<T> {
         self.body(Mbc::release_group_request(release_group))
     }
 
+    /// Cover Art Archive: 404 means "no front cover", an answer (it is what
+    /// the archive says for a release group without one). Any other status,
+    /// and a request that did not complete, is an outage like a
+    /// MusicBrainz one: the cover might exist.
     fn cover_front_status(&self, release_group: &str) -> Result<u16, NetError> {
-        match self.cover_art.check_front(release_group) {
+        let r = match self.cover_art.check_front(release_group) {
             FrontCover::Verified { .. } => Ok(200),
             FrontCover::Missing => Ok(404),
             FrontCover::Status(s) => Ok(s),
             FrontCover::Failed(e) => Err(NetError::Network(e.to_string())),
+        };
+        let outage = match &r {
+            Ok(s) => *s != 200 && *s != 404,
+            Err(e) => is_outage(e),
+        };
+        if outage {
+            self.failed.store(true, Ordering::SeqCst);
         }
+        r
     }
 }
 
@@ -400,5 +419,78 @@ impl<T: Transport + Clone> ResolveParts<T> {
             });
         }
         Ok((resolved.resolution, failed))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use musaic_net::{Request, Response, TransportError};
+
+    /// Answers every request with one status (or fails it).
+    #[derive(Clone)]
+    struct Fixed(Result<u16, ()>);
+
+    impl Transport for Fixed {
+        fn send(&self, req: &Request) -> Result<Response, TransportError> {
+            match self.0 {
+                Ok(status) => Ok(Response {
+                    status,
+                    headers: Vec::new(),
+                    body: b"{}".to_vec(),
+                }),
+                Err(()) => Err(TransportError::Dns {
+                    host: req.host().to_string(),
+                }),
+            }
+        }
+    }
+
+    fn mb_failed(status: u16) -> bool {
+        let mb = NetMusicBrainz::new(Fixed(Ok(status)));
+        let _ = mb.lookup_release_group("rg");
+        mb.failed.load(Ordering::SeqCst)
+    }
+
+    fn caa_failed(t: Fixed) -> (Result<u16, NetError>, bool) {
+        let mb = NetMusicBrainz::new(t);
+        let r = mb.cover_front_status("rg");
+        (r, mb.failed.load(Ordering::SeqCst))
+    }
+
+    // Only "not found" is MusicBrainz's answer; whatever else comes back
+    // (a proxy's 403 or 407, a 400, a rate limit, a server error) leaves the
+    // resolution incomplete.
+    #[test]
+    fn only_a_404_from_musicbrainz_is_an_answer() {
+        assert!(!mb_failed(200));
+        assert!(!mb_failed(404));
+        for s in [400, 401, 403, 407, 410, 418, 429, 500, 503] {
+            assert!(mb_failed(s), "{s} must count as an outage");
+        }
+        assert!(is_outage(&NetError::Network("x".into())));
+        assert!(is_outage(&NetError::Parse("x".into())));
+        assert!(!is_outage(&NetError::Http(404)));
+        assert!(is_outage(&NetError::Http(403)));
+    }
+
+    // The Cover Art Archive answers 404 for "no cover": an answer. Any other
+    // status or no answer at all might be hiding a cover.
+    #[test]
+    fn cover_art_archive_404_is_no_cover_and_anything_else_is_an_outage() {
+        let (r, failed) = caa_failed(Fixed(Ok(404)));
+        assert_eq!(r.unwrap(), 404);
+        assert!(!failed, "no cover is an answer");
+        let (r, failed) = caa_failed(Fixed(Ok(200)));
+        assert_eq!(r.unwrap(), 200);
+        assert!(!failed);
+        for s in [403, 407, 429, 500, 503] {
+            let (r, failed) = caa_failed(Fixed(Ok(s)));
+            assert_eq!(r.unwrap(), s);
+            assert!(failed, "{s} from the archive must count as an outage");
+        }
+        let (r, failed) = caa_failed(Fixed(Err(())));
+        assert!(r.is_err());
+        assert!(failed, "no answer from the archive is an outage");
     }
 }

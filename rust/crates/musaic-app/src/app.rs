@@ -393,13 +393,18 @@ impl AppBuilder {
             // A database this build wrote is copied (as a snapshot) before
             // a schema step; no copy, no upgrade. No database yet: created
             // at the current schema (no backup: nothing to go back to).
-            if let Some(name) =
-                startup::snapshot_before_schema_step(&db_path, &config.snapshot_dir(), clock())?
-            {
-                log.info(
+            match startup::snapshot_before_schema_step(&db_path, &config.snapshot_dir(), clock())? {
+                startup::PreUpgradeCopy::Taken(name) => log.info(
                     "musaic.db",
                     &format!("database copied to snapshot {name} before the schema upgrade"),
-                );
+                ),
+                startup::PreUpgradeCopy::Existing(name) => log.info(
+                    "musaic.db",
+                    &format!(
+                        "snapshot {name} already holds the database before the schema upgrade; no second copy"
+                    ),
+                ),
+                startup::PreUpgradeCopy::NotNeeded => {}
             }
             let (db, opened) = Db::open_or_create(&db_path)?;
             startup::log_opened(&log, &db_path, &opened);

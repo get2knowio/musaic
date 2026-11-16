@@ -228,6 +228,9 @@ pub struct StubEnv {
     pub log: Mutex<Vec<String>>,
     pub gate_closed: std::sync::atomic::AtomicBool,
     pub guards: Arc<AtomicU64>,
+    /// Runs while a release group is being verified, i.e. while the user
+    /// could be changing the album.
+    pub on_verify: Mutex<Option<Box<dyn Fn() + Send>>>,
 }
 
 impl StubEnv {
@@ -252,6 +255,7 @@ impl StubEnv {
             log: Mutex::default(),
             gate_closed: std::sync::atomic::AtomicBool::new(false),
             guards: Arc::new(AtomicU64::new(0)),
+            on_verify: Mutex::new(None),
         }
     }
 }
@@ -338,6 +342,9 @@ impl WorkerEnv for StubEnv {
         }
     }
     fn verify_release_group(&self, mbid: &str) -> Result<u16, String> {
+        if let Some(f) = self.on_verify.lock().unwrap().as_ref() {
+            f();
+        }
         match self.mb_status.lock().unwrap().get(mbid) {
             Some(Value::Number(n)) => Ok(n.as_u64().unwrap() as u16),
             Some(_) => Err("network disabled".into()),

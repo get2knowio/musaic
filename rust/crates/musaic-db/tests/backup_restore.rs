@@ -685,3 +685,62 @@ fn same_second_snapshots_prune_the_oldest_first() {
     );
     assert!(s.pruned.contains(&format!("{base}.db")), "{:?}", s.pruned);
 }
+
+/// A snapshot file at a given schema version and modification time.
+fn snapshot_at(dir: &Path, name: &str, version: i64, mtime: i64) {
+    let p = dir.join(name);
+    let c = Connection::open(&p).unwrap();
+    c.execute_batch(
+        "CREATE TABLE albums(id); CREATE TABLE libraries(path); CREATE TABLE schema_version(version INTEGER);",
+    )
+    .unwrap();
+    c.execute("INSERT INTO schema_version VALUES (?1)", [version])
+        .unwrap();
+    drop(c);
+    set_mtime(&p, mtime);
+}
+
+/// The newest copy taken before a schema upgrade outlives the retention
+/// count; the next upgrade's copy supersedes it, and then it is pruned like
+/// any other.
+#[test]
+fn the_newest_pre_upgrade_copy_is_not_pruned_until_superseded() {
+    let t = tempfile::tempdir().unwrap();
+    let dir = t.path().join("backups");
+    std::fs::create_dir_all(&dir).unwrap();
+    let v = SCHEMA_VERSION;
+    // v16 is the Python app's: not a pre-upgrade copy of this build.
+    snapshot_at(&dir, "library-20260101-000000Z-v16.db", 16, 1_000);
+    snapshot_at(&dir, "library-20260102-000000Z-v17.db", v - 2, 2_000);
+    snapshot_at(&dir, "library-20260103-000000Z-v18.db", v - 1, 3_000);
+    snapshot_at(&dir, &format!("library-20260104-000000Z-v{v}.db"), v, 4_000);
+    snapshot_at(
+        &dir,
+        &format!("library-20260105-000000Z-v{v}.1.db"),
+        v,
+        5_000,
+    );
+    let pruned = backup::prune_snapshots(&dir, 1).unwrap();
+    let mut left: Vec<String> = backup::list_snapshots(&dir)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.filename)
+        .collect();
+    left.sort();
+    // Kept: the newest (retention 1) and the newest pre-upgrade copy (v - 1);
+    // the older copy was superseded by it.
+    assert_eq!(
+        left,
+        [
+            format!("library-20260103-000000Z-v{}.db", v - 1),
+            format!("library-20260105-000000Z-v{v}.1.db")
+        ]
+    );
+    assert_eq!(pruned.len(), 3, "{pruned:?}");
+    // Retention 0 still means no pruning at all.
+    assert!(backup::prune_snapshots(&dir, 0).unwrap().is_empty());
+    // The user can still delete it on purpose.
+    assert!(
+        backup::delete_snapshot(&dir, &format!("library-20260103-000000Z-v{}.db", v - 1)).unwrap()
+    );
+}

@@ -397,6 +397,15 @@ impl std::fmt::Debug for RestoreFailed {
 /// upload in -> open it (migrating an older file to [`SCHEMA_VERSION`]). A failure after the move puts
 /// the previous files back and reopens them.
 ///
+/// No extra copy is taken for the migration of an older upload, because the
+/// pre-upgrade guarantee (a copy of what is being upgraded exists, and the
+/// upgrade does not run without it) already holds here: the file migrated is
+/// `upload`'s copy at the live path, never `upload` itself (a snapshot in the
+/// backup folder, or the user's own file), which stays as it was, and the
+/// live database it replaces is set aside as `.bak-<tag>` first. A failed
+/// migration puts that file back. Each of those is a copy of the database as
+/// it was before the step.
+///
 /// Secrets: an upload written by the Python app may carry API keys in its
 /// settings table. The caller must run the secrets migration (musaic-secrets)
 /// on the returned `Db`, exactly as after any other open.
@@ -684,16 +693,41 @@ pub fn create_snapshot(
     })
 }
 
+/// The copy taken before a schema upgrade (the startup hook in
+/// musaic-services), as far as it can be told from the folder: the newest
+/// valid snapshot written at a schema version this build wrote and has since
+/// moved past (above [`PYTHON_SCHEMA_VERSION`], below [`SCHEMA_VERSION`]).
+/// Such a snapshot is what to go back to if the upgrade turns out wrong, so
+/// [`prune_snapshots`] keeps it. A later upgrade writes a newer copy, which
+/// becomes this one; the older one is then pruned like any other. Newest
+/// first, as [`list_snapshots`] orders `snaps`.
+fn pre_upgrade_copy(snaps: &[SnapshotEntry]) -> Option<&str> {
+    snaps
+        .iter()
+        .find(|s| {
+            s.valid
+                && s.schema_version
+                    .is_some_and(|v| v > crate::PYTHON_SCHEMA_VERSION && v < SCHEMA_VERSION)
+        })
+        .map(|s| s.filename.as_str())
+}
+
 /// Delete the oldest snapshots beyond `retention` (none when it is 0 or
-/// less). Returns the names removed.
+/// less), except the copy taken before the last schema upgrade
+/// ([`pre_upgrade_copy`]), which outlives any retention count until a later
+/// upgrade supersedes it (or the user deletes it). Returns the names removed.
 pub fn prune_snapshots(dir: &Path, retention: i64) -> std::io::Result<Vec<String>> {
     if retention <= 0 {
         return Ok(Vec::new());
     }
     let snaps = list_snapshots(dir)?;
     let keep = usize::try_from(retention).unwrap_or(usize::MAX);
+    let protected = pre_upgrade_copy(&snaps).map(str::to_owned);
     let mut deleted = Vec::new();
     for s in snaps.into_iter().skip(keep) {
+        if protected.as_deref() == Some(s.filename.as_str()) {
+            continue;
+        }
         match std::fs::remove_file(dir.join(&s.filename)) {
             Ok(()) => deleted.push(s.filename),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => deleted.push(s.filename),
