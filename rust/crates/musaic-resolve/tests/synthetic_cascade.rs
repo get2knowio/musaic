@@ -1587,6 +1587,7 @@ fn an_anchor_from_the_python_app_is_refreshed_once_then_stays_fresh() {
             now_iso: musaic_db::backup::iso_seconds(
                 std::time::UNIX_EPOCH + std::time::Duration::from_secs(epoch as u64),
             ),
+            read: Default::default(),
         };
         let env = Env {
             albums: &world,

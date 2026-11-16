@@ -67,6 +67,38 @@ pub fn set_album_mb_anchor(
     )? > 0)
 }
 
+/// [`set_album_mb_anchor`] for a background resolve, as one compare-and-set:
+/// written only if the album's release group is still `expected` (what the
+/// resolver read before it went to MusicBrainz; `None` = unanchored) and
+/// `release_group_mbid` is not blocked for the album. So a "Wrong match" or a
+/// cleared anchor made meanwhile wins over the resolve that started before
+/// it. Returns whether the row was written.
+pub fn set_album_mb_anchor_if(
+    conn: &Connection,
+    album_id: &str,
+    expected: Option<&str>,
+    release_group_mbid: &str,
+    release_mbid: Option<&str>,
+    score: i64,
+    now_iso: &str,
+) -> Result<bool> {
+    Ok(conn.execute(
+        "UPDATE albums SET mb_release_group_mbid = ?1, mb_release_mbid = ?2, \
+         mb_match_score = ?3, mb_last_checked_at = ?4 \
+         WHERE id = ?5 AND mb_release_group_mbid IS ?6 \
+           AND NOT EXISTS (SELECT 1 FROM album_blocked_mb_release_groups b \
+                           WHERE b.album_id = ?5 AND b.release_group_mbid = ?1)",
+        params![
+            release_group_mbid,
+            release_mbid,
+            score,
+            now_iso,
+            album_id,
+            expected
+        ],
+    )? > 0)
+}
+
 /// `clear_album_mb_anchor`: resets every anchor column.
 pub fn clear_album_mb_anchor(conn: &Connection, album_id: &str) -> Result<bool> {
     Ok(conn.execute(

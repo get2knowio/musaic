@@ -205,6 +205,14 @@ impl AppStateBuilder {
     pub fn check_sweep(self, on: bool) -> Self {
         self.with(|b| b.check_sweep(on))
     }
+    /// [`AppBuilder::sweep_network`].
+    pub fn sweep_network(self, on: bool) -> Self {
+        self.with(|b| b.sweep_network(on))
+    }
+    /// [`AppBuilder::sweep_refresh_tick`].
+    pub fn sweep_refresh_tick(self, d: Duration) -> Self {
+        self.with(|b| b.sweep_refresh_tick(d))
+    }
     /// [`AppBuilder::sweep_settle`].
     pub fn sweep_settle(self, d: Duration) -> Self {
         self.with(|b| b.sweep_settle(d))

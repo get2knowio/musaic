@@ -1,5 +1,7 @@
 //! Base types of the check framework (port of `musaic/checks/base.py`).
 
+use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -246,6 +248,32 @@ impl CheckEnv {
 pub struct CheckCtx<'a> {
     pub conn: &'a Connection,
     pub env: &'a CheckEnv,
+    /// Albums the run could not evaluate ([`CheckCtx::could_not_evaluate`]).
+    pub(crate) unevaluated: RefCell<BTreeSet<String>>,
+}
+
+impl<'a> CheckCtx<'a> {
+    pub fn new(conn: &'a Connection, env: &'a CheckEnv) -> Self {
+        CheckCtx {
+            conn,
+            env,
+            unevaluated: RefCell::default(),
+        }
+    }
+
+    /// The check could not look at this album (its folder cannot be read,
+    /// the network failed): it emits nothing for it, and the runner leaves
+    /// the album's open findings of this check as they are and does not
+    /// record its inputs, so it is evaluated again later. Without this an
+    /// unmounted drive or an offline run would read as "nothing wrong".
+    pub fn could_not_evaluate(&self, album_id: &str) {
+        self.unevaluated.borrow_mut().insert(album_id.to_string());
+    }
+
+    /// The albums passed to [`Self::could_not_evaluate`] so far.
+    pub fn unevaluated(&self) -> BTreeSet<String> {
+        self.unevaluated.borrow().clone()
+    }
 }
 
 /// Sink a check yields findings into. An error ends the run as failed.

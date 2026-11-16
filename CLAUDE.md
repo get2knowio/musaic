@@ -33,7 +33,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 |---|---|
 | `musaic-core` | Shared primitives: album ids (first 16 hex chars of the SHA-1 of the album's resolved path), config (`config.json`, config dir), the album-field accessors, Python-compatible string helpers the stored data depends on |
 | `musaic-log` | Small logging facade for the lower crates; `musaic-app` installs the sink that writes `server.log` |
-| `musaic-db` | Opens, creates and migrates the SQLite database (schema v19; a v16 file from the Python app is backed up, then migrated); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots |
+| `musaic-db` | Opens, creates and migrates the SQLite database (schema v19; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots |
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |
@@ -190,7 +190,8 @@ the SSE relay). Callers never call those directly.
   subscriber (`_check_sweep_wake`): every event wakes it, and it reruns each check where
   the inputs digest recorded by its last completed run (`check_inputs`,
   `musaic-checks/src/inputs.rs`) no longer matches. It yields to scans, restores and
-  any work holding the work gate, uses the background network path, and writes only
+  any work holding the work gate, uses the background network path (and skips network
+  checks offline), plans nothing while the library folder is absent, and writes only
   what a check run writes. A settings write publishes `SettingsChanged` (names only).
 - Recursion guard and bulk suppression: `musaic-events/src/context.rs`
   (`in_post_scan_rerun`, `in_bulk_run`). A bulk loop runs under `in_bulk_run` and
@@ -303,6 +304,9 @@ See `SECURITY.md`.
    resolver configuration it reads (never a secret value), `refresh_after()` if its
    result also changes with time or with MusicBrainz, `uses_network()` if it resolves.
    A setting it reads must be listed in `checks_for_setting` in `check_sweep.rs`.
+6. An album it cannot look at (folder unreadable, MusicBrainz request failed) is reported
+   with `ctx.could_not_evaluate(album_id)`, never as "nothing wrong": the runner then keeps
+   that album's findings and does not record its inputs.
 
 ## Conventions
 

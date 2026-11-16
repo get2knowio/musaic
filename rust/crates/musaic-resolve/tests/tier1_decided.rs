@@ -302,6 +302,7 @@ fn refresh_renews_last_checked_at_in_the_database() {
     let store = DbStore {
         conn: &conn,
         now_iso: "2026-11-10T00:00:00Z".into(),
+        read: Default::default(),
     };
     let mb = ReplayMb::new(&json!([]));
     let e = Env {

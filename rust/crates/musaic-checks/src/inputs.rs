@@ -12,8 +12,7 @@
 //! cover columns and directory mtime), so a change on disk counts once a
 //! scan has seen it: scans observe. A check's digest for an album is the
 //! base digest with the check's id, [`INPUTS_VERSION`] and the check's
-//! [`Check::input_extras`] (templates, the resolver's configuration)
-//! folded in; a [`Granularity::Library`] check has one digest over every
+//! [`Check::input_extras`] (the filename templates) folded in; a [`Granularity::Library`] check has one digest over every
 //! Present album's base digest.
 //!
 //! The digest is computed *before* a run and recorded only when the run
@@ -37,7 +36,7 @@ use crate::base::{Check, CheckCtx, CheckEnv, CheckError, CheckScope, Granularity
 
 /// Folded into every digest: bump it when what a digest covers changes, so
 /// every check is rerun once.
-pub const INPUTS_VERSION: &str = "check-inputs/1";
+pub const INPUTS_VERSION: &str = "check-inputs/2";
 
 /// A SHA-256 over typed, length-prefixed fields (two different field
 /// sequences never feed the same bytes).
@@ -94,7 +93,7 @@ fn fold_child_rows(
     hashers: &mut HashMap<String, Hasher>,
 ) -> rusqlite::Result<()> {
     let mut stmt = conn.prepare(sql)?;
-    let names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+    let names: Vec<String> = stmt.column_names().map(|s| s.to_string()).collect();
     let mut rows = stmt.query([])?;
     while let Some(row) = rows.next()? {
         let id: String = row.get(0)?;
@@ -122,7 +121,7 @@ pub fn album_digests(
                AND (missing_since IS NULL OR missing_since = '') \
                AND (?2 IS NULL OR id IN (SELECT value FROM json_each(?2)))",
         )?;
-        let names: Vec<String> = stmt.column_names().iter().map(|s| s.to_string()).collect();
+        let names: Vec<String> = stmt.column_names().map(|s| s.to_string()).collect();
         let id_col = names.iter().position(|n| n == "id").unwrap_or(0);
         let mut rows = stmt.query(rusqlite::params![library_path, only_json])?;
         while let Some(row) = rows.next()? {
@@ -289,7 +288,7 @@ pub fn plan_stale(
     for r in check_inputs::rows_for_library(conn, library_path)? {
         recorded.insert((r.check_id, r.album_id), (r.digest, r.checked_at));
     }
-    let ctx = CheckCtx { conn, env };
+    let ctx = CheckCtx::new(conn, env);
     let mut out = Vec::new();
     for check in env.registry.iter() {
         let id = check.meta().id;
@@ -330,4 +329,72 @@ pub fn plan_stale(
         });
     }
     Ok(out)
+}
+
+/// Whether `check_id`'s recorded row for `album_id` ([`LIBRARY_ROW`] for
+/// the library row) is still fresh for `want`.
+fn row_fresh(
+    conn: &Connection,
+    check: &dyn Check,
+    library_path: &str,
+    album_id: &str,
+    want: &str,
+    now: SystemTime,
+) -> Result<bool, CheckError> {
+    let row: Option<(String, String)> = conn
+        .query_row(
+            "SELECT digest, checked_at FROM check_inputs \
+             WHERE check_id = ?1 AND library_path = ?2 AND album_id = ?3",
+            rusqlite::params![check.meta().id, library_path, album_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    let cutoff = check
+        .refresh_after()
+        .and_then(|d| now.checked_sub(d))
+        .map(musaic_db::backup::iso_seconds);
+    Ok(row.is_some_and(|(digest, at)| {
+        digest == want && cutoff.as_deref().is_none_or(|c| at.as_str() >= c)
+    }))
+}
+
+/// Right before a planned batch runs: which of `albums` (a
+/// [`Granularity::Album`] check's batch) are still stale, or (`albums`
+/// `None`, a library check) whether the library row is: `Some` with the
+/// work left, `None` when nothing is. Another run (a post-scan rerun) may
+/// have refreshed them while the sweep waited; an album no longer Present
+/// is dropped.
+pub fn still_stale(
+    conn: &Connection,
+    env: &CheckEnv,
+    library_path: &str,
+    check_id: &str,
+    albums: Option<&[String]>,
+    now: SystemTime,
+) -> Result<Option<Vec<String>>, CheckError> {
+    let Some(check) = env.registry.get(check_id) else {
+        return Ok(None);
+    };
+    let ctx = CheckCtx::new(conn, env);
+    let extras = check.input_extras(&ctx)?;
+    match albums {
+        Some(ids) => {
+            let bases = album_digests(conn, library_path, Some(ids))?;
+            let mut left = Vec::new();
+            for id in ids {
+                let Some(base) = bases.get(id) else { continue };
+                let want = album_check_digest(check_id, &extras, base);
+                if !row_fresh(conn, check.as_ref(), library_path, id, &want, now)? {
+                    left.push(id.clone());
+                }
+            }
+            Ok((!left.is_empty()).then_some(left))
+        }
+        None => {
+            let bases = album_digests(conn, library_path, None)?;
+            let want = library_check_digest(check_id, &extras, &bases);
+            let fresh = row_fresh(conn, check.as_ref(), library_path, LIBRARY_ROW, &want, now)?;
+            Ok((!fresh).then(Vec::new))
+        }
+    }
 }

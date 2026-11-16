@@ -3,6 +3,7 @@
 //! has run on its own (including the ones that do not run during a scan)
 //! and recorded its inputs for every Present album; a wake with nothing
 //! changed runs nothing; a template change reruns only filename-mismatch;
+//! offline, tags-out-of-sync (which needs MusicBrainz) is not swept;
 //! `GET /api/checks/sweep` and the checks stream report progress; a
 //! snapshot restore is not refused because of the sweep; shutdown stops it.
 //! Throughout, no file of the library is written.
@@ -167,18 +168,15 @@ async fn every_check_runs_on_its_own_and_the_library_is_never_written() {
         "no-cover-art",
         "unidentified-album",
     ];
-    let per_album = [
-        "duplicate-tracks",
-        "filename-mismatch",
-        "tags-out-of-sync",
-        "track-gaps",
-    ];
+    let per_album = ["duplicate-tracks", "filename-mismatch", "track-gaps"];
     for c in library_wide {
         assert_eq!(got.get(c), Some(&vec![String::new()]), "{c}");
     }
     for c in per_album {
         assert_eq!(got.get(c), Some(&albums), "{c}");
     }
+    // Offline: the check that needs MusicBrainz is not swept.
+    assert_eq!(got.get("tags-out-of-sync"), None);
     let all_runs = runs(&st);
     for c in library_wide.iter().chain(&per_album) {
         assert!(
@@ -278,4 +276,165 @@ async fn every_check_runs_on_its_own_and_the_library_is_never_written() {
     .await
     .unwrap();
     assert!(report.sweep_stopped);
+}
+
+fn open_counts(st: &AppState) -> BTreeMap<String, i64> {
+    let c = conn(st);
+    let mut s = c
+        .prepare(
+            "SELECT check_id, count(*) FROM check_findings \
+             WHERE resolved_at IS NULL AND ignored_at IS NULL GROUP BY check_id",
+        )
+        .unwrap();
+    s.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect()
+}
+
+async fn configure_and_scan(app: &axum::Router, sb: &Sandbox, st: &AppState) {
+    let r = call(
+        app,
+        "POST",
+        "/api/config",
+        Some(&json!({"library_dir": Sandbox::s(&sb.lib)})),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    let r = call(app, "GET", "/api/scan/stream", None).await;
+    assert_eq!(r.status, 200);
+    quiet(st).await;
+}
+
+// An unmounted library never reads as a clean one: with the library folder
+// gone, neither the sweep nor a user-started run closes a finding or
+// records the albums as checked; the findings are there after the remount.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn an_unmounted_library_closes_no_finding() {
+    let sb = Sandbox::new();
+    let st = state(&sb);
+    let app = router(st.clone());
+    configure_and_scan(&app, &sb, &st).await;
+    // A template no album matches: every album has a filename finding.
+    let r = call(
+        &app,
+        "PATCH",
+        "/api/settings",
+        Some(&json!({"filename_template_single_artist": "{tracknumber:02} ZZZ {title}"})),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    quiet(&st).await;
+    let mounted = open_counts(&st);
+    let fm = mounted.get("filename-mismatch").copied().unwrap_or(0);
+    assert!(fm > 0, "{mounted:?}");
+
+    // Unmount; as on a first start after the upgrade, nothing recorded.
+    let away = sb.lib.with_extension("unmounted");
+    std::fs::rename(&sb.lib, &away).unwrap();
+    conn(&st).execute("DELETE FROM check_inputs", []).unwrap();
+    let n = runs(&st).len();
+    st.sweeper().wake();
+    quiet(&st).await;
+    assert_eq!(runs(&st).len(), n, "the sweep ran on an absent library");
+    assert_eq!(open_counts(&st), mounted);
+    // A user-started run: the albums it cannot read keep their findings
+    // and are not recorded as checked.
+    let r = call(
+        &app,
+        "POST",
+        "/api/checks/filename-mismatch/run",
+        Some(&json!({"scope": "all"})),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert_eq!(r.json()["status"], "completed");
+    assert_eq!(open_counts(&st), mounted);
+    let recorded: i64 = conn(&st)
+        .query_row(
+            "SELECT count(*) FROM check_inputs WHERE check_id = 'filename-mismatch'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(recorded, 0);
+
+    // Remount: the sweep checks again and the findings are still open.
+    std::fs::rename(&away, &sb.lib).unwrap();
+    st.sweeper().wake();
+    quiet(&st).await;
+    assert_eq!(
+        open_counts(&st)
+            .get("filename-mismatch")
+            .copied()
+            .unwrap_or(0),
+        fm
+    );
+    let _ = tokio::task::spawn_blocking({
+        let st = st.clone();
+        move || st.shutdown()
+    })
+    .await;
+}
+
+// Offline, a MusicBrainz-derived finding is never closed: the sweep does
+// not run tags-out-of-sync, and a user-started run leaves the album whose
+// lookup failed alone (finding open, not recorded as checked).
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn offline_closes_no_musicbrainz_finding() {
+    let sb = Sandbox::new();
+    let st = state(&sb);
+    let app = router(st.clone());
+    configure_and_scan(&app, &sb, &st).await;
+    let album = present_albums(&st)[0].clone();
+    {
+        let c = conn(&st);
+        c.execute(
+            "UPDATE albums SET mb_release_group_mbid = '11111111-2222-3333-4444-555555555555', \
+             mb_match_score = 95, mb_last_checked_at = '2026-11-01T00:00:00Z' WHERE id = ?1",
+            [&album],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO check_findings (check_id, album_id, severity, summary, detail_json, \
+             first_seen_at, last_seen_at) VALUES ('tags-out-of-sync', ?1, 'info', \
+             'OFFLINE: 1 canonical drift', '{}', 'x', 'x')",
+            [&album],
+        )
+        .unwrap();
+    }
+    let resolved = |st: &AppState| -> Option<String> {
+        conn(st)
+            .query_row(
+                "SELECT resolved_at FROM check_findings WHERE summary LIKE 'OFFLINE:%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap()
+    };
+    st.sweeper().wake();
+    quiet(&st).await;
+    assert_eq!(resolved(&st), None);
+    let r = call(
+        &app,
+        "POST",
+        "/api/checks/tags-out-of-sync/run",
+        Some(&json!({"scope": "albums", "album_ids": [album]})),
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert_eq!(resolved(&st), None, "an offline run closed the finding");
+    let row: i64 = conn(&st)
+        .query_row(
+            "SELECT count(*) FROM check_inputs WHERE check_id = 'tags-out-of-sync' AND album_id = ?1",
+            [&album],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(row, 0, "an offline run recorded the album as checked");
+    let _ = tokio::task::spawn_blocking({
+        let st = st.clone();
+        move || st.shutdown()
+    })
+    .await;
 }

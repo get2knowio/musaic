@@ -86,6 +86,8 @@ pub enum StartupError {
     ConfigDir(PathBuf, std::io::Error),
     #[error("database: {0}")]
     Db(#[from] musaic_db::Error),
+    #[error(transparent)]
+    PreUpgradeCopy(#[from] musaic_services::startup::PreUpgradeCopyFailed),
 }
 
 /// Builds an [`App`].
@@ -117,6 +119,8 @@ pub struct AppBuilder {
     shutdown_pool_wait: Duration,
     check_sweep: bool,
     sweep_settle: Duration,
+    sweep_network: Option<bool>,
+    sweep_refresh_tick: Duration,
 }
 
 /// How long [`App::shutdown`] waits for the fingerprint pool's thread to
@@ -183,7 +187,24 @@ impl AppBuilder {
             shutdown_pool_wait: SHUTDOWN_POOL_WAIT,
             check_sweep: false,
             sweep_settle: musaic_services::check_sweep::SETTLE,
+            sweep_network: None,
+            sweep_refresh_tick: musaic_services::check_sweep::REFRESH_TICK,
         }
+    }
+
+    /// Whether the sweep may run checks that use the network. Default:
+    /// unless the network is [`Network::Offline`]; a host whose offline
+    /// mode is another transport (a logged one) says so here.
+    pub fn sweep_network(mut self, on: bool) -> Self {
+        self.sweep_network = Some(on);
+        self
+    }
+
+    /// How often the sweep looks again without an event (default
+    /// [`musaic_services::check_sweep::REFRESH_TICK`]; tests shorten it).
+    pub fn sweep_refresh_tick(mut self, d: Duration) -> Self {
+        self.sweep_refresh_tick = d;
+        self
     }
 
     /// Run the background check sweep (`musaic_services::check_sweep`):
@@ -369,8 +390,17 @@ impl AppBuilder {
         let key_scrub = Arc::new(KeyScrub::new(log.clone(), self.key_scrub_delays));
         let startup_scrub;
         {
-            // No database yet: created at the current schema (no backup:
-            // there is nothing to go back to).
+            // A database this build wrote is copied (as a snapshot) before
+            // a schema step; no copy, no upgrade. No database yet: created
+            // at the current schema (no backup: nothing to go back to).
+            if let Some(name) =
+                startup::snapshot_before_schema_step(&db_path, &config.snapshot_dir(), clock())?
+            {
+                log.info(
+                    "musaic.db",
+                    &format!("database copied to snapshot {name} before the schema upgrade"),
+                );
+            }
             let (db, opened) = Db::open_or_create(&db_path)?;
             startup::log_opened(&log, &db_path, &opened);
             // Secret rows leave SQLite on every open. This
@@ -529,7 +559,16 @@ impl AppBuilder {
             state.schedule_key_scrub_retry();
         }
         if self.check_sweep {
-            state.start_check_sweep(&network, sweep_resolution, self.sweep_settle);
+            let online = self
+                .sweep_network
+                .unwrap_or(!matches!(network, Network::Offline));
+            state.start_check_sweep(
+                &network,
+                sweep_resolution,
+                self.sweep_settle,
+                online,
+                self.sweep_refresh_tick,
+            );
         }
         Ok(state)
     }
@@ -692,6 +731,8 @@ impl App {
         network: &Network,
         resolution: Option<Arc<dyn ResolutionSource>>,
         settle: Duration,
+        online: bool,
+        refresh_tick: Duration,
     ) {
         let inner = &self.0;
         let stop = inner.sweeper.stop_flag();
@@ -731,6 +772,8 @@ impl App {
             now: Arc::new(move || clock()),
             log: Arc::new(inner.log.clone()),
             settle,
+            network: online,
+            refresh_tick,
         });
     }
 

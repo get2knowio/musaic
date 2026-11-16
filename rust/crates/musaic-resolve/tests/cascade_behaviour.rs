@@ -424,6 +424,7 @@ fn anchor_persists_in_the_database_and_short_circuits() {
     let store = DbStore {
         conn: &conn,
         now_iso: "2026-11-10T00:00:00Z".into(),
+        read: Default::default(),
     };
     let replay = ReplayMb::new(&json!([]));
     let resolver = Resolver::new();

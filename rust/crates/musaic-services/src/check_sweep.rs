@@ -17,8 +17,20 @@
 //! pass starts once [`SweepDeps::settle`] has passed without another one, so
 //! a burst of events (a scan, the fingerprint pool) is one pass. A
 //! `SettingsChanged` naming a setting a check depends on also forgets that
-//! check's rows (every album stale), as the AcoustID key cannot be part of
-//! a digest.
+//! check's rows (every album stale); the setting is in the digest too, so a
+//! write racing a run is still caught. Without events it still wakes every
+//! [`SweepDeps::refresh_tick`] (an hour), so results that age (a refresh
+//! window) are redone in an app left running; a pass with nothing stale
+//! only computes digests.
+//!
+//! **What it will not do.** It plans nothing while the library folder is
+//! not a directory (an unmounted drive), and ends a pass whose folder
+//! disappears, so an absent library never reads as a clean one; checks
+//! report albums they could not read as not evaluated (musaic-checks'
+//! `CheckCtx::could_not_evaluate`), which keeps their findings and leaves
+//! them stale. Without a network ([`SweepDeps::network`] false) it does not
+//! plan checks that use it. Before each batch it checks again that the
+//! batch is still stale (a post-scan rerun may have done it meanwhile).
 //!
 //! **Yielding.** Before each batch the sweep waits while
 //! [`SweepDeps::busy`] (a scan, a restore, any work holding the work gate:
@@ -70,6 +82,9 @@ pub const POLL: Duration = Duration::from_millis(250);
 pub const NETWORK_BATCH: usize = 5;
 /// Albums per run of a local check.
 pub const LOCAL_BATCH: usize = 50;
+/// Without events, the sweep looks again this often, for results whose
+/// refresh window has passed (the shortest window is a day).
+pub const REFRESH_TICK: Duration = Duration::from_secs(3600);
 
 /// Which checks a setting changes the results of (by setting name).
 pub fn checks_for_setting(key: &str) -> &'static [&'static str] {
@@ -78,9 +93,6 @@ pub fn checks_for_setting(key: &str) -> &'static [&'static str] {
         | "filename_template_compilation"
         | "dir_template_single_artist"
         | "dir_template_compilation" => &["filename-mismatch"],
-        // The resolver asks AcoustID only with a key; a new key can find
-        // anchors the old one could not.
-        "acoustid_api_key" => &["tags-out-of-sync"],
         _ => &[],
     }
 }
@@ -163,6 +175,12 @@ pub struct SweepDeps {
     pub log: Arc<dyn HostLog>,
     /// See [`SETTLE`] (tests shorten it).
     pub settle: Duration,
+    /// Whether checks that use the network may run (false when the app is
+    /// offline: their results would be failures, not answers).
+    pub network: bool,
+    /// How long the sweep sleeps without an event before it looks again
+    /// (see [`REFRESH_TICK`]; tests shorten it).
+    pub refresh_tick: Duration,
 }
 
 #[derive(Default)]
@@ -312,8 +330,8 @@ impl CheckSweeper {
     }
 
     /// The bus subscriber's entry: note what `ev` makes stale that the
-    /// stored digests cannot show (a setting such as the AcoustID key), and
-    /// wake the sweep. Never blocks on a running pass.
+    /// stored digests alone would not mark everywhere (a setting a check
+    /// depends on), and wake the sweep. Never blocks on a running pass.
     pub fn on_event(&self, ev: &Event) {
         if let Event::SettingsChanged { keys } = ev {
             let mut c = self.inner.ctl();
@@ -403,13 +421,39 @@ fn run(inner: &Inner, deps: &SweepDeps) {
                         .unwrap_or_else(PoisonError::into_inner)
                         .0;
                 } else {
-                    c = inner.cv.wait(c).unwrap_or_else(PoisonError::into_inner);
+                    let (g, t) = inner
+                        .cv
+                        .wait_timeout(c, deps.refresh_tick)
+                        .unwrap_or_else(PoisonError::into_inner);
+                    c = g;
+                    // The periodic look (refresh windows); a suspended
+                    // sweep waits for its resume instead.
+                    if t.timed_out() && !c.wake && c.suspended == 0 {
+                        c.wake = true;
+                        c.last_wake = None;
+                    }
                 }
             }
             c.wake = false;
             c.in_pass = true;
         }
-        let outcome = pass(inner, deps);
+        // A panic (in planning, a digest, a check outside its run) is
+        // logged and ends the pass; the thread lives on.
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| pass(inner, deps)))
+            .unwrap_or_else(|p| {
+                let msg = p
+                    .downcast_ref::<&str>()
+                    .map(|s| (*s).to_string())
+                    .or_else(|| p.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "panic".into());
+                deps.log
+                    .error(SWEEP_TARGET, &format!("check sweep: pass failed: {msg}"));
+                let mut c = inner.ctl();
+                c.in_batch = false;
+                drop(c);
+                inner.cv.notify_all();
+                Ok(())
+            });
         // A suspended pass plans again once the restore is over (its
         // guard wakes the sweep).
         if let Err(Halt::Shutdown) = outcome {
@@ -514,6 +558,11 @@ fn pass(inner: &Inner, deps: &SweepDeps) -> Result<(), Halt> {
         .to_string_lossy()
         .into_owned();
     wait_ready(inner, deps, false)?;
+    // An unmounted or vanished library is not checked: every album would
+    // read as having nothing wrong.
+    if !Path::new(&lib).is_dir() {
+        return Ok(());
+    }
     let Some(slot) = open(inner, deps)? else {
         return Ok(());
     };
@@ -538,7 +587,10 @@ fn pass(inner: &Inner, deps: &SweepDeps) -> Result<(), Halt> {
         );
     }
     let mut plan: Vec<StaleWork> = match plan_stale(conn, &deps.env, &lib, (deps.now)()) {
-        Ok(p) => p,
+        Ok(p) => p
+            .into_iter()
+            .filter(|w| deps.network || !w.uses_network)
+            .collect(),
         Err(e) => {
             deps.log
                 .error(SWEEP_TARGET, &format!("check sweep: cannot plan: {e}"));
@@ -580,6 +632,38 @@ fn pass(inner: &Inner, deps: &SweepDeps) -> Result<(), Halt> {
         };
         for batch in batches {
             wait_ready(inner, deps, true)?;
+            let units = batch.map_or(1, <[String]>::len);
+            if !Path::new(&lib).is_dir() {
+                deps.log.warn(
+                    SWEEP_TARGET,
+                    "check sweep: the library folder is gone; pass ended",
+                );
+                return Ok(());
+            }
+            // Still stale? A post-scan rerun may have done it while the
+            // sweep waited.
+            let left = match musaic_checks::inputs::still_stale(
+                conn,
+                &deps.env,
+                &lib,
+                work.check_id,
+                batch,
+                (deps.now)(),
+            ) {
+                Ok(l) => l,
+                Err(e) => {
+                    deps.log.error(
+                        SWEEP_TARGET,
+                        &format!("check sweep: cannot re-check {}: {e}", work.check_id),
+                    );
+                    None
+                }
+            };
+            let Some(left) = left else {
+                inner.update(|s| s.completed = (s.completed + units).min(s.total));
+                continue;
+            };
+            let batch: Option<&[String]> = batch.map(|_| left.as_slice());
             {
                 let mut c = inner.ctl();
                 if c.shutdown {
@@ -606,7 +690,6 @@ fn pass(inner: &Inner, deps: &SweepDeps) -> Result<(), Halt> {
                 c.in_batch = false;
             }
             inner.cv.notify_all();
-            let units = batch.map_or(1, <[String]>::len);
             match r {
                 Ok(Ok(run)) if run.status == "completed" => {}
                 Ok(Ok(run)) => {

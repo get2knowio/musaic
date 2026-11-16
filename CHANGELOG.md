@@ -95,14 +95,16 @@ Security.
   button. It waits while a scan, a restore or other work runs; its MusicBrainz requests
   only use the gaps between your own, so they never slow down what you are waiting for;
   it stops at once when you quit, without asking. A pill in the title bar shows
-  "Checking… n of m" while it works. Changing a filename template or the AcoustID key
-  reruns the checks that depend on it. The sweep only records findings: it never changes
-  your files or tags.
+  "Checking… n of m" while it works. Changing a filename template reruns the filename
+  check. The sweep only records findings: it never changes your files or tags. It does
+  nothing while the library folder is missing (an unmounted drive), and offline it skips
+  the MusicBrainz comparison.
 - The database is upgraded to schema v19 on first start: a new `check_inputs` table
   records what each check last ran against, so the sweep resumes where it stopped and
-  skips what has not changed. The step only adds a table and an index; a database the
-  previous version wrote is upgraded in place without a backup copy, as for v18.
-
+  skips what has not changed. Before this or any later upgrade of a database this app
+  wrote, a copy is saved as a snapshot (Settings → Backup), without any API key in it,
+  and pruned with the other snapshots; if the copy cannot be written the database is
+  left as it is and the app says why.
 - `GET /api/albums/{id}/cover-preview`: a preview of the Cover Art Archive cover the
   resolver proposes for an album anchored to MusicBrainz, without queueing a job
   (groundwork for #183 and #184). The request names only the album; the server derives
@@ -123,6 +125,15 @@ Security.
 
 ### Fixed
 
+- A check can no longer close findings for albums it could not look at: an album whose
+  folder cannot be read, or whose MusicBrainz lookup failed (offline, a server error),
+  keeps its findings and is checked again later, whether the check was started by you,
+  by a scan or in the background.
+- A background MusicBrainz lookup can no longer put back a match you just rejected with
+  "Wrong match" or cleared: it only writes if the album's match is still the one it
+  started from and the release group is not blocked.
+- Refreshing a stale MusicBrainz match that stays the same no longer makes the album
+  list reload.
 - The titlebar no longer makes the window content wider than the window, which cut off
   the right-hand controls at the default 1280 px width and anything narrower
   ([#201](https://github.com/get2knowio/musaic/issues/201), first item). The location

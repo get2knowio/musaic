@@ -236,3 +236,94 @@ pub fn pool_deps(
         fingerprint_impl: fingerprinter.implementation().to_string(),
     }
 }
+
+/// Why the copy before a schema step could not be taken.
+#[derive(Debug, thiserror::Error)]
+#[error(
+    "could not copy the database to {dir} before upgrading it from schema v{found} to v{to}: {reason}. \
+     The database was not changed; free some space or make that folder writable, then start again."
+)]
+pub struct PreUpgradeCopyFailed {
+    pub dir: String,
+    pub found: i64,
+    pub to: i64,
+    pub reason: String,
+}
+
+/// Before a database this build wrote (v17 or later) is upgraded to the
+/// current schema: one copy of it, as a snapshot in `snapshot_dir` (named
+/// `library-<tag>-v<found>.db`, so it is listed, restorable and pruned with
+/// the other snapshots by the database's retention count). A database at
+/// the current version, a missing one and a Python-app one (v16 or older,
+/// which musaic-db backs up itself) get none: `Ok(None)`.
+///
+/// The copy holds no secret: rows of [`musaic_secrets::SECRET_KEYS`] left in
+/// `settings` (a key the OS keyring could not take yet) are deleted from the
+/// copy, with `secure_delete`, and the copy is vacuumed. If the copy cannot
+/// be written the caller must not migrate.
+pub fn snapshot_before_schema_step(
+    db_path: &Path,
+    snapshot_dir: &Path,
+    now: SystemTime,
+) -> Result<Option<String>, PreUpgradeCopyFailed> {
+    if !db_path.is_file() || std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0) == 0 {
+        return Ok(None);
+    }
+    // Read without migrating (and without creating anything).
+    let Ok(src) = Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+    else {
+        return Ok(None);
+    };
+    let found: Option<i64> = src
+        .query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+            r.get(0)
+        })
+        .ok();
+    let Some(found) =
+        found.filter(|v| *v > musaic_db::PYTHON_SCHEMA_VERSION && *v < musaic_db::SCHEMA_VERSION)
+    else {
+        return Ok(None);
+    };
+    let fail = |reason: String| PreUpgradeCopyFailed {
+        dir: snapshot_dir.display().to_string(),
+        found,
+        to: musaic_db::SCHEMA_VERSION,
+        reason,
+    };
+    let retention = musaic_db::settings::get_int(&src, "snapshot_retention_count", 10)
+        .unwrap_or(10)
+        .clamp(0, 100);
+    std::fs::create_dir_all(snapshot_dir).map_err(|e| fail(e.to_string()))?;
+    let tag = musaic_db::backup::filename_tag(now);
+    let stem = format!("{}{tag}-v{found}", musaic_db::backup::SNAPSHOT_PREFIX);
+    let mut target = snapshot_dir.join(format!("{stem}{}", musaic_db::backup::SNAPSHOT_SUFFIX));
+    let mut n = 0;
+    while target.exists() {
+        n += 1;
+        target = snapshot_dir.join(format!("{stem}.{n}{}", musaic_db::backup::SNAPSHOT_SUFFIX));
+    }
+    let scrub = |target: &Path| -> Result<(), String> {
+        musaic_db::backup::vacuum_into(&src, target).map_err(|e| e.to_string())?;
+        let copy = Connection::open(target).map_err(|e| e.to_string())?;
+        copy.pragma_update(None, "secure_delete", "ON")
+            .map_err(|e| e.to_string())?;
+        for key in musaic_secrets::SECRET_KEYS {
+            copy.execute("DELETE FROM settings WHERE key = ?1", [key])
+                .map_err(|e| e.to_string())?;
+        }
+        copy.execute_batch("VACUUM").map_err(|e| e.to_string())?;
+        Ok(())
+    };
+    if let Err(e) = scrub(&target) {
+        // A partial copy is not a snapshot to keep.
+        let _ = std::fs::remove_file(&target);
+        return Err(fail(e));
+    }
+    let _ = musaic_db::backup::prune_snapshots(snapshot_dir, retention);
+    Ok(Some(
+        target
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    ))
+}

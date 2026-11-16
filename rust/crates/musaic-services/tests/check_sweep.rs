@@ -45,6 +45,9 @@ struct Recording {
     meta: &'static CheckMeta,
     granularity: Granularity,
     seen: Seen,
+    refresh: Option<Duration>,
+    /// While set, computing this check's inputs panics.
+    panic: Arc<AtomicBool>,
 }
 
 impl Check for Recording {
@@ -53,6 +56,13 @@ impl Check for Recording {
     }
     fn granularity(&self) -> Granularity {
         self.granularity
+    }
+    fn refresh_after(&self) -> Option<Duration> {
+        self.refresh
+    }
+    fn input_extras(&self, _ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
+        assert!(!self.panic.load(Ordering::SeqCst), "injected panic");
+        Ok(String::new())
     }
     fn run(
         &self,
@@ -160,6 +170,27 @@ struct Rig {
     busy: Arc<AtomicBool>,
     release: Arc<AtomicBool>,
     waiting: Arc<AtomicBool>,
+    libdir: PathBuf,
+    panic: Arc<AtomicBool>,
+    log: Arc<Lines>,
+}
+
+/// How a rig differs from the default.
+struct Opts {
+    network: bool,
+    refresh_tick: Duration,
+    /// The whole-library check's refresh window.
+    refresh: Option<Duration>,
+}
+
+impl Default for Opts {
+    fn default() -> Self {
+        Opts {
+            network: true,
+            refresh_tick: Duration::from_secs(3600),
+            refresh: None,
+        }
+    }
 }
 
 const ALBUMS: [&str; 3] = ["a1", "a2", "a3"];
@@ -168,8 +199,12 @@ fn conn(p: &Path) -> Connection {
     musaic_db::open_connection(p).unwrap()
 }
 
-/// Three Present albums and one Missing one, in a library that was scanned.
 fn rig() -> Rig {
+    rig_with(Opts::default())
+}
+
+/// Three Present albums and one Missing one, in a library that was scanned.
+fn rig_with(o: Opts) -> Rig {
     let tmp = tempfile::tempdir().unwrap();
     let libdir = tmp.path().join("lib");
     std::fs::create_dir_all(&libdir).unwrap();
@@ -199,6 +234,8 @@ fn rig() -> Rig {
     )
     .unwrap();
     let seen: Seen = Arc::default();
+    let panic: Arc<AtomicBool> = Arc::default();
+    let log: Arc<Lines> = Arc::default();
     let sweeper = CheckSweeper::new();
     let release = Arc::new(AtomicBool::new(true));
     let waiting = Arc::new(AtomicBool::new(false));
@@ -209,11 +246,15 @@ fn rig() -> Rig {
             meta: &PER_ALBUM,
             granularity: Granularity::Album,
             seen: seen.clone(),
+            refresh: None,
+            panic: panic.clone(),
         }),
         Arc::new(Recording {
             meta: &WHOLE,
             granularity: Granularity::Library,
             seen: seen.clone(),
+            refresh: o.refresh,
+            panic: Arc::default(),
         }),
     ]);
     let env = CheckEnv {
@@ -239,8 +280,10 @@ fn rig() -> Rig {
         env,
         busy: Arc::new(move || b2.load(Ordering::SeqCst)),
         now: Arc::new(SystemTime::now),
-        log: Arc::new(Lines::default()),
+        log: log.clone(),
         settle: Duration::from_millis(10),
+        network: o.network,
+        refresh_tick: o.refresh_tick,
     });
     Rig {
         _tmp: tmp,
@@ -251,6 +294,9 @@ fn rig() -> Rig {
         busy,
         release,
         waiting,
+        libdir,
+        panic,
+        log,
     }
 }
 
@@ -503,4 +549,147 @@ fn shutdown_is_prompt_during_a_network_wait() {
     r.sweeper.wake();
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!(runs(&r).len(), n);
+}
+
+// An unmounted library (its folder gone) is not checked at all: nothing
+// runs, nothing is recorded; once it is back, the work is done.
+#[test]
+fn an_absent_library_is_not_checked() {
+    let r = rig();
+    settle(&r);
+    let away = r.libdir.with_extension("away");
+    std::fs::rename(&r.libdir, &away).unwrap();
+    conn(&r.db).execute("DELETE FROM check_inputs", []).unwrap();
+    let n = runs(&r).len();
+    r.sweeper.wake();
+    settle(&r);
+    assert_eq!(runs(&r).len(), n, "checks ran on an absent library");
+    assert!(inputs(&r).is_empty());
+    std::fs::rename(&away, &r.libdir).unwrap();
+    r.sweeper.wake();
+    settle(&r);
+    assert_eq!(inputs(&r).len(), 7);
+    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+}
+
+// Offline, checks that use the network are not planned.
+#[test]
+fn offline_plans_no_network_check() {
+    let r = rig_with(Opts {
+        network: false,
+        ..Opts::default()
+    });
+    settle(&r);
+    let checks: Vec<&str> = r.seen.lock().unwrap().iter().map(|(c, _)| *c).collect();
+    assert_eq!(checks, ["filename-mismatch", "whole-library"]);
+    assert!(!inputs(&r).iter().any(|(c, _)| c == "tags-out-of-sync"));
+    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+}
+
+fn count(r: &Rig, check: &str) -> usize {
+    r.seen
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|(c, _)| *c == check)
+        .count()
+}
+
+// Without any event, a result past its refresh window is redone on the
+// periodic look; a look with nothing else stale runs nothing else.
+#[test]
+fn refresh_windows_fire_without_events() {
+    let r = rig_with(Opts {
+        refresh_tick: Duration::from_millis(100),
+        refresh: Some(Duration::from_secs(1)),
+        ..Opts::default()
+    });
+    settle(&r);
+    assert_eq!(count(&r, "whole-library"), 1);
+    // checked_at has a one-second resolution: this takes a few seconds.
+    wait_for("the refresh", || count(&r, "whole-library") >= 2);
+    assert_eq!(count(&r, "filename-mismatch"), 1);
+    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+}
+
+// A panic while planning is logged, leaves the sweep idle and its thread
+// alive: the next wake works.
+#[test]
+fn a_panic_while_planning_does_not_kill_the_sweep() {
+    let r = rig();
+    settle(&r);
+    r.panic.store(true, Ordering::SeqCst);
+    conn(&r.db).execute("DELETE FROM check_inputs", []).unwrap();
+    r.seen.lock().unwrap().clear();
+    r.sweeper.wake();
+    settle(&r);
+    assert!(r.seen.lock().unwrap().is_empty());
+    assert_eq!(r.sweeper.state().status, SweepStatus::Idle);
+    {
+        let lines = r.log.0.lock().unwrap();
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.contains("pass failed") && l.contains("injected panic")),
+            "{lines:?}"
+        );
+    }
+    r.panic.store(false, Ordering::SeqCst);
+    r.sweeper.wake();
+    settle(&r);
+    assert_eq!(inputs(&r).len(), 7);
+    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+}
+
+// Right before a batch, the sweep asks again what is stale: albums another
+// run refreshed while it waited are dropped, and nothing is left when all
+// of them were.
+#[test]
+fn still_stale_drops_what_another_run_refreshed() {
+    let r = rig();
+    settle(&r);
+    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    let seen: Seen = Arc::default();
+    let env = CheckEnv {
+        registry: Registry::new(vec![Arc::new(Recording {
+            meta: &PER_ALBUM,
+            granularity: Granularity::Album,
+            seen,
+            refresh: None,
+            panic: Arc::default(),
+        })]),
+        resolver: Arc::new(musaic_checks::NoResolver),
+        clock: Arc::new(SystemClock),
+        notify: Arc::new(|| {}),
+    };
+    let c = conn(&r.db);
+    let now = SystemTime::now();
+    let check = |v: &[&str]| {
+        musaic_checks::inputs::still_stale(
+            &c,
+            &env,
+            &r.lib,
+            "filename-mismatch",
+            Some(&ids(v)),
+            now,
+        )
+        .unwrap()
+    };
+    assert_eq!(check(&["a1", "a2"]), None);
+    c.execute("UPDATE albums SET title = 'New' WHERE id = 'a1'", [])
+        .unwrap();
+    assert_eq!(check(&["a1", "a2"]), Some(ids(&["a1"])));
+    // Another run (a user's, a post-scan rerun) checks a1 meanwhile.
+    musaic_checks::run_check(
+        &c,
+        &env,
+        "filename-mismatch",
+        &r.lib,
+        musaic_checks::ScopeKind::Albums,
+        Some(&ids(&["a1"])),
+    )
+    .unwrap();
+    assert_eq!(check(&["a1", "a2"]), None);
+    // A Missing album is dropped.
+    assert_eq!(check(&["gone"]), None);
 }

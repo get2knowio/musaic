@@ -684,7 +684,9 @@ pub fn create_snapshot(
     })
 }
 
-fn prune_snapshots(dir: &Path, retention: i64) -> std::io::Result<Vec<String>> {
+/// Delete the oldest snapshots beyond `retention` (none when it is 0 or
+/// less). Returns the names removed.
+pub fn prune_snapshots(dir: &Path, retention: i64) -> std::io::Result<Vec<String>> {
     if retention <= 0 {
         return Ok(Vec::new());
     }

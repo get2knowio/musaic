@@ -95,13 +95,15 @@ impl Check for FilenameMismatch {
                 .collect::<rusqlite::Result<_>>()?
         };
         for r in rows {
-            let Some(path) = r
-                .path
-                .as_deref()
-                .filter(|p| !p.is_empty() && Path::new(p).is_dir())
-            else {
+            let Some(path) = r.path.as_deref().filter(|p| !p.is_empty()) else {
                 continue;
             };
+            // A folder that cannot be read (an unmounted drive, a folder
+            // gone since the last scan) says nothing about its names.
+            if !Path::new(path).is_dir() {
+                ctx.could_not_evaluate(&r.id);
+                continue;
+            }
             let (template, dir_template) = if r.is_compilation {
                 (&templates.filename_compilation, &templates.dir_compilation)
             } else {
@@ -121,6 +123,7 @@ impl Check for FilenameMismatch {
                         "musaic.checks.filename_mismatch",
                         &format!("filename-mismatch: error scanning album {path}: {e}"),
                     );
+                    ctx.could_not_evaluate(&r.id);
                     continue;
                 }
             };

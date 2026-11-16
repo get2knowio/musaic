@@ -214,14 +214,12 @@ impl musaic_checks::resolution::ResolutionSource for ChecksResolution {
         album_id: &str,
     ) -> Result<musaic_checks::Resolution, String> {
         let lib = (self.library_dir)();
-        let r = (self.parts)().resolve(conn, lib.as_deref(), album_id, "", false)?;
-        musaic_checks::Resolution::from_python_json(&r.to_dict())
-            .ok_or_else(|| "resolution is not an object".to_string())
-    }
-
-    /// Whether AcoustID can be asked (a key is set); never the key.
-    fn inputs_marker(&self) -> String {
-        format!("acoustid={}", (self.parts)().acoustid_key.is_some())
+        let (r, failed) =
+            (self.parts)().resolve_checked(conn, lib.as_deref(), album_id, "", false)?;
+        let mut res = musaic_checks::Resolution::from_python_json(&r.to_dict())
+            .ok_or_else(|| "resolution is not an object".to_string())?;
+        res.network_failed = failed;
+        Ok(res)
     }
 }
 
@@ -243,10 +241,6 @@ impl musaic_checks::resolution::ResolutionSource for StoppableResolution {
             return Err("stopped".into());
         }
         self.inner.resolve(conn, album_id)
-    }
-
-    fn inputs_marker(&self) -> String {
-        self.inner.inputs_marker()
     }
 
     fn interrupted(&self) -> bool {
