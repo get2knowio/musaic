@@ -13,6 +13,8 @@ use std::time::Duration;
 
 use base64::Engine as _;
 use musaic_net::{Clock, Request, Response, Transport, TransportError};
+use rcgen::{BasicConstraints, CertificateParams, CertifiedIssuer, IsCa, KeyPair};
+use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 use serde_json::Value;
 
 /// A golden under testdata/golden/, merged with its private half when that
@@ -278,4 +280,82 @@ fn handle(
         conn.write_all(&payload)?;
     }
     conn.flush()
+}
+
+/// A certificate authority made at test time, and a server certificate it
+/// issued for `names`.
+pub struct TestPki {
+    pub ca_der: CertificateDer<'static>,
+    pub leaf_der: CertificateDer<'static>,
+    pub leaf_key: Vec<u8>,
+}
+
+pub fn pki(names: &[&str]) -> TestPki {
+    let mut ca_params = CertificateParams::new(Vec::<String>::new()).unwrap();
+    ca_params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
+    ca_params
+        .distinguished_name
+        .push(rcgen::DnType::CommonName, "musaic test authority");
+    let ca = CertifiedIssuer::self_signed(ca_params, KeyPair::generate().unwrap()).unwrap();
+    let leaf_key = KeyPair::generate().unwrap();
+    let mut leaf_params =
+        CertificateParams::new(names.iter().map(|n| n.to_string()).collect::<Vec<_>>()).unwrap();
+    leaf_params.extended_key_usages = vec![rcgen::ExtendedKeyUsagePurpose::ServerAuth];
+    let leaf = leaf_params.signed_by(&leaf_key, &ca).unwrap();
+    TestPki {
+        ca_der: ca.der().clone(),
+        leaf_der: leaf.der().clone(),
+        leaf_key: leaf_key.serialize_der(),
+    }
+}
+
+/// A TLS server on 127.0.0.1 that presents `pki`'s certificate and answers
+/// every request with a 200 and a small JSON body.
+pub fn serve_tls(pki: &TestPki) -> SocketAddr {
+    let config = rustls::ServerConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_no_client_auth()
+    .with_single_cert(
+        vec![pki.leaf_der.clone(), pki.ca_der.clone()],
+        PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(pki.leaf_key.clone())),
+    )
+    .unwrap();
+    let config = Arc::new(config);
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    std::thread::spawn(move || {
+        for sock in listener.incoming().flatten() {
+            let config = Arc::clone(&config);
+            std::thread::spawn(move || {
+                let Ok(conn) = rustls::ServerConnection::new(config) else {
+                    return;
+                };
+                let mut tls = rustls::StreamOwned::new(conn, sock);
+                // The client aborts the handshake when it refuses the
+                // certificate; that ends here as an error.
+                let mut buf = [0u8; 4096];
+                let mut head = Vec::new();
+                while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match tls.read(&mut buf) {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => head.extend_from_slice(&buf[..n]),
+                    }
+                }
+                let body = br#"{"release-groups": []}"#;
+                let _ = write!(
+                    tls,
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                let _ = tls.write_all(body);
+                let _ = tls.flush();
+                tls.conn.send_close_notify();
+                let _ = tls.flush();
+            });
+        }
+    });
+    addr
 }

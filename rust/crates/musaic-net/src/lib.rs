@@ -64,8 +64,16 @@ pub enum TransportError {
     /// Connect or read took longer than the request's timeout.
     #[error("timed out after {seconds:.1} s: {url}")]
     Timeout { url: String, seconds: f64 },
+    /// The TLS handshake failed for a reason other than the certificate.
     #[error("TLS failure for {url}: {detail}")]
     Tls { url: String, detail: String },
+    /// The server's certificate did not verify against the operating
+    /// system's trust store ([`live::trust`]): expired, for another name, or
+    /// from an authority this computer does not trust (often a proxy that
+    /// inspects HTTPS). Names the host only; `reason` is from a fixed list.
+    /// Not "offline": the host answered.
+    #[error("refused the connection to {host}: the server's certificate is not trusted ({reason})")]
+    UntrustedCertificate { host: String, reason: &'static str },
     /// The answer was cut short or was not valid HTTP.
     #[error("broken response from {url}: {detail}")]
     Protocol { url: String, detail: String },
