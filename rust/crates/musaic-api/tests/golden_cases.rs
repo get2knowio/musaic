@@ -271,6 +271,25 @@ fn rules() -> Vec<Rule> {
             },
         },
         Rule {
+            why: "deliberate change: each track of GET /api/albums/{id}/tracks carries its \
+              ALBUM tag, which the album panel compares a proposed title with (the stored \
+              title prefers the folder name, so a case-only title correction needs the tag)",
+            count: 1,
+            applies: |c| {
+                c["request"]["method"] == "GET"
+                    && c["request"]["path"]
+                        .as_str()
+                        .is_some_and(|p| p.starts_with("/api/albums/") && p.ends_with("/tracks"))
+                    && c["response"]["status"] == 200
+            },
+            apply: |r| {
+                for t in r["json"]["tracks"].as_array_mut().unwrap() {
+                    // Every file of the recorded album is tagged ALBUM=First Light.
+                    t["album"] = json!("First Light");
+                }
+            },
+        },
+        Rule {
             why: "no AI provider is ready (the default \
               Unconfigured provider), so check descriptions, the unanchored trace note and \
               unanchored tags-out-of-sync summaries are shown without AI wording \

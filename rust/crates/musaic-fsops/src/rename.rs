@@ -39,6 +39,16 @@
 //!   are returned in [`RenameOutcome::skipped`] and summed up in the
 //!   message, not only logged. A file that failed, or that could not be
 //!   moved back from its temporary name, is named in the message.
+//! - Case-only renames (`one.flac` -> `One.flac`, `abba - x` -> `ABBA - x`)
+//!   are real renames on every volume. Files always move through a
+//!   temporary name; a directory does when the target is the same directory
+//!   under another spelling (same-file), and otherwise is never moved onto
+//!   an existing name. After each rename the parent directory is read back:
+//!   a volume that took the rename but kept another spelling (one that does
+//!   not preserve case) has the file or directory put back under its old
+//!   name, and the entry is reported as not renamed, never as success. On
+//!   an insensitive volume a source whose new spelling is already the one
+//!   listed is "already renamed".
 
 use std::path::{Path, PathBuf};
 
@@ -51,10 +61,9 @@ use musaic_db::renames::{
 use musaic_scan::{TrackOrder, py_resolve, scan_album};
 use rusqlite::Connection;
 
-use crate::fsutil::rename_noclobber;
+use crate::fsutil::{fold, listed, rename_dir, rename_noclobber};
 use crate::plan::TARGET;
 use crate::pyrepr::py_repr;
-use unicode_normalization::UnicodeNormalization;
 
 /// One `{"old": filename, "new": filename}` plan entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,11 +231,6 @@ fn rescan(conn: &mut Connection, env: &RenameEnv, library: &str, album_dir: &Pat
 const RESCAN_AFTER_DIR: &str = "execute_renames: post-dir-rename rescan failed (continuing)";
 const RESCAN_AFTER_FILES: &str = "execute_renames: post-rename rescan failed (continuing)";
 
-/// How a name compares on a case- and normalisation-insensitive volume.
-fn fold(name: &str) -> String {
-    name.nfc().collect::<String>().to_lowercase()
-}
-
 /// A free temporary name next to `old`: `.<name>.renaming.tmp`, then
 /// `.<name>.renaming.<n>.tmp`; moved there without replacing anything.
 fn stage(old: &Path) -> std::io::Result<PathBuf> {
@@ -277,6 +281,34 @@ pub fn execute_renames(
     album_id_in: &str,
     plan: &[PlanEntry],
     dir_rename: Option<&PlanEntry>,
+) -> RenameOutcome {
+    execute_renames_with(conn, env, album_id_in, plan, dir_rename, &listed)
+}
+
+/// "Did the volume keep this spelling?": `(parent dir, new name)`, asked
+/// after each rename. The real one reads the directory ([`listed`]); tests
+/// stand in a volume that does not preserve case.
+type KeptSpelling<'a> = &'a dyn Fn(&Path, &str) -> bool;
+
+const NOT_KEPT: &str = "the volume did not keep the new spelling of the name (it does not \
+                        preserve case); not renamed";
+
+/// Put a file whose new spelling the volume did not keep back under its
+/// old name (through a temporary name, as it got there). `Err` says where
+/// it is left.
+fn put_back(at: &Path, old: &Path) -> Result<(), String> {
+    let tmp = stage(at).map_err(|e| format!("{} could not be put back: {e}", name_of(old)))?;
+    rename_noclobber(&tmp, old)
+        .map_err(|e| format!("{} is left as {}: {e}", name_of(old), name_of(&tmp)))
+}
+
+fn execute_renames_with(
+    conn: &mut Connection,
+    env: &RenameEnv,
+    album_id_in: &str,
+    plan: &[PlanEntry],
+    dir_rename: Option<&PlanEntry>,
+    kept: KeptSpelling,
 ) -> RenameOutcome {
     if env.library_dir.is_none_or(str::is_empty) {
         return RenameOutcome::fail("No library configured");
@@ -369,6 +401,16 @@ pub fn execute_renames(
             }
             continue;
         }
+        // On an insensitive volume the old spelling still "is a file" after
+        // a case-only rename; the listing says which spelling is there.
+        if samefile(&old_p, &new_p) && !listed(&album_dir, old) && listed(&album_dir, new) {
+            skipped.push(SkippedEntry {
+                old: old.to_string(),
+                new: new.to_string(),
+                reason: SkipReason::AlreadyRenamed,
+            });
+            continue;
+        }
         cleaned.push((old.to_string(), new.to_string()));
     }
     // Two entries onto one name.
@@ -403,9 +445,27 @@ pub fn execute_renames(
     let mut album_renamed = None;
     if let Some(target) = new_dir {
         // Issued even onto the same physical dir: on a case- or
-        // normalisation-insensitive volume it changes the on-disk spelling.
-        if let Err(e) = std::fs::rename(&album_dir, &target) {
+        // normalisation-insensitive volume it changes the on-disk spelling
+        // (through a temporary name, see `rename_dir`).
+        if let Err(e) = rename_dir(&album_dir, &target) {
             return RenameOutcome::fail(format!("Couldn't rename directory: {e}"));
+        }
+        let parent = target.parent().map(Path::to_path_buf).unwrap_or_default();
+        if !kept(&parent, &name_of(&target)) {
+            // Nothing moved in the database yet: put the folder back and
+            // keep the album's id.
+            let mut message = format!(
+                "Couldn't rename directory to {}: {NOT_KEPT}",
+                py_repr(&name_of(&target))
+            );
+            if let Err(e) = rename_dir(&target, &album_dir) {
+                musaic_log::error(
+                    TARGET,
+                    &format!("execute_renames: putting the dir back failed: {e}"),
+                );
+                message.push_str(&format!("; the folder could not be put back: {e}"));
+            }
+            return RenameOutcome::fail(message);
         }
         let id = album_id(&py_resolve(&target).to_string_lossy());
         match rename_album_directory(
@@ -425,7 +485,7 @@ pub fn execute_renames(
                         "execute_renames: cache migration failed; rolling back dir rename: {e}"
                     ),
                 );
-                if let Err(e) = std::fs::rename(&target, &album_dir) {
+                if let Err(e) = rename_dir(&target, &album_dir) {
                     musaic_log::error(
                         TARGET,
                         &format!("execute_renames: rollback of dir rename also failed: {e}"),
@@ -554,8 +614,23 @@ pub fn execute_renames(
     let mut errors = Vec::new();
     let mut failed: Vec<String> = Vec::new();
     let mut stuck: Vec<String> = Vec::new();
+    let mut not_kept = 0;
     for (old_p, tmp, new_p) in &staged {
         match rename_noclobber(tmp, new_p) {
+            Ok(()) if !kept(&album_dir, &name_of(new_p)) => {
+                not_kept += 1;
+                errors.push(format!(
+                    "{} → {}: {NOT_KEPT}",
+                    name_of(old_p),
+                    name_of(new_p)
+                ));
+                failed.push(name_of(old_p));
+                if let Err(line) = put_back(new_p, old_p) {
+                    musaic_log::error(TARGET, &format!("execute_renames: {line}"));
+                    errors.push(line.clone());
+                    stuck.push(line);
+                }
+            }
             Ok(()) => {
                 renamed += 1;
                 if let Err(e) =
@@ -626,8 +701,12 @@ pub fn execute_renames(
             },
             files(renamed)
         )
-    } else {
+    } else if dir_renamed {
         "Renamed album directory".to_string()
+    } else {
+        // Every file failed (for instance the volume kept none of the new
+        // spellings): say so instead of naming a directory rename.
+        "No file was renamed".to_string()
     };
     if !failed.is_empty() {
         // One per failed file, as the Python app counted its errors.
@@ -636,6 +715,12 @@ pub fn execute_renames(
         // left under a temporary name.
         let names: Vec<&str> = failed.iter().map(String::as_str).collect();
         message.push_str(&format!(": not renamed {}", name_list(&names)));
+        if not_kept > 0 {
+            message.push_str(&format!(
+                "; the volume did not keep the new spelling of {} (it does not preserve case)",
+                files(not_kept)
+            ));
+        }
         for line in &stuck {
             message.push_str(&format!("; {line}"));
         }
@@ -654,5 +739,148 @@ pub fn execute_renames(
             dir_migration,
         }),
         album_renamed,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! A volume that takes a rename but does not keep the new spelling
+    //! cannot be made in a temp dir, so the read-back is replaced by one
+    //! that always answers "not kept"; the renames themselves are real.
+
+    use super::*;
+    use musaic_db::{Db, albums};
+    use musaic_scan::scan_library;
+
+    const NOW: &str = "2026-01-01T00:00:00Z";
+
+    fn flac_bytes(title: &str) -> Vec<u8> {
+        let mut si = Vec::new();
+        si.extend_from_slice(&[0x10, 0, 0x10, 0, 0, 0, 0, 0, 0, 0]);
+        let packed: u64 = (44100u64 << 44) | (1 << 41) | (15 << 36) | 44100;
+        si.extend_from_slice(&packed.to_be_bytes());
+        si.extend_from_slice(&[0; 16]);
+        let mut vc = Vec::new();
+        vc.extend_from_slice(&4u32.to_le_bytes());
+        vc.extend_from_slice(b"test");
+        let tags = [("TRACKNUMBER", "1"), ("TITLE", title), ("ALBUM", "X")];
+        vc.extend_from_slice(&(tags.len() as u32).to_le_bytes());
+        for (k, v) in tags {
+            let e = format!("{k}={v}");
+            vc.extend_from_slice(&(e.len() as u32).to_le_bytes());
+            vc.extend_from_slice(e.as_bytes());
+        }
+        let mut out = b"fLaC".to_vec();
+        out.push(0);
+        out.extend_from_slice(&(si.len() as u32).to_be_bytes()[1..]);
+        out.extend_from_slice(&si);
+        out.push(0x84);
+        out.extend_from_slice(&(vc.len() as u32).to_be_bytes()[1..]);
+        out.extend_from_slice(&vc);
+        out
+    }
+
+    fn listing(dir: &Path) -> Vec<String> {
+        let mut v: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        v.sort();
+        v
+    }
+
+    fn library(base: &Path) -> (Db, String, String) {
+        let album = base.join("lib/abba - x");
+        std::fs::create_dir_all(&album).unwrap();
+        std::fs::write(album.join("01 - one.flac"), flac_bytes("One")).unwrap();
+        let db_path = base.join("library.db");
+        std::fs::copy(musaic_testdata::public("db/v16-empty.db"), &db_path).unwrap();
+        let (mut db, _) = Db::open(&db_path).unwrap();
+        let lib = py_resolve(&base.join("lib")).to_string_lossy().into_owned();
+        let scanned = scan_library(&base.join("lib"), TrackOrder::Filename);
+        albums::save_snapshot(db.connection_mut(), &lib, NOW, NOW, &scanned).unwrap();
+        let id = scanned[0].id.clone();
+        (db, lib, id)
+    }
+
+    fn env(lib: &str) -> RenameEnv<'_> {
+        RenameEnv {
+            library_dir: Some(lib),
+            now: NOW,
+            track_order: TrackOrder::Filename,
+        }
+    }
+
+    fn entry(old: &str, new: &str) -> PlanEntry {
+        PlanEntry {
+            old: old.into(),
+            new: new.into(),
+        }
+    }
+
+    const NEVER_KEPT: &dyn Fn(&Path, &str) -> bool = &|_, _| false;
+
+    /// The file is put back under its old name and reported as not
+    /// renamed: no success, no AlbumRenamed, its rows untouched.
+    #[test]
+    fn a_file_spelling_the_volume_did_not_keep_is_reported_and_put_back() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = musaic_testdata::canonical(tmp.path());
+        let (mut db, lib, id) = library(&base);
+        let album = base.join("lib/abba - x");
+        let before = std::fs::read(album.join("01 - one.flac")).unwrap();
+        let out = execute_renames_with(
+            db.connection_mut(),
+            &env(&lib),
+            &id,
+            &[entry("01 - one.flac", "01 - One.flac")],
+            None,
+            NEVER_KEPT,
+        );
+        assert!(!out.ok);
+        assert_eq!(out.renamed, 0);
+        assert!(out.album_renamed.is_none());
+        assert!(
+            out.message
+                .starts_with("No file was renamed; 1 error(s): not renamed '01 - one.flac'"),
+            "{}",
+            out.message
+        );
+        assert!(
+            out.message.contains("did not keep the new spelling"),
+            "{}",
+            out.message
+        );
+        let d = out.detail.unwrap();
+        assert!(d.errors[0].contains(NOT_KEPT), "{:?}", d.errors);
+        assert_eq!(listing(&album), ["01 - one.flac"]);
+        assert_eq!(std::fs::read(album.join("01 - one.flac")).unwrap(), before);
+    }
+
+    /// The folder is put back and keeps its id; nothing in the database
+    /// moved.
+    #[test]
+    fn a_folder_spelling_the_volume_did_not_keep_is_reported_and_put_back() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = musaic_testdata::canonical(tmp.path());
+        let (mut db, lib, id) = library(&base);
+        let out = execute_renames_with(
+            db.connection_mut(),
+            &env(&lib),
+            &id,
+            &[],
+            Some(&entry("abba - x", "ABBA - x")),
+            NEVER_KEPT,
+        );
+        assert!(!out.ok);
+        assert!(out.album_renamed.is_none());
+        assert_eq!(
+            out.message,
+            format!("Couldn't rename directory to 'ABBA - x': {NOT_KEPT}")
+        );
+        assert_eq!(listing(&base.join("lib")), ["abba - x"]);
+        let loc = album_location(db.connection(), &id).unwrap().unwrap();
+        assert_eq!(loc.path, base.join("lib/abba - x").to_string_lossy());
     }
 }

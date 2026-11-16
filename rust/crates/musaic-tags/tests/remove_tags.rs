@@ -408,3 +408,61 @@ fn empty_and_whitespace_suggestions_change_nothing() {
     assert!(suggestions_applied.is_empty() && cleared.is_empty());
     assert_eq!(*track_change_count, 0);
 }
+
+fn first(path: &Path, key: &str) -> String {
+    comments(path)
+        .into_iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(key))
+        .map(|(_, v)| v)
+        .unwrap_or_default()
+}
+
+/// A suggestion that differs from the tag only in case is a change: written,
+/// and reported as a diff. One that differs only in surrounding whitespace
+/// is not (the suggestion is stripped first), and a whitespace-only one
+/// leaves the tag alone.
+#[test]
+fn case_only_suggestion_is_written_and_reported() {
+    let tmp = tempfile::tempdir().unwrap();
+    album(tmp.path());
+    let none = Removals::default();
+    let events = run(
+        tmp.path(),
+        &[
+            ("title", Some("LANTERNS")),
+            ("album_artist", Some("  Velvet Quarry  ")),
+            ("genre", Some("   ")),
+        ],
+        &[("01 - Glass.flac", &[("title", Some("glass"))])],
+        &none,
+        false,
+    );
+    let glass = file_done(&events, "01 - Glass.flac");
+    assert_eq!(
+        glass.diffs,
+        vec![
+            (
+                "album".into(),
+                Diff {
+                    old: "Lanterns".into(),
+                    new: Some("LANTERNS".into())
+                }
+            ),
+            (
+                "title".into(),
+                Diff {
+                    old: "Glass".into(),
+                    new: Some("glass".into())
+                }
+            ),
+        ]
+    );
+    assert!(glass.saved);
+    let tin = file_done(&events, "02 - Tin.flac");
+    assert_eq!(tin.diffs.len(), 1, "{:?}", tin.diffs);
+    let g = tmp.path().join("01 - Glass.flac");
+    assert_eq!(first(&g, "album"), "LANTERNS");
+    assert_eq!(first(&g, "title"), "glass");
+    assert_eq!(first(&g, "albumartist"), "Velvet Quarry");
+    assert_eq!(first(&g, "genre"), "Shoegaze");
+}

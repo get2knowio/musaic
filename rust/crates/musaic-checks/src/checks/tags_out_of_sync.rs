@@ -120,6 +120,12 @@ fn lower(s: &str) -> String {
 }
 
 /// `_normalize`: lower-case and collapse whitespace.
+///
+/// Case-only differences are not drift here, as in the Python app: the
+/// stored title prefers the folder name, so a case-only title finding would
+/// stay open after the tag was fixed. The album panel's corrections list
+/// (frontend `lib/suggestions.ts`) does offer case-only corrections, since
+/// it compares with the tags an apply writes.
 pub fn normalize(s: &str) -> String {
     lower(s)
         .split(is_py_space)

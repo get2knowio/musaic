@@ -9,7 +9,99 @@
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, ErrorKind};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+
+use unicode_normalization::UnicodeNormalization;
+
+/// How a name compares on a case- and normalisation-insensitive volume.
+pub(crate) fn fold(name: &str) -> String {
+    name.nfc().collect::<String>().to_lowercase()
+}
+
+/// Whether `dir` lists an entry spelled `name`: the same characters in the
+/// same case. Names are compared after NFC normalisation because a volume
+/// that stores names decomposed (HFS+) lists an NFC name in its NFD form;
+/// a normalisation-only difference is never planned as a rename.
+///
+/// This reads the directory instead of asking whether the path exists: on
+/// a case-insensitive volume `foo.flac` "exists" when the entry is
+/// `Foo.flac`, so only the listing says which spelling is on disk.
+pub(crate) fn listed(dir: &Path, name: &str) -> bool {
+    let Ok(rd) = fs::read_dir(dir) else {
+        return false;
+    };
+    rd.flatten().any(|e| {
+        let n = e.file_name();
+        let n = n.to_string_lossy();
+        n == name || n.nfc().eq(name.nfc())
+    })
+}
+
+/// A name next to `path` that nothing uses yet: `.<name>.renaming.tmp`,
+/// then `.<name>.renaming.<n>.tmp`.
+fn free_temp_name(path: &Path) -> io::Result<PathBuf> {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    for n in 1..1000 {
+        let tmp = if n == 1 {
+            path.with_file_name(format!(".{name}.renaming.tmp"))
+        } else {
+            path.with_file_name(format!(".{name}.renaming.{n}.tmp"))
+        };
+        if fs::symlink_metadata(&tmp).is_err() {
+            return Ok(tmp);
+        }
+    }
+    Err(io::Error::new(
+        ErrorKind::AlreadyExists,
+        "no free temporary name",
+    ))
+}
+
+/// Rename a directory within its parent without replacing anything.
+///
+/// When `src` and `dst` are the same directory (a case- or
+/// normalisation-only change of spelling on an insensitive volume, decided
+/// by same-file, never by comparing strings) the move goes through a
+/// temporary name in the same parent, so the new spelling is written by a
+/// real rename on every volume. If the second step fails the directory is
+/// moved back to `src`; an error that also could not do that names the
+/// temporary name the directory is left under.
+///
+/// Otherwise an existing `dst` is refused (`fs::rename` would replace an
+/// empty directory on Unix).
+pub(crate) fn rename_dir(src: &Path, dst: &Path) -> io::Result<()> {
+    if !same_file::is_same_file(src, dst).unwrap_or(false) {
+        if fs::symlink_metadata(dst).is_ok() {
+            return Err(io::Error::new(ErrorKind::AlreadyExists, "target exists"));
+        }
+        return fs::rename(src, dst);
+    }
+    let tmp = free_temp_name(src)?;
+    fs::rename(src, &tmp)?;
+    let second = if fs::symlink_metadata(dst).is_ok() {
+        // Something took the name while the directory was away.
+        Err(io::Error::new(ErrorKind::AlreadyExists, "target exists"))
+    } else {
+        fs::rename(&tmp, dst)
+    };
+    if let Err(e) = second {
+        if let Err(back) = fs::rename(&tmp, src) {
+            let left = tmp
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            return Err(io::Error::new(
+                e.kind(),
+                format!("{e}; the folder is left as {left}: {back}"),
+            ));
+        }
+        return Err(e);
+    }
+    Ok(())
+}
 
 fn link_then_unlink(src: &Path, dst: &Path) -> io::Result<()> {
     fs::hard_link(src, dst)?;

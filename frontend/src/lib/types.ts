@@ -66,6 +66,8 @@ export interface Track {
   tracknumber: string;
   title: string;
   artist: string;
+  /** The file's ALBUM tag ("" when absent). */
+  album?: string;
   duration: number | null;
   // Audio analysis (null if not yet computed)
   bpm: number | null;

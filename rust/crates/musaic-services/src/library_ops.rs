@@ -134,6 +134,19 @@ pub fn get_album<E: From<rusqlite::Error> + From<HttpError>>(
 
 /// `services.albums.read_tracks(album_dir)`.
 pub fn read_tracks(album_dir: &str) -> Json {
+    tracks_json(album_dir, false)
+}
+
+/// The track list `GET /api/albums/{id}/tracks` returns: [`read_tracks`]
+/// plus each file's ALBUM tag (`album`, `""` when absent). The album's
+/// stored title prefers the folder name, so the album panel compares a
+/// proposed title with these tags, the values an apply would change: a
+/// case-only correction of the tag shows, and stops showing once applied.
+pub fn read_tracks_for_panel(album_dir: &str) -> Json {
+    tracks_json(album_dir, true)
+}
+
+fn tracks_json(album_dir: &str, with_album: bool) -> Json {
     let dir = Path::new(album_dir);
     if !dir.is_dir() {
         return Json::Arr(Vec::new());
@@ -158,18 +171,24 @@ pub fn read_tracks(album_dir: &str) -> Json {
                 } else {
                     bpm.trim().parse::<f64>().map_or(Json::Null, Json::Float)
                 };
-                out.push(Json::obj([
+                let mut track = vec![
                     ("filename", Json::from(filename)),
                     ("tracknumber", Json::from(first("tracknumber"))),
                     ("title", Json::from(first("title"))),
                     ("artist", Json::from(first("artist"))),
+                ];
+                if with_album {
+                    track.push(("album", Json::from(first("album"))));
+                }
+                track.extend([
                     ("duration", Json::Float(round1(m.info.length()))),
                     ("bpm", bpm),
                     ("replaygain_track_gain", opt("replaygain_track_gain")),
                     ("replaygain_track_peak", opt("replaygain_track_peak")),
                     ("replaygain_album_gain", opt("replaygain_album_gain")),
                     ("replaygain_album_peak", opt("replaygain_album_peak")),
-                ]));
+                ]);
+                out.push(Json::obj(track));
             }
             Err(e) => out.push(Json::obj([
                 ("filename", Json::from(filename)),

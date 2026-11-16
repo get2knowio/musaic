@@ -5,6 +5,12 @@
 //! current and template-rendered names are compared after NFC normalisation,
 //! so a name that differs from its target only in NFC/NFD form yields no
 //! rename.
+//!
+//! A name that differs from its target only in case is a mismatch, as in
+//! the Python app: `execute_renames` carries out case-only renames on every
+//! volume, so the check's finding and the fix agree. Deliberate change: two
+//! targets that differ only in case collide (`collides_with`), since
+//! `execute_renames` refuses such a pair.
 
 use std::path::Path;
 
@@ -17,6 +23,7 @@ use rusqlite::Connection;
 use unicode_general_category::{GeneralCategory as G, get_general_category};
 use unicode_normalization::UnicodeNormalization;
 
+use crate::fsutil::fold;
 use crate::pyrepr::py_repr;
 use crate::template::{RenderError, Value, Values, render, sanitize_for_filename};
 
@@ -185,7 +192,10 @@ pub fn check_album(
         if same_nfc(&expected, &name) {
             continue;
         }
-        let collides_with = seen_targets.insert(expected.clone(), name.clone());
+        // Keyed as an insensitive volume compares names, so two targets
+        // that differ only in case are a collision here as they are for
+        // `execute_renames` (which refuses them on every volume).
+        let collides_with = seen_targets.insert(fold(&expected), name.clone());
         renames.push(RenameEntry {
             filename: name,
             expected,
