@@ -15,6 +15,10 @@ Security.
 
 ### Changed
 
+- The apply progress view lists each file that kept its old name after a track-number
+  rename failed, with the reason ("3 files kept their old names"). The tags were saved;
+  previously only the error count showed
+  ([#217](https://github.com/get2knowio/musaic/issues/217)).
 - Wording: the transient AI-job error no longer points at a script that does not exist, and
   the Settings text about FireCrawl and the Backup page no longer say "paid".
 - The album panel proposes MusicBrainz corrections in one place and applies them one way
