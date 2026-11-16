@@ -65,7 +65,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.SYNTH_PYTHON_VERSION }}
       - name: Generate and check the synthetic test library
@@ -146,7 +146,7 @@ jobs:
           npm ci
           npm run build
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.SYNTH_PYTHON_VERSION }}
       - name: Generate the synthetic test library
