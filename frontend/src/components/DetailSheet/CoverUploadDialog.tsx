@@ -1,5 +1,7 @@
 /**
- * Manual cover-art upload.
+ * Manual cover art: upload, paste or URL. Opened from the hero's Cover
+ * control; titled "Add cover" or "Replace cover" by whether the album has
+ * one.
  *
  * Three input modes share one Apply button:
  *
@@ -180,7 +182,9 @@ export default function CoverUploadDialog({ album, open, onClose }: Props) {
           <div className="flex items-center justify-between px-4 h-11 border-b border-line">
             <div className="flex items-center gap-2">
               <ImageIcon className="w-3.5 h-3.5 text-accent" />
-              <Dialog.Title className="font-semibold text-md">Replace cover art</Dialog.Title>
+              <Dialog.Title className="font-semibold text-md">
+                {album.has_embedded_cover || album.cover_file ? "Replace cover" : "Add cover"}
+              </Dialog.Title>
             </div>
             <button
               onClick={onClose}
@@ -235,7 +239,7 @@ export default function CoverUploadDialog({ album, open, onClose }: Props) {
                       }}
                       className="text-xs text-accent hover:underline mt-1"
                     >
-                      Replace
+                      Choose another image
                     </button>
                   </div>
                 </div>

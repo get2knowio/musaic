@@ -40,7 +40,7 @@ export default tseslint.config(
         },
       ],
       // NBSP/ZWSP inside regex literals is intentional — the visualize()
-      // highlighter in MbPreviewSection matches those code points on purpose.
+      // highlighter in CorrectionsDiff matches those code points on purpose.
       "no-irregular-whitespace": ["error", { skipRegExps: true }],
       // Opinionated rules flagging existing, working patterns — warn for now.
       "react-hooks/set-state-in-effect": "warn",

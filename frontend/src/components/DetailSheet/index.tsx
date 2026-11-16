@@ -1,4 +1,4 @@
-import { AlertTriangle, CloudOff, Image as ImageIcon, Loader2, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, CloudOff, Loader2, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -7,7 +7,8 @@ import AlbumHero from "./AlbumHero";
 import PropTable from "./PropTable";
 import AudioAnalysis from "./AudioAnalysis";
 import TrackList from "./TrackList";
-import AISuggestions from "./AISuggestions";
+import CorrectionsDiff, { CORRECTIONS_ID } from "./CorrectionsDiff";
+import { resolverOffersCover, useCorrections } from "./corrections";
 import ApplyProgress from "./ApplyProgress";
 import FindingsSection from "./FindingsSection";
 import MoreMenu from "./MoreMenu";
@@ -30,25 +31,12 @@ import {
 } from "@/hooks/useJobs";
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
 import { useAiStatus } from "@/hooks/useAiStatus";
-import {
-  canQueueJob,
-  metadataJobType,
-  modelFreeCoverage,
-  offersHintEntry,
-} from "@/lib/aiGating";
+import { canQueueJob, modelFreeCoverage, offersHintEntry } from "@/lib/aiGating";
 import { useApplyStream } from "@/hooks/useApplyStream";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
-import { clearAlbumMbAnchor, removeAlbumFromLibrary } from "@/lib/api";
+import { removeAlbumFromLibrary } from "@/lib/api";
 import { isApplyInFlight } from "@/lib/applyRegistry";
-import { jobCoverPreviewUrl } from "@/lib/coverPreview";
-import type {
-  Album,
-  ApplyPayload,
-  CoverSuggestionResponse,
-  JobConflictDetail,
-  JobType,
-  MetadataSuggestionResponse,
-} from "@/lib/types";
+import type { Album, AlbumResolution, Job, JobConflictDetail, JobType } from "@/lib/types";
 
 export interface AlbumPanelProps {
   /** The album to show. */
@@ -211,118 +199,73 @@ function SheetBody({
   const retryJob = useRetryJob();
   const { data: allJobs = [] } = useJobs();
 
-  // The active job for THIS album — drives the suggestion display. Sourced
-  // from the live jobs cache (kept fresh by the App-level useJobsStream
-  // SSE subscriber), so close/reopen of the sheet preserves state and the
-  // panel updates the moment the worker finishes.
+  // The active job for THIS album (queued, running, or finished and not
+  // yet applied or discarded). Sourced from the live jobs cache (kept fresh
+  // by the App-level useJobsStream SSE subscriber), so close/reopen of the
+  // panel preserves state and the panel updates the moment the worker
+  // finishes.
   const activeJob = useActiveJobForAlbum(album.id);
 
   // Past cover-art lookups for this album that didn't yield a cover —
-  // surfaced in the HintDialog when the user is about to enqueue another
-  // cover lookup, so they don't unintentionally repeat past dead ends.
+  // surfaced in the HintDialog when the user is about to queue another
+  // AI cover search, so they don't repeat past dead ends.
   const priorCoverAttempts = usePriorCoverAttempts(album.id);
 
-  // Deterministic resolver output. When loaded with a confident anchor +
-  // 0 unresolved tracks, the worker will skip the AI call entirely —
-  // we mirror that in the button label so the user knows the click will
-  // be free + fast rather than the usual long AI round-trip.
   const { data: resolution } = useAlbumResolution(album.id);
-  // Same thresholds as the worker's short-circuit (lib/aiGating.ts).
+  // The worker's thresholds for skipping the model (lib/aiGating.ts);
+  // only a failed job's Retry still asks.
   const coverage = modelFreeCoverage(resolution);
-  const deterministicCovered = coverage.metadata;
-  // CAA cover already verified for the anchored release-group? The
-  // worker will short-circuit ai.suggest_cover when this is true.
-  const coverFromMb = coverage.cover;
-  // Whether a model backend can run. Without one, only jobs the resolver
-  // covers may be queued, and they queue without the hint dialog.
+  // Whether a model backend can run. Every AI-only entry point (the hint
+  // dialog and what opens it) is offered only then; without one the panel
+  // is complete with the resolver's corrections.
   const ai = useAiStatus();
-
-  // Whether the album has any cover at all — drives auto-bundling. If
-  // "Suggest fixes" is clicked on a coverless album, we enqueue a
-  // metadata+cover job instead of metadata-only.
-  const albumHasCover = album.has_embedded_cover || !!album.cover_file;
-  const metadataJob = metadataJobType(albumHasCover, coverage, ai);
-  const canQueueMetadata = canQueueJob(metadataJob, coverage, ai);
-  const canQueueCover = canQueueJob("cover", coverage, ai);
 
   // Hint dialog state. `pendingType` is the job type the user is about to
   // enqueue once they submit a hint.
   const [pendingType, setPendingType] = useState<JobType | null>(null);
   // "Remove from library" confirmation (Missing albums only).
   const [confirmRemove, setConfirmRemove] = useState(false);
+  // The user asked for the MusicBrainz cover on an album that has one.
+  const [coverRequested, setCoverRequested] = useState(false);
+  // The user discarded the resolver's corrections; they come back when the
+  // album is opened again.
+  const [resolverDismissed, setResolverDismissed] = useState(false);
 
   // Reset per-album local state when switching albums.
   useEffect(() => {
     setPendingType(null);
     setConfirmRemove(false);
+    setCoverRequested(false);
+    setResolverDismissed(false);
   }, [album.id]);
-
-  // Start an apply. When it finishes successfully — even if the panel has
-  // since moved to another album or closed — propagate the updated album to
-  // the owner (so the tile re-renders with new cover/title/etc.) and mark
-  // the job that was active when it started as acted-on (action="applied")
-  // so it leaves the active queue and the "needs review" badge.
-  //
-  // Cache invalidation is handled by the App-level useLibraryEventsStream
-  // subscriber — the apply pipeline publishes AlbumTagsChanged (+
-  // AlbumCoverChanged when art changed), which fans out to
-  // ["albums-snapshot"], ["tracks", id], ["album-resolution", id],
-  // ["findings"], ["checks"] on its own.
-  const startApply = (payload: ApplyPayload) => {
-    const jobId = activeJob?.id ?? null;
-    return apply.start(payload, {
-      onUpdatedAlbum: (updated) => {
-        onAlbumUpdated?.(updated);
-        if (jobId) markActedOn.mutate({ jobId, action: "applied" });
-      },
-    });
-  };
-
-  // Map the active job's result back into the legacy AISuggestions component
-  // shape. AISuggestions takes a metadata response + cover response separately.
-  const metaResult: MetadataSuggestionResponse | null =
-    activeJob?.status === "completed" && activeJob.result?.metadata
-      ? {
-          album_id: album.id,
-          suggestions: activeJob.result.metadata.suggestions,
-          tracks: activeJob.result.metadata.tracks,
-          notes: activeJob.result.metadata.notes,
-          confidence: activeJob.result.metadata.confidence,
-          raw_excerpt: "",
-          // MBID flows through to the AISuggestions UI so it can render
-          // the "identified on MusicBrainz" status line. The MBID itself
-          // has already been persisted server-side by the time we get
-          // here (worker side-effect on job completion).
-          mb_release_group_mbid: activeJob.result.metadata.mb_release_group_mbid ?? null,
-        }
-      : null;
-  const coverResult: CoverSuggestionResponse | null =
-    activeJob?.status === "completed" && activeJob.result?.cover
-      ? {
-          album_id: album.id,
-          cover_url: activeJob.result.cover.cover_url,
-          source: activeJob.result.cover.source,
-          notes: activeJob.result.cover.notes,
-          confidence: activeJob.result.cover.confidence,
-          raw_excerpt: "",
-        }
-      : null;
 
   // Missing (`missing_since` set): the scan did not find the album's folder.
   // The backend refuses every write to it (apply, cover, My Tags, analysis:
   // 409) and reads tracks from disk, so the panel keeps only what is stored
   // (hero, album info) plus "Remove from library".
   const isMissing = !!(apply.state.updatedAlbum ?? album).missing_since;
-
-  // Mode derivation
   const isApplying = isApplyInFlight(apply.state);
-  // A job's result for a Missing album could not be applied (apply answers
-  // 409), so neither its progress nor its suggestions are shown here; the
-  // Jobs page still lists it.
-  const isQueued = !isMissing && (activeJob?.status === "queued" || activeJob?.status === "running");
-  const showSuggestions =
-    !isMissing && !isApplying && activeJob?.status === "completed" && (metaResult || coverResult);
   const showApplying = isApplying || apply.state.status === "done" || apply.state.status === "error";
+
+  // Live album for hero — use the apply-updated version once available.
+  const displayAlbum: Album = apply.state.updatedAlbum ?? album;
+
+  // The proposed corrections, from a finished job or else from the
+  // resolver; one diff, one set of ticks, one apply. A job's result for a
+  // Missing album could not be applied (apply answers 409), so it is not
+  // shown here; the Jobs page still lists it.
+  const corrections = useCorrections({
+    album: displayAlbum,
+    activeJob,
+    resolution,
+    tracks: tracks.data?.tracks ?? (tracks.isError ? [] : undefined),
+    coverRequested,
+    resolverDismissed,
+    suppressed: isMissing || isApplying,
+  });
+  const reviewing = corrections.source !== null;
+  const reviewedJob = corrections.job;
+  const isQueued = !isMissing && (activeJob?.status === "queued" || activeJob?.status === "running");
 
   // Most recent failed job for this album that hasn't been acted on. Surfaced
   // in the banner so the user can retry / inspect the error inline rather
@@ -362,21 +305,12 @@ function SheetBody({
   const canRetryFailed =
     !recentFailedJob || canQueueJob(recentFailedJob.job_type, coverage, ai);
 
-  // Live album for hero — use the apply-updated version once available.
-  const displayAlbum: Album = apply.state.updatedAlbum ?? album;
+  // ---- AI-only entry points (offered only when AI is ready) ----
 
-  // ---- Click handlers ----
-
-  const onSuggestMetadata = () => {
-    // Auto-bundle cover lookup when album has no cover (metadataJobType).
-    if (!canQueueMetadata) return;
-    if (offersHintEntry(ai)) setPendingType(metadataJob);
-    else void queueJob(metadataJob, "", true);
-  };
-  const onSuggestCover = () => {
-    if (!canQueueCover) return;
-    if (offersHintEntry(ai)) setPendingType("cover");
-    else void queueJob("cover", "", true);
+  const aiEntry = offersHintEntry(ai) && !isMissing && !isApplying;
+  const onAskAi = (which: JobType) => {
+    if (!offersHintEntry(ai) || activeJob) return;
+    setPendingType(which);
   };
 
   const onHintSubmit = async (hint: string, attachCover: boolean) => {
@@ -411,27 +345,58 @@ function SheetBody({
     }
   };
 
-  const onHintCancel = () => setPendingType(null);
+  // ---- The cover ----
 
-  const onApply = async () => {
-    const trackSuggestions: Record<string, Record<string, string>> = {};
-    for (const entry of metaResult?.tracks ?? []) {
-      if (Object.keys(entry.suggestions).length > 0) {
-        trackSuggestions[entry.filename] = entry.suggestions as Record<string, string>;
-      }
-    }
-    await startApply({
-      suggestions: metaResult?.suggestions ?? {},
-      track_suggestions: trackSuggestions,
-      cover_url: coverResult?.cover_url ?? null,
+  // "Use MusicBrainz cover" adds the cover row to the corrections, where it
+  // is previewed and applied with the rest. Offered while nothing else is
+  // under review from a job, when the resolver has a cover and it is not
+  // already proposed (an album with no cover gets the row on its own).
+  const coverAlreadyProposed = corrections.rows.some((r) => r.kind === "cover");
+  const offerMusicBrainzCover =
+    !isMissing && !isApplying && !activeJob && resolverOffersCover(resolution) && !coverAlreadyProposed;
+  const onUseMusicBrainzCover = () => {
+    setCoverRequested(true);
+    setResolverDismissed(false);
+    requestAnimationFrame(() =>
+      document.getElementById(CORRECTIONS_ID)?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }),
+    );
+  };
+
+  // ---- Apply / Discard (the footer) ----
+
+  // When an apply finishes successfully — even if the panel has since moved
+  // to another album or closed — propagate the updated album to the owner
+  // (so the tile re-renders with new cover/title/etc.) and, for a job's
+  // proposal, mark that job applied so it leaves the queue and the "needs
+  // review" badge.
+  //
+  // Cache invalidation is handled by the App-level useLibraryEventsStream
+  // subscriber — the apply pipeline publishes AlbumTagsChanged (+
+  // AlbumCoverChanged when art changed), which fans out to
+  // ["albums-snapshot"], ["tracks", id], ["album-resolution", id],
+  // ["findings"], ["checks"] on its own.
+  const onApply = () => {
+    if (corrections.selectedCount === 0 || isApplying) return;
+    const jobId = reviewedJob?.id ?? null;
+    const payload = corrections.payload();
+    // The requested cover is part of this apply; once written, the album
+    // has it and nothing is left to ask for.
+    setCoverRequested(false);
+    void apply.start(payload, {
+      onUpdatedAlbum: (updated) => {
+        onAlbumUpdated?.(updated);
+        if (jobId) markActedOn.mutate({ jobId, action: "applied" });
+      },
     });
-    // The job is marked acted-on when the apply reports the updated album.
   };
 
   const onDiscard = () => {
-    if (activeJob) {
-      markActedOn.mutate({ jobId: activeJob.id, action: "discarded" });
+    if (reviewedJob) {
+      markActedOn.mutate({ jobId: reviewedJob.id, action: "discarded" });
+    } else {
+      setResolverDismissed(true);
     }
+    setCoverRequested(false);
   };
 
   // "Remove from library" (`DELETE /api/albums/{id}`): the only path that
@@ -457,31 +422,7 @@ function SheetBody({
     }
   };
 
-  // "Wrong match" escape hatch: clears the cached MB anchor so the
-  // synthesizer stops returning the same wrong cover/title from a
-  // stale release-group. Discards the current suggestions in the same
-  // step so the user immediately sees the standard sheet (with empty
-  // resolution) and can re-trigger AI — typically with a hint.
-  const [clearingAnchor, setClearingAnchor] = useState(false);
-  const onClearAnchor = async () => {
-    setClearingAnchor(true);
-    try {
-      const res = await clearAlbumMbAnchor(album.id);
-      // Cache invalidation is handled by the App-level
-      // useLibraryEventsStream subscriber — the backend publishes
-      // AlbumTagsChanged after wiping the anchor.
-      onDiscard();
-      const rerun = ai.ready ? " Re-run AI (a hint helps narrow the search)." : "";
-      const toastMsg = res.blocked_mbid
-        ? `Rejected ${res.blocked_mbid.slice(0, 8)}… and added it to this album's blocklist.${rerun}`
-        : `Cleared MusicBrainz match.${rerun}`;
-      toast.success(toastMsg, { duration: 6000 });
-    } catch (err) {
-      toast.error((err as Error).message || "Couldn't clear MusicBrainz anchor");
-    } finally {
-      setClearingAnchor(false);
-    }
-  };
+  const footerHasContent = isApplying || isMissing || reviewing || aiEntry;
 
   return (
     <>
@@ -514,7 +455,11 @@ function SheetBody({
 
       {/* Panel body — scrolls */}
       <div className="flex-1 overflow-y-auto">
-        <AlbumHero album={displayAlbum} />
+        <AlbumHero
+          album={displayAlbum}
+          onUseMusicBrainzCover={offerMusicBrainzCover ? onUseMusicBrainzCover : undefined}
+          onAskAiForCover={aiEntry && !activeJob ? () => onAskAi("cover") : undefined}
+        />
 
         {/* Missing: one message. What it says rests on the scan: a folder
             back at the same path is the same album id, so its row (and
@@ -525,11 +470,8 @@ function SheetBody({
         )}
 
         {/* In-flight job banner — shown while a job for THIS album is queued
-            or running. Source of truth: the live jobs cache via SSE. Survives
-            close/reopen of the sheet correctly. Queued jobs offer an inline
-            "Cancel queued job" link so the user doesn't have to navigate to
-            /jobs to back out of a click they regret. Running jobs can't be
-            cancelled (worker is mid-call) so we just show status. */}
+            or running. Queued jobs offer an inline Cancel; running jobs
+            can't be cancelled (the worker is mid-call). */}
         {isQueued && activeJob && (
           <div className="mx-4 my-3 rounded-md border border-accent/40 bg-accent-soft p-3 text-sm flex items-center gap-2.5">
             <Loader2 className="w-4 h-4 spin text-accent shrink-0" />
@@ -597,118 +539,101 @@ function SheetBody({
         {/* Apply progress lives at top of body when active */}
         {showApplying && <ApplyProgress state={apply.state} />}
 
-        {/* Suggestion mode replaces the regular sections */}
-        {showSuggestions ? (
-          <AISuggestions
+        {/* The proposed corrections: the one place they are shown and
+            picked. Apply / Discard are in the footer. */}
+        {reviewing && (
+          <CorrectionsDiff
             album={displayAlbum}
-            metadata={metaResult}
-            cover={coverResult}
-            onAccept={onApply}
-            onDiscard={onDiscard}
-            onClearAnchor={onClearAnchor}
-            clearingAnchor={clearingAnchor}
-            applying={isApplying}
-            coverPreviewSrc={activeJob ? jobCoverPreviewUrl(activeJob.id) : null}
-            aiReady={ai.ready}
+            title={
+              corrections.source === "job" && ai.ready
+                ? "Suggested corrections"
+                : "MusicBrainz corrections"
+            }
+            meta={correctionsMeta(corrections.source, reviewedJob, resolution)}
+            rows={corrections.rows}
+            isSelected={corrections.isSelected}
+            isSelectable={corrections.isSelectable}
+            onToggle={corrections.toggle}
+            coverPreview={corrections.coverPreview}
+            onRetryCoverPreview={corrections.retryCoverPreview}
+            emptyMessage={reviewedJob ? jobEmptyMessage(reviewedJob) : undefined}
+            notes={reviewedJob ? jobNotes(reviewedJob) : null}
+            disabled={isApplying}
           />
-        ) : (
-          <>
-            <Section id="album-info" title="Album info">
-              <PropTable album={displayAlbum} aiReady={ai.ready} />
-            </Section>
+        )}
 
-            {/* Findings (auto-hidden when this album has no open
-                findings AND no MusicBrainz corrections to preview).
-                Embeds the MB-preview deterministic apply UI at the
-                top — those corrections are themselves a kind of
-                finding (mb_canonical_mismatch produces them as
-                findings rows too).
+        <Section id="album-info" title="Album info">
+          <PropTable album={displayAlbum} aiReady={ai.ready} />
+        </Section>
 
-                Hidden on Missing albums: their open findings persist
-                (PR 1 design choice — findings stay real across the
-                Present → Missing transition), but every Fix path
-                would fail at the FS layer. Findings will reappear
-                when the album returns. */}
-            {!isMissing && (
-              <FindingsSection
-                album={displayAlbum}
-                hasActiveJob={!!activeJob}
-                applying={isApplying}
-                onApply={async (suggestions, trackSuggestions) => {
-                  await startApply({
-                    suggestions,
-                    track_suggestions: trackSuggestions,
-                    cover_url: null,
-                  });
-                }}
-              />
+        {/* Findings. Hidden on Missing albums: their open findings persist
+            (findings stay real across the Present → Missing transition),
+            but every Fix path would fail at the FS layer. Findings will
+            reappear when the album returns. */}
+        {!isMissing && <FindingsSection album={displayAlbum} />}
+
+        {/* My Tags — user's own taxonomy ("Cocktail Hour", "Christmas",
+            "Instrumental"…) for shuffling and playlist construction.
+            Distinct from FLAC GENRE; stored per-track in the cache + a
+            hidden sidecar JSON in the album dir.
+
+            Hidden on Missing albums: tag mutations write the
+            sidecar JSON into the album dir, which doesn't exist. */}
+        {!isMissing && (
+          <MyTagsSection albumId={album.id} tracks={tracks.data?.tracks ?? []} />
+        )}
+
+        {/* Audio analysis — hidden on Missing albums (analysis
+            reads the FLAC files, which aren't accessible). */}
+        {!isMissing && (
+          <Section
+            id="audio-analysis"
+            title="Audio analysis"
+            meta={
+              tracks.data
+                ? <AnalysisMeta tracks={tracks.data.tracks} />
+                : null
+            }
+          >
+            {tracks.data ? (
+              <AudioAnalysis albumId={album.id} tracks={tracks.data.tracks} />
+            ) : (
+              <div className="px-4 py-3 text-xs text-fg-4">Loading…</div>
             )}
+          </Section>
+        )}
 
-            {/* My Tags — user's own taxonomy ("Cocktail Hour", "Christmas",
-                "Instrumental"…) for shuffling and playlist construction.
-                Distinct from FLAC GENRE; stored per-track in the cache + a
-                hidden sidecar JSON in the album dir.
-
-                Hidden on Missing albums: tag mutations write the
-                sidecar JSON into the album dir, which doesn't exist. */}
-            {!isMissing && (
-              <MyTagsSection albumId={album.id} tracks={tracks.data?.tracks ?? []} />
-            )}
-
-            {/* Audio analysis — hidden on Missing albums (analysis
-                reads the FLAC files, which aren't accessible). */}
-            {!isMissing && (
-              <Section
-                id="audio-analysis"
-                title="Audio analysis"
-                meta={
-                  tracks.data
-                    ? <AnalysisMeta tracks={tracks.data.tracks} />
-                    : null
-                }
-              >
-                {tracks.data ? (
-                  <AudioAnalysis albumId={album.id} tracks={tracks.data.tracks} />
-                ) : (
-                  <div className="px-4 py-3 text-xs text-fg-4">Loading…</div>
-                )}
-              </Section>
-            )}
-
-            {/* Tracks are read from the files, so a Missing album has none
-                to show; the hero keeps the stored track count. */}
-            {!isMissing && (
-            <Section
-              id="tracks"
-              title="Tracks"
-              defaultOpen
-              meta={
-                tracks.data
-                  ? <span>{tracks.data.tracks.length} tracks</span>
-                  : null
-              }
-            >
-              {tracks.data ? (
-                <TrackList
-                  album={displayAlbum}
-                  tracks={tracks.data.tracks}
-                  applyState={showApplying ? apply.state.filesByIndex : undefined}
-                  resolution={resolution}
-                />
-              ) : (
-                <div className="px-4 py-3 text-xs text-fg-4">Loading tracks…</div>
-              )}
-            </Section>
-            )}
-          </>
+        {/* Tracks are read from the files, so a Missing album has none
+            to show; the hero keeps the stored track count. */}
+        {!isMissing && (
+        <Section
+          id="tracks"
+          title="Tracks"
+          defaultOpen
+          meta={
+            tracks.data
+              ? <span>{tracks.data.tracks.length} tracks</span>
+              : null
+          }
+        >
+          {tracks.data ? (
+            <TrackList
+              album={displayAlbum}
+              tracks={tracks.data.tracks}
+              applyState={showApplying ? apply.state.filesByIndex : undefined}
+              resolution={resolution}
+            />
+          ) : (
+            <div className="px-4 py-3 text-xs text-fg-4">Loading tracks…</div>
+          )}
+        </Section>
         )}
       </div>
 
-      {/* Hint dialog — gates each AI call. The mode mirrors the pending
-          job type 1:1; HintDialog's prior-attempts banner already
-          conditions itself on (mode === "cover" || "metadata+cover"). */}
+      {/* Hint dialog — the AI entry points' only door; never opened
+          without a ready AI backend. */}
       <HintDialog
-        open={pendingType !== null}
+        open={pendingType !== null && offersHintEntry(ai)}
         mode={pendingType ?? "metadata"}
         albumTitle={displayAlbum.title || displayAlbum.dir_name}
         priorCoverAttempts={
@@ -719,12 +644,14 @@ function SheetBody({
         // Drives whether the "Include album cover" checkbox renders
         // in the dialog. Toggle is meaningful only for metadata jobs
         // on albums that actually have a cover to attach.
-        hasCover={albumHasCover}
+        hasCover={displayAlbum.has_embedded_cover || !!displayAlbum.cover_file}
         onSubmit={onHintSubmit}
-        onCancel={onHintCancel}
+        onCancel={() => setPendingType(null)}
       />
 
-      {/* Panel footer */}
+      {/* Panel footer: the panel's one primary action. Shown only when it
+          has something to offer. */}
+      {footerHasContent && (
       <div className="flex items-center gap-2 h-12 px-3 border-t border-line bg-panel-2 shrink-0">
         {isApplying ? (
           <span className="text-xs text-fg-3 mono truncate">
@@ -744,62 +671,51 @@ function SheetBody({
           </>
         ) : (
           <>
-            {/* Buttons disabled while a job exists for this album (queued,
-                running, or completed-not-yet-acted). One job per album. */}
-            <button
-              onClick={onSuggestCover}
-              disabled={!!activeJob || !canQueueCover}
-              className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              title={
-                // No AI wording when no model can run.
-                activeJob
-                  ? ai.ready
-                    ? "An AI job already exists for this album — view it above"
-                    : "A job already exists for this album — view it above"
-                  : !canQueueCover
-                  ? "A cover can be fetched once the Cover Art Archive has one for this album's MusicBrainz match."
-                  : coverFromMb
-                  ? ai.ready
-                    ? "Cover already verified in Cover Art Archive — no AI quota burned"
-                    : "Cover already verified in Cover Art Archive"
-                  : undefined
-              }
-            >
-              <ImageIcon className="w-3.5 h-3.5 shrink-0" />
-              <span>{coverFromMb ? "Get cover from MusicBrainz" : "Find cover art"}</span>
-            </button>
-            <button
-              onClick={onSuggestMetadata}
-              disabled={!!activeJob || !canQueueMetadata}
-              className="h-8 px-3 rounded bg-accent text-accent-fg font-medium text-sm hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
-              title={
-                activeJob
-                  ? ai.ready
-                    ? "An AI job already exists for this album — view it above"
-                    : "A job already exists for this album — view it above"
-                  : !canQueueMetadata
-                  ? "Corrections can be found once MusicBrainz identifies this album and every track."
-                  : deterministicCovered
-                  ? ai.ready
-                    ? "MusicBrainz already covers this album — suggestions appear instantly, no AI quota burned"
-                    : "MusicBrainz already covers this album — suggestions appear instantly"
-                  : metadataJob === "metadata+cover"
-                  ? "No cover on disk — will also search for cover art"
-                  : undefined
-              }
-            >
-              <Sparkles className="w-3.5 h-3.5 shrink-0" />
-              <span>
-                {deterministicCovered
-                  ? "Find MusicBrainz corrections"
-                  : `Suggest fixes${metadataJob === "metadata+cover" && !activeJob ? " (+ cover)" : ""}`}
-              </span>
-            </button>
+            {aiEntry && (
+              <button
+                type="button"
+                onClick={() => onAskAi("metadata")}
+                disabled={!!activeJob}
+                className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                title={activeJob ? "An AI job already exists for this album" : undefined}
+              >
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>Ask AI for corrections…</span>
+              </button>
+            )}
             <div className="flex-1" />
             <MoreMenu disabled={!!activeJob} />
+            {reviewing && (
+              <>
+                <button
+                  type="button"
+                  onClick={onDiscard}
+                  className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition inline-flex items-center whitespace-nowrap shrink-0"
+                  title={
+                    reviewedJob
+                      ? "Discard this job's proposal"
+                      : "Hide these corrections until the album is opened again"
+                  }
+                >
+                  Discard
+                </button>
+                {corrections.rows.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={onApply}
+                    disabled={corrections.selectedCount === 0}
+                    className="h-8 px-3 rounded bg-accent text-accent-fg font-medium text-sm hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    {applyLabel(corrections.selectedCount)}
+                  </button>
+                )}
+              </>
+            )}
           </>
         )}
       </div>
+      )}
 
       <RemoveAlbumDialog
         open={confirmRemove}
@@ -810,6 +726,41 @@ function SheetBody({
       />
     </>
   );
+}
+
+function applyLabel(n: number): string {
+  return n === 0 ? "Apply" : `Apply ${n} change${n === 1 ? "" : "s"}`;
+}
+
+function correctionsMeta(
+  source: "resolver" | "job" | null,
+  job: Job | null,
+  resolution: AlbumResolution | undefined,
+): string | undefined {
+  if (source === "resolver" && resolution?.anchor) {
+    const strategy = resolution.anchor_strategy !== "none" ? ` (${resolution.anchor_strategy})` : "";
+    return `source: ${resolution.anchor.source}${strategy}`;
+  }
+  if (source === "job" && job) {
+    const confidence = job.result?.metadata?.confidence ?? job.result?.cover?.confidence;
+    return confidence ? `confidence: ${confidence}` : undefined;
+  }
+  return undefined;
+}
+
+/** What a finished job that proposes nothing says, by what it looked for. */
+function jobEmptyMessage(job: Job): string {
+  const looked = { metadata: !!job.result?.metadata, cover: !!job.result?.cover };
+  if (looked.metadata && looked.cover) return "No corrections to apply, and no cover was found.";
+  if (looked.cover) return "No cover was found for this album.";
+  return "No corrections to apply.";
+}
+
+function jobNotes(job: Job): string | null {
+  const notes = [job.result?.metadata?.notes, job.result?.cover?.notes]
+    .map((n) => n?.trim())
+    .filter((n): n is string => !!n);
+  return notes.length > 0 ? [...new Set(notes)].join(" ") : null;
 }
 
 function MissingNotice({ since, path }: { since: string; path: string }) {

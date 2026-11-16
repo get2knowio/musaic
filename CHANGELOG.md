@@ -17,6 +17,24 @@ Security.
 
 - Wording: the transient AI-job error no longer points at a script that does not exist, and
   the Settings text about FireCrawl and the Backup page no longer say "paid".
+- The album panel proposes MusicBrainz corrections in one place and applies them one way
+  ([#184](https://github.com/get2knowio/musaic/issues/184),
+  [#183](https://github.com/get2knowio/musaic/issues/183),
+  [#189](https://github.com/get2knowio/musaic/issues/189)). A single "MusicBrainz
+  corrections" list near the top shows each change as current → proposed with its own
+  checkbox, now including genre (unticked by default) and a cover row with a preview of
+  the proposed cover. A finished job's result appears in the same list with the same
+  checkboxes, instead of replacing the album info, findings and tracks. Both sources use
+  the "Tags don't match canonical" check's rule for what counts as a change (case and
+  extra spaces are ignored), and an empty proposal is never one. Apply and Discard sit
+  in the panel's footer. The footer's "Find MusicBrainz corrections" / "Suggest fixes"
+  and "Get cover from MusicBrainz" / "Find cover art" buttons, the "(+ cover)" bundling
+  and the "identified as …" status line are gone. Covers have one control under the
+  album art, "Add cover" or "Change cover", with "Use MusicBrainz cover" (previewed in the
+  list), "Upload, paste or URL…" and, only with an AI backend, "Ask AI to find a cover…";
+  it is absent for a Missing album. The upload dialog is titled "Add cover" or "Replace
+  cover", and its "Replace" link reads "Choose another image". "Ask AI for corrections…"
+  and the hint dialog appear only when an AI backend is ready.
 - Health no longer asks you to run checks one by one: the per-check "Run now" buttons,
   the "Last run" / "Never run" column, the "Recent runs" list, the category column and
   the check count are gone. Until every check runs automatically in the background, a

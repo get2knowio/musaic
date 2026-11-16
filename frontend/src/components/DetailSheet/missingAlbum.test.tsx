@@ -1,7 +1,7 @@
 /**
  * The album panel for a Missing album (#195): one message, one action.
  * Sections the backend cannot serve without the files (tracks, analysis,
- * My Tags, findings, suggestions, cover upload) are absent; "Remove from
+ * My Tags, findings, corrections, the Cover control) are absent; "Remove from
  * library" asks in a dialog, then sends DELETE /api/albums/{id} and closes.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -90,8 +90,8 @@ describe("album panel for a Missing album", () => {
     expect(panel()).not.toHaveTextContent("0 tracks");
     expect(within(panel()).queryByText("Audio analysis")).toBeNull();
     expect(within(panel()).queryByText("My Tags")).toBeNull();
-    expect(within(panel()).queryByRole("button", { name: /cover art/i })).toBeNull();
-    expect(within(panel()).queryByRole("button", { name: /Suggest fixes|Find cover|MusicBrainz corrections/ })).toBeNull();
+    expect(within(panel()).queryByRole("button", { name: /cover/i })).toBeNull();
+    expect(within(panel()).queryByRole("button", { name: /Apply|Discard|Ask AI/ })).toBeNull();
     // The hero shows the cached thumbnail, not the full cover read from disk.
     const img = panel().querySelector("img");
     expect(img?.getAttribute("src")).toMatch(/^\/api\/albums\/gone\/cover(\?|$)/);
@@ -163,6 +163,6 @@ describe("album panel for a Missing album", () => {
     expect(within(panel()).queryByRole("status")).toBeNull();
     expect(within(panel()).queryByRole("button", { name: /Remove from library/ })).toBeNull();
     expect(within(panel()).getByText("Tracks")).toBeInTheDocument();
-    expect(within(panel()).getByRole("button", { name: "Replace cover art" })).toBeInTheDocument();
+    expect(within(panel()).getByRole("button", { name: "Change cover" })).toBeInTheDocument();
   });
 });

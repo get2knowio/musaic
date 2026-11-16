@@ -12,37 +12,20 @@ import type { Album, CheckFixKind, Finding } from "@/lib/types";
 
 import FindingFixButton from "../FindingFixButton";
 import IgnoreFindingControl from "../IgnoreFindingControl";
-import MbPreviewSection, { useMbPreviewDiffs } from "./MbPreviewSection";
 import Section from "./Section";
 
 interface Props {
   album: Album;
-  /** Forwarded to the embedded MbPreviewSection so it can suppress
-   *  itself while an AI job is competing for the "what would change"
-   *  surface. */
-  hasActiveJob: boolean;
-  /** Apply orchestrator from useApplyStream — same one the AI flow
-   *  uses. Forwarded to MbPreviewSection's Apply button. */
-  applying: boolean;
-  onApply: (
-    albumSuggestions: Record<string, string>,
-    trackSuggestions: Record<string, Record<string, string>>,
-  ) => Promise<void>;
 }
 
 /**
  * Album-centric view of open findings — the per-album mirror of the
  * Health page's per-check list. Renders nothing when the album has no
- * open findings AND no MusicBrainz corrections to preview, so healthy
- * albums don't carry a stub section.
- *
- * MusicBrainz corrections are themselves a kind of finding (their own
- * `mb_canonical_mismatch` check produces them as findings rows too;
- * the embedded MbPreview is just the deterministic, batch-apply UI for
- * the same underlying signal). Composing them inside this section
- * keeps "things wrong with this album" in one place.
+ * findings, so healthy albums don't carry a stub section. MusicBrainz
+ * corrections are not repeated here: the panel shows them once, above
+ * (CorrectionsDiff).
  */
-export default function FindingsSection({ album, hasActiveJob, applying, onApply }: Props) {
+export default function FindingsSection({ album }: Props) {
   const albumId = album.id;
   // Includes ignored — we render them in a collapsed sub-bucket inside the
   // section so the user can see them but they don't dominate the count.
@@ -50,15 +33,8 @@ export default function FindingsSection({ album, hasActiveJob, applying, onApply
   const open = all.filter((f) => !f.ignored_at);
   const ignored = all.filter((f) => f.ignored_at);
 
-  const { albumDiffs, trackDiffs } = useMbPreviewDiffs(album);
-  const mbDiffCount = albumDiffs.length + trackDiffs.length;
-  // The MbPreview hides itself while an AI job is in flight; mirror
-  // that here so we don't keep the section open just for a preview
-  // that won't render.
-  const mbPreviewVisible = mbDiffCount > 0 && !hasActiveJob;
-
   // Hide the section entirely when there's nothing to show.
-  if (open.length === 0 && ignored.length === 0 && !mbPreviewVisible) return null;
+  if (open.length === 0 && ignored.length === 0) return null;
 
   // Most-common open check on this album → drives the "Bulk fix in Health"
   // deep-link in the section meta, so the user discovers the bulk affordance
@@ -69,17 +45,15 @@ export default function FindingsSection({ album, hasActiveJob, applying, onApply
     <Section
       id={`findings-${albumId}`}
       title="Findings"
-      defaultOpen={open.length > 0 || mbPreviewVisible}
+      defaultOpen={open.length > 0}
       meta={
         <span className="inline-flex items-center gap-2">
           {open.length > 0 ? (
             <span className="text-warn font-semibold">{open.length} open</span>
-          ) : mbPreviewVisible ? (
-            <span className="text-emerald-400 font-semibold">{mbDiffCount} MB</span>
           ) : (
             <span className="text-fg-4">{ignored.length} ignored</span>
           )}
-          {(open.length > 0 || mbPreviewVisible) && ignored.length > 0 && (
+          {open.length > 0 && ignored.length > 0 && (
             <span className="text-fg-4">· {ignored.length} ignored</span>
           )}
           {topCheckId && (
@@ -95,13 +69,6 @@ export default function FindingsSection({ album, hasActiveJob, applying, onApply
         </span>
       }
     >
-      <MbPreviewSection
-        album={album}
-        hasActiveJob={hasActiveJob}
-        applying={applying}
-        onApply={onApply}
-        bare
-      />
       <FindingsList findings={open} />
       {ignored.length > 0 && <IgnoredCollapsed findings={ignored} />}
     </Section>

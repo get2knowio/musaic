@@ -1,10 +1,8 @@
 /**
  * Compact chip showing the album's metadata-resolution status.
  *
- * Drives the "Suggest fixes" button affordance elsewhere in the sheet:
- * green/anchored states mean the deterministic path can produce
- * suggestions for free; amber/unanchored means AI escalation is the
- * only route.
+ * Green/anchored states mean the resolver can propose MusicBrainz
+ * corrections in the panel; amber/unanchored means it cannot.
  *
  * Hover shows a plain-language explanation of the chip's state plus
  * the resolver trace (`notes` array) so a curious user can see
