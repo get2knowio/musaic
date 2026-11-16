@@ -23,13 +23,11 @@ export function writesValue(v: string | null | undefined): v is string {
  *
  * - A proposal that would not be written (empty or whitespace-only) is no
  *   change.
- * - Otherwise the two are compared ignoring case and runs of whitespace:
- *   the rule of the "Tags don't match canonical" check
- *   (`musaic-checks/src/checks/tags_out_of_sync.rs`, `normalize`), so the
- *   panel lists what Health reports. Case-only differences are left out on
- *   purpose: the album's stored title prefers the folder name over the
- *   ALBUM tag (`musaic-scan`), so a case-only title fix would stay listed
- *   after it was applied.
+ * - Otherwise the two are compared ignoring leading, trailing and repeated
+ *   whitespace, and nothing else: a case-only difference ("the beatles" →
+ *   "The Beatles") is a change, which the apply writes (musaic-tags writes
+ *   any value that differs from the tag). The album title is compared with
+ *   the files' ALBUM tags, not the stored title (see `correctionRows`).
  */
 export function isChange(
   current: string | null | undefined,
@@ -39,9 +37,23 @@ export function isChange(
   return normalizeTagValue(proposed) !== normalizeTagValue(current ?? "");
 }
 
-/** Lower case, whitespace runs collapsed, trimmed. */
+/** Whitespace runs collapsed, trimmed; case kept. */
 export function normalizeTagValue(s: string): string {
-  return s.toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+  return s.split(/\s+/).filter(Boolean).join(" ");
+}
+
+/**
+ * The value a proposed album title is compared with. The album's stored
+ * title prefers the folder name over the ALBUM tag (`musaic-scan`), while
+ * the apply writes the tag; so when the track listing carries the files'
+ * ALBUM tags, the title row compares with those: the first tag the
+ * proposal would change, else the first tag. Without tags (no file has
+ * one) it is the stored title.
+ */
+function currentAlbumTitle(album: Album, tracks: readonly Track[], proposed: string | null | undefined): string {
+  const tags = tracks.map((t) => t.album ?? "").filter((v) => v.trim() !== "");
+  if (tags.length === 0) return album.title ?? "";
+  return tags.find((v) => isChange(v, proposed)) ?? tags[0];
 }
 
 /** Album-level fields a correction can set (keys of the apply's `suggestions`). */
@@ -121,7 +133,7 @@ export function correctionRows(
   const rows: CorrectionRow[] = [];
   for (const field of CORRECTION_ALBUM_FIELDS) {
     const proposed = proposal.album[field];
-    const current = album[field] ?? "";
+    const current = field === "title" ? currentAlbumTitle(album, tracks, proposed) : (album[field] ?? "");
     if (!isChange(current, proposed)) continue;
     rows.push({
       kind: "album",

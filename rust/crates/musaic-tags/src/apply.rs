@@ -546,7 +546,18 @@ pub fn apply_to_album_iter(
         // The entry the batch stopped at, and why.
         let mut failed: Option<(String, io::Error)> = None;
         for (orig, target_name) in &pending_renames {
-            let tmp = orig.with_file_name(format!(".{}.renaming.tmp", name_of(orig)));
+            // A name near the 255-byte limit leaves no room for the
+            // descriptive temporary name; it takes the first short one not
+            // in use (files staged before it in this batch included).
+            let long = format!(".{}.renaming.tmp", name_of(orig));
+            let tmp = if long.len() <= 255 {
+                orig.with_file_name(long)
+            } else {
+                (1..)
+                    .map(|n| orig.with_file_name(format!(".musaic-{n}.tmp")))
+                    .find(|p| std::fs::symlink_metadata(p).is_err())
+                    .expect("an unused name")
+            };
             if let Err(e) = std::fs::rename(orig, &tmp) {
                 failed = Some((name_of(orig), e));
                 break;

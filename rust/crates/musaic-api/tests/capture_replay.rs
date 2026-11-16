@@ -272,6 +272,10 @@ const DELTAS: &[(&str, &str)] = &[
         "deliberate change: the ARTIST-only Mono Harbor - Gaps is an album-level member of the Mono Harbor artist-sort cluster (tests/common/artist_only.rs)",
     ),
     (
+        "track_album",
+        "deliberate change: each track of GET /api/albums/{id}/tracks carries its ALBUM tag (the album panel compares a proposed title with it)",
+    ),
+    (
         "ai_wording",
         "no AI provider is ready, so check descriptions, the unanchored trace note and unanchored tags-out-of-sync summaries are shown without AI wording",
     ),
@@ -414,6 +418,22 @@ fn apply_deltas(
     }
     if common::artist_only::apply(want) > 0 {
         use_delta(used, "artist_only");
+    }
+    // Track listings gain each file's ALBUM tag, read from the same files.
+    if Regex::new(r"^\d{3}-tracks-").unwrap().is_match(name)
+        && want["status"] == 200
+        && let Some(tracks) = want
+            .pointer_mut("/json/tracks")
+            .and_then(Value::as_array_mut)
+    {
+        let got_tracks = got["json"]["tracks"].as_array().unwrap();
+        assert_eq!(tracks.len(), got_tracks.len(), "{name}");
+        for (t, g) in tracks.iter_mut().zip(got_tracks) {
+            assert_eq!(t["filename"], g["filename"], "{name}");
+            assert!(g["album"].is_string(), "{name}: {g}");
+            t["album"] = g["album"].clone();
+        }
+        use_delta(used, "track_album");
     }
     // Settings bodies.
     if (name.contains("settings") && !name.contains("db"))

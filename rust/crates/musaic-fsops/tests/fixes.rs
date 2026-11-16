@@ -373,10 +373,11 @@ fn skipped_entries_reach_the_outcome() {
     );
 }
 
-/// A source name that fits but whose temporary name is too long for the
-/// filesystem (255 bytes): staging of the second file fails after the first
-/// was staged. The first file is moved back; nothing is renamed and the
-/// message names the file.
+/// Staging of the second file fails after the first was staged (every
+/// temporary name it could take is in use: its own name is near the
+/// 255-byte limit, so it takes the short `.musaic-<n>.tmp` names, all
+/// occupied here). The first file is moved back; nothing is renamed and
+/// the message names the file.
 #[test]
 fn staging_failure_mid_batch_restores_every_file() {
     let tmp = tempfile::tempdir().unwrap();
@@ -385,6 +386,9 @@ fn staging_failure_mid_batch_restores_every_file() {
     assert_eq!(long.len(), 250);
     let (mut db, lib_s, id) = library(&base, "Al", &[("1 a.flac", "A"), (&long, "B")]);
     let album = base.join("lib/Al");
+    for n in 1..=1000 {
+        std::fs::write(album.join(format!(".musaic-{n}.tmp")), b"").unwrap();
+    }
     let before = flac_names(&album);
     let out = execute_renames(
         db.connection_mut(),

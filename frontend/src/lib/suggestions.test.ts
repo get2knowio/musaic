@@ -32,11 +32,18 @@ describe("isChange (the one comparison rule)", () => {
     }
   });
 
-  it("ignores case and whitespace, as the tags-out-of-sync check does", () => {
+  it("ignores leading, trailing and repeated whitespace", () => {
     expect(isChange("Lanterns", "  Lanterns ")).toBe(false);
     expect(isChange(" Lanterns\t", "Lanterns")).toBe(false);
-    expect(isChange("So Much In Love", "So Much in Love")).toBe(false);
     expect(isChange("A  B", "A B")).toBe(false);
+    expect(isChange("A\tB", " A B\n")).toBe(false);
+  });
+
+  it("counts a case-only difference as a change", () => {
+    expect(isChange("So Much In Love", "So Much in Love")).toBe(true);
+    expect(isChange("the beatles", "The Beatles")).toBe(true);
+    expect(isChange("  the  beatles ", "The Beatles")).toBe(true);
+    expect(isChange("ÉTÉ", "Été")).toBe(true);
   });
 
   it("counts anything else, look-alike characters included", () => {
@@ -80,6 +87,7 @@ describe("correctionRows", () => {
       "album:genre",
       "album:album_artist_sort",
       "track:02 - Two.flac:title",
+      "track:02 - Two.flac:artist",
       "cover",
     ]);
     const title = rows[0] as Extract<CorrectionRow, { kind: "album" }>;
@@ -103,6 +111,53 @@ describe("correctionRows", () => {
     expect(
       correctionRows({ album: {}, tracks: [], cover: { url: " ", previewSrc: "/p" } }, album, tracks),
     ).toEqual([]);
+  });
+});
+
+describe("correctionRows: case-only corrections", () => {
+  const withAlbumTag = (album: string): Track[] =>
+    tracks.map((t) => ({ ...t, album }));
+
+  it("lists case-only album and track corrections, and none once applied", () => {
+    const album = makeAlbum({ title: "the wall", album_artist: "pink floyd" });
+    const proposal: Proposal = {
+      album: { title: "The Wall", album_artist: "Pink Floyd" },
+      tracks: [{ filename: "02 - Two.flac", fields: { title: "Two" } }],
+      cover: null,
+    };
+    const rows = correctionRows(proposal, album, withAlbumTag("the wall"));
+    expect(rows.map((r) => [r.key, r.kind !== "cover" && r.current, r.kind !== "cover" && r.proposed])).toEqual([
+      ["album:title", "the wall", "The Wall"],
+      ["album:album_artist", "pink floyd", "Pink Floyd"],
+      ["track:02 - Two.flac:title", "two", "Two"],
+    ]);
+    const applied = makeAlbum({ title: "the wall", album_artist: "Pink Floyd" });
+    const after = tracks.map((t) => ({ ...t, album: "The Wall", title: t.title === "two" ? "Two" : t.title }));
+    expect(correctionRows(proposal, applied, after)).toEqual([]);
+  });
+
+  it("compares the title with the files' ALBUM tags, not the folder-derived stored title", () => {
+    // Stored title from the folder ("the wall"), tags already "The Wall": nothing to write.
+    const album = makeAlbum({ title: "the wall" });
+    const proposal: Proposal = { album: { title: "The Wall" }, tracks: [], cover: null };
+    expect(correctionRows(proposal, album, withAlbumTag("The Wall"))).toEqual([]);
+    // One file still differs: the row shows that file's value.
+    const mixed = [{ ...tracks[0], album: "The Wall" }, { ...tracks[1], album: "THE WALL" }];
+    const rows = correctionRows(proposal, album, mixed);
+    expect(rows).toHaveLength(1);
+    expect((rows[0] as Extract<CorrectionRow, { kind: "album" }>).current).toBe("THE WALL");
+    // No ALBUM tags in the listing: the stored title is the current value.
+    expect(correctionRows(proposal, album, tracks).map((r) => r.key)).toEqual(["album:title"]);
+  });
+
+  it("whitespace-only differences stay no change", () => {
+    const album = makeAlbum({ title: "The Wall", album_artist: "Pink Floyd" });
+    const proposal: Proposal = {
+      album: { title: "  The  Wall ", album_artist: "Pink\tFloyd", genre: "   " },
+      tracks: [{ filename: "01 - One.flac", fields: { title: " One " } }],
+      cover: null,
+    };
+    expect(correctionRows(proposal, album, withAlbumTag("The Wall"))).toEqual([]);
   });
 });
 

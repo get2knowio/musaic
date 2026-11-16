@@ -24,6 +24,22 @@ Security.
   builds an unsigned Windows installer (NSIS, `-setup.exe`) after the Windows tests pass,
   from the next release on. v0.2.0-rc.1 has no Windows installer. The check keeps its
   name, `ci passed (linux, macos, frontend)`, so the repository ruleset keeps matching.
+- Case-only corrections work end to end. In the album panel's corrections list a value
+  that differs only in capitalisation ("the beatles" → "The Beatles") is now a change:
+  it is listed, applied and reported; differences only in leading, trailing or repeated
+  spaces are still ignored, and an empty proposal is still never one. The album title is
+  compared with the files' ALBUM tags (the track listing now includes each file's ALBUM
+  tag), not with the title taken from the folder name, so a title correction disappears
+  once applied. Renaming files and folders to match the templates carries out case-only
+  renames on every volume: a folder whose new name differs only in case is moved through
+  a temporary name in the same parent (it gets the new album id, as any folder rename),
+  a different file or folder with the other spelling is never replaced, and after each
+  rename the folder is read back: on a volume that does not keep the new capitalisation
+  the file or folder is put back under its old name and reported as not renamed. Two
+  tracks whose template names differ only in case are shown as a collision in the
+  rename dialog. A rename whose folder cannot be read back is kept and reported as not
+  verified. Renames of files and folders whose names are close to the 255-byte limit no
+  longer fail for want of room for the temporary name.
 - Wording: the transient AI-job error no longer points at a script that does not exist, and
   the Settings text about FireCrawl and the Backup page no longer say "paid".
 - The album panel proposes MusicBrainz corrections in one place and applies them one way

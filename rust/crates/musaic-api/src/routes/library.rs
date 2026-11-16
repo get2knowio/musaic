@@ -244,6 +244,7 @@ pub async fn rescan(State(st): State<AppState>) -> ApiResult {
 /// `services.albums.read_tracks(album_dir)`
 /// ([`musaic_services::library_ops::read_tracks`]).
 pub use musaic_services::library_ops::read_tracks;
+use musaic_services::library_ops::read_tracks_for_panel;
 
 pub async fn get_tracks(
     State(st): State<AppState>,
@@ -254,7 +255,8 @@ pub async fn get_tracks(
         let (_, path, _) = resolve_album_dict(&st, &conn, &album_id)?;
         ok_ordered(&Json::obj([
             ("album_id", Json::from(album_id)),
-            ("tracks", read_tracks(&path)),
+            // Deliberate change: each track carries its ALBUM tag.
+            ("tracks", read_tracks_for_panel(&path)),
         ]))
     })
     .await?

@@ -211,11 +211,11 @@ describe("one diff, two feeds", () => {
     expect(panel()).toHaveTextContent("Derived from MusicBrainz.");
   });
 
-  it("whitespace-only, unchanged or case-only proposals make no rows", () => {
+  it("whitespace-only or unchanged proposals make no rows", () => {
     const job = finishedJob({
       result: {
         metadata: {
-          suggestions: { title: "  so much in  LOVE ", year: "   ", genre: "" },
+          suggestions: { title: "  So Much  In Love ", year: "   ", genre: "" },
           tracks: [{ filename: "01 - One.flac", suggestions: { title: " " } }],
           notes: "",
           confidence: "high",
@@ -227,6 +227,19 @@ describe("one diff, two feeds", () => {
     expect(diff()).toHaveTextContent("No corrections to apply.");
     expect(footerButton(/^Apply/)).toBeNull();
     expect(footerButton("Discard")).toBeInTheDocument();
+  });
+
+  it("a case-only proposal is a row, applied as proposed", async () => {
+    applySucceeds();
+    renderPanel({
+      res: resolution({ canonical_title: fact("So Much in Love"), canonical_genre: null, tracks: [] }),
+    });
+    expect(rowLabels()).toEqual(["Apply title correction"]);
+    expect(diff()).toHaveTextContent("So Much In Love");
+    expect(diff()).toHaveTextContent("So Much in Love");
+    fireEvent.click(footerButton("Apply 1 change")!);
+    await waitFor(() => expect(sentPayload()).toBeDefined());
+    expect(sentPayload()).toMatchObject({ suggestions: { title: "So Much in Love" } });
   });
 
   it("an album the resolver has nothing to correct shows no diff and no footer", () => {

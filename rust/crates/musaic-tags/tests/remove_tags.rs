@@ -408,3 +408,114 @@ fn empty_and_whitespace_suggestions_change_nothing() {
     assert!(suggestions_applied.is_empty() && cleared.is_empty());
     assert_eq!(*track_change_count, 0);
 }
+
+fn first(path: &Path, key: &str) -> String {
+    comments(path)
+        .into_iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case(key))
+        .map(|(_, v)| v)
+        .unwrap_or_default()
+}
+
+/// A suggestion that differs from the tag only in case is a change: written,
+/// and reported as a diff. One that differs only in surrounding whitespace
+/// is not (the suggestion is stripped first), and a whitespace-only one
+/// leaves the tag alone.
+#[test]
+fn case_only_suggestion_is_written_and_reported() {
+    let tmp = tempfile::tempdir().unwrap();
+    album(tmp.path());
+    let none = Removals::default();
+    let events = run(
+        tmp.path(),
+        &[
+            ("title", Some("LANTERNS")),
+            ("album_artist", Some("  Velvet Quarry  ")),
+            ("genre", Some("   ")),
+        ],
+        &[("01 - Glass.flac", &[("title", Some("glass"))])],
+        &none,
+        false,
+    );
+    let glass = file_done(&events, "01 - Glass.flac");
+    assert_eq!(
+        glass.diffs,
+        vec![
+            (
+                "album".into(),
+                Diff {
+                    old: "Lanterns".into(),
+                    new: Some("LANTERNS".into())
+                }
+            ),
+            (
+                "title".into(),
+                Diff {
+                    old: "Glass".into(),
+                    new: Some("glass".into())
+                }
+            ),
+        ]
+    );
+    assert!(glass.saved);
+    let tin = file_done(&events, "02 - Tin.flac");
+    assert_eq!(tin.diffs.len(), 1, "{:?}", tin.diffs);
+    let g = tmp.path().join("01 - Glass.flac");
+    assert_eq!(first(&g, "album"), "LANTERNS");
+    assert_eq!(first(&g, "title"), "glass");
+    assert_eq!(first(&g, "albumartist"), "Velvet Quarry");
+    assert_eq!(first(&g, "genre"), "Shoegaze");
+}
+
+/// A track-number rename of files whose names are near the 255-byte limit:
+/// the descriptive temporary name would be too long, so short ones are
+/// used (a different one per file), and both renames complete.
+#[test]
+fn renumbering_files_with_names_near_the_length_limit() {
+    let tmp = tempfile::tempdir().unwrap();
+    let names: Vec<String> = ["a", "b"]
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("{} - {}.flac", i + 1, c.repeat(240)))
+        .collect();
+    for (i, n) in names.iter().enumerate() {
+        if fs::write(
+            tmp.path().join(n),
+            flac_bytes(&[("TRACKNUMBER", &(i + 1).to_string())]),
+        )
+        .is_err()
+        {
+            println!("skipped: the temp dir does not take 248-byte names");
+            return;
+        }
+    }
+    let tracks: Vec<(&str, Pairs)> = vec![
+        (names[0].as_str(), &[("tracknumber", Some("2"))]),
+        (names[1].as_str(), &[("tracknumber", Some("1"))]),
+    ];
+    let events = run(tmp.path(), &[], &tracks, &Removals::default(), false);
+    let Some(Event::Done {
+        renamed_count,
+        rename_failures,
+        ..
+    }) = events.last()
+    else {
+        panic!("{:?}", events.last())
+    };
+    assert!(rename_failures.is_empty(), "{rename_failures:?}");
+    assert_eq!(*renamed_count, 2);
+    let mut got: Vec<String> = fs::read_dir(tmp.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    got.sort();
+    assert_eq!(
+        got,
+        [
+            format!("01 - {}.flac", "b".repeat(240)),
+            format!("02 - {}.flac", "a".repeat(240))
+        ]
+    );
+    assert_eq!(first(&tmp.path().join(&got[0]), "tracknumber"), "1");
+}
