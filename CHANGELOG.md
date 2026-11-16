@@ -15,12 +15,18 @@ Security.
 
 ### Changed
 
+- On the Needs attention page the "Other" view is now "Suggestions", and the tab shows how
+  many suggestions there are. The main view says "N suggestions" (it switches to them),
+  including when nothing needs a decision, so a low badge no longer hides fixable items.
+  Suggestions are the informational findings; finished jobs sit in their own "Finished
+  jobs" section below them and are not in the tab's count. The badge counts the same as
+  before, and `?view=other` still opens the Suggestions view.
 - The Jobs and Health pages are one "Needs attention" page at `/attention`
   ([#188](https://github.com/get2knowio/musaic/issues/188)), with one sidebar entry and
   one badge. It lists what needs a decision: open findings of severity warn or error,
   grouped by check, and jobs that are proposed (awaiting review) or failed; the badge
   counts exactly those. Informational findings and finished jobs are on its "Other" view
-  and are not counted; queued or running jobs show as a progress strip. Opening an album
+  (renamed "Suggestions" below) and are not counted; queued or running jobs show as a progress strip. Opening an album
   shows its panel, and Back returns to the same view and scroll position. There is no
   "Check now": checks run on their own. The old `/health`, `/health/<check>` and `/jobs`
   links redirect (a check lands filtered to that check; `/jobs/<id>` and `/jobs?job=<id>`

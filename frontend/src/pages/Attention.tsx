@@ -24,19 +24,23 @@ import type { Album, CheckSummary, Finding, Job } from "@/lib/types";
  *
  * Default view ("Needs a decision", the Sidebar's count): open findings of
  * severity warn or error, grouped by check, and jobs that are proposed
- * (awaiting review) or failed. The "Other" view lists what does not count:
- * informational findings and finished jobs. Queued or running jobs show as
- * a strip while there are any.
+ * (awaiting review) or failed. The "Suggestions" view lists what does not
+ * count: informational findings (many still have a Fix), then, in their own
+ * section below, finished jobs as history. Queued or running jobs show as
+ * a strip while there are any. The default view points to the suggestions
+ * (a count that switches to that view) so a quiet badge never reads as
+ * "nothing to do".
  *
  * View state is in the URL, so Back from an album's panel returns to the
- * same view: `?view=other`, `?check=<id>` (one check only) and
+ * same view: `?view=suggestions` (`?view=other`, its old name, lands on
+ * the same view), `?check=<id>` (one check only) and
  * `?job=<id>` (a deep link: that job is shown and highlighted whatever
  * the view; a check filter lists all of that check's open findings). The scroll position is restored on Back too.
  *
  * Checks run on their own (the titlebar shows progress), so there is
  * nothing to run from here.
  */
-export type AttentionView = "decision" | "other";
+export type AttentionView = "decision" | "suggestions";
 
 /** Findings listed per check before "Show all N" (a check filter lists all). */
 export const SECTION_ROW_LIMIT = 50;
@@ -64,12 +68,15 @@ function writeScroll(key: string, top: number) {
 export default function AttentionPage() {
   usePageTitle("Needs attention");
   const [params, setParams] = useSearchParams();
-  const view: AttentionView = params.get("view") === "other" ? "other" : "decision";
+  // "other" is the view's former name; links to it keep working.
+  const viewParam = params.get("view");
+  const view: AttentionView =
+    viewParam === "suggestions" || viewParam === "other" ? "suggestions" : "decision";
   const checkFilter = params.get("check");
   const linkedJobId = params.get("job");
   // Ignored findings are never counted; they are listed on request in the
-  // Other view and in a check-filtered view, where they can be restored.
-  const canShowIgnored = view === "other" || !!checkFilter;
+  // Suggestions view and in a check-filtered view, where they can be restored.
+  const canShowIgnored = view === "suggestions" || !!checkFilter;
   const showIgnored = params.get("ignored") === "1" && canShowIgnored;
   const ignoredQ = useIgnoredFindings(showIgnored);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -134,7 +141,7 @@ export default function AttentionPage() {
   const showJobs = !checkFilter;
   const proposed = view === "decision" && showJobs ? attention.proposed : [];
   const failed = view === "decision" && showJobs ? attention.failed : [];
-  const finished = view === "other" && showJobs ? attention.finishedJobs : [];
+  const finished = view === "suggestions" && showJobs ? attention.finishedJobs : [];
   const inProgress = view === "decision" && showJobs ? attention.inProgress : [];
   const shownJobIds = new Set([...proposed, ...failed, ...finished, ...inProgress].map((j) => j.id));
   const linked = linkedJobId ? allJobs.find((j) => j.id === linkedJobId) : undefined;
@@ -143,11 +150,12 @@ export default function AttentionPage() {
   const shown =
     byCheck.length + proposed.length + failed.length + finished.length + inProgress.length +
     (linkedExtra ? 1 : 0);
-  const otherCount = attention.infoFindings.length + attention.finishedJobs.length;
+  // Suggestions are findings only; finished jobs are history, not counted.
+  const suggestionCount = attention.infoFindings.length;
 
   const setView = (next: AttentionView) => {
     const p = new URLSearchParams(params);
-    if (next === "other") p.set("view", "other");
+    if (next === "suggestions") p.set("view", "suggestions");
     else p.delete("view");
     setParams(p, { replace: true });
   };
@@ -193,6 +201,19 @@ export default function AttentionPage() {
       ?.querySelector(`[data-job-id="${CSS.escape(linkedJobId)}"]`)
       ?.scrollIntoView?.({ block: "nearest" });
   }, [linkedJobId, linkedPresent]);
+
+  // Shown on the default view (not under a check filter) so suggestions
+  // are never out of sight; it is also in the "Nothing needs attention" state.
+  const pointer =
+    view === "decision" && !checkFilter && suggestionCount > 0 ? (
+      <button
+        type="button"
+        onClick={() => setView("suggestions")}
+        className="text-sm text-accent hover:underline"
+      >
+        {suggestionCount} {suggestionCount === 1 ? "suggestion" : "suggestions"}
+      </button>
+    ) : null;
 
   const jobTable = (jobs: Job[]) => (
     <div className="rounded-md border border-line bg-panel-2 overflow-hidden">
@@ -240,7 +261,7 @@ export default function AttentionPage() {
           {(
             [
               ["decision", "Needs a decision"],
-              ["other", `Other (${otherCount})`],
+              ["suggestions", `Suggestions (${suggestionCount})`],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -282,16 +303,18 @@ export default function AttentionPage() {
           <div className="px-8 py-16 text-center">
             <CheckCircle2 className="w-9 h-9 mx-auto mb-3 text-ok" />
             <h2 className="text-md font-medium mb-1.5">
-              {view === "decision" ? "Nothing needs attention" : "Nothing else to show"}
+              {view === "decision" ? "Nothing needs attention" : "No suggestions"}
             </h2>
             <p className="text-sm text-fg-3 max-w-md mx-auto">
               {view === "decision"
                 ? "Checks run on their own in the background; anything that needs a decision will show up here."
-                : "Informational findings and finished jobs appear here."}
+                : "Informational findings from the checks, and finished jobs, appear here."}
             </p>
+            {pointer && <div className="mt-3">{pointer}</div>}
           </div>
         ) : (
           <div className="px-4 py-4 space-y-5">
+            {pointer}
             {linkedExtra && (
               <Section title="Linked job" count={1}>
                 {jobTable([linkedExtra])}
