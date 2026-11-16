@@ -226,15 +226,18 @@ fn failed_rename_batch_logs_error() {
 }
 
 // The same batch failure part-way through: the first file is staged, the
-// second's temporary name is too long for the filesystem. The staged file
-// is moved back, and both files are named in the `done` event.
+// second's temporary name is taken by a non-empty directory, which a file
+// cannot be moved onto. The staged file is moved back, and both files are
+// named in the `done` event.
 #[test]
 fn failed_rename_batch_names_every_file_left_unrenamed() {
     let tmp = tempfile::tempdir().unwrap();
     let album = tmp.path().join("album");
     std::fs::create_dir(&album).unwrap();
-    let long = format!("02 {}.flac", "b".repeat(242));
-    assert_eq!(long.len(), 250);
+    let long = "02 b.flac".to_string();
+    let blocker = album.join(".02 b.flac.renaming.tmp");
+    std::fs::create_dir(&blocker).unwrap();
+    std::fs::write(blocker.join("keep"), b"").unwrap();
     std::fs::write(album.join("01 a.flac"), flac_bytes(&[("TRACKNUMBER", "1")])).unwrap();
     std::fs::write(album.join(&long), flac_bytes(&[("TRACKNUMBER", "2")])).unwrap();
     let mut events = Vec::new();
@@ -270,7 +273,14 @@ fn failed_rename_batch_names_every_file_left_unrenamed() {
         .map(|e| e.file_name().to_string_lossy().into_owned())
         .collect();
     names.sort();
-    assert_eq!(names, ["01 a.flac".to_owned(), long.clone()]);
+    assert_eq!(
+        names,
+        [
+            ".02 b.flac.renaming.tmp".to_owned(),
+            "01 a.flac".to_owned(),
+            long.clone()
+        ]
+    );
     let failures = rename_failures(&events);
     let got: Vec<(&str, &str)> = failures
         .iter()
@@ -278,10 +288,7 @@ fn failed_rename_batch_names_every_file_left_unrenamed() {
         .collect();
     assert_eq!(
         got,
-        [
-            ("01 a.flac", "03 a.flac"),
-            (long.as_str(), &*format!("04 {}.flac", "b".repeat(242)))
-        ]
+        [("01 a.flac", "03 a.flac"), (long.as_str(), "04 b.flac")]
     );
     assert_eq!(
         failures[0].error,

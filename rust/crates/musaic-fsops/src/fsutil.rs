@@ -26,30 +26,50 @@ pub(crate) fn fold(name: &str) -> String {
 /// This reads the directory instead of asking whether the path exists: on
 /// a case-insensitive volume `foo.flac` "exists" when the entry is
 /// `Foo.flac`, so only the listing says which spelling is on disk.
-pub(crate) fn listed(dir: &Path, name: &str) -> bool {
-    let Ok(rd) = fs::read_dir(dir) else {
-        return false;
-    };
-    rd.flatten().any(|e| {
-        let n = e.file_name();
+///
+/// `Err` when the directory cannot be read (or an entry cannot be read
+/// while listing it): the caller cannot tell, and must not guess, which
+/// spelling is there.
+pub(crate) fn listed(dir: &Path, name: &str) -> io::Result<bool> {
+    for e in fs::read_dir(dir)? {
+        let n = e?.file_name();
         let n = n.to_string_lossy();
-        n == name || n.nfc().eq(name.nfc())
-    })
+        if n == name || n.nfc().eq(name.nfc()) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
-/// A name next to `path` that nothing uses yet: `.<name>.renaming.tmp`,
-/// then `.<name>.renaming.<n>.tmp`.
+/// The longest name most volumes accept (255 bytes on ext4 / APFS, 255
+/// UTF-16 units on NTFS; a UTF-8 byte count is never smaller).
+const NAME_MAX: usize = 255;
+
+/// The `n`th temporary name for an entry called `name`, in the same
+/// directory: `.<name>.renaming.tmp`, then `.<name>.renaming.<n>.tmp`; when
+/// that would be longer than a volume accepts (a name already near the
+/// limit), the short `.musaic-<n>.tmp`.
+pub(crate) fn temp_name(name: &str, n: usize) -> String {
+    let long = if n == 1 {
+        format!(".{name}.renaming.tmp")
+    } else {
+        format!(".{name}.renaming.{n}.tmp")
+    };
+    if long.len() <= NAME_MAX {
+        long
+    } else {
+        format!(".musaic-{n}.tmp")
+    }
+}
+
+/// A name next to `path` that nothing uses yet ([`temp_name`]).
 fn free_temp_name(path: &Path) -> io::Result<PathBuf> {
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     for n in 1..1000 {
-        let tmp = if n == 1 {
-            path.with_file_name(format!(".{name}.renaming.tmp"))
-        } else {
-            path.with_file_name(format!(".{name}.renaming.{n}.tmp"))
-        };
+        let tmp = path.with_file_name(temp_name(&name, n));
         if fs::symlink_metadata(&tmp).is_err() {
             return Ok(tmp);
         }
@@ -89,6 +109,16 @@ pub(crate) fn rename_dir(src: &Path, dst: &Path) -> io::Result<()> {
     };
     if let Err(e) = second {
         if let Err(back) = fs::rename(&tmp, src) {
+            musaic_log::error(
+                crate::plan::TARGET,
+                &format!(
+                    "rename: {} could not be renamed to {} ({e}) nor put back ({back}); \
+                     it is left at {}",
+                    src.display(),
+                    dst.display(),
+                    tmp.display()
+                ),
+            );
             let left = tmp
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
@@ -183,6 +213,20 @@ pub(crate) fn copy_then_remove(src: &Path, dst: &Path) -> io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A name near the limit falls back to the short temporary name;
+    /// every other name keeps the descriptive one.
+    #[test]
+    fn temp_names_stay_within_the_name_limit() {
+        assert_eq!(temp_name("a.flac", 1), ".a.flac.renaming.tmp");
+        assert_eq!(temp_name("a.flac", 3), ".a.flac.renaming.3.tmp");
+        let long = "x".repeat(250);
+        assert_eq!(temp_name(&long, 1), ".musaic-1.tmp");
+        assert_eq!(temp_name(&long, 2), ".musaic-2.tmp");
+        let edge = "y".repeat(NAME_MAX - ".renaming.tmp".len() - 1);
+        assert_eq!(temp_name(&edge, 1).len(), NAME_MAX);
+        assert!(temp_name(&edge, 2).starts_with(".musaic-"));
+    }
     use std::time::{Duration, SystemTime};
 
     fn old_time() -> SystemTime {

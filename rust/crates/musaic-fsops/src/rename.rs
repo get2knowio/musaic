@@ -61,7 +61,7 @@ use musaic_db::renames::{
 use musaic_scan::{TrackOrder, py_resolve, scan_album};
 use rusqlite::Connection;
 
-use crate::fsutil::{fold, listed, rename_dir, rename_noclobber};
+use crate::fsutil::{fold, listed, rename_dir, rename_noclobber, temp_name};
 use crate::plan::TARGET;
 use crate::pyrepr::py_repr;
 
@@ -231,16 +231,31 @@ fn rescan(conn: &mut Connection, env: &RenameEnv, library: &str, album_dir: &Pat
 const RESCAN_AFTER_DIR: &str = "execute_renames: post-dir-rename rescan failed (continuing)";
 const RESCAN_AFTER_FILES: &str = "execute_renames: post-rename rescan failed (continuing)";
 
+/// `dir/name` as the directory spells it: on a case- or
+/// normalisation-insensitive volume `name` may open an entry listed under
+/// another spelling (same-file and equal when folded); that entry's path.
+/// `dir/name` itself when it is listed, nothing matches, or the folder
+/// cannot be read.
+fn spelled_on_disk(dir: &Path, name: &str) -> PathBuf {
+    let path = dir.join(name);
+    if !matches!(listed(dir, name), Ok(false)) {
+        return path;
+    }
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return path;
+    };
+    rd.flatten()
+        .map(|e| e.path())
+        .find(|p| fold(&name_of(p)) == fold(name) && samefile(p, &path))
+        .unwrap_or(path)
+}
+
 /// A free temporary name next to `old`: `.<name>.renaming.tmp`, then
 /// `.<name>.renaming.<n>.tmp`; moved there without replacing anything.
 fn stage(old: &Path) -> std::io::Result<PathBuf> {
     let name = name_of(old);
     for n in 1.. {
-        let tmp = if n == 1 {
-            old.with_file_name(format!(".{name}.renaming.tmp"))
-        } else {
-            old.with_file_name(format!(".{name}.renaming.{n}.tmp"))
-        };
+        let tmp = old.with_file_name(temp_name(&name, n));
         match rename_noclobber(old, &tmp) {
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => continue,
             r => return r.map(|()| tmp),
@@ -287,8 +302,9 @@ pub fn execute_renames(
 
 /// "Did the volume keep this spelling?": `(parent dir, new name)`, asked
 /// after each rename. The real one reads the directory ([`listed`]); tests
-/// stand in a volume that does not preserve case.
-type KeptSpelling<'a> = &'a dyn Fn(&Path, &str) -> bool;
+/// stand in a volume that does not preserve case, or a folder that cannot
+/// be read back. `Err`: the folder could not be read, so it is unknown.
+type KeptSpelling<'a> = &'a dyn Fn(&Path, &str) -> std::io::Result<bool>;
 
 const NOT_KEPT: &str = "the volume did not keep the new spelling of the name (it does not \
                         preserve case); not renamed";
@@ -302,6 +318,11 @@ fn put_back(at: &Path, old: &Path) -> Result<(), String> {
         .map_err(|e| format!("{} is left as {}: {e}", name_of(old), name_of(&tmp)))
 }
 
+/// [`execute_renames`] with the read-back given. A rename whose result
+/// could not be read back is kept (the OS reported it done; undoing it
+/// would be a second rename that could not be verified either) and is
+/// named at the end of the message, so it is never silently reported as
+/// verified.
 fn execute_renames_with(
     conn: &mut Connection,
     env: &RenameEnv,
@@ -309,6 +330,54 @@ fn execute_renames_with(
     plan: &[PlanEntry],
     dir_rename: Option<&PlanEntry>,
     kept: KeptSpelling,
+) -> RenameOutcome {
+    let mut unverified: Vec<String> = Vec::new();
+    let mut out = run_renames(
+        conn,
+        env,
+        album_id_in,
+        plan,
+        dir_rename,
+        kept,
+        &mut unverified,
+    );
+    if !unverified.is_empty() {
+        out.message.push_str(&format!(
+            "; could not read the folder back to check the new spelling of {}",
+            name_list(&unverified.iter().map(String::as_str).collect::<Vec<_>>())
+        ));
+    }
+    out
+}
+
+/// Whether the new spelling is on disk: `true` also when the folder
+/// could not be read back (recorded in `unverified` and logged).
+fn check_kept(kept: KeptSpelling, dir: &Path, name: &str, unverified: &mut Vec<String>) -> bool {
+    match kept(dir, name) {
+        Ok(k) => k,
+        Err(e) => {
+            musaic_log::warning(
+                TARGET,
+                &format!(
+                    "execute_renames: could not read {} back to check {}: {e}",
+                    dir.display(),
+                    py_repr(name)
+                ),
+            );
+            unverified.push(name.to_string());
+            true
+        }
+    }
+}
+
+fn run_renames(
+    conn: &mut Connection,
+    env: &RenameEnv,
+    album_id_in: &str,
+    plan: &[PlanEntry],
+    dir_rename: Option<&PlanEntry>,
+    kept: KeptSpelling,
+    unverified: &mut Vec<String>,
 ) -> RenameOutcome {
     if env.library_dir.is_none_or(str::is_empty) {
         return RenameOutcome::fail("No library configured");
@@ -403,7 +472,15 @@ fn execute_renames_with(
         }
         // On an insensitive volume the old spelling still "is a file" after
         // a case-only rename; the listing says which spelling is there.
-        if samefile(&old_p, &new_p) && !listed(&album_dir, old) && listed(&album_dir, new) {
+        // Only for a case- or normalisation-only entry: two hard links
+        // (`X.flac`, `one.flac`) are also the same file, and `x.flac` ->
+        // `one.flac` is not done while `X.flac` is there. A listing that
+        // cannot be read is not evidence: the entry is attempted.
+        if fold(old) == fold(new)
+            && samefile(&old_p, &new_p)
+            && matches!(listed(&album_dir, old), Ok(false))
+            && matches!(listed(&album_dir, new), Ok(true))
+        {
             skipped.push(SkippedEntry {
                 old: old.to_string(),
                 new: new.to_string(),
@@ -451,7 +528,7 @@ fn execute_renames_with(
             return RenameOutcome::fail(format!("Couldn't rename directory: {e}"));
         }
         let parent = target.parent().map(Path::to_path_buf).unwrap_or_default();
-        if !kept(&parent, &name_of(&target)) {
+        if !check_kept(kept, &parent, &name_of(&target), unverified) {
             // Nothing moved in the database yet: put the folder back and
             // keep the album's id.
             let mut message = format!(
@@ -565,7 +642,9 @@ fn execute_renames_with(
     // ---- files: stage every source to a temporary name, then finalise ----
     let mut staged: Vec<(PathBuf, PathBuf, PathBuf)> = Vec::new();
     for (old, new) in &cleaned {
-        let old_p = album_dir.join(old);
+        // The name as the folder spells it, so a file that has to go back
+        // (a failed second step) gets its own spelling back, not the plan's.
+        let old_p = spelled_on_disk(&album_dir, old);
         match stage(&old_p) {
             Ok(tmp) => staged.push((old_p, tmp, album_dir.join(new))),
             Err(e) => {
@@ -617,7 +696,7 @@ fn execute_renames_with(
     let mut not_kept = 0;
     for (old_p, tmp, new_p) in &staged {
         match rename_noclobber(tmp, new_p) {
-            Ok(()) if !kept(&album_dir, &name_of(new_p)) => {
+            Ok(()) if !check_kept(kept, &album_dir, &name_of(new_p), unverified) => {
                 not_kept += 1;
                 errors.push(format!(
                     "{} → {}: {NOT_KEPT}",
@@ -819,7 +898,13 @@ mod tests {
         }
     }
 
-    const NEVER_KEPT: &dyn Fn(&Path, &str) -> bool = &|_, _| false;
+    const NEVER_KEPT: KeptSpelling = &|_, _| Ok(false);
+    const UNREADABLE: KeptSpelling = &|_, _| {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "denied",
+        ))
+    };
 
     /// The file is put back under its old name and reported as not
     /// renamed: no success, no AlbumRenamed, its rows untouched.
@@ -882,5 +967,35 @@ mod tests {
         assert_eq!(listing(&base.join("lib")), ["abba - x"]);
         let loc = album_location(db.connection(), &id).unwrap().unwrap();
         assert_eq!(loc.path, base.join("lib/abba - x").to_string_lossy());
+    }
+
+    /// A folder that cannot be read back: the renames the OS reported done
+    /// are kept (file and folder, new id), and the message says they could
+    /// not be checked, instead of calling them "not kept".
+    #[test]
+    fn a_rename_that_cannot_be_read_back_is_kept_and_reported_unverified() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = musaic_testdata::canonical(tmp.path());
+        let (mut db, lib, id) = library(&base);
+        let out = execute_renames_with(
+            db.connection_mut(),
+            &env(&lib),
+            &id,
+            &[entry("01 - one.flac", "01 - One.flac")],
+            Some(&entry("abba - x", "ABBA - x")),
+            UNREADABLE,
+        );
+        assert!(out.ok, "{}", out.message);
+        assert_eq!(out.renamed, 1);
+        assert_eq!(
+            out.message,
+            "Renamed album directory + 1 file; could not read the folder back to check \
+             the new spelling of 'ABBA - x', '01 - One.flac'"
+        );
+        assert!(!out.message.contains(NOT_KEPT));
+        let ev = out.album_renamed.expect("AlbumRenamed");
+        assert_ne!(ev.new_album_id, id);
+        assert_eq!(listing(&base.join("lib")), ["ABBA - x"]);
+        assert_eq!(listing(&base.join("lib/ABBA - x")), ["01 - One.flac"]);
     }
 }

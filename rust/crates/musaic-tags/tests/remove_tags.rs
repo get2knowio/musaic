@@ -466,3 +466,56 @@ fn case_only_suggestion_is_written_and_reported() {
     assert_eq!(first(&g, "albumartist"), "Velvet Quarry");
     assert_eq!(first(&g, "genre"), "Shoegaze");
 }
+
+/// A track-number rename of files whose names are near the 255-byte limit:
+/// the descriptive temporary name would be too long, so short ones are
+/// used (a different one per file), and both renames complete.
+#[test]
+fn renumbering_files_with_names_near_the_length_limit() {
+    let tmp = tempfile::tempdir().unwrap();
+    let names: Vec<String> = ["a", "b"]
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("{} - {}.flac", i + 1, c.repeat(240)))
+        .collect();
+    for (i, n) in names.iter().enumerate() {
+        if fs::write(
+            tmp.path().join(n),
+            flac_bytes(&[("TRACKNUMBER", &(i + 1).to_string())]),
+        )
+        .is_err()
+        {
+            println!("skipped: the temp dir does not take 248-byte names");
+            return;
+        }
+    }
+    let tracks: Vec<(&str, Pairs)> = vec![
+        (names[0].as_str(), &[("tracknumber", Some("2"))]),
+        (names[1].as_str(), &[("tracknumber", Some("1"))]),
+    ];
+    let events = run(tmp.path(), &[], &tracks, &Removals::default(), false);
+    let Some(Event::Done {
+        renamed_count,
+        rename_failures,
+        ..
+    }) = events.last()
+    else {
+        panic!("{:?}", events.last())
+    };
+    assert!(rename_failures.is_empty(), "{rename_failures:?}");
+    assert_eq!(*renamed_count, 2);
+    let mut got: Vec<String> = fs::read_dir(tmp.path())
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    got.sort();
+    assert_eq!(
+        got,
+        [
+            format!("01 - {}.flac", "b".repeat(240)),
+            format!("02 - {}.flac", "a".repeat(240))
+        ]
+    );
+    assert_eq!(first(&tmp.path().join(&got[0]), "tracknumber"), "1");
+}

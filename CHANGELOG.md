@@ -37,7 +37,9 @@ Security.
   rename the folder is read back: on a volume that does not keep the new capitalisation
   the file or folder is put back under its old name and reported as not renamed. Two
   tracks whose template names differ only in case are shown as a collision in the
-  rename dialog.
+  rename dialog. A rename whose folder cannot be read back is kept and reported as not
+  verified. Renames of files and folders whose names are close to the 255-byte limit no
+  longer fail for want of room for the temporary name.
 - Wording: the transient AI-job error no longer points at a script that does not exist, and
   the Settings text about FireCrawl and the Backup page no longer say "paid".
 - The album panel proposes MusicBrainz corrections in one place and applies them one way

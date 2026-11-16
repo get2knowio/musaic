@@ -344,3 +344,81 @@ fn a_missing_source_is_not_mistaken_for_a_case_only_rename() {
     assert_eq!(out.skipped.len(), 1);
     assert_eq!(out.skipped[0].reason, SkipReason::SourceMissing);
 }
+
+/// A case-only rename of a folder and a file whose names are near the
+/// 255-byte limit: the descriptive temporary name would be too long, so
+/// the short one is used, and both renames complete.
+#[test]
+fn case_only_rename_of_names_near_the_length_limit() {
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    let dir = format!("abba - {} [FLAC]", "g".repeat(240));
+    let file = format!("01 - {}.flac", "q".repeat(240));
+    assert!(dir.len() > 245 && dir.len() <= 255 && file.len() <= 255);
+    let lib_dir = base.join("lib");
+    std::fs::create_dir_all(&lib_dir).unwrap();
+    if std::fs::create_dir(lib_dir.join(&dir)).is_err() {
+        println!(
+            "skipped: {}: the temp dir does not take 250-byte names",
+            musaic_testdata::test_name()
+        );
+        return;
+    }
+    std::fs::remove_dir(lib_dir.join(&dir)).unwrap();
+    let (mut db, lib, id) = library(&base, &dir, &[(&file, "Q")]);
+    let new_dir = dir.replacen("abba", "ABBA", 1);
+    let new_file = file.replacen("01 - q", "01 - Q", 1);
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib),
+        &id,
+        &[entry(&file, &new_file)],
+        Some(&entry(&dir, &new_dir)),
+    );
+    assert!(out.ok, "{}", out.message);
+    assert_eq!(out.renamed, 1);
+    assert_eq!(listing(&lib_dir), std::slice::from_ref(&new_dir));
+    assert_eq!(listing(&lib_dir.join(&new_dir)), [new_file]);
+}
+
+/// Two hard links `X.flac` and `one.flac` are the same file; on a
+/// case-insensitive volume `x.flac` names it too. `x.flac` -> `one.flac`
+/// is not a case-only rename, so it is not "already renamed" while
+/// `X.flac` is still there (it is attempted, and refused without loss).
+#[test]
+fn a_hard_link_is_not_mistaken_for_an_already_done_case_only_rename() {
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    if !case_insensitive(&base) {
+        println!(
+            "skipped: {}: the temp dir is case-sensitive",
+            musaic_testdata::test_name()
+        );
+        return;
+    }
+    let (mut db, lib, id) = library(&base, "Album", &[("one.flac", "One")]);
+    let album = base.join("lib/Album");
+    if std::fs::hard_link(album.join("one.flac"), album.join("X.flac")).is_err() {
+        println!(
+            "skipped: {}: the temp dir has no hard links",
+            musaic_testdata::test_name()
+        );
+        return;
+    }
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib),
+        &id,
+        &[entry("x.flac", "one.flac")],
+        None,
+    );
+    assert!(!out.already_renamed, "{}", out.message);
+    assert!(
+        out.skipped
+            .iter()
+            .all(|e| e.reason != SkipReason::AlreadyRenamed),
+        "{:?}",
+        out.skipped
+    );
+    assert_eq!(listing(&album), ["X.flac", "one.flac"]);
+}
