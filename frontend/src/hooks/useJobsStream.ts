@@ -7,7 +7,7 @@
  *
  *   queued → running   : silent
  *   * → completed      : success toast with "View" → /library/{album_id}
- *   * → failed         : error toast with "View" → /jobs
+ *   * → failed         : error toast with "View" → /attention?job=<id>
  *
  * The "enqueue" toast is fired from the click site (in DetailSheet), not
  * here — the SSE event arrives a beat after the enqueue mutation resolves
@@ -88,7 +88,7 @@ export function useJobsStream() {
           toast.error(`${jobLabel(j)} failed for ${shortAlbum(j)}`, {
             action: {
               label: "View",
-              onClick: goTo("/jobs"),
+              onClick: goTo(`/attention?job=${encodeURIComponent(j.id)}`),
             },
             duration: 6000,
           });

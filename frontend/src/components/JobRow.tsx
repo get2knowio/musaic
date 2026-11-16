@@ -1,203 +1,30 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, CheckCircle2, Clock, Loader2, Pause, Play, RotateCcw, Sparkles, Trash2, XCircle } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Clock, Loader2, Pause, Play, RotateCcw, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   useBulkDeleteJobs,
   useDeleteJob,
-  useJobs,
   useQueueState,
   useResumeQueue,
   useRetryJob,
 } from "@/hooks/useJobs";
-import { usePageTitle } from "@/hooks/usePageTitle";
-import { useAiStatus } from "@/hooks/useAiStatus";
-import { jobsPageLabel } from "@/lib/aiGating";
 import type { Job, JobStatus } from "@/lib/types";
 
 /** Pending delete action — drives the confirmation modal. */
-type PendingDelete =
+export type PendingDelete =
   | { kind: "single"; job: Job }
   | { kind: "bulk"; statuses: JobStatus[]; label: string; count: number };
 
-const STATUS_FILTERS: { label: string; statuses: JobStatus[] | null }[] = [
-  { label: "All",            statuses: null },
-  { label: "Needs review",   statuses: ["completed", "failed"] },
-  { label: "In progress",    statuses: ["queued", "running"] },
-  { label: "Acted on",       statuses: ["acted_on"] },
-];
-
-// Sort by submit date, newest first. With the serial worker this naturally
-// reads top-down as "queued (newest first) → running → past (newest first)" —
-// the running job is always older than anything queued behind it, and past
-// jobs are older still. Matches user's mental model without needing a
-// dedicated status-grouping override.
-function compareJobs(a: Job, b: Job): number {
-  return a.created_at < b.created_at ? 1 : -1;
-}
-
-export default function JobsPage() {
-  // "AI Jobs" only when a model can run.
-  const ai = useAiStatus();
-  usePageTitle(jobsPageLabel(ai));
-  const { data: jobs = [], isLoading } = useJobs();
-  const [filterIdx, setFilterIdx] = useState(0);
-  const filter = STATUS_FILTERS[filterIdx];
-  // Single piece of "pending delete" state — drives the confirm modal for
-  // deletes that DO need a confirmation (completed-but-not-acted-on, failed,
-  // queued). Already-acted-on jobs are history and skip the modal entirely
-  // (it would just be friction — they've already been resolved).
-  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
-  const deleteJob = useDeleteJob();
-  const bulkDelete = useBulkDeleteJobs();
-
-  const onSingleDeleteRequest = (job: Job) => {
-    // History rows (acted_on) can be deleted without ceremony.
-    if (job.status === "acted_on") {
-      deleteJob.mutate(job.id, {
-        onError: (err) => {
-          const e = err as Error & { status?: number };
-          toast.error(e.message || "Could not delete job", { duration: 4000 });
-        },
-      });
-      return;
-    }
-    setPendingDelete({ kind: "single", job });
-  };
-
-  const onBulkDeleteRequest = (p: PendingDelete & { kind: "bulk" }) => {
-    // "Clear N acted-on" — already-resolved history, no confirm needed.
-    if (p.statuses.length === 1 && p.statuses[0] === "acted_on") {
-      bulkDelete.mutate(p.statuses, {
-        onError: (err) => {
-          const e = err as Error & { status?: number };
-          toast.error(e.message || "Could not bulk delete", { duration: 4000 });
-        },
-      });
-      return;
-    }
-    setPendingDelete(p);
-  };
-
-  const filtered = useMemo(() => {
-    const rows = filter.statuses ? jobs.filter((j) => filter.statuses!.includes(j.status)) : jobs;
-    return [...rows].sort(compareJobs);
-  }, [jobs, filter]);
-
-  // Buckets for header counters
-  const counts = useMemo(() => ({
-    completed: jobs.filter((j) => j.status === "completed").length,
-    failed:    jobs.filter((j) => j.status === "failed").length,
-    running:   jobs.filter((j) => j.status === "running").length,
-    queued:    jobs.filter((j) => j.status === "queued").length,
-    acted_on:  jobs.filter((j) => j.status === "acted_on").length,
-  }), [jobs]);
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      <Header counts={counts} onRequestBulkDelete={onBulkDeleteRequest} title={jobsPageLabel(ai)} />
-      <PausedBanner aiReady={ai.ready} />
-      <Filters filterIdx={filterIdx} setFilterIdx={setFilterIdx} />
-      {isLoading && jobs.length === 0 ? (
-        <div className="px-4 py-8 text-center text-fg-3 text-sm">Loading…</div>
-      ) : filtered.length === 0 ? (
-        <Empty filterLabel={filter.label} totalJobs={jobs.length} aiReady={ai.ready} />
-      ) : (
-        <div className="px-4 py-3">
-          <div className="rounded-md border border-line bg-panel-2 overflow-hidden">
-            <div
-              className="grid gap-3 px-3 py-2 border-b border-line text-fg-4 mono text-xs uppercase tracking-[0.06em]"
-              style={{ gridTemplateColumns: "100px minmax(0, 1.2fr) 110px 110px 72px" }}
-            >
-              <span>Status</span>
-              <span>Album</span>
-              <span>Job</span>
-              <span>When</span>
-              <span />
-            </div>
-            {filtered.map((j) => (
-              <JobRow
-                key={j.id}
-                job={j}
-                onRequestDelete={onSingleDeleteRequest}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      <DeleteConfirmDialog pending={pendingDelete} onClose={() => setPendingDelete(null)} aiReady={ai.ready} />
-    </div>
-  );
-}
-
-function Header({
-  counts,
-  onRequestBulkDelete,
-  title,
-}: {
-  counts: Record<string, number>;
-  onRequestBulkDelete: (p: Extract<PendingDelete, { kind: "bulk" }>) => void;
-  title: string;
-}) {
-  return (
-    <div className="flex items-center gap-3 px-4 h-[var(--filterbar-h)] border-b border-line bg-panel-2 text-sm shrink-0">
-      <Sparkles className="w-3.5 h-3.5 text-accent" />
-      <span className="font-medium">{title}</span>
-      <span className="text-fg-4 mono text-xs">·</span>
-      <span className="mono text-fg-3">
-        <b className="text-fg font-medium tabular-nums">{counts.completed}</b> completed
-      </span>
-      <span className="text-fg-4 mono text-xs">·</span>
-      <span className="mono text-fg-3">
-        <b className="text-fg font-medium tabular-nums">{counts.failed}</b> failed
-      </span>
-      <span className="text-fg-4 mono text-xs">·</span>
-      <span className="mono text-fg-3">
-        <b className="text-fg font-medium tabular-nums">{counts.queued + counts.running}</b> in flight
-      </span>
-
-      <div className="flex-1" />
-
-      {counts.acted_on > 0 && (
-        <button
-          onClick={() => onRequestBulkDelete({
-            kind: "bulk",
-            statuses: ["acted_on"],
-            label: "acted-on",
-            count: counts.acted_on,
-          })}
-          className="h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1.5"
-        >
-          <Trash2 className="w-3 h-3" />
-          Clear {counts.acted_on} acted-on
-        </button>
-      )}
-      {counts.failed > 0 && (
-        <button
-          onClick={() => onRequestBulkDelete({
-            kind: "bulk",
-            statuses: ["failed"],
-            label: "failed",
-            count: counts.failed,
-          })}
-          className="h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1.5"
-        >
-          <Trash2 className="w-3 h-3" />
-          Clear {counts.failed} failed
-        </button>
-      )}
-    </div>
-  );
-}
 
 /**
  * Surface the auto-paused state at the top of the Jobs page so the user
  * isn't confused why nothing is dispatching after a failure. Stays mounted
  * across filter changes (rendered between header + filters in JobsPage).
  */
-function PausedBanner({ aiReady }: { aiReady: boolean }) {
+export function PausedBanner({ aiReady }: { aiReady: boolean }) {
   const { data: queueState } = useQueueState();
   const resume = useResumeQueue();
   if (!queueState?.paused) return null;
@@ -228,60 +55,17 @@ function PausedBanner({ aiReady }: { aiReady: boolean }) {
   );
 }
 
-function Filters({ filterIdx, setFilterIdx }: { filterIdx: number; setFilterIdx: (i: number) => void }) {
-  return (
-    <div className="flex items-center gap-1.5 px-4 py-2 border-b border-line bg-bg">
-      {STATUS_FILTERS.map((f, i) => (
-        <button
-          key={f.label}
-          onClick={() => setFilterIdx(i)}
-          className={
-            "h-7 px-2.5 rounded text-xs transition " +
-            (filterIdx === i
-              ? "bg-accent-soft text-accent border border-accent/30"
-              : "text-fg-3 hover:bg-bg-3 border border-transparent")
-          }
-        >
-          {f.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
-function Empty({ filterLabel, totalJobs, aiReady }: { filterLabel: string; totalJobs: number; aiReady: boolean }) {
-  return (
-    <div className="px-8 py-16 text-center">
-      <Sparkles className="w-9 h-9 mx-auto mb-3 text-fg-4" />
-      {totalJobs === 0 && !aiReady ? (
-        // Without a model the album panel applies MusicBrainz corrections
-        // directly; only fixes started from Health queue jobs.
-        <>
-          <h3 className="text-md font-medium mb-1.5">No jobs yet</h3>
-          <p className="text-sm text-fg-3 max-w-md mx-auto">
-            MusicBrainz corrections now show up directly in an album's panel, ready to apply.
-            Fixes started from Health that run in the background are listed here.
-          </p>
-        </>
-      ) : totalJobs === 0 ? (
-        <>
-          <h3 className="text-md font-medium mb-1.5">No AI jobs yet</h3>
-          <p className="text-sm text-fg-3 max-w-md mx-auto">
-            Open an album and choose <b>Ask AI for corrections…</b>, or <b>Ask AI to find a cover…</b> from its Cover menu, to queue up your first job.
-            They'll run in the background — bebop around the library while they work.
-          </p>
-        </>
-      ) : (
-        <>
-          <h3 className="text-md font-medium mb-1.5">No jobs match "{filterLabel}"</h3>
-          <p className="text-sm text-fg-3">Try a different filter.</p>
-        </>
-      )}
-    </div>
-  );
-}
-
-function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) => void }) {
+export function JobRow({
+  job,
+  onRequestDelete,
+  highlight = false,
+}: {
+  job: Job;
+  onRequestDelete: (j: Job) => void;
+  /** The row a deep link points at. */
+  highlight?: boolean;
+}) {
   const navigate = useNavigate();
   const retry = useRetryJob();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
@@ -317,9 +101,11 @@ function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) 
 
   return (
     <div
+      data-job-id={job.id}
       className={
         "border-b border-line last:border-0 " +
-        (job.status === "completed" ? "cursor-pointer hover:bg-bg-3" : "")
+        (job.status === "completed" ? "cursor-pointer hover:bg-bg-3 " : "") +
+        (highlight ? "bg-accent-soft" : "")
       }
       onClick={onOpen}
     >
@@ -432,7 +218,7 @@ function JobRow({ job, onRequestDelete }: { job: Job; onRequestDelete: (j: Job) 
  * Confirmation modal for any delete (single row or bulk header button).
  * Closes itself on confirm/cancel; surfaces server errors via toast.
  */
-function DeleteConfirmDialog({
+export function DeleteConfirmDialog({
   pending,
   onClose,
   aiReady,
@@ -540,7 +326,7 @@ function StatusPill({ status, actedOnAction }: { status: Job["status"]; actedOnA
   if (status === "completed") {
     return (
       <span className="inline-flex items-center gap-1.5 mono text-[11px] text-ok">
-        <CheckCircle2 className="w-3 h-3" /> Ready
+        <CheckCircle2 className="w-3 h-3" /> To review
       </span>
     );
   }
@@ -559,7 +345,7 @@ function StatusPill({ status, actedOnAction }: { status: Job["status"]; actedOnA
   );
 }
 
-function jobTypeLabel(t: Job["job_type"]): string {
+export function jobTypeLabel(t: Job["job_type"]): string {
   switch (t) {
     case "metadata":       return "Metadata";
     case "cover":          return "Cover art";

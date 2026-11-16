@@ -1,0 +1,231 @@
+/**
+ * Needs attention: what is listed and counted, the filters, the redirects
+ * from the old Health and Jobs routes, and Back from an album's panel.
+ * Checks run on their own, so there is no "Check now". Fix is disabled on
+ * a finding whose album is Missing.
+ */
+import { afterEach, describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+
+import AttentionPage from "@/pages/Attention";
+import { HealthRedirect, JobsRedirect } from "@/pages/attentionRedirects";
+import Sidebar from "@/components/Sidebar";
+import { attentionBadgeText, FINDINGS_LIST_LIMIT } from "@/hooks/useAttention";
+import { makeAlbum, makeJob } from "@/test/fixtures";
+import type { CheckMeta, CheckSummary, Finding, Job } from "@/lib/types";
+
+const meta = (id: string, label: string, bulk: string | null = null): CheckMeta => ({
+  id,
+  label,
+  description: `${label} description`,
+  category: "metadata",
+  cost: "cheap",
+  runs_during_scan: true,
+  fix_kind: "deterministic",
+  bulk_action_label: bulk,
+});
+
+const summaries: CheckSummary[] = [
+  { meta: meta("track-gaps", "Track gaps"), open_count: 3, last_run: null },
+  { meta: meta("no-cover-art", "No cover art"), open_count: 1, last_run: null },
+];
+
+const finding = (id: number, over: Partial<Finding> = {}): Finding => ({
+  id,
+  check_id: "track-gaps",
+  album_id: "present",
+  severity: "warn",
+  summary: `gap ${id}`,
+  detail: null,
+  first_seen_at: "2026-01-01T00:00:00Z",
+  last_seen_at: "2026-01-01T00:00:00Z",
+  resolved_at: null,
+  ignored_at: null,
+  ignored_reason: null,
+  ...over,
+});
+
+const job = (id: string, status: Job["status"], over: Partial<Job> = {}): Job =>
+  makeJob({ id, status, album_id: "present", album_title: `Album ${id}`, job_type: "metadata", ...over });
+
+const findings: Finding[] = [
+  finding(1),
+  finding(2, { severity: "error", album_id: "gone" }),
+  finding(3, { severity: "info", summary: "just so you know" }),
+  finding(4, { ignored_at: "2026-01-02T00:00:00Z", summary: "ignored one" }),
+  finding(5, { check_id: "no-cover-art", summary: "no cover" }),
+];
+const jobs: Job[] = [
+  job("proposed", "completed"),
+  job("failed", "failed", { error: "boom" }),
+  job("running", "running"),
+  job("done", "acted_on", { acted_on_action: "applied" }),
+];
+
+function client(f: Finding[] = findings, j: Job[] = jobs) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  qc.setQueryData(["checks"], summaries);
+  qc.setQueryData(["findings"], f);
+  qc.setQueryData(["jobs"], j);
+  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
+  qc.setQueryData(["albums-snapshot"], [
+    makeAlbum({ id: "present", title: "Here" }),
+    makeAlbum({ id: "gone", title: "Gone", missing_since: "2026-01-02T00:00:00Z" }),
+  ]);
+  return qc;
+}
+
+function Where() {
+  const l = useLocation();
+  return <div data-testid="where">{l.pathname + l.search}</div>;
+}
+
+function BackButton() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(-1)}>Back</button>;
+}
+
+function renderAt(url: string, qc = client()) {
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[url]}>
+        <Sidebar />
+        <Where />
+        <Routes>
+          <Route path="/attention" element={<AttentionPage />} />
+          <Route path="/health" element={<HealthRedirect />} />
+          <Route path="/health/:checkId" element={<HealthRedirect />} />
+          <Route path="/jobs" element={<JobsRedirect />} />
+          <Route path="/jobs/:jobId" element={<JobsRedirect />} />
+          <Route path="/start" element={<Link to="/attention">go</Link>} />
+          <Route path="/library/:albumId" element={<BackButton />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const where = () => screen.getByTestId("where").textContent;
+const scrollerEl = () => document.querySelector('div[tabindex="-1"]') as HTMLElement;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.clearAllMocks();
+  sessionStorage.clear();
+});
+
+describe("what is listed and counted", () => {
+  it("lists warn/error findings, proposed and failed jobs, and counts exactly those", () => {
+    renderAt("/attention");
+    expect(screen.getByText("gap 1")).toBeTruthy();
+    expect(screen.getByText("gap 2")).toBeTruthy();
+    expect(screen.getByText("no cover")).toBeTruthy();
+    expect(screen.getByText("Album proposed")).toBeTruthy();
+    expect(screen.getByText("Album failed")).toBeTruthy();
+    // Not on the default view: info, ignored, finished.
+    expect(screen.queryByText("just so you know")).toBeNull();
+    expect(screen.queryByText("ignored one")).toBeNull();
+    expect(screen.queryByText("Album done")).toBeNull();
+    // 3 findings (gap 1, gap 2, no cover) + 1 proposed + 1 failed.
+    expect(document.querySelector("[aria-live]")!.textContent).toBe("5 items");
+    const badge = screen.getByRole("link", { name: /Needs attention/ });
+    expect(badge.textContent).toContain("5");
+    // A running job is shown as progress but not counted.
+    expect(screen.getByText("In progress")).toBeTruthy();
+  });
+
+  it("the Other view lists informational findings and finished jobs", () => {
+    renderAt("/attention");
+    fireEvent.click(screen.getByRole("button", { name: /Other \(2\)/ }));
+    expect(where()).toBe("/attention?view=other");
+    expect(screen.getByText("just so you know")).toBeTruthy();
+    expect(screen.getByText("Album done")).toBeTruthy();
+    expect(screen.queryByText("gap 1")).toBeNull();
+    // Still 5 in the badge.
+    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).toContain("5");
+  });
+
+  it("says nothing needs attention when there is nothing to decide", () => {
+    renderAt("/attention", client([finding(3, { severity: "info" })], [job("done", "acted_on")]));
+    expect(screen.getByRole("heading", { name: "Nothing needs attention" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).not.toMatch(/\d/);
+  });
+
+  it("has no Check now and no run controls", () => {
+    renderAt("/attention");
+    expect(screen.queryByRole("button", { name: /Check now|Run now|Checking/ })).toBeNull();
+  });
+
+  it("disables Fix on a Missing album's finding and says why", () => {
+    renderAt("/attention");
+    const fixes = screen.getAllByRole("button", { name: /Fix/ }) as HTMLButtonElement[];
+    const gone = fixes.find((b) => b.disabled)!;
+    expect(gone.title).toMatch(/folder is missing/);
+  });
+
+  it("the badge is a lower bound when the findings list hit its limit", () => {
+    expect(attentionBadgeText(7, false)).toBe("7");
+    expect(attentionBadgeText(7, true)).toBe("7+");
+    expect(FINDINGS_LIST_LIMIT).toBe(10_000);
+  });
+});
+
+describe("redirects keep deep links", () => {
+  it("/health goes to Needs attention", async () => {
+    renderAt("/health");
+    await waitFor(() => expect(where()).toBe("/attention"));
+  });
+
+  it("/health/:checkId lands filtered to that check, informational findings included", async () => {
+    renderAt("/health/track-gaps");
+    await waitFor(() => expect(where()).toBe("/attention?check=track-gaps"));
+    expect(screen.getByText("gap 1")).toBeTruthy();
+    expect(screen.getByText("just so you know")).toBeTruthy();
+    expect(screen.queryByText("no cover")).toBeNull();
+    expect(screen.queryByText("Album proposed")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Show everything/ }));
+    expect(where()).toBe("/attention");
+  });
+
+  for (const from of ["/jobs?job=done", "/jobs/done"]) {
+    it(`${from} shows that job even though finished jobs do not need attention`, async () => {
+      renderAt(from);
+      await waitFor(() => expect(where()).toBe("/attention?job=done"));
+      const row = document.querySelector('[data-job-id="done"]');
+      expect(row).toBeTruthy();
+      expect(row!.className).toContain("bg-accent-soft");
+    });
+  }
+
+  it("/jobs goes to Needs attention", async () => {
+    renderAt("/jobs");
+    await waitFor(() => expect(where()).toBe("/attention"));
+  });
+});
+
+describe("Back from an album", () => {
+  it("returns to the same view and scroll position", async () => {
+    renderAt("/attention?view=other");
+    scrollerEl().scrollTop = 120;
+    fireEvent.scroll(scrollerEl());
+    expect(sessionStorage.getItem("mm.attention.scroll.other.")).toBe("120");
+    // The album link on a row opens the library with that album's panel.
+    fireEvent.click(screen.getAllByRole("link", { name: "View album detail" })[0]);
+    expect(where()).toMatch(/^\/library\/present/);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(where()).toBe("/attention?view=other"));
+    expect(screen.getByRole("button", { name: /Other/, pressed: true })).toBeTruthy();
+    expect(scrollerEl().scrollTop).toBe(120);
+  });
+
+  it("a fresh visit starts at the top", () => {
+    sessionStorage.setItem("mm.attention.scroll.decision.", "300");
+    renderAt("/start");
+    fireEvent.click(screen.getByRole("link", { name: "go" }));
+    expect(scrollerEl().scrollTop).toBe(0);
+  });
+});

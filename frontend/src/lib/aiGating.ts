@@ -46,14 +46,6 @@ import type { AlbumResolution, CheckFixKind, JobType } from "./types";
 /** The worker's confidence threshold for skipping the model. */
 export const MODEL_FREE_CONFIDENCE = 0.85;
 
-/**
- * The Jobs page's name. Without a ready provider nothing in the UI names AI;
- * the queue still runs the jobs MusicBrainz covers.
- */
-export function jobsPageLabel(ai: AiStatus): string {
-  return ai.ready ? "AI Jobs" : "Jobs";
-}
-
 /** Neutral text shown where AI-only controls would be. */
 export const AI_UNAVAILABLE = "AI suggestions are not available in this build.";
 

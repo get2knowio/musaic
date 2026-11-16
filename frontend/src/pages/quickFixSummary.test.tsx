@@ -1,5 +1,5 @@
 /**
- * Health detail → bulk quick-fix dialog: the closing summary reports only
+ * Needs attention → bulk quick-fix dialog: the closing summary reports only
  * the findings that are gone as resolved. A fix that wrote part of what its
  * finding asks for comes back as `still_open` (the backend reruns the check
  * over the albums it fixed), and the dialog says so instead of claiming
@@ -12,14 +12,14 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import HealthDetailPage from "@/pages/HealthDetail";
+import AttentionPage from "@/pages/Attention";
 import type { CheckDetail, Finding } from "@/lib/types";
 
 const finding = (id: number): Finding => ({
   id,
   check_id: "tags-out-of-sync",
   album_id: `album-${id}`,
-  severity: "info" as Finding["severity"],
+  severity: "warn",
   summary: "missing: genre · 1 canonical drift",
   detail: null,
   first_seen_at: "2026-01-01T00:00:00Z",
@@ -46,7 +46,8 @@ const detail: CheckDetail = {
 
 function client(): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  qc.setQueryData(["check", "tags-out-of-sync"], detail);
+  qc.setQueryData(["checks"], [{ meta: detail.meta, open_count: 3, last_run: null }]);
+  qc.setQueryData(["findings"], detail.findings);
   qc.setQueryData(["albums-snapshot"], []);
   qc.setQueryData(["jobs"], []);
   return qc;
@@ -79,9 +80,9 @@ function stubFetch(body: string) {
 function renderPage() {
   render(
     <QueryClientProvider client={client()}>
-      <MemoryRouter initialEntries={["/health/tags-out-of-sync"]}>
+      <MemoryRouter initialEntries={["/attention"]}>
         <Routes>
-          <Route path="/health/:checkId" element={<HealthDetailPage />} />
+          <Route path="/attention" element={<AttentionPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
