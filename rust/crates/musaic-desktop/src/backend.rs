@@ -100,7 +100,9 @@ pub fn build_state(opts: &Options, log: Option<&ProcessLog>) -> Result<AppState,
         .allowed_hosts(AllowedHosts::none())
         .secrets(secrets(opts))
         .network(network(&opts.network))
-        .frontend_dir(opts.frontend_dir.clone());
+        .frontend_dir(opts.frontend_dir.clone())
+        // Every health check runs on its own (issue #187).
+        .check_sweep(true);
     if let Some(l) = log {
         b = b.log_sink(l.log.sink()).log_masks(l.masks.clone());
     }

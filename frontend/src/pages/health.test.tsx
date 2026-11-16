@@ -1,11 +1,11 @@
 /**
  * Health pages after checks became automatic: no per-check "Run now", no
- * run history, no category column or check count. A single "Check now"
- * runs the checks that do not run during a scan, and Fix is disabled on a
+ * run history, no category column or check count, and no global "Check
+ * now" (the background check sweep runs every check). Fix is disabled on a
  * finding whose album is Missing.
  */
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -77,55 +77,10 @@ describe("Health page", () => {
     expect(screen.getByText(/open finding/)).toBeTruthy();
   });
 
-  it("Check now runs only the checks that do not run during a scan, one at a time", async () => {
-    const resolvers: Array<() => void> = [];
-    const fetchMock = vi.fn(
-      (_url: string) =>
-        new Promise<Response>((resolve) => {
-          resolvers.push(() =>
-            resolve(
-              new Response(JSON.stringify(run("x")), {
-                status: 200,
-                headers: { "content-type": "application/json" },
-              }),
-            ),
-          );
-        }),
-    );
-    vi.stubGlobal("fetch", fetchMock);
+  it("has no Check now: every check runs on its own in the background", () => {
     renderHealth();
-
-    fireEvent.click(screen.getByRole("button", { name: /Check now/ }));
-
-    const button = await screen.findByRole("button", { name: /Checking 1 of 2/ });
-    expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toContain("/api/checks/tags-out-of-sync/run");
-
-    resolvers[0]();
-    await screen.findByRole("button", { name: /Checking 2 of 2/ });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[1][0])).toContain("/api/checks/filename-mismatch/run");
-
-    resolvers[1]();
-    await screen.findByRole("button", { name: /Check now/ });
-    const urls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.includes("track-gaps"))).toBe(false);
-  });
-
-  it("Check now is disabled while one of those checks is already running", () => {
-    renderHealth([
-      summaries[0],
-      { ...summaries[1], last_run: run("tags-out-of-sync", "running") },
-      summaries[2],
-    ]);
-    const button = screen.getByRole("button", { name: /Checking/ }) as HTMLButtonElement;
-    expect(button.disabled).toBe(true);
-  });
-
-  it("has no Check now when every check runs during a scan", () => {
-    renderHealth([summaries[0]]);
     expect(screen.queryByRole("button", { name: /Check now/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Checking/ })).toBeNull();
   });
 });
 

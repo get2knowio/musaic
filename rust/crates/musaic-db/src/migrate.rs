@@ -1,6 +1,8 @@
 //! One-way migrations: v16 -> v17 (`fingerprint_impl`),
 //! v17 -> v18 (AcoustID lookup outcome per fingerprint row; files the
-//! fingerprinter rejected), and the backup taken before the first.
+//! fingerprinter rejected), v18 -> v19 (`check_inputs`: what each health
+//! check last ran against, for the background check sweep), and the backup
+//! taken before the first.
 //!
 //! Backup rule: a database the Python app wrote (v16, or any older version
 //! [`crate::python_chain`] brings to v16 first) is copied, to
@@ -11,10 +13,11 @@
 //! is already there ([`existing_backup`]), an earlier interrupted attempt took
 //! it from the untouched file, and no second one is written (an attempt
 //! interrupted after the `v<N> -> v16` step finds a v16 file next time).
-//! A v17 database was written by this build: the v17 -> v18 step
-//! is additive and runs in one transaction (an interruption leaves the v17
-//! file as it was), and no further backup file is written, so no new copy
-//! of plaintext settings rows appears beside the database.
+//! A v17 or v18 database was written by this build: the v17 -> v18 and
+//! v18 -> v19 steps are additive and each runs in one transaction (an
+//! interruption leaves the file at the version it had), and no further
+//! backup file is written, so no new copy of plaintext settings rows
+//! appears beside the database.
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -87,6 +90,29 @@ pub(crate) const V18_STATEMENTS: &[&str] = &[
     )",
 ];
 
+/// The v18 -> v19 statements, in order (also the text a fresh database gets).
+pub(crate) const V19_STATEMENTS: &[&str] = &[
+    // What a health check last ran against, per album (or once per library,
+    // `album_id = ''`, for a check that reads the whole library): a digest
+    // of its inputs and when it ran. The background check sweep reruns a
+    // check where the digest no longer matches. No foreign key: a
+    // whole-library row names no album, and a row left behind by a deleted
+    // or renamed album only means "not checked yet" (the sweep prunes them).
+    "CREATE TABLE check_inputs (
+        check_id      TEXT NOT NULL,
+        library_path  TEXT NOT NULL,
+        album_id      TEXT NOT NULL,
+        digest        TEXT NOT NULL,
+        checked_at    TEXT NOT NULL,
+        PRIMARY KEY (check_id, library_path, album_id)
+    )",
+    // The fingerprint columns a check's inputs digest reads, so computing
+    // the digests reads this index and not the fingerprint text itself.
+    "CREATE INDEX idx_track_fingerprints_inputs ON track_fingerprints(\
+        album_id, filename, fingerprint_impl, last_computed_at, \
+        acoustid_recording_mbid, acoustid_score)",
+];
+
 pub(crate) fn backup_before_migration(
     conn: &Connection,
     db_path: &Path,
@@ -145,7 +171,8 @@ pub(crate) fn create_fresh(conn: &mut Connection) -> Result<()> {
 /// Every step from `found` up to [`SCHEMA_VERSION`], each in its own
 /// transaction (each re-checks the version, so a step another process
 /// already ran is skipped): the Python app's own chain to v16 for an older file
-/// ([`crate::python_chain`], one transaction as in the Python app), then v17, v18.
+/// ([`crate::python_chain`], one transaction as in the Python app), then v17,
+/// v18, v19.
 pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     if found < PYTHON_SCHEMA_VERSION {
         crate::python_chain::to_python_version(conn)?;
@@ -155,6 +182,9 @@ pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     }
     if found <= 17 {
         v17_to_v18(conn)?;
+    }
+    if found <= 18 {
+        v18_to_v19(conn)?;
     }
     Ok(())
 }
@@ -185,6 +215,22 @@ pub(crate) fn v17_to_v18(conn: &mut Connection) -> Result<()> {
     })?;
     if current == 17 {
         for stmt in V18_STATEMENTS {
+            tx.execute(stmt, [])?;
+        }
+        tx.execute("UPDATE schema_version SET version = 18", [])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// See [`V19_STATEMENTS`].
+pub(crate) fn v18_to_v19(conn: &mut Connection) -> Result<()> {
+    let tx = crate::immediate(conn)?;
+    let current: i64 = tx.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get(0)
+    })?;
+    if current == 18 {
+        for stmt in V19_STATEMENTS {
             tx.execute(stmt, [])?;
         }
         tx.execute("UPDATE schema_version SET version = ?1", [SCHEMA_VERSION])?;

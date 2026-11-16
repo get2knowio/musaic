@@ -1,7 +1,7 @@
 //! Base types of the check framework (port of `musaic/checks/base.py`).
 
 use std::sync::Arc;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use rusqlite::Connection;
 
@@ -180,6 +180,23 @@ pub enum CheckError {
     /// Message stored in `check_runs.error`, like Python's `str(e)`.
     #[error("{0}")]
     Failed(String),
+    /// The run was told to stop before it finished (the background sweep
+    /// shutting down or yielding to a restore). Ends the run as failed:
+    /// nothing is auto-resolved and its inputs are not recorded.
+    #[error("check run interrupted")]
+    Interrupted,
+}
+
+/// What a check's result for an album depends on, for the background
+/// sweep's staleness rule ([`crate::inputs`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Granularity {
+    /// The finding of an album depends only on that album's inputs: the
+    /// check is rerun for the albums whose inputs changed.
+    Album,
+    /// The check reads the whole library (or is one cheap query over it):
+    /// it is rerun library-wide when any album's inputs changed.
+    Library,
 }
 
 /// The runner's clock. `now_iso` is the Python app's `runner._now_iso()`
@@ -246,6 +263,34 @@ pub trait Check: Send + Sync {
     /// cluster) is resolved when a fix to another member clears it.
     fn sees_whole_library(&self) -> bool {
         false
+    }
+    /// How the background sweep tracks this check's inputs: per album
+    /// unless the check sees the whole library.
+    fn granularity(&self) -> Granularity {
+        if self.sees_whole_library() {
+            Granularity::Library
+        } else {
+            Granularity::Album
+        }
+    }
+    /// A result that also depends on the passing of time (a staleness
+    /// window) or on data outside the library (MusicBrainz) is rerun once
+    /// it is this old, even when its inputs have not changed. `None`: only
+    /// when its inputs change.
+    fn refresh_after(&self) -> Option<Duration> {
+        None
+    }
+    /// The check can make network requests (through the resolver). The
+    /// background sweep runs it in small batches, through the background
+    /// network path, after the local checks.
+    fn uses_network(&self) -> bool {
+        false
+    }
+    /// Inputs outside the album rows that change this check's results
+    /// (settings, the resolver's configuration), as text folded into its
+    /// inputs digest. Never a secret value.
+    fn input_extras(&self, _ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
+        Ok(String::new())
     }
     fn run(
         &self,

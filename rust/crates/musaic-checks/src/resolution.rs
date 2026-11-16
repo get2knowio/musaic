@@ -89,6 +89,22 @@ impl Resolution {
 /// `Err` is what the Python app's checks catch and treat as "no resolution".
 pub trait ResolutionSource: Send + Sync {
     fn resolve(&self, conn: &Connection, album_id: &str) -> Result<Resolution, String>;
+
+    /// What about this source's configuration changes its answers, as a
+    /// short non-secret text (for example whether an AcoustID key is set,
+    /// never the key). Part of a check's inputs digest
+    /// ([`crate::inputs`]): a change makes the checks that resolve stale.
+    fn inputs_marker(&self) -> String {
+        String::new()
+    }
+
+    /// `true` once this source has been told to stop (the background sweep
+    /// is shutting down or yielding to a restore): an answer it gave since
+    /// may be a refusal rather than a real "no resolution", so a check that
+    /// sees it ends its run as failed instead of recording findings from it.
+    fn interrupted(&self) -> bool {
+        false
+    }
 }
 
 /// A source that never resolves (every call is an error, so anchored albums

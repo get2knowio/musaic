@@ -1,8 +1,10 @@
 //! `musaic/api/health.py` (the checks framework): list / detail / run,
 //! findings list / ignore / unignore, the filename-mismatch plan preview,
 //! the duplicate-tracks cluster preview and canonical
-//! recording lookup, and the
-//! `/api/checks/stream` SSE channel.
+//! recording lookup, the
+//! `/api/checks/stream` SSE channel, and the background check sweep's
+//! progress (`GET /api/checks/sweep`, not a route of the Python app; also a
+//! `sweep` event on the stream).
 
 use axum::body::Bytes;
 use axum::extract::{Path as UrlPath, State};
@@ -295,11 +297,28 @@ pub async fn duplicate_canonical(
     .await?
 }
 
+/// `GET /api/checks/sweep` (not a route of the Python app): the background
+/// check sweep's progress
+/// ([`musaic_services::check_sweep::SweepState::to_json`]).
+pub async fn sweep_status(State(st): State<AppState>) -> ApiResult {
+    crate::http::ok_ordered(&st.0.sweeper.state().to_json())
+}
+
+fn sweep_frame(st: &AppState) -> String {
+    sse::frame("sweep", &st.0.sweeper.state().to_json().dumps())
+}
+
 /// `GET /api/checks/stream`: the summary list on connect, again
 /// after every change, `: ping` after `ping_interval` of silence.
+///
+/// Deliberate addition: after the first summary, a `sweep` event with the
+/// background check sweep's progress, and another after every change of it
+/// (one stream, so the UI holds no extra connection for it).
 pub async fn checks_stream(State(st): State<AppState>) -> ApiResult {
     let mut rx = st.0.checks_tick.subscribe();
     rx.mark_unchanged();
+    let mut sweep_rx = st.0.sweep_changes.subscribe();
+    sweep_rx.mark_unchanged();
     let (tx, resp) = sse::channel(&st, 4);
     let ping = st.0.ping_interval;
     tokio::spawn(async move {
@@ -319,6 +338,9 @@ pub async fn checks_stream(State(st): State<AppState>) -> ApiResult {
         if !tx.send(f).await {
             return;
         }
+        if !tx.send(sweep_frame(&st)).await {
+            return;
+        }
         loop {
             tokio::select! {
                 changed = rx.changed() => {
@@ -326,6 +348,11 @@ pub async fn checks_stream(State(st): State<AppState>) -> ApiResult {
                     rx.mark_unchanged();
                     let Some(f) = frame(st.clone()).await else { return };
                     if !tx.send(f).await { return; }
+                }
+                changed = sweep_rx.changed() => {
+                    if changed.is_err() { return; }
+                    sweep_rx.mark_unchanged();
+                    if !tx.send(sweep_frame(&st)).await { return; }
                 }
                 _ = tokio::time::sleep(ping) => {
                     if !tx.send(sse::PING).await { return; }

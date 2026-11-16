@@ -130,12 +130,19 @@ pub const STORED_DEFAULT_PROVIDER_ID: &str = "claude";
 /// settings changed (never a value). The caller holds the restore
 /// gate's work guard and, on success, wakes the AI queue and calls
 /// [`kick_fingerprint_pool`] when [`SettingsPatch::sets_acoustid_key`].
+///
+/// Once the transaction has committed, publishes
+/// [`Event::SettingsChanged`](musaic_events::Event::SettingsChanged) on
+/// `bus` with the names of the settings written (never a value), also when a
+/// later field was refused (the earlier ones are persisted): the background
+/// check sweep marks the checks that depend on one of them stale.
 pub fn apply_patch(
     conn: Connection,
     store: &dyn musaic_secrets::SecretStore,
     patch: SettingsPatch,
     listed_providers: &[&str],
     log: &dyn HostLog,
+    bus: &musaic_events::Bus,
 ) -> Result<(), PatchError> {
     let SettingsPatch {
         max_parallel,
@@ -160,6 +167,8 @@ pub fn apply_patch(
     // under WAL when another connection writes (musaic_db::immediate).
     let tx = musaic_db::immediate(&conn)?;
     let mut changed: Vec<String> = Vec::new();
+    // The setting names written, for `SettingsChanged`.
+    let mut keys: Vec<&'static str> = Vec::new();
     let mut secrets: Vec<(&'static str, String)> = Vec::new();
     let outcome = (|| -> Result<(), PatchError> {
         if let Some(n) = max_parallel {
@@ -170,10 +179,12 @@ pub fn apply_patch(
             }
             set_raw(&tx, "ai_max_parallel", &n.to_string())?;
             changed.push(format!("ai_max_parallel={n}"));
+            keys.push("ai_max_parallel");
         }
         if let Some(b) = paused {
             set_raw(&tx, "ai_queue_paused", if b { "1" } else { "0" })?;
             changed.push(format!("ai_queue_paused={b}"));
+            keys.push("ai_queue_paused");
         }
         if let Some(p) = provider {
             let pid = strip(&p).to_string();
@@ -189,10 +200,12 @@ pub fn apply_patch(
             }
             set_raw(&tx, "ai_provider_id", &pid)?;
             changed.push(format!("ai_provider_id={pid}"));
+            keys.push("ai_provider_id");
         }
         if let Some(m) = model {
             set_raw(&tx, "ai_model_id", strip(&m))?;
             changed.push("ai_model_id".into());
+            keys.push("ai_model_id");
         }
         for (key, v) in [
             ("ai_api_key", ai_key),
@@ -209,6 +222,7 @@ pub fn apply_patch(
                     }
                 ));
                 secrets.push((key, v));
+                keys.push(key);
             }
         }
         if let Some(n) = retention {
@@ -219,6 +233,7 @@ pub fn apply_patch(
             }
             set_raw(&tx, "snapshot_retention_count", &n.to_string())?;
             changed.push(format!("snapshot_retention_count={n}"));
+            keys.push("snapshot_retention_count");
         }
         if let Some(h) = interval {
             // Infinity and NaN parse as floats but are not intervals (and
@@ -239,11 +254,13 @@ pub fn apply_patch(
                 &crate::json::py_float_repr(h.max(0.0)),
             )?;
             changed.push("snapshot_min_interval_hours".into());
+            keys.push("snapshot_min_interval_hours");
         }
         for (key, v) in tpl {
             if let Some(v) = v {
                 set_raw(&tx, key, strip(&v))?;
                 changed.push(key.to_string());
+                keys.push(key);
             }
         }
         Ok(())
@@ -267,6 +284,13 @@ pub fn apply_patch(
     if let Err(e) = tx.commit() {
         writes.undo();
         return Err(PatchError::Sqlite(e));
+    }
+    // Committed: what was written is in effect, also when a later field
+    // was refused.
+    if !keys.is_empty() {
+        bus.publish(&musaic_events::Event::SettingsChanged {
+            keys: keys.iter().map(|k| k.to_string()).collect(),
+        });
     }
     outcome?;
     drop(conn);

@@ -553,6 +553,8 @@ async fn main() {
         .allowed_hosts(allowed)
         .secrets(secrets)
         .network(network)
+        // Every health check runs on its own (issue #187).
+        .check_sweep(true)
         .frontend_dir(frontend)
         .log_sink(log.sink())
         .log_masks(masks)

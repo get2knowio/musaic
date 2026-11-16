@@ -11,14 +11,15 @@ import {
   Music,
 } from "lucide-react";
 
-import CheckNowButton from "@/components/CheckNowButton";
 import { useChecks } from "@/hooks/useChecks";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import type { CheckCategory, CheckSummary } from "@/lib/types";
 
 /**
  * Health page — index. Dense table-style list, one row per check with its
- * open-finding count. Click a row → detail page.
+ * open-finding count. Click a row → detail page. Checks run on their own in
+ * the background (the titlebar shows progress), so there is nothing to run
+ * from here.
  *
  * The previous card-grid layout left visible dead space when a category
  * had only 1-2 checks (cover art, duplicates, files), and the right-rail
@@ -70,8 +71,6 @@ function Header({ checks }: { checks: CheckSummary[] }) {
             </b>{" "}
             open finding{totalIssues === 1 ? "" : "s"}
           </span>
-          <span className="ml-auto" />
-          <CheckNowButton checks={checks} />
         </>
       )}
     </div>

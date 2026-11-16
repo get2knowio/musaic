@@ -44,11 +44,10 @@ Security.
   it is absent for a Missing album. The upload dialog is titled "Add cover" or "Replace
   cover", and its "Replace" link reads "Choose another image". "Ask AI for corrections…"
   and the hint dialog appear only when an AI backend is ready.
-- Health no longer asks you to run checks one by one: the per-check "Run now" buttons,
-  the "Last run" / "Never run" column, the "Recent runs" list, the category column and
-  the check count are gone. Until every check runs automatically in the background, a
-  single "Check now" on the Health page runs the checks that do not run with a library
-  scan (the tag and filename comparisons), one after another
+- Health no longer asks you to run checks: the per-check "Run now" buttons, the
+  "Last run" / "Never run" column, the "Recent runs" list, the category column and the
+  check count are gone, and so is the temporary "Check now" button, since every check
+  now runs on its own in the background (see Added)
   ([#187](https://github.com/get2knowio/musaic/issues/187)).
 - The panel of a Missing album says one thing and offers one action
   ([#195](https://github.com/get2knowio/musaic/issues/195)). A single notice says the
@@ -88,6 +87,21 @@ Security.
   panel while tags are written (the app finishes the write either way), and the
   progress, or the result, is shown again when you reopen that album.
 ### Added
+
+- Every health check runs on its own
+  ([#187](https://github.com/get2knowio/musaic/issues/187)). After startup, a scan or any
+  change to the library, a background sweep reruns each check where what it reads has
+  changed since it last ran, so the tag and filename comparisons no longer wait for a
+  button. It waits while a scan, a restore or other work runs; its MusicBrainz requests
+  only use the gaps between your own, so they never slow down what you are waiting for;
+  it stops at once when you quit, without asking. A pill in the title bar shows
+  "Checking… n of m" while it works. Changing a filename template or the AcoustID key
+  reruns the checks that depend on it. The sweep only records findings: it never changes
+  your files or tags.
+- The database is upgraded to schema v19 on first start: a new `check_inputs` table
+  records what each check last ran against, so the sweep resumes where it stopped and
+  skips what has not changed. The step only adds a table and an index; a database the
+  previous version wrote is upgraded in place without a backup copy, as for v18.
 
 - `GET /api/albums/{id}/cover-preview`: a preview of the Cover Art Archive cover the
   resolver proposes for an album anchored to MusicBrainz, without queueing a job

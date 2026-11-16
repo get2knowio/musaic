@@ -1,8 +1,9 @@
 //! Persistence layer.
 //!
 //! Opens the SQLite database the Python app wrote (schema v16), takes a
-//! backup, and migrates it one way to v18 (v17: `fingerprint_impl`; v18:
-//! the AcoustID lookup outcome and rejected files); or creates a fresh
+//! backup, and migrates it one way to v19 (v17: `fingerprint_impl`; v18:
+//! the AcoustID lookup outcome and rejected files; v19: `check_inputs`,
+//! what each health check last ran against); or creates a fresh
 //! database ([`Db::open_or_create`]) with the Python app's v16 statements
 //! followed by the same migrations, so a fresh file and a migrated one have
 //! identical schemas.
@@ -10,6 +11,7 @@
 pub mod ai_jobs;
 pub mod albums;
 pub mod backup;
+pub mod check_inputs;
 pub mod findings;
 pub mod fingerprints_ext;
 pub mod mb_anchor;
@@ -34,7 +36,7 @@ pub use musaic_core::album_id;
 pub use python_chain::OLDEST_SCHEMA_VERSION;
 
 /// Schema version this build reads and writes.
-pub const SCHEMA_VERSION: i64 = 18;
+pub const SCHEMA_VERSION: i64 = 19;
 /// Last schema version written by the Python app.
 pub const PYTHON_SCHEMA_VERSION: i64 = 16;
 
@@ -65,7 +67,7 @@ pub enum Opened {
     Current,
     /// Was older: migrated. `backup` is the copy taken first, for a database
     /// the Python app wrote (v16 or older; the existing one if an earlier
-    /// attempt took it); a v17 one (this build's) gets none.
+    /// attempt took it); a v17 or v18 one (this build's) gets none.
     Migrated { from: i64, backup: Option<PathBuf> },
     /// There was no database (no file, an empty file, or a file with no
     /// schema objects at all): created at [`SCHEMA_VERSION`], no backup.

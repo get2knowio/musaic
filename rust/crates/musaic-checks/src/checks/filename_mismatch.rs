@@ -54,6 +54,18 @@ impl Check for FilenameMismatch {
         &META
     }
 
+    /// The four templates the expected names are rendered from.
+    fn input_extras(&self, ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
+        let t = Templates::from_settings(ctx.conn)?;
+        Ok(serde_json::json!([
+            t.filename_single,
+            t.filename_compilation,
+            t.dir_single,
+            t.dir_compilation
+        ])
+        .to_string())
+    }
+
     fn run(
         &self,
         ctx: &CheckCtx<'_>,

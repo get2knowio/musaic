@@ -146,6 +146,7 @@ async fn static_check_segments_fall_back_to_generic_routes() {
             "/api/checks/{check_id}/findings/{finding_id}/unignore",
         ),
         ("GET", "/api/checks/stream", "/api/checks/stream"),
+        ("GET", "/api/checks/sweep", "/api/checks/sweep"),
         ("GET", "/api/checks/findings", "/api/checks/findings"),
         (
             "GET",
@@ -175,6 +176,9 @@ fn the_extra_route_list_is_exactly_this() {
             "GET /api/albums/{album_id}/cover-preview",
             // Deliberate addition: cancelling a running scan (issue #193).
             "POST /api/scan/cancel",
+            // Deliberate addition: the background check sweep's progress
+            // (issue #187).
+            "GET /api/checks/sweep",
         ]
     );
 }

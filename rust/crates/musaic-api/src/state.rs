@@ -201,6 +201,14 @@ impl AppStateBuilder {
     pub fn subscribers(self, on: bool) -> Self {
         self.with(|b| b.subscribers(on))
     }
+    /// [`AppBuilder::check_sweep`].
+    pub fn check_sweep(self, on: bool) -> Self {
+        self.with(|b| b.check_sweep(on))
+    }
+    /// [`AppBuilder::sweep_settle`].
+    pub fn sweep_settle(self, d: Duration) -> Self {
+        self.with(|b| b.sweep_settle(d))
+    }
     /// [`AppBuilder::auto_snapshot`].
     pub fn auto_snapshot(self, on: bool) -> Self {
         self.with(|b| b.auto_snapshot(on))

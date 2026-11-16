@@ -4,7 +4,8 @@
 //! pipeline and the AI queue.
 
 use crate::base::{
-    Check, CheckCtx, CheckError, CheckMeta, CheckScope, Cost, Emit, Finding, FixKind, Severity,
+    Check, CheckCtx, CheckError, CheckMeta, CheckScope, Cost, Emit, Finding, FixKind, Granularity,
+    Severity,
 };
 use crate::pyjson::dict;
 
@@ -52,6 +53,16 @@ const SQL: &str = "SELECT id, dir_name, dir_artist, dir_album FROM albums
 impl Check for NoCoverArt {
     fn meta(&self) -> &CheckMeta {
         &META
+    }
+
+    /// One query over the library: rerun library-wide.
+    fn granularity(&self) -> Granularity {
+        Granularity::Library
+    }
+
+    /// A finding also appears with time alone (past the recent-attempt window).
+    fn refresh_after(&self) -> Option<std::time::Duration> {
+        Some(std::time::Duration::from_secs(24 * 3600))
     }
 
     fn run(

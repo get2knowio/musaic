@@ -8,6 +8,7 @@ import type {
   AlbumListResponse,
   AlbumResolution,
   AppConfig,
+  CheckSweepStatus,
   FingerprintPoolStatus,
   Job,
   JobStatus,
@@ -156,6 +157,10 @@ export function cancelScan(): Promise<ScanCancelResponse> {
 
 export function getFingerprintPoolStatus(): Promise<FingerprintPoolStatus> {
   return request<FingerprintPoolStatus>("/api/fingerprint-pool/status");
+}
+
+export function getCheckSweepStatus(): Promise<CheckSweepStatus> {
+  return request<CheckSweepStatus>("/api/checks/sweep");
 }
 
 // --- AI Jobs ---

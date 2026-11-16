@@ -14,6 +14,7 @@ use musaic_db::Db;
 use musaic_db::backup::{self, CreatedSnapshot, RestoreError, RestoreFailed, RestoreInfo};
 use musaic_db::settings::get_int;
 
+use crate::check_sweep::CheckSweeper;
 use crate::fingerprint_pool::FingerprintPool;
 use crate::gate::DbGate;
 
@@ -81,16 +82,25 @@ where
     Ok(r)
 }
 
+/// The background workers that hold no work guard, which a restore quiets
+/// before it touches the database ([`restore_with`]).
+pub struct BackgroundWork<'a> {
+    pub pool: &'a FingerprintPool,
+    pub sweeper: &'a CheckSweeper,
+}
+
 /// The restore sequence, run while the caller holds the
 /// [`crate::gate::RestoreGuard`]: the fingerprint pool never
 /// holds the gate, so it is stopped (between two files) before the file is
-/// swapped; then the test hook; then the file lock for writing, the
+/// swapped; nor does the background check sweep, so it is suspended (its
+/// batch in progress ends and its connection closes) until the restore
+/// returns, then plans again on the restored database; then the test hook; then the file lock for writing, the
 /// database, the time, `swap` (restore from an upload or a snapshot), and
 /// on success `after` with the restored database while the lock is still
 /// held (the secret scrub, the resolver memo). A refused restore converts
 /// into the host's error type ([`RestoreError`], a 400 for HTTP).
 pub fn restore_with<E>(
-    pool: &FingerprintPool,
+    background: BackgroundWork<'_>,
     on_restore: Option<&(dyn Fn() + Send + Sync)>,
     db_gate: &DbGate,
     open: impl FnOnce() -> Result<Db, E>,
@@ -101,7 +111,8 @@ pub fn restore_with<E>(
 where
     E: From<RestoreError>,
 {
-    pool.stop();
+    background.pool.stop();
+    let _sweep = background.sweeper.suspend();
     if let Some(h) = on_restore {
         h();
     }

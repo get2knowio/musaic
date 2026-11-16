@@ -6,9 +6,11 @@
 //! here rather than in musaic-api so a non-HTTP face registers the same
 //! subscribers.
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use musaic_checks::ChecksSideEffects;
+
+use crate::check_sweep::CheckSweeper;
 
 use crate::gate::{DeferredRerun, WorkGate};
 use crate::host_log::HostLog;
@@ -26,6 +28,9 @@ pub struct GatedEffects {
     inner: ChecksSideEffects,
     gate: Arc<WorkGate>,
     log: Arc<dyn HostLog>,
+    /// The background check sweep the `_check_sweep_wake` subscriber
+    /// wakes, once the host has one ([`Self::set_sweeper`]).
+    sweeper: OnceLock<CheckSweeper>,
 }
 
 /// Wrap `inner` in the gate and set the gate's after-restore hook to
@@ -40,6 +45,7 @@ pub fn install(
         inner,
         gate: gate.clone(),
         log,
+        sweeper: OnceLock::new(),
     });
     // Reruns refused during a restore run once it ends.
     let weak = Arc::downgrade(&gated);
@@ -55,6 +61,12 @@ pub fn install(
 }
 
 impl GatedEffects {
+    /// The sweep every bus event wakes (set once; later calls are
+    /// ignored). Without one the subscriber does nothing.
+    pub fn set_sweeper(&self, sweeper: CheckSweeper) {
+        let _ = self.sweeper.set(sweeper);
+    }
+
     /// The reruns refused during a restore, after it: one library-wide
     /// post-scan sweep (it covers every album-scoped post-scan rerun that
     /// was skipped), then filename-mismatch over the albums whose rename
@@ -158,5 +170,14 @@ impl musaic_events::SideEffects for GatedEffects {
     }
     fn notify_findings_changed(&self) -> Result<(), musaic_events::SubscriberError> {
         self.inner.notify_findings_changed()
+    }
+    fn check_sweep_wake(
+        &self,
+        ev: &musaic_events::Event,
+    ) -> Result<(), musaic_events::SubscriberError> {
+        if let Some(s) = self.sweeper.get() {
+            s.on_event(ev);
+        }
+        Ok(())
     }
 }

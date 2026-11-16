@@ -15,6 +15,7 @@ import {
   subscribeScanning,
   triggerRescan,
 } from "@/lib/rescanController";
+import CheckSweepPill from "./CheckSweepPill";
 import FingerprintPoolPill from "./FingerprintPoolPill";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { jobsPageLabel } from "@/lib/aiGating";
@@ -139,6 +140,9 @@ export default function Titlebar() {
       {/* Background-pool status pill — only visible while the eager
           fingerprinting pool is actively running. Auto-hides otherwise. */}
       <FingerprintPoolPill />
+
+      {/* Background health-check sweep — only visible while it has work. */}
+      <CheckSweepPill />
 
       {/* Search — writes ?q=… to the URL so Library page can filter */}
       <div className="flex items-center gap-2 bg-panel border border-line rounded-md px-2.5 h-8 w-80 min-w-32 shrink focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-soft)] transition">

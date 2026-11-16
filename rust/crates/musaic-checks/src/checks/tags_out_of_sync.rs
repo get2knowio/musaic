@@ -470,9 +470,29 @@ pub fn check_album(
     })
 }
 
+/// How long a run's result stands without any input changing: the
+/// canonical values come from MusicBrainz, which can change on its own. The
+/// resolver's own anchor refresh window (`CACHE_REFRESH_DAYS`).
+pub const REFRESH_AFTER: std::time::Duration = std::time::Duration::from_secs(
+    crate::checks::unidentified_album::CACHE_REFRESH_DAYS * 24 * 3600,
+);
+
 impl Check for TagsOutOfSync {
     fn meta(&self) -> &CheckMeta {
         &META
+    }
+
+    fn uses_network(&self) -> bool {
+        true
+    }
+
+    fn refresh_after(&self) -> Option<std::time::Duration> {
+        Some(REFRESH_AFTER)
+    }
+
+    /// The resolver's configuration (whether AcoustID can be asked).
+    fn input_extras(&self, ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
+        Ok(format!("resolver={}", ctx.env.resolver.inputs_marker()))
     }
 
     fn run(
@@ -512,7 +532,13 @@ impl Check for TagsOutOfSync {
             .collect::<rusqlite::Result<_>>()?
         };
         for row in &rows {
-            if let Some(f) = check_album(ctx.conn, ctx.env.resolver.as_ref(), row) {
+            let finding = check_album(ctx.conn, ctx.env.resolver.as_ref(), row);
+            // A resolver told to stop answers with refusals that look like
+            // "no resolution"; nothing from it is recorded.
+            if ctx.env.resolver.interrupted() {
+                return Err(CheckError::Interrupted);
+            }
+            if let Some(f) = finding {
                 emit(f)?;
             }
         }

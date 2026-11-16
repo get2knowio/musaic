@@ -7,7 +7,7 @@
 //! SQLite's `quote()` text.
 //!
 //! `Db::open` must produce the Python app's result followed by this build's own
-//! v16 -> v17 -> v18 steps, and nothing else. The deltas are enumerated in
+//! v16 -> v17 -> v18 -> v19 steps, and nothing else. The deltas are enumerated in
 //! [`expected_from_python`]; an unlisted difference fails, and so does an
 //! enumerated delta that no fixture exercised.
 
@@ -256,7 +256,7 @@ impl Used {
     }
 }
 
-/// The Python app's `after` plus this build's v16 -> v18 steps, enumerated:
+/// The Python app's `after` plus this build's v16 -> v19 steps, enumerated:
 ///
 /// * D1: `schema_version` 16 -> [`SCHEMA_VERSION`];
 /// * D2: `track_fingerprints` gains
@@ -268,6 +268,8 @@ impl Used {
 ///   [`track_fingerprints_sql_is_the_python_apps_plus_the_v17_v18_columns`]);
 /// * D3: table `fingerprint_rejects` (empty) and its primary-key
 ///   index appended to `sqlite_master`;
+/// * D6 (v19): table `check_inputs` (empty), its primary-key index and the
+///   index `idx_track_fingerprints_inputs` appended after D3's;
 /// * D4: `journal_mode` is `wal` on both sides (no delta; listed
 ///   so a change shows up here);
 /// * D5: the v14 step leaves an ignored
@@ -289,10 +291,11 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
     assert_eq!(ours["integrity_check"], json!(["ok"]), "v{v}");
     assert_eq!(theirs["integrity_check"], json!(["ok"]), "v{v}");
 
-    // sqlite_master: same rows in the same order, then D3's two.
+    // sqlite_master: same rows in the same order, then D3's two and D6's
+    // three.
     let om = ours["sqlite_master"].as_array().unwrap();
     let tm = theirs["sqlite_master"].as_array().unwrap();
-    assert_eq!(om.len(), tm.len() + 2, "v{v} sqlite_master length");
+    assert_eq!(om.len(), tm.len() + 5, "v{v} sqlite_master length");
     for (o, t) in om.iter().zip(tm) {
         if t[1] == "track_fingerprints" && t[0] == "table" {
             assert_eq!(o.as_array().unwrap()[..3], t.as_array().unwrap()[..3]);
@@ -308,17 +311,42 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         "sqlite_autoindex_fingerprint_rejects_1"
     );
     used.hit("D3");
+    let d6: Vec<(&str, &str, &str)> = om[tm.len() + 2..]
+        .iter()
+        .map(|r| {
+            (
+                r[0].as_str().unwrap(),
+                r[1].as_str().unwrap(),
+                r[2].as_str().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        d6,
+        [
+            ("table", "check_inputs", "check_inputs"),
+            ("index", "sqlite_autoindex_check_inputs_1", "check_inputs"),
+            (
+                "index",
+                "idx_track_fingerprints_inputs",
+                "track_fingerprints"
+            ),
+        ],
+        "v{v} D6"
+    );
+    used.hit("D6");
 
     // Tables.
     let ot = ours["tables"].as_object().unwrap();
     let tt = theirs["tables"].as_object().unwrap();
     let mut names: Vec<&String> = ot.keys().collect();
-    names.retain(|n| *n != "fingerprint_rejects");
+    names.retain(|n| *n != "fingerprint_rejects" && *n != "check_inputs");
     let mut their_names: Vec<&String> = tt.keys().collect();
     names.sort();
     their_names.sort();
     assert_eq!(names, their_names, "v{v} tables");
     assert_eq!(ot["fingerprint_rejects"]["rows"], json!([]));
+    assert_eq!(ot["check_inputs"]["rows"], json!([]));
     for (name, t) in tt {
         let o = &ot[name];
         if name == "schema_version" {
@@ -395,9 +423,9 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
 
 /// Every schema version the Python app could have left on
 /// disk (v1..v16) opens and ends exactly where the Python app's chain ends, plus
-/// the enumerated v17 / v18 deltas.
+/// the enumerated v17 / v18 / v19 deltas.
 #[test]
-fn every_old_version_ends_where_the_python_ends_plus_the_v17_v18_deltas() {
+fn every_old_version_ends_where_the_python_ends_plus_the_v17_v18_v19_deltas() {
     let mut used = Used::default();
     let mut seen_v14_stamp = false;
     for v in OLDEST_SCHEMA_VERSION..=16 {
@@ -413,7 +441,7 @@ fn every_old_version_ends_where_the_python_ends_plus_the_v17_v18_deltas() {
         compare_with_python(v, &ours, &mut used);
         seen_v14_stamp |= ours.to_string().contains(PLACEHOLDER);
     }
-    for k in ["D1", "D2-sql", "D2-rows", "D3", "D4", "D5"] {
+    for k in ["D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6"] {
         assert!(used.0.contains_key(k), "delta {k} never exercised");
     }
     assert!(seen_v14_stamp, "the v14 step was never exercised");
@@ -551,7 +579,7 @@ fn remove_injection(p: &Path) {
 fn an_interrupted_migration_is_resumable_and_never_takes_a_second_backup() {
     for v in [3, 12, 15] {
         let (_d, _p, _o, clean) = migrate(v);
-        for at in [16, 17, SCHEMA_VERSION] {
+        for at in [16, 17, 18, SCHEMA_VERSION] {
             let (dir, p) = fixture_copy(v);
             inject_failure_at(&p, at);
             let before = {
