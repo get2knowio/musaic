@@ -2488,7 +2488,7 @@ dependencies = [
 name = "musaic-ai"
 version = "0.2.0-rc.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "musaic-ai",
  "musaic-core",
  "musaic-db",
@@ -2508,7 +2508,7 @@ name = "musaic-api"
 version = "0.2.0-rc.1"
 dependencies = [
  "axum",
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "getrandom 0.3.4",
  "http-body",
@@ -2696,7 +2696,7 @@ version = "0.2.0-rc.1"
 name = "musaic-net"
 version = "0.2.0-rc.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "musaic-core",
  "musaic-log",
  "musaic-resolve",
@@ -2716,7 +2716,7 @@ dependencies = [
 name = "musaic-resolve"
 version = "0.2.0-rc.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "form_urlencoded",
  "musaic-core",
  "musaic-db",
@@ -2763,7 +2763,7 @@ dependencies = [
 name = "musaic-services"
 version = "0.2.0-rc.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "image",
  "jpeg-encoder",
  "musaic-bpm",
@@ -2792,7 +2792,7 @@ dependencies = [
 name = "musaic-tags"
 version = "0.2.0-rc.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "image",
  "jpeg-encoder",
  "musaic-core",

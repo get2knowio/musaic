@@ -8,7 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 musaic-log = { path = "../musaic-log" }
-base64 = "0.22"
+base64 = "0.23"
 musaic-core = { path = "../musaic-core" }
 musaic-resolve = { path = "../musaic-resolve" }
 serde_json.workspace = true

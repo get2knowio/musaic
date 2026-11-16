@@ -23,7 +23,7 @@ serde_json.workspace = true
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
 musaic-ai = { path = ".", features = ["replay"] }
-base64 = "0.22"
+base64 = "0.23"
 tempfile.workspace = true
 sha2 = "0.11"
 
