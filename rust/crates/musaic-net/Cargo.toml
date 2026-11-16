@@ -12,7 +12,7 @@ base64 = "0.22"
 musaic-core = { path = "../musaic-core" }
 musaic-resolve = { path = "../musaic-resolve" }
 serde_json.workspace = true
-sha2 = "0.10"
+sha2 = "0.11"
 thiserror.workspace = true
 # Live HTTPS transport (blocking; rustls + ring, gzip). Certificates are
 # verified by the operating system (`platform-verifier`); the bundled Mozilla

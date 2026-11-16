@@ -24,7 +24,7 @@ xattr = "1.6"
 musaic-testdata = { path = "../musaic-testdata" }
 base64 = "0.22"
 serde_json = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 tempfile = "3"
 
 [lints]

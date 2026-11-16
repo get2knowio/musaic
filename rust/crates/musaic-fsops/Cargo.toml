@@ -21,7 +21,7 @@ unicode-normalization = "0.1"
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
 serde_json.workspace = true
-sha2 = "0.10"
+sha2 = "0.11"
 tempfile.workspace = true
 
 [lints]

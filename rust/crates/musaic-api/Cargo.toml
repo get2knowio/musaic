@@ -52,7 +52,7 @@ tempfile.workspace = true
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 regex = "1"
-sha2 = "0.10"
+sha2 = "0.11"
 base64 = "0.22"
 
 [lints]
