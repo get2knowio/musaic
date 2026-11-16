@@ -367,7 +367,7 @@ pub fn replay() -> ReplayProvider {
 /// Rows of a query as JSON objects (column name -> value).
 pub fn rows(conn: &Connection, sql: &str) -> Vec<Value> {
     let mut st = conn.prepare(sql).unwrap();
-    let names: Vec<String> = st.column_names().iter().map(|s| s.to_string()).collect();
+    let names: Vec<String> = st.column_names().map(|s| s.to_string()).collect();
     st.query_map([], |r| {
         let mut m = serde_json::Map::new();
         for (i, n) in names.iter().enumerate() {
