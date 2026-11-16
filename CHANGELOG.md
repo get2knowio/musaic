@@ -15,6 +15,19 @@ Security.
 
 ### Changed
 
+- The Jobs and Health pages are one "Needs attention" page at `/attention`
+  ([#188](https://github.com/get2knowio/musaic/issues/188)), with one sidebar entry and
+  one badge. It lists what needs a decision: open findings of severity warn or error,
+  grouped by check, and jobs that are proposed (awaiting review) or failed; the badge
+  counts exactly those. Informational findings and finished jobs are on its "Other" view
+  and are not counted; queued or running jobs show as a progress strip. Opening an album
+  shows its panel, and Back returns to the same view and scroll position. There is no
+  "Check now": checks run on their own. The old `/health`, `/health/<check>` and `/jobs`
+  links redirect (a check lands filtered to that check; `/jobs/<id>` and `/jobs?job=<id>`
+  show and highlight that job). The per-finding Fix, Ignore and Resolve dialogs, the
+  per-check bulk actions and the job Retry and Delete actions are unchanged. A proposed
+  job's status reads "To review".
+
 - The apply progress view lists each file that kept its old name after a track-number
   rename failed, with the reason ("3 files kept their old names"). The tags were saved;
   previously only the error count showed

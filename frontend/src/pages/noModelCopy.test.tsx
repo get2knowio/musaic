@@ -2,7 +2,7 @@
  * Copy that describes what happens without a model backend.
  * - Settings → AI worker → Queue status: a job that failed only because no
  *   AI backend is available does not pause the queue (other failures do).
- * - Health detail → bulk identify dialog: albums the bulk pass can't match
+ * - Needs attention → bulk identify dialog: albums the bulk pass can't match
  *   are not sent to the per-finding Fix "to escalate to AI" (that Fix
  *   answers ok:false with the not-available message in this build).
  */
@@ -14,9 +14,11 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import SettingsPage from "@/pages/Settings";
-import HealthDetailPage from "@/pages/HealthDetail";
+import AttentionPage from "@/pages/Attention";
 import type { AiProvidersResponse } from "@/lib/api";
 import type { CheckDetail, Finding } from "@/lib/types";
+
+// Severity "warn": informational findings are not on the default view.
 
 const provider = (ready: boolean): AiProvidersResponse => ({
   selected: { provider_id: "claude", model_id: "m", api_key_set: false },
@@ -37,7 +39,7 @@ const finding: Finding = {
   id: 1,
   check_id: "unidentified-album",
   album_id: "album-1",
-  severity: "info" as Finding["severity"],
+  severity: "warn",
   summary: "Not yet identified on MusicBrainz",
   detail: null,
   first_seen_at: "2026-01-01T00:00:00Z",
@@ -65,7 +67,8 @@ const detail: CheckDetail = {
 function client(ready: boolean): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   qc.setQueryData(["ai-providers"], provider(ready));
-  qc.setQueryData(["check", "unidentified-album"], detail);
+  qc.setQueryData(["checks"], [{ meta: detail.meta, open_count: 1, last_run: null }]);
+  qc.setQueryData(["findings"], [finding]);
   qc.setQueryData(["albums-snapshot"], []);
   qc.setQueryData(["jobs"], []);
   return qc;
@@ -118,12 +121,12 @@ describe("no-model copy", () => {
   });
 
   for (const ready of [false, true]) {
-    it(`HealthDetail: the identify dialog never offers AI escalation (provider ready: ${ready})`, () => {
+    it(`Needs attention: the identify dialog never offers AI escalation (provider ready: ${ready})`, () => {
       render(
         <QueryClientProvider client={client(ready)}>
-          <MemoryRouter initialEntries={["/health/unidentified-album"]}>
+          <MemoryRouter initialEntries={["/attention"]}>
             <Routes>
-              <Route path="/health/:checkId" element={<HealthDetailPage />} />
+              <Route path="/attention" element={<AttentionPage />} />
             </Routes>
           </MemoryRouter>
         </QueryClientProvider>,

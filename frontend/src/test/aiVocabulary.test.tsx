@@ -17,13 +17,13 @@ vi.mock("sonner", () => ({
 
 import Sidebar from "@/components/Sidebar";
 import JobStatusBadge from "@/components/JobStatusBadge";
-import JobsPage from "@/pages/Jobs";
+import AttentionPage from "@/pages/Attention";
 import SettingsPage from "@/pages/Settings";
 import BackupPanel from "@/pages/SettingsBackup";
 import PropTable from "@/components/DetailSheet/PropTable";
 import AlbumPanel from "@/components/DetailSheet";
 import ResolutionBadge from "@/components/DetailSheet/ResolutionBadge";
-import { AI_UNAVAILABLE, jobsPageLabel } from "@/lib/aiGating";
+import { AI_UNAVAILABLE } from "@/lib/aiGating";
 import type { AiProvidersResponse } from "@/lib/api";
 import type { AlbumResolution, DbInfo, Job } from "@/lib/types";
 import { makeAlbum, makeJob } from "@/test/fixtures";
@@ -87,6 +87,7 @@ function client(ready: boolean, jobs: Job[] = []): QueryClient {
   qc.setQueryData(["ai-providers"], providers(ready));
   qc.setQueryData(["jobs"], jobs);
   qc.setQueryData(["checks"], []);
+  qc.setQueryData(["findings"], []);
   qc.setQueryData(["albums-snapshot"], [album]);
   qc.setQueryData(["album-resolution", "a1"], resolution);
   qc.setQueryData(["tracks", "a1"], { album_id: "a1", tracks: [] });
@@ -147,11 +148,11 @@ const reviewJob = makeJob({
 
 /** Each surface that names AI, and the wording it shows when ready. */
 const surfaces: { name: string; ui: () => ReactNode; jobs?: Job[]; act?: () => void; namesAi: string[] }[] = [
-  { name: "Sidebar", ui: () => <Sidebar />, namesAi: ["AI Jobs"] },
-  { name: "Jobs page, empty", ui: () => <JobsPage />, namesAi: ["AI Jobs", "No AI jobs yet", "Ask AI for corrections"] },
+  { name: "Sidebar", ui: () => <Sidebar />, namesAi: ["Needs attention"] },
+  { name: "Needs attention, empty", ui: () => <AttentionPage />, namesAi: ["Nothing needs attention"] },
   {
-    name: "Jobs page, delete dialog",
-    ui: () => <JobsPage />,
+    name: "Needs attention, delete dialog",
+    ui: () => <AttentionPage />,
     jobs: [completedJob],
     act: () => fireEvent.click(screen.getByRole("button", { name: "Delete job" })),
     namesAi: ["discard Claude's suggestions"],
@@ -194,19 +195,6 @@ describe("AI vocabulary follows ai.ready", () => {
       }
     });
   }
-
-  it("names the Jobs page 'Jobs' without a ready provider", () => {
-    expect(jobsPageLabel({ known: true, ready: false, anyReady: false })).toBe("Jobs");
-    expect(jobsPageLabel({ known: false, ready: false, anyReady: false })).toBe("Jobs");
-    expect(jobsPageLabel({ known: true, ready: true, anyReady: true })).toBe("AI Jobs");
-  });
-
-  it("Jobs empty state names no AI action without a ready provider", () => {
-    renderWith(false, <JobsPage />);
-    expect(screen.getByRole("heading", { name: "No jobs yet" })).toBeInTheDocument();
-    expect(document.body.textContent).toContain("MusicBrainz corrections now show up directly");
-    expect(document.body.textContent).not.toContain("Ask AI");
-  });
 
   it("Settings: the AI worker card is hidden and the AcoustID help names no AI; the one notice stays", () => {
     renderWith(false, <SettingsPage />);

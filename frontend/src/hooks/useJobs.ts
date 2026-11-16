@@ -57,15 +57,6 @@ export function useActiveJobForAlbum(albumId: string | null | undefined): Job | 
 }
 
 /**
- * Count of jobs that warrant a sidebar badge: completed (awaiting user
- * action) + failed (also awaiting user attention).
- */
-export function useAttentionJobCount(): number {
-  const { data: jobs = [] } = useJobs();
-  return jobs.filter((j) => j.status === "completed" || j.status === "failed").length;
-}
-
-/**
  * Map of album_id → most-recent active job for that album. "Active" matches
  * `useActiveJobForAlbum` (queued | running | completed-not-yet-acted-on).
  *

@@ -1,13 +1,11 @@
-import { Activity, Disc3, History, ListMusic, Music2, Settings as SettingsIcon, Sparkles } from "lucide-react";
+import { AlertCircle, Disc3, History, ListMusic, Music2, Settings as SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { useJobs, useAttentionJobCount, useInFlightJobCounts } from "@/hooks/useJobs";
-import { useChecks } from "@/hooks/useChecks";
+import { useJobs, useInFlightJobCounts } from "@/hooks/useJobs";
+import { attentionBadgeText, useAttention } from "@/hooks/useAttention";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useRememberedLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
-import { useAiStatus } from "@/hooks/useAiStatus";
-import { jobsPageLabel } from "@/lib/aiGating";
 import { FILTERS, buildNeedsAttentionSet, isValidFilterKey, type FilterKey } from "@/lib/filters";
 
 interface NavItem {
@@ -30,8 +28,7 @@ const FOLLOWUP_WORKSPACE_ITEMS: NavItem[] = [
 export default function Sidebar() {
   const location = useLocation();
   const isLibrary = location.pathname.startsWith("/library");
-  const isJobs = location.pathname.startsWith("/jobs");
-  const isHealth = location.pathname.startsWith("/health");
+  const isAttention = location.pathname.startsWith("/attention");
 
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -46,7 +43,7 @@ export default function Sidebar() {
   const rememberedLibraryUrl = useRememberedLibraryUrl();
 
   // Toggle a filter chip. Clicking the currently-active filter clears it;
-  // clicking from /jobs or /settings navigates BACK to the remembered library
+  // clicking from /attention or /settings navigates BACK to the remembered library
   // URL with the filter applied — but strip any open-album segment so a
   // filter click doesn't surprise the user by re-opening a detail sheet.
   // Other view state (search query, view mode) IS preserved.
@@ -90,8 +87,7 @@ export default function Sidebar() {
     return out;
   }, [albums, needsAttention]);
 
-  const ai = useAiStatus();
-  const attentionCount = useAttentionJobCount();
+  const attention = useAttention();
   const { running: runningCount, queued: queuedCount } = useInFlightJobCounts();
   const activityLabel =
     runningCount > 0
@@ -101,28 +97,18 @@ export default function Sidebar() {
       : queuedCount > 0
       ? `${queuedCount} queued`
       : null;
-  const aiJobsItem: NavItem = {
-    to: "/jobs",
-    label: jobsPageLabel(ai),
-    icon: Sparkles,
-    badge: attentionCount > 0
-      ? { text: String(attentionCount), tone: "accent" }
+  // One item for everything that needs a decision: open warn/error
+  // findings plus proposed and failed jobs. Informational findings and
+  // finished jobs are not counted.
+  const attentionItem: NavItem = {
+    to: "/attention",
+    label: "Needs attention",
+    icon: AlertCircle,
+    badge: attention.count > 0
+      ? { text: attentionBadgeText(attention.count, attention.countIsLowerBound), tone: "warn" }
       : undefined,
     activity: runningCount > 0 && activityLabel
       ? { label: activityLabel }
-      : undefined,
-  };
-
-  // Health item: shows total open-finding count across all checks as a badge.
-  // Hidden when the registry is empty (Phase 1 has zero checks installed).
-  const { data: checkSummaries = [] } = useChecks();
-  const totalOpenFindings = checkSummaries.reduce((n, c) => n + c.open_count, 0);
-  const healthItem: NavItem = {
-    to: "/health",
-    label: "Health",
-    icon: Activity,
-    badge: totalOpenFindings > 0
-      ? { text: String(totalOpenFindings), tone: "warn" }
       : undefined,
   };
 
@@ -146,13 +132,12 @@ export default function Sidebar() {
     <nav className="border-r border-line bg-panel-2 px-2.5 py-3 flex flex-col gap-1 text-sm overflow-y-auto">
       <SectionLabel>Workspace</SectionLabel>
       {/* Library item targets the remembered URL so the user lands back on
-          their last filter / search / open album when returning from /jobs. */}
+          their last filter / search / open album when returning from /attention. */}
       <WorkspaceItem
         item={{ to: rememberedLibraryUrl, label: "Library", icon: Disc3 }}
         active={isLibrary && activeFilter === null}
       />
-      <WorkspaceItem item={aiJobsItem} active={isJobs} />
-      <WorkspaceItem item={healthItem} active={isHealth} />
+      <WorkspaceItem item={attentionItem} active={isAttention} />
 
       <SectionLabel>Filters</SectionLabel>
       <FilterChipRow

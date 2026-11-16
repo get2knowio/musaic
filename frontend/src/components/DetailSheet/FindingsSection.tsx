@@ -36,7 +36,7 @@ export default function FindingsSection({ album }: Props) {
   // Hide the section entirely when there's nothing to show.
   if (open.length === 0 && ignored.length === 0) return null;
 
-  // Most-common open check on this album → drives the "Bulk fix in Health"
+  // Most-common open check on this album → drives the "Bulk fix in Needs attention"
   // deep-link in the section meta, so the user discovers the bulk affordance
   // without us spending a paragraph telling them about it.
   const topCheckId = pickTopCheck(open);
@@ -58,7 +58,7 @@ export default function FindingsSection({ album }: Props) {
           )}
           {topCheckId && (
             <Link
-              to={`/health/${encodeURIComponent(topCheckId)}`}
+              to={`/attention?check=${encodeURIComponent(topCheckId)}`}
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-0.5 text-fg-3 hover:text-accent hover:underline"
               title="Bulk-fix similar findings across the library"
@@ -149,7 +149,7 @@ function FindingRow({ finding }: { finding: Finding }) {
         <div>{finding.summary}</div>
         <div className="mono text-[11px] text-fg-4 mt-0.5 truncate">
           <Link
-            to={`/health/${encodeURIComponent(finding.check_id)}`}
+            to={`/attention?check=${encodeURIComponent(finding.check_id)}`}
             className="hover:underline text-fg-3"
           >
             {checkLabel}
