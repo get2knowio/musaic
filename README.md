@@ -50,12 +50,13 @@ below, because a file fetched by `curl` is not marked as an internet download.
 | macOS, Apple Silicon | `.dmg` with `aarch64` in its name |
 | macOS, Intel | `.dmg` with `x64` in its name |
 | Linux (x64) | `.AppImage` or `.deb` |
+| Windows (x64), from the release after v0.2.0-rc.1 | `-setup.exe` |
 
 Each release lists the SHA-256 of every file in `SHA256SUMS.txt`.
 
-**Windows: no installer yet.** The automated tests do not yet pass on Windows, so no
-Windows build is published until they do (progress in
-[#178](https://github.com/get2knowio/musaic/issues/178)).
+**Windows:** the automated tests now run on Windows and are required in CI, and the
+release workflow builds an unsigned NSIS installer (`-setup.exe`) from the next release
+on. v0.2.0-rc.1 has no Windows installer.
 
 **Tested so far:** only the macOS Apple Silicon build has been run by a person. The
 Linux and Intel Mac builds are produced by CI from the same source and have not yet been

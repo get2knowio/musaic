@@ -19,6 +19,11 @@ Security.
   rename failed, with the reason ("3 files kept their old names"). The tags were saved;
   previously only the error count showed
   ([#217](https://github.com/get2knowio/musaic/issues/217)).
+- Windows is back ([#178](https://github.com/get2knowio/musaic/issues/178)). The Windows
+  Rust tests are now a required part of the `ci passed` check, and the release workflow
+  builds an unsigned Windows installer (NSIS, `-setup.exe`) after the Windows tests pass,
+  from the next release on. v0.2.0-rc.1 has no Windows installer. The check keeps its
+  name, `ci passed (linux, macos, frontend)`, so the repository ruleset keeps matching.
 - Wording: the transient AI-job error no longer points at a script that does not exist, and
   the Settings text about FireCrawl and the Backup page no longer say "paid".
 - The album panel proposes MusicBrainz corrections in one place and applies them one way
