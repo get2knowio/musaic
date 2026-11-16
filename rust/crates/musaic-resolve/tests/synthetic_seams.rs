@@ -80,10 +80,12 @@ fn browse_request(rg: &str) -> musaic_net::Request {
 // ---------------------------------------------------------------------------
 // Log lines.
 
-/// A search with no answer at all logs a WARNING on `musaic.mb_lookup`; an
-/// HTTP error status does not (it is only traced).
+/// A search with no answer at all logs a WARNING on `musaic.mb_lookup`.
+/// Deliberate change: so do an HTTP error status (a 503 is MusicBrainz
+/// rate limiting) and a body that is not JSON; the Python app only traced
+/// those, so they never reached the server log.
 #[test]
-fn only_a_network_failure_of_the_search_is_logged() {
+fn every_failure_of_the_search_is_logged() {
     let world = World::new();
     let (_, lines) = resolve_logged(&world, &world, &Net::new(), &NoPrints);
     one(
@@ -93,20 +95,36 @@ fn only_a_network_failure_of_the_search_is_logged() {
         "MusicBrainz search failed: ",
     );
 
+    let search =
+        musaic_net::MusicBrainzClient::<musaic_net::ReplayTransport>::search_request(ARTIST, ALBUM);
     let net = Net::new();
-    net.status(
-        &musaic_net::MusicBrainzClient::<musaic_net::ReplayTransport>::search_request(
-            ARTIST, ALBUM,
-        ),
-        503,
+    net.status(&search, 503);
+    let (_, lines) = resolve_logged(&world, &world, &net, &NoPrints);
+    let r = one(
+        &lines,
+        Level::Warning,
+        "musaic.mb_lookup",
+        "MusicBrainz search failed: ",
+    );
+    assert_eq!(r.message, "MusicBrainz search failed: HTTP 503");
+
+    let net = Net::new();
+    net.answer(
+        &search,
+        musaic_net::Response {
+            status: 200,
+            headers: vec![("Content-Type".into(), "application/json".into())],
+            body: b"<html>busy</html>".to_vec(),
+        },
     );
     let (_, lines) = resolve_logged(&world, &world, &net, &NoPrints);
-    assert!(
-        lines
-            .iter()
-            .all(|r| !r.message.starts_with("MusicBrainz search failed")),
-        "{lines:?}"
+    let r = one(
+        &lines,
+        Level::Warning,
+        "musaic.mb_lookup",
+        "MusicBrainz search failed: ",
     );
+    assert!(r.message.contains("not valid JSON"), "{}", r.message);
 }
 
 /// A refused Tier 0b anchor write is an ERROR naming the album, not a

@@ -73,10 +73,33 @@ fn first_tag(meta: &FlacMeta, keys: &[&str]) -> Option<String> {
     })
 }
 
+/// The directory entry's own spelling of `name`, which exists as a file.
+/// On a case- or normalisation-insensitive volume the probe for `cover.jpg`
+/// also finds `Cover.JPG`; the entry that is the same file (rule: same-file,
+/// never a string comparison) gives the spelling on disk. An exact entry
+/// wins; without a readable listing the probed name is kept.
+fn on_disk_name(album_dir: &Path, name: &str) -> String {
+    let probed = album_dir.join(name);
+    let Ok(rd) = std::fs::read_dir(album_dir) else {
+        return name.to_string();
+    };
+    let mut names: Vec<std::ffi::OsString> = rd.flatten().map(|e| e.file_name()).collect();
+    if names.iter().any(|n| n == name) {
+        return name.to_string();
+    }
+    names.sort();
+    names
+        .into_iter()
+        .find(|n| same_file::is_same_file(album_dir.join(n), &probed).unwrap_or(false))
+        .map_or_else(|| name.to_string(), |n| n.to_string_lossy().into_owned())
+}
+
 fn find_cover_file(album_dir: &Path) -> Option<String> {
+    // Deliberate change: the name found is reported as the directory
+    // spells it; the Python app reported the spelling it probed.
     for name in COVER_FILENAMES {
         if std::fs::metadata(album_dir.join(name)).is_ok_and(|m| m.is_file()) {
-            return Some(name.to_string());
+            return Some(on_disk_name(album_dir, name));
         }
     }
     // Case-insensitive fallback. When two names fold to the same lower-case

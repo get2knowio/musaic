@@ -30,13 +30,24 @@
 //!   track_tags, one transaction).
 //! - After file renames the track-tag sidecar is rewritten (only
 //!   when the album has track tags, as apply.py does).
+//! - A Missing album (`missing_since` set) is refused before anything
+//!   is touched; the Python app went ahead and failed at the filesystem.
+//! - The post-rename upsert files the album under its own row's
+//!   `library_path`, not the configured library dir (they differ after
+//!   the library setting changes).
+//! - Plan entries that are skipped (source not found, or already renamed)
+//!   are returned in [`RenameOutcome::skipped`] and summed up in the
+//!   message, not only logged. A file that failed, or that could not be
+//!   moved back from its temporary name, is named in the message.
 
 use std::path::{Path, PathBuf};
 
 use musaic_core::album_id;
 use musaic_core::pycompat::strip;
 use musaic_db::albums::upsert_album;
-use musaic_db::renames::{DirMigration, album_path, rename_album_directory, rename_track_files};
+use musaic_db::renames::{
+    DirMigration, album_location, rename_album_directory, rename_track_files,
+};
 use musaic_scan::{TrackOrder, py_resolve, scan_album};
 use rusqlite::Connection;
 
@@ -70,6 +81,32 @@ pub struct RenameDetail {
     pub dir_migration: Option<DirMigration>,
 }
 
+/// Why a plan entry was not attempted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SkipReason {
+    /// Neither the old nor the new name is a file in the album directory.
+    SourceMissing,
+    /// The old name is gone and the new one exists: an earlier call did it.
+    AlreadyRenamed,
+}
+
+impl SkipReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            SkipReason::SourceMissing => "source_missing",
+            SkipReason::AlreadyRenamed => "already_renamed",
+        }
+    }
+}
+
+/// A plan entry left alone, with the reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkippedEntry {
+    pub old: String,
+    pub new: String,
+    pub reason: SkipReason,
+}
+
 /// `execute_renames`' return dict, plus the event to publish.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RenameOutcome {
@@ -79,6 +116,8 @@ pub struct RenameOutcome {
     /// Present (`already_renamed: true`) when every real plan entry had
     /// already been applied by an earlier call.
     pub already_renamed: bool,
+    /// Plan entries not attempted (not in the Python app's dict).
+    pub skipped: Vec<SkippedEntry>,
     pub detail: Option<RenameDetail>,
     pub album_renamed: Option<AlbumRenamed>,
 }
@@ -90,10 +129,53 @@ impl RenameOutcome {
             message: message.into(),
             renamed: 0,
             already_renamed: false,
+            skipped: Vec::new(),
             detail: None,
             album_renamed: None,
         }
     }
+}
+
+/// How many names a message lists before it says "and N more".
+const NAMES_IN_MESSAGE: usize = 3;
+
+fn name_list(names: &[&str]) -> String {
+    let mut s = names
+        .iter()
+        .take(NAMES_IN_MESSAGE)
+        .map(|n| py_repr(n))
+        .collect::<Vec<_>>()
+        .join(", ");
+    if names.len() > NAMES_IN_MESSAGE {
+        s.push_str(&format!(" and {} more", names.len() - NAMES_IN_MESSAGE));
+    }
+    s
+}
+
+/// The message suffix for skipped entries ("" when there are none), so the
+/// one line the dialog shows says what was left alone.
+fn skipped_suffix(skipped: &[SkippedEntry]) -> String {
+    let of = |r: SkipReason| -> Vec<&str> {
+        skipped
+            .iter()
+            .filter(|e| e.reason == r)
+            .map(|e| e.old.as_str())
+            .collect()
+    };
+    let mut out = String::new();
+    let missing = of(SkipReason::SourceMissing);
+    if !missing.is_empty() {
+        out.push_str(&format!(
+            "; {} not found, skipped: {}",
+            missing.len(),
+            name_list(&missing)
+        ));
+    }
+    let done = of(SkipReason::AlreadyRenamed);
+    if !done.is_empty() {
+        out.push_str(&format!("; {} already renamed", done.len()));
+    }
+    out
 }
 
 /// What `execute_renames` needs from outside the call.
@@ -124,17 +206,16 @@ fn samefile(a: &Path, b: &Path) -> bool {
     same_file::is_same_file(a, b).unwrap_or(false)
 }
 
-/// Re-scan the album and upsert its row; a failed upsert is logged with
-/// `what` (the Python app's message for that call site) and otherwise ignored,
-/// as the Python app does (filename_mismatch.py:649, 731).
-fn rescan(conn: &mut Connection, env: &RenameEnv, album_dir: &Path, what: &str) {
-    let Some(lib) = env.library_dir else { return };
-    if let Some(fresh) = scan_album(album_dir, env.track_order) {
-        let lib = py_resolve(Path::new(lib)).to_string_lossy().into_owned();
-        if let Err(e) = upsert_album(conn, &lib, env.now, &fresh) {
-            // `log.exception`: ERROR; the error text stands in for the traceback.
-            musaic_log::error(TARGET, &format!("{what}: {e}"));
-        }
+/// Re-scan the album and upsert its row under `library` (the row's own
+/// library); a failed upsert is logged with `what` (the Python app's message
+/// for that call site) and otherwise ignored, as the Python app does
+/// (filename_mismatch.py:649, 731).
+fn rescan(conn: &mut Connection, env: &RenameEnv, library: &str, album_dir: &Path, what: &str) {
+    if let Some(fresh) = scan_album(album_dir, env.track_order)
+        && let Err(e) = upsert_album(conn, library, env.now, &fresh)
+    {
+        // `log.exception`: ERROR; the error text stands in for the traceback.
+        musaic_log::error(TARGET, &format!("{what}: {e}"));
     }
 }
 
@@ -164,6 +245,22 @@ fn stage(old: &Path) -> std::io::Result<PathBuf> {
     unreachable!()
 }
 
+/// Move every staged file back to its own name. Returns a line for each
+/// file that could not be moved back (it keeps its temporary name).
+fn roll_back(staged: &[(PathBuf, PathBuf, PathBuf)]) -> Vec<String> {
+    let mut stuck = Vec::new();
+    for (o, t, _) in staged {
+        if let Err(e) = rename_noclobber(t, o) {
+            musaic_log::error(
+                TARGET,
+                &format!("execute_renames: rollback failed for {}: {e}", o.display()),
+            );
+            stuck.push(format!("{} is left as {}: {e}", name_of(o), name_of(t)));
+        }
+    }
+    stuck
+}
+
 /// Apply a rename plan (and optionally a directory rename) to an album.
 ///
 /// Preflight (nothing changes on refusal): directory target validity and
@@ -184,11 +281,23 @@ pub fn execute_renames(
     if env.library_dir.is_none_or(str::is_empty) {
         return RenameOutcome::fail("No library configured");
     }
-    let row_path = match album_path(conn, album_id_in) {
-        Ok(Some(p)) => p,
+    let row = match album_location(conn, album_id_in) {
+        Ok(Some(r)) => r,
         _ => return RenameOutcome::fail("Album not found"),
     };
-    let mut album_dir = PathBuf::from(&row_path);
+    if let Some(since) = row.missing_since.as_deref().filter(|s| !s.is_empty()) {
+        return RenameOutcome::fail(format!(
+            "Album is missing from disk (missing since {since}); nothing was renamed"
+        ));
+    }
+    // The row's own library; the configured one only for a row without it.
+    let library = if row.library_path.is_empty() {
+        let lib = env.library_dir.unwrap_or_default();
+        py_resolve(Path::new(lib)).to_string_lossy().into_owned()
+    } else {
+        row.library_path
+    };
+    let mut album_dir = PathBuf::from(&row.path);
     if !album_dir.is_dir() {
         return RenameOutcome::fail(format!("Album directory missing: {}", album_dir.display()));
     }
@@ -223,7 +332,7 @@ pub fn execute_renames(
     // ---- preflight: files (checked in the current dir; a dir rename does
     // not change its contents) ----
     let mut cleaned: Vec<(String, String)> = Vec::new();
-    let mut already_done = 0;
+    let mut skipped: Vec<SkippedEntry> = Vec::new();
     for entry in plan {
         let (old, new) = (strip(&entry.old), strip(&entry.new));
         if old.is_empty() || new.is_empty() || old == new {
@@ -237,9 +346,15 @@ pub fn execute_renames(
         }
         let (old_p, new_p) = (album_dir.join(old), album_dir.join(new));
         if !old_p.is_file() {
+            let skip = |reason| SkippedEntry {
+                old: old.to_string(),
+                new: new.to_string(),
+                reason,
+            };
             if new_p.is_file() {
-                already_done += 1;
+                skipped.push(skip(SkipReason::AlreadyRenamed));
             } else {
+                skipped.push(skip(SkipReason::SourceMissing));
                 // filename_mismatch.py:602. The Python app checks after the
                 // directory rename, so its path names the new directory;
                 // this preflight runs before it and names the
@@ -342,11 +457,17 @@ pub fn execute_renames(
                 !o.is_empty() && !n.is_empty() && o != n
             })
             .count();
+        let already_done = skipped
+            .iter()
+            .filter(|e| e.reason == SkipReason::AlreadyRenamed)
+            .count();
         if already_done > 0 && already_done == real {
             return RenameOutcome {
                 ok: true,
                 renamed: 0,
                 already_renamed: true,
+                // `already_renamed` already says it, for every entry.
+                skipped: Vec::new(),
                 message: format!(
                     "All {already_done} file(s) were already renamed by an earlier click; nothing to do. \
                      Re-running the check to clear the stale finding."
@@ -357,18 +478,20 @@ pub fn execute_renames(
         }
         return RenameOutcome {
             ok: true,
-            message: "Nothing to rename".into(),
+            message: format!("Nothing to rename{}", skipped_suffix(&skipped)),
             album_renamed: event,
+            skipped,
             ..RenameOutcome::fail("")
         };
     }
     if cleaned.is_empty() {
-        rescan(conn, env, &album_dir, RESCAN_AFTER_DIR);
+        rescan(conn, env, &library, &album_dir, RESCAN_AFTER_DIR);
         return RenameOutcome {
             ok: true,
-            message: "Renamed album directory".into(),
+            message: format!("Renamed album directory{}", skipped_suffix(&skipped)),
             renamed: 0,
             already_renamed: false,
+            skipped,
             detail: Some(RenameDetail {
                 errors: Vec::new(),
                 dir_renamed: true,
@@ -391,19 +514,25 @@ pub fn execute_renames(
                     TARGET,
                     &format!("execute_renames: stage phase failed; rolling back: {e}"),
                 );
-                for (o, t, _) in &staged {
-                    let _ = rename_noclobber(t, o);
+                // The Python app's OSError text names the file; io::Error's
+                // does not, so the name is added here.
+                let mut message = format!("Rename staging failed for {}: {e}", py_repr(old));
+                let stuck = roll_back(&staged);
+                if stuck.is_empty() {
+                    message.push_str("; no file was renamed");
+                } else {
+                    message.push_str(&format!("; {}", stuck.join("; ")));
                 }
                 // After a dir rename this still reports it.
-                let message = format!("Rename staging failed: {e}");
                 return match dir_migration {
                     Some(_) => {
-                        rescan(conn, env, &album_dir, RESCAN_AFTER_DIR);
+                        rescan(conn, env, &library, &album_dir, RESCAN_AFTER_DIR);
                         RenameOutcome {
                             ok: false,
                             message: message.clone(),
                             renamed: 0,
                             already_renamed: false,
+                            skipped,
                             detail: Some(RenameDetail {
                                 errors: vec![message],
                                 dir_renamed: true,
@@ -413,13 +542,18 @@ pub fn execute_renames(
                             album_renamed,
                         }
                     }
-                    None => RenameOutcome::fail(message),
+                    None => RenameOutcome {
+                        skipped,
+                        ..RenameOutcome::fail(message)
+                    },
                 };
             }
         }
     }
     let mut renamed = 0;
     let mut errors = Vec::new();
+    let mut failed: Vec<String> = Vec::new();
+    let mut stuck: Vec<String> = Vec::new();
     for (old_p, tmp, new_p) in &staged {
         match rename_noclobber(tmp, new_p) {
             Ok(()) => {
@@ -440,6 +574,7 @@ pub fn execute_renames(
             }
             Err(e) => {
                 errors.push(format!("{} → {}: {e}", name_of(old_p), name_of(new_p)));
+                failed.push(name_of(old_p));
                 if let Err(e) = rename_noclobber(tmp, old_p) {
                     // filename_mismatch.py:706 (`log.exception`: ERROR).
                     musaic_log::error(
@@ -449,6 +584,10 @@ pub fn execute_renames(
                             old_p.display()
                         ),
                     );
+                    // The file is only under its temporary name now: say so.
+                    let line = format!("{} is left as {}: {e}", name_of(old_p), name_of(tmp));
+                    errors.push(line.clone());
+                    stuck.push(line);
                 }
             }
         }
@@ -468,7 +607,7 @@ pub fn execute_renames(
             ),
         );
     }
-    rescan(conn, env, &album_dir, RESCAN_AFTER_FILES);
+    rescan(conn, env, &library, &album_dir, RESCAN_AFTER_FILES);
 
     if renamed > 0 && !dir_renamed {
         album_renamed = Some(AlbumRenamed {
@@ -490,14 +629,24 @@ pub fn execute_renames(
     } else {
         "Renamed album directory".to_string()
     };
-    if !errors.is_empty() {
-        message.push_str(&format!("; {} error(s)", errors.len()));
+    if !failed.is_empty() {
+        // One per failed file, as the Python app counted its errors.
+        message.push_str(&format!("; {} error(s)", failed.len()));
+        // Deliberate addition: which files kept their old names, and any
+        // left under a temporary name.
+        let names: Vec<&str> = failed.iter().map(String::as_str).collect();
+        message.push_str(&format!(": not renamed {}", name_list(&names)));
+        for line in &stuck {
+            message.push_str(&format!("; {line}"));
+        }
     }
+    message.push_str(&skipped_suffix(&skipped));
     RenameOutcome {
         ok: (renamed > 0 || dir_renamed) && errors.is_empty(),
         message: strip(&message).to_string(),
         renamed,
         already_renamed: false,
+        skipped,
         detail: Some(RenameDetail {
             errors,
             dir_renamed,

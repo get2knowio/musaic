@@ -319,3 +319,22 @@ fn listing_skips_junk_and_collapses_hard_links() {
     assert_eq!(albums.len(), 1);
     assert_eq!(albums[0].track_count, 2);
 }
+
+/// The cover file is reported as the directory spells it, on any volume.
+/// Deliberate change: on a case-insensitive volume the Python app's probe
+/// for `cover.jpg` found `Cover.JPG` and reported `cover.jpg`.
+#[test]
+fn cover_file_is_the_spelling_on_disk() {
+    let dir = tempfile::tempdir().unwrap();
+    let album = dir.path().join("Artist - Album [FLAC]");
+    std::fs::create_dir(&album).unwrap();
+    write_flac(&album.join("01.flac"), &[("TRACKNUMBER", "1")]);
+    std::fs::write(album.join("Cover.JPG"), b"jpeg").unwrap();
+    let a = scan_album(&album, TrackOrder::DiscTrack).unwrap();
+    assert_eq!(a.cover_file.as_deref(), Some("Cover.JPG"));
+    // An exact spelling is kept as it is.
+    std::fs::write(album.join("front.png"), b"png").unwrap();
+    std::fs::remove_file(album.join("Cover.JPG")).unwrap();
+    let a = scan_album(&album, TrackOrder::DiscTrack).unwrap();
+    assert_eq!(a.cover_file.as_deref(), Some("front.png"));
+}

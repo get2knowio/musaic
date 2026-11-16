@@ -220,7 +220,35 @@ pub fn rename_plan_row(conn: &Connection, album_id: &str) -> Result<Option<Renam
         .optional()?)
 }
 
-/// `execute_renames`' row read: the album's path, Missing or not.
+/// Where an album row says it lives: what `execute_renames` reads before it
+/// touches any file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlbumLocation {
+    pub path: String,
+    /// The library the row belongs to.
+    pub library_path: String,
+    /// `missing_since` as stored (`None` when NULL).
+    pub missing_since: Option<String>,
+}
+
+/// The album's path, library and Missing state; `None` without a row.
+pub fn album_location(conn: &Connection, album_id: &str) -> Result<Option<AlbumLocation>> {
+    Ok(conn
+        .query_row(
+            "SELECT path, library_path, missing_since FROM albums WHERE id = ?1",
+            [album_id],
+            |r| {
+                Ok(AlbumLocation {
+                    path: r.get(0)?,
+                    library_path: r.get(1)?,
+                    missing_since: r.get(2)?,
+                })
+            },
+        )
+        .optional()?)
+}
+
+/// The album's path, Missing or not.
 pub fn album_path(conn: &Connection, album_id: &str) -> Result<Option<String>> {
     Ok(conn
         .query_row("SELECT path FROM albums WHERE id = ?1", [album_id], |r| {

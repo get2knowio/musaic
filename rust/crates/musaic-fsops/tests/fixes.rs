@@ -236,3 +236,219 @@ fn trash_keeps_the_source_when_no_name_can_be_claimed() {
     );
     assert_eq!(std::fs::read_dir(&sub).unwrap().count(), 0);
 }
+
+fn env(lib: &str) -> RenameEnv<'_> {
+    RenameEnv {
+        library_dir: Some(lib),
+        now: NOW,
+        track_order: TrackOrder::Filename,
+    }
+}
+
+fn flac_names(dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = std::fs::read_dir(dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| !n.starts_with(".media-manager"))
+        .collect();
+    names.sort();
+    names
+}
+
+/// A Missing album is refused before anything is touched, even when its
+/// folder is reachable again (rule 6: scans observe, users decide; a rescan
+/// clears Missing first). The Python app went ahead.
+#[test]
+fn missing_album_is_not_renamed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    let (mut db, lib_s, id) = library(&base, "Old", &[("1 a.flac", "A")]);
+    albums::mark_album_missing(db.connection(), &id, "2026-02-01T00:00:00Z").unwrap();
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib_s),
+        &id,
+        &[entry("1 a.flac", "01 - A.flac")],
+        Some(&entry("Old", "New")),
+    );
+    assert!(!out.ok);
+    assert_eq!(
+        out.message,
+        "Album is missing from disk (missing since 2026-02-01T00:00:00Z); nothing was renamed"
+    );
+    assert!(out.album_renamed.is_none());
+    assert_eq!(flac_names(&base.join("lib/Old")), ["1 a.flac"]);
+    assert!(!base.join("lib/New").exists());
+}
+
+/// The post-rename upsert keeps the album in its own library. The Python
+/// app upserted under the configured library dir, which moved the row
+/// (and created a `libraries` row) when the setting had changed since the
+/// album was scanned.
+#[test]
+fn rescan_keeps_the_rows_own_library() {
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    let (mut db, lib_s, id) = library(&base, "Al", &[("1 a.flac", "A")]);
+    let other = base.join("elsewhere");
+    std::fs::create_dir(&other).unwrap();
+    let other_s = py_resolve(&other).to_string_lossy().into_owned();
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&other_s),
+        &id,
+        &[entry("1 a.flac", "01 - A.flac")],
+        None,
+    );
+    assert!(out.ok, "{}", out.message);
+    let conn = db.connection();
+    let (lib_of_row, sample): (String, String) = conn
+        .query_row(
+            "SELECT library_path, sample_track FROM albums WHERE id = ?1",
+            [&id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(lib_of_row, lib_s);
+    assert!(sample.ends_with("01 - A.flac"), "{sample}");
+    let libraries: Vec<String> = conn
+        .prepare("SELECT path FROM libraries ORDER BY path")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(libraries, [lib_s]);
+}
+
+/// Entries left alone are returned and summed up in the message, not only
+/// logged: one source gone, one already renamed by an earlier call.
+#[test]
+fn skipped_entries_reach_the_outcome() {
+    use musaic_fsops::rename::SkipReason;
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    let (mut db, lib_s, id) = library(&base, "Al", &[("1 a.flac", "A"), ("02 - B.flac", "B")]);
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib_s),
+        &id,
+        &[
+            entry("1 a.flac", "01 - A.flac"),
+            entry("2 b.flac", "02 - B.flac"),
+            entry("3 c.flac", "03 - C.flac"),
+        ],
+        None,
+    );
+    assert!(out.ok, "{}", out.message);
+    assert_eq!(out.renamed, 1);
+    assert_eq!(
+        out.message,
+        "1 file; 1 not found, skipped: '3 c.flac'; 1 already renamed"
+    );
+    let got: Vec<(&str, SkipReason)> = out
+        .skipped
+        .iter()
+        .map(|e| (e.old.as_str(), e.reason))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("2 b.flac", SkipReason::AlreadyRenamed),
+            ("3 c.flac", SkipReason::SourceMissing)
+        ]
+    );
+    // Only skips: still "Nothing to rename", with the reason.
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib_s),
+        &id,
+        &[entry("3 c.flac", "03 - C.flac")],
+        None,
+    );
+    assert_eq!(
+        out.message,
+        "Nothing to rename; 1 not found, skipped: '3 c.flac'"
+    );
+}
+
+/// A source name that fits but whose temporary name is too long for the
+/// filesystem (255 bytes): staging of the second file fails after the first
+/// was staged. The first file is moved back; nothing is renamed and the
+/// message names the file.
+#[test]
+fn staging_failure_mid_batch_restores_every_file() {
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    let long = format!("2 {}.flac", "b".repeat(243));
+    assert_eq!(long.len(), 250);
+    let (mut db, lib_s, id) = library(&base, "Al", &[("1 a.flac", "A"), (&long, "B")]);
+    let album = base.join("lib/Al");
+    let before = flac_names(&album);
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib_s),
+        &id,
+        &[
+            entry("1 a.flac", "01 - A.flac"),
+            entry(&long, "02 - B.flac"),
+        ],
+        None,
+    );
+    assert!(!out.ok);
+    assert_eq!(out.renamed, 0);
+    assert!(
+        out.message
+            .starts_with(&format!("Rename staging failed for '{long}': ")),
+        "{}",
+        out.message
+    );
+    assert!(
+        out.message.ends_with("; no file was renamed"),
+        "{}",
+        out.message
+    );
+    assert_eq!(flac_names(&album), before);
+}
+
+/// The second pass cannot give a file its new name (too long for the
+/// filesystem; the preflight cannot see that): that file goes back to its
+/// old name, the others are renamed, and the message names the one that
+/// was not.
+#[test]
+fn second_pass_failure_names_the_file_and_restores_it() {
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    let (mut db, lib_s, id) = library(&base, "Al", &[("1 a.flac", "A"), ("2 b.flac", "B")]);
+    let album = base.join("lib/Al");
+    let too_long = format!("02 - {}.flac", "B".repeat(300));
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib_s),
+        &id,
+        &[
+            entry("1 a.flac", "01 - A.flac"),
+            entry("2 b.flac", &too_long),
+        ],
+        None,
+    );
+    assert!(!out.ok);
+    assert_eq!(out.renamed, 1);
+    assert!(
+        out.message
+            .starts_with("1 file; 1 error(s): not renamed '2 b.flac'"),
+        "{}",
+        out.message
+    );
+    let d = out.detail.unwrap();
+    assert_eq!(d.errors.len(), 1, "{:?}", d.errors);
+    assert!(
+        d.errors[0].starts_with("2 b.flac \u{2192} 02 - "),
+        "{:?}",
+        d.errors
+    );
+    assert_eq!(flac_names(&album), ["01 - A.flac", "2 b.flac"]);
+    // Files renamed: the event still goes out so the UI refreshes.
+    assert!(out.album_renamed.is_some());
+}

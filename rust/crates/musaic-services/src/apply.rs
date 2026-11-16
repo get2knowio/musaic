@@ -364,18 +364,42 @@ pub fn tag_event_json(ev: &TagEvent) -> Json {
             errors,
             suggestions_applied,
             cleared,
-        } => with_cleared(
-            Json::obj([
-                ("album_path", Json::from(path_str(album_path))),
-                ("dry_run", Json::from(*dry_run)),
-                ("saved_count", Json::from(*saved_count)),
-                ("art_changed_count", Json::from(*art_changed_count)),
-                ("renamed_count", Json::from(*renamed_count)),
-                ("errors", Json::from(*errors)),
-                ("suggestions_applied", str_map(suggestions_applied)),
-            ]),
-            cleared,
-        ),
+            rename_failures,
+        } => {
+            let mut j = with_cleared(
+                Json::obj([
+                    ("album_path", Json::from(path_str(album_path))),
+                    ("dry_run", Json::from(*dry_run)),
+                    ("saved_count", Json::from(*saved_count)),
+                    ("art_changed_count", Json::from(*art_changed_count)),
+                    ("renamed_count", Json::from(*renamed_count)),
+                    ("errors", Json::from(*errors)),
+                    ("suggestions_applied", str_map(suggestions_applied)),
+                ]),
+                cleared,
+            );
+            // Only when there is something to say, so the event stays the
+            // Python app's otherwise: files whose TRACKNUMBER was written
+            // but whose rename did not happen.
+            if !rename_failures.is_empty() {
+                j.set(
+                    "rename_failures",
+                    Json::Arr(
+                        rename_failures
+                            .iter()
+                            .map(|f| {
+                                Json::obj([
+                                    ("filename", Json::from(f.filename.as_str())),
+                                    ("new_filename", Json::from(f.new_filename.as_str())),
+                                    ("error", Json::from(f.error.as_str())),
+                                ])
+                            })
+                            .collect(),
+                    ),
+                );
+            }
+            j
+        }
         TagEvent::CoverSaved { path, filename } => Json::obj([
             ("path", Json::from(path_str(path))),
             ("filename", Json::from(filename.as_str())),

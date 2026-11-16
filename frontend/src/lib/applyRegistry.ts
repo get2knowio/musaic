@@ -14,7 +14,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import { postSse } from "@/lib/sse";
-import type { Album, ApplyPayload, FileChange, TagDiff } from "@/lib/types";
+import type { Album, ApplyPayload, FileChange, RenameFailure, TagDiff } from "@/lib/types";
 
 export type FileStatus = "pending" | "active" | "done" | "error";
 
@@ -43,6 +43,8 @@ export interface ApplyState {
   updatedAlbum: Album | null;
   /** Every file's rewrite warnings, as "filename: text". */
   warnings: string[];
+  /** Files whose TRACKNUMBER was written but whose rename did not happen. */
+  renameFailures: RenameFailure[];
 }
 
 export const INITIAL_APPLY_STATE: ApplyState = {
@@ -57,6 +59,7 @@ export const INITIAL_APPLY_STATE: ApplyState = {
   error: null,
   updatedAlbum: null,
   warnings: [],
+  renameFailures: [],
 };
 
 type Action =
@@ -66,7 +69,7 @@ type Action =
   | { type: "start"; fileCount: number }
   | { type: "file_started"; index: number; filename: string }
   | { type: "file_done"; change: FileChange & { index?: number } }
-  | { type: "done"; saved: number; errors: number; artChanged: number }
+  | { type: "done"; saved: number; errors: number; artChanged: number; renameFailures: RenameFailure[] }
   | { type: "updated_album"; album: Album }
   | { type: "error"; detail: string };
 
@@ -131,6 +134,7 @@ function reducer(state: ApplyState, action: Action): ApplyState {
         savedCount: action.saved,
         errors: action.errors,
         artChanged: action.artChanged > 0,
+        renameFailures: action.renameFailures,
       };
     case "updated_album":
       return { ...state, updatedAlbum: action.album };
@@ -201,8 +205,19 @@ export async function startApply(
         },
         file_done: (data) => d({ type: "file_done", change: data as FileChange }),
         done: (data) => {
-          const r = data as { saved_count: number; errors: number; art_changed_count: number };
-          d({ type: "done", saved: r.saved_count, errors: r.errors, artChanged: r.art_changed_count });
+          const r = data as {
+            saved_count: number;
+            errors: number;
+            art_changed_count: number;
+            rename_failures?: RenameFailure[];
+          };
+          d({
+            type: "done",
+            saved: r.saved_count,
+            errors: r.errors,
+            artChanged: r.art_changed_count,
+            renameFailures: r.rename_failures ?? [],
+          });
         },
         // No explicit tracks invalidation — the apply pipeline publishes
         // AlbumTagsChanged on completion, which useLibraryEventsStream maps

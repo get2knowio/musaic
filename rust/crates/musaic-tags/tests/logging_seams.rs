@@ -13,7 +13,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 
 use musaic_log::{Level, Record, capture};
-use musaic_tags::{Event, apply_to_album_iter, normalize_to_jpeg, save_cover_to_album_dir};
+use musaic_tags::{
+    Event, RenameFailure, apply_to_album_iter, normalize_to_jpeg, save_cover_to_album_dir,
+};
 
 /// Minimal FLAC (STREAMINFO + VORBIS_COMMENT + 1 KiB PADDING, no audio
 /// frames): the recipe of the fsops golden generator's `flac_bytes` plus
@@ -55,6 +57,16 @@ fn only(lines: &[Record], level: Level, prefix: &str) -> Record {
     assert_eq!(hits[0].level, level, "{lines:?}");
     assert_eq!(hits[0].target, "musaic.tags");
     hits[0].clone()
+}
+
+/// The `Done` event's rename failures.
+fn rename_failures(events: &[Event]) -> Vec<RenameFailure> {
+    match events.last() {
+        Some(Event::Done {
+            rename_failures, ..
+        }) => rename_failures.clone(),
+        other => panic!("last event is not done: {other:?}"),
+    }
 }
 
 fn renumber(album: &Path) -> Vec<Event> {
@@ -150,6 +162,15 @@ fn rename_onto_existing_file_logs_rollback() {
         "{events:?}"
     );
     assert!(album.join("01 a.flac").is_file());
+    // Deliberate addition: the file that kept its name is in the outcome.
+    assert_eq!(
+        rename_failures(&events),
+        [RenameFailure {
+            filename: "01 a.flac".into(),
+            new_filename: "02 a.flac".into(),
+            error: "02 a.flac already exists".into(),
+        }]
+    );
     let r = only(
         &lines,
         Level::Warning,
@@ -168,7 +189,10 @@ fn rename_onto_existing_file_logs_rollback() {
 // `log.exception("rename batch failed; attempting rollback")`.
 // Deliberate difference: ERROR with ": <error>" appended instead of a
 // Python traceback. Driven by a read-only album dir: the tag write is in
-// place, the staging rename is refused.
+// place, the staging rename is refused. The new TRACKNUMBER stays written
+// (rolling a tag write back could fail the same way); deliberate change:
+// the `done` event names the file that kept its old name, where the
+// Python app only logged the batch failure.
 #[test]
 fn failed_rename_batch_logs_error() {
     let tmp = tempfile::tempdir().unwrap();
@@ -189,4 +213,78 @@ fn failed_rename_batch_logs_error() {
         "rename batch failed; attempting rollback: ",
     );
     assert!(album.join("01 a.flac").is_file());
+    let failures = rename_failures(&events);
+    assert_eq!(failures.len(), 1, "{failures:?}");
+    assert_eq!(
+        (
+            failures[0].filename.as_str(),
+            failures[0].new_filename.as_str()
+        ),
+        ("01 a.flac", "02 a.flac")
+    );
+    assert!(!failures[0].error.is_empty());
+}
+
+// The same batch failure part-way through: the first file is staged, the
+// second's temporary name is too long for the filesystem. The staged file
+// is moved back, and both files are named in the `done` event.
+#[test]
+fn failed_rename_batch_names_every_file_left_unrenamed() {
+    let tmp = tempfile::tempdir().unwrap();
+    let album = tmp.path().join("album");
+    std::fs::create_dir(&album).unwrap();
+    let long = format!("02 {}.flac", "b".repeat(242));
+    assert_eq!(long.len(), 250);
+    std::fs::write(album.join("01 a.flac"), flac_bytes(&[("TRACKNUMBER", "1")])).unwrap();
+    std::fs::write(album.join(&long), flac_bytes(&[("TRACKNUMBER", "2")])).unwrap();
+    let mut events = Vec::new();
+    let ((), lines) = capture(|| {
+        apply_to_album_iter(
+            &album,
+            &Vec::new(),
+            &vec![
+                (
+                    "01 a.flac".to_owned(),
+                    vec![("tracknumber".to_owned(), Some("3".to_owned()))],
+                ),
+                (
+                    long.clone(),
+                    vec![("tracknumber".to_owned(), Some("4".to_owned()))],
+                ),
+            ],
+            &Default::default(),
+            None,
+            false,
+            &mut |e| events.push(e),
+        )
+        .unwrap()
+    });
+    only(
+        &lines,
+        Level::Error,
+        "rename batch failed; attempting rollback: ",
+    );
+    let mut names: Vec<String> = std::fs::read_dir(&album)
+        .unwrap()
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["01 a.flac".to_owned(), long.clone()]);
+    let failures = rename_failures(&events);
+    let got: Vec<(&str, &str)> = failures
+        .iter()
+        .map(|f| (f.filename.as_str(), f.new_filename.as_str()))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("01 a.flac", "03 a.flac"),
+            (long.as_str(), &*format!("04 {}.flac", "b".repeat(242)))
+        ]
+    );
+    assert_eq!(
+        failures[0].error,
+        format!("not renamed: the batch stopped at {long}")
+    );
 }

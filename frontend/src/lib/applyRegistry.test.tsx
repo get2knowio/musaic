@@ -110,6 +110,24 @@ describe("apply registry", () => {
     expect(screen.getByTestId("progress")).toHaveTextContent("done 0/1");
   });
 
+  it("keeps the files whose rename failed, as the done event names them", async () => {
+    const sse = controllable();
+    act(() => {
+      void startApply("a1", { suggestions: {} } as never);
+    });
+    await sse.emit("start", { file_count: 1 });
+    await sse.emit("done", {
+      saved_count: 1,
+      errors: 1,
+      art_changed_count: 0,
+      rename_failures: [{ filename: "01 a.flac", new_filename: "02 a.flac", error: "02 a.flac already exists" }],
+    });
+    await sse.finish();
+    expect(getApplyState("a1").renameFailures).toEqual([
+      { filename: "01 a.flac", new_filename: "02 a.flac", error: "02 a.flac already exists" },
+    ]);
+  });
+
   it("tracks albums independently and refuses a second start while one runs", async () => {
     controllable();
     act(() => {

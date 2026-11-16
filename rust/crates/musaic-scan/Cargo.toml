@@ -9,6 +9,7 @@ rust-version.workspace = true
 [dependencies]
 musaic-core = { path = "../musaic-core" }
 regex = "1.11"
+same-file = "1"
 
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }

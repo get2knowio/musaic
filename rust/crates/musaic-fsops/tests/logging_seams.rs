@@ -119,7 +119,11 @@ fn missing_source_is_logged() {
     let base = musaic_testdata::canonical(tmp.path());
     let (mut db, lib, id) = library(&base, "Al", &[("1 a.flac", "1")]);
     let (out, lines) = run(&mut db, &lib, &id, &[entry("gone.flac", "x.flac")], None);
-    assert_eq!(out.message, "Nothing to rename");
+    // Deliberate change: the skip is also in the outcome, not only the log.
+    assert_eq!(
+        out.message,
+        "Nothing to rename; 1 not found, skipped: 'gone.flac'"
+    );
     let r = has(
         &lines,
         Level::Warning,

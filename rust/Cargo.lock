@@ -2628,6 +2628,7 @@ dependencies = [
  "musaic-core",
  "musaic-testdata",
  "regex",
+ "same-file",
  "serde_json",
  "tempfile",
 ]
