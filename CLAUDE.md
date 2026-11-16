@@ -121,10 +121,10 @@ The script builds the UI, writes `rust/target/desktop-notices/NOTICES.txt`
 (`scripts/desktop_notices.py`, via cargo-about), then runs
 `cargo tauri build --bundles app,dmg --config tauri.bundle.conf.json` in
 `rust/crates/musaic-desktop/`. `.github/workflows/release.yml` does the same per platform
-(AppImage + deb on Linux), after running the Rust tests (`rust-tests.yml`) on each
-platform it builds. It builds no Windows installer until the Windows tests are
-required-green in CI (#178); the commented-out matrix entry uses NSIS, since MSI rejects
-pre-release versions.
+(AppImage + deb on Linux, NSIS on Windows), after running the Rust tests (`rust-tests.yml`) on each
+platform it builds. It also builds an unsigned Windows installer (NSIS, since MSI rejects
+pre-release versions) from the release after v0.2.0-rc.1; the Windows tests are required in
+CI and gate that build like the others.
 Signing, notarisation and an updater are not configured.
 
 The desktop's hidden-window boot test is `#[ignore]`d; run it after building the UI:

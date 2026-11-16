@@ -1,15 +1,14 @@
 # Gates every push to main and every pull request. Mirrors the commands in
 # CONTRIBUTING.md, so a green local run is a green CI run.
 #
-# Required: Rust on Linux and macOS, and the frontend. The `required` job at
-# the end passes only when all of them passed; it is the one status to
-# require for merging, and the run's conclusion follows it.
+# Required: Rust on Linux, macOS and Windows, and the frontend. The
+# `required` job at the end passes only when all of them passed; it is the one
+# status to require for merging, and the run's conclusion follows it. Its name
+# still reads "(linux, macos, frontend)" because a repository ruleset requires
+# that exact status name; renaming it needs a ruleset edit first.
 #
-# Windows runs the same Rust steps but is NOT required yet (#178): its
-# failure does not fail the run. So that a red Windows job is never read as
-# a pass, the job itself still ends red, and the run gets a warning
-# annotation and a summary line naming the failure. Move windows-latest into
-# the `rust` matrix (and into release.yml) once it is green.
+# Windows uses the synthetic test library generated on Linux, because the
+# generator's audio differs in a few files on Windows.
 #
 # The Rust steps live in rust-tests.yml, which release.yml also calls before
 # building installers.
@@ -43,11 +42,10 @@ jobs:
       os: ${{ matrix.os }}
 
   rust-windows:
-    name: not required (#178)
+    name: required (windows-latest)
     uses: ./.github/workflows/rust-tests.yml
     with:
       os: windows-latest
-      allowed-to-fail: true
       library-from-linux: true
 
   frontend:
@@ -78,8 +76,8 @@ jobs:
         run: npm run build
 
   # The single status to require: green only when every required job above
-  # is green. Also states the Windows result in words, because a job that is
-  # allowed to fail does not change the run's conclusion.
+  # is green, Windows included. The name is kept as is so the repository
+  # ruleset that requires it keeps matching.
   required:
     name: ci passed (linux, macos, frontend)
     if: always()
@@ -91,19 +89,16 @@ jobs:
         env:
           RUST: ${{ needs.rust.result }}
           FRONTEND: ${{ needs.frontend.result }}
-          WINDOWS: ${{ needs.rust-windows.outputs.outcome || 'did not report' }}
+          WINDOWS: ${{ needs.rust-windows.result }}
         run: |
           {
             echo "| job | result |"
             echo "|---|---|"
             echo "| rust (ubuntu-22.04, macos-15) — required | $RUST |"
             echo "| frontend — required | $FRONTEND |"
-            echo "| rust (windows-latest) — not required, #178 | $WINDOWS |"
+            echo "| rust (windows-latest) — required | $WINDOWS |"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$WINDOWS" != "success" ]; then
-            echo "::warning::Windows: $WINDOWS (not required yet, see #178). This run passing says nothing about Windows."
-          fi
-          if [ "$RUST" != "success" ] || [ "$FRONTEND" != "success" ]; then
-            echo "::error::a required job did not pass (rust: $RUST, frontend: $FRONTEND)"
+          if [ "$RUST" != "success" ] || [ "$WINDOWS" != "success" ] || [ "$FRONTEND" != "success" ]; then
+            echo "::error::a required job did not pass (rust: $RUST, windows: $WINDOWS, frontend: $FRONTEND)"
             exit 1
           fi

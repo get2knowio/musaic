@@ -59,10 +59,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-15]
+        os: [ubuntu-22.04, macos-15, windows-latest]
     uses: ./.github/workflows/rust-tests.yml
     with:
       os: ${{ matrix.os }}
+      # Windows tests with the library generated on Linux, as in ci.yml.
+      library-from-linux: ${{ matrix.os == 'windows-latest' }}
 
   draft:
     name: draft release
@@ -140,15 +142,10 @@ jobs:
             os: macos-15
             target: x86_64-apple-darwin
             bundles: app,dmg
-          # No Windows build: the Rust tests do not pass on Windows yet (#178),
-          # and no installer is published for a platform whose tests are not
-          # required-green. Restore this entry only when the Windows job is
-          # required in ci.yml and green, and add windows-latest to the tests
-          # job and to TESTED_RUNNERS in the same change:
-          #   - name: windows-x64
-          #     os: windows-latest
-          #     target: x86_64-pc-windows-msvc
-          #     bundles: nsis   # the MSI bundler rejects pre-release versions
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis   # the MSI bundler rejects pre-release versions
           # 22.04: an older glibc for a wider AppImage reach.
           - name: linux-x64
             os: ubuntu-22.04
@@ -160,7 +157,7 @@ jobs:
     env:
       # The runners the tests job covers. The Intel Mac build is
       # cross-compiled on macos-15 and is covered by the macOS test run.
-      TESTED_RUNNERS: "ubuntu-22.04 macos-15"
+      TESTED_RUNNERS: "ubuntu-22.04 macos-15 windows-latest"
     steps:
       - name: Refuse a platform without required tests
         run: |

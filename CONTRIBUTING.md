@@ -67,10 +67,10 @@ npm run build
 ```
 
 CI runs the same commands (`.github/workflows/ci.yml`, with the Rust steps in
-`rust-tests.yml`) without the private test data. The Linux and macOS Rust jobs and the
-frontend job are required; the `ci passed` job is green only when all of them are. The
-Windows job runs but is not required yet, and no Windows installer is published until it
-is (#178) — fixes that make it pass are welcome. A release runs the same Rust tests on
+`rust-tests.yml`) without the private test data. The Linux, macOS and
+Windows Rust jobs and the frontend job are required; the `ci passed (linux, macos,
+frontend)` job (its name is unchanged so the repository ruleset keeps matching) is green
+only when all of them are, Windows included. A release runs the same Rust tests on
 every platform it builds and builds nothing if any of them fails.
 
 ## Tests and test data
@@ -112,8 +112,9 @@ cargo install cargo-about --version 0.9.3 --locked --features cli
 scripts/package_macos.sh       # unsigned Musaic.app + .dmg under rust/target/release/bundle/
 ```
 
-Linux bundles are built by `.github/workflows/release.yml`; its steps are the reference
-for building them by hand (Windows too, though no Windows installer is published yet).
+Linux and Windows bundles are built by `.github/workflows/release.yml`; its steps are the
+reference for building them by hand. The Windows installer is unsigned and is built from
+the release after v0.2.0-rc.1 on.
 
 ## Reporting bugs and security issues
 
