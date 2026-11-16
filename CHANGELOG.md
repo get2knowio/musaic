@@ -141,6 +141,19 @@ Security.
 
 ### Fixed
 
+- The automatic check sweep and the copy taken before a schema upgrade are stricter about
+  what counts as an answer ([#251](https://github.com/get2knowio/musaic/issues/251)). A
+  resolver error leaves an album "could not evaluate" (its findings stay and it is checked
+  again) instead of closing the MusicBrainz-derived ones. Only a 404 from MusicBrainz is an
+  answer; any other status (a proxy's 403 or 407, a 400, a rate limit, a server error) and,
+  for the Cover Art Archive, anything but 200 or 404, leaves the album unevaluated. If an
+  existing database cannot be read before an upgrade, startup stops with a message naming
+  the file instead of upgrading without a copy; the read waits out a short lock. A second
+  start after one that did not finish upgrading reuses the copy if the database has not
+  changed since, instead of taking another full copy. The newest pre-upgrade copy is exempt
+  from snapshot pruning until a later upgrade supersedes it. An AI job that names a release
+  group no longer overwrites an anchor the user changed while the job ran.
+
 - A check can no longer close findings for albums it could not look at: an album whose
   folder cannot be read, or whose MusicBrainz lookup failed (offline, a server error),
   keeps its findings and is checked again later, whether the check was started by you,

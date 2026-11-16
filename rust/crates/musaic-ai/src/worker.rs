@@ -394,7 +394,18 @@ impl Call<'_> {
     /// changes nothing; a non-200 records a lookup failure); then stored
     /// at score 88 and `AlbumMbAnchorSet("ai")` published. `Ok(true)` only
     /// when the anchor was stored.
-    fn persist_ai_mbid(&self, album_id: &str, mbid: &str) -> Result<bool, String> {
+    ///
+    /// The write is a compare-and-set against `expected`, the album's
+    /// release group as the job read it before it asked the provider (`None`
+    /// = unanchored): if the user cleared the anchor ("Wrong match"), chose
+    /// another or blocked this one in the meantime, their change wins and
+    /// nothing is stored or published.
+    fn persist_ai_mbid(
+        &self,
+        album_id: &str,
+        mbid: &str,
+        expected: Option<&str>,
+    ) -> Result<bool, String> {
         let blocked = musaic_db::mb_anchor::get_blocked_mb_release_groups(self.conn, album_id)
             .map_err(|e| e.to_string())?;
         if blocked.contains(mbid) {
@@ -411,15 +422,23 @@ impl Call<'_> {
                 Ok(false)
             }
             Ok(200) => {
-                musaic_db::mb_anchor::set_album_mb_anchor(
+                let written = musaic_db::mb_anchor::set_album_mb_anchor_if(
                     self.conn,
                     album_id,
+                    expected,
                     mbid,
                     None,
                     AI_MBID_SCORE,
                     &self.env.now_iso(),
                 )
                 .map_err(|e| e.to_string())?;
+                if !written {
+                    self.env.log(&format!(
+                        "AI MBID for album={album_id} mbid={mbid} not stored: the album's anchor \
+                         changed while the job ran"
+                    ));
+                    return Ok(false);
+                }
                 self.env.anchor_set(album_id);
                 Ok(true)
             }
@@ -494,6 +513,11 @@ fn work(call: &Call<'_>, job: &JobRow) -> Result<(), Failure> {
         .resolve(conn, &job.album_id, &job.hint)
         .map_err(Failure::Other)?;
 
+    // The anchor the job saw (after the resolver's own work): the AI's MBID
+    // is stored only if it is still that when the answer comes back.
+    let anchor_at_start = musaic_db::mb_anchor::get_album_mb_anchor(conn, &job.album_id)
+        .map_err(db_err)?
+        .map(|a| a.release_group_mbid);
     let mut result = Py::Dict(Vec::new());
     // Whether the result's MBID was
     // stored as the anchor or came from the resolver; only then is a no-op
@@ -519,7 +543,7 @@ fn work(call: &Call<'_>, job: &JobRow) -> Result<(), Failure> {
                     .anchor
                     .as_ref()
                     .is_some_and(|a| py_strip(&a.value) == py_strip(mbid));
-                match call.persist_ai_mbid(&job.album_id, mbid) {
+                match call.persist_ai_mbid(&job.album_id, mbid, anchor_at_start.as_deref()) {
                     Ok(stored) => mbid_trusted = stored || from_resolver,
                     Err(e) => {
                         mbid_trusted = from_resolver;

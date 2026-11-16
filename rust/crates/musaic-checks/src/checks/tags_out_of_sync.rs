@@ -327,16 +327,22 @@ fn sort_proposals(a: &TagsRow, mb_album_artist_sort: Option<&str>) -> Vec<(&'sta
 }
 
 /// `compute_diffs(album)`. The resolver is asked only for albums with an
-/// MBID; a resolver error counts as "no resolution".
+/// MBID. A resolver error (a busy database during an apply, say) is not "no
+/// resolution": the album is reported `unevaluated`, so its findings stay as
+/// they are and it is checked again, instead of closing the
+/// MusicBrainz-derived ones and recording the album as checked.
 pub fn compute_diffs(
     conn: &Connection,
     resolver: &dyn ResolutionSource,
     a: &TagsRow,
 ) -> AlbumDiffs {
     let missing_core = missing_core_fields(a);
-    let resolution = match a.mb_release_group_mbid.as_deref() {
-        Some(m) if !m.is_empty() => resolver.resolve(conn, &a.id).ok(),
-        _ => None,
+    let (resolution, resolver_failed) = match a.mb_release_group_mbid.as_deref() {
+        Some(m) if !m.is_empty() => match resolver.resolve(conn, &a.id) {
+            Ok(r) => (Some(r), false),
+            Err(_) => (None, true),
+        },
+        _ => (None, false),
     };
     let network_failed = resolution.as_ref().is_some_and(|r| r.network_failed);
     let res = resolution.as_ref();
@@ -403,7 +409,7 @@ pub fn compute_diffs(
         applicable_tracks,
         has_anchor,
         summary,
-        unevaluated: network_failed || !tracks_read,
+        unevaluated: resolver_failed || network_failed || !tracks_read,
     }
 }
 

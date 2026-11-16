@@ -69,6 +69,16 @@ fn drop_other_library_findings(result: &mut J, findings: &mut J, album: &str) {
 
 const DELTAS: &[CaseDelta] = &[
     (
+        "toos-resolver-raises-or-unanchored",
+        "a resolver error leaves an album unevaluated instead of reading as \"no resolution\"",
+        "findings: a2 (its resolver raises) 'missing: year' -> absent, since the album is not \
+         evaluated and emits nothing; run.issue_count 2 -> 1; run.completed_at 00:00:04Z -> 00:00:03Z",
+        |r, f| {
+            assert_eq!(r["run"]["issue_count"], 2);
+            drop_other_library_findings(r, f, "a2");
+        },
+    ),
+    (
         "dupes-filters",
         "duplicate-tracks looks only at the library being checked",
         "findings: a2 (library <LIB>-other) 'Duplicate audio: \"a\" (2 copies)' -> absent; \

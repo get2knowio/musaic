@@ -237,25 +237,91 @@ pub fn pool_deps(
     }
 }
 
-/// Why the copy before a schema step could not be taken.
+/// Why there is no copy before a schema step, and so no upgrade.
 #[derive(Debug, thiserror::Error)]
-#[error(
-    "could not copy the database to {dir} before upgrading it from schema v{found} to v{to}: {reason}. \
-     The database was not changed; free some space or make that folder writable, then start again."
-)]
-pub struct PreUpgradeCopyFailed {
-    pub dir: String,
-    pub found: i64,
-    pub to: i64,
-    pub reason: String,
+pub enum PreUpgradeCopyFailed {
+    #[error(
+        "could not copy the database to {dir} before upgrading it from schema v{found} to v{to}: {reason}. \
+         Nothing was upgraded and the database was not changed. Free some space in {dir} or make that \
+         folder writable, then start again."
+    )]
+    Copy {
+        dir: String,
+        found: i64,
+        to: i64,
+        reason: String,
+    },
+    #[error(
+        "could not read the database {db} to check whether it needs upgrading: {reason}. \
+         Nothing was upgraded and the database was not changed. Close anything else that has it \
+         open and check that the file is readable, then start again."
+    )]
+    Read { db: String, reason: String },
+}
+
+/// What [`snapshot_before_schema_step`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PreUpgradeCopy {
+    /// Nothing to copy: no database yet, one already at the current schema,
+    /// a Python-app one (musaic-db backs those up itself), or a file that is
+    /// not a library (opening it says so).
+    NotNeeded,
+    /// A new snapshot of this name was taken.
+    Taken(String),
+    /// A snapshot of this name, taken for the same schema version after the
+    /// database last changed, already exists (an earlier start that did not
+    /// finish upgrading): no second copy, so repeated failed starts do not
+    /// each take a full copy and prune older snapshots.
+    Existing(String),
+}
+
+/// How long to wait for a lock on the database being read before giving up.
+const READ_BUSY_TIMEOUT: std::time::Duration = musaic_db::BUSY_TIMEOUT;
+
+/// When the database last changed, in whole seconds (a snapshot's own
+/// modification time is read in whole seconds): the later of its file and
+/// its WAL.
+fn live_mtime(db_path: &Path) -> Option<i64> {
+    let mut wal = db_path.as_os_str().to_owned();
+    wal.push("-wal");
+    [db_path.to_path_buf(), wal.into()]
+        .iter()
+        .filter_map(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+        .filter_map(|t| t.duration_since(UNIX_EPOCH).ok())
+        .map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+        .max()
+}
+
+/// A snapshot in `dir` written for schema `found` (by its name), that opens
+/// at that version and is not older than the database's last change. A
+/// newer database with an older copy (changes made since) gets a new copy.
+fn existing_copy(dir: &Path, db_path: &Path, found: i64) -> Option<String> {
+    let changed = live_mtime(db_path)?;
+    // Newest first.
+    for s in musaic_db::backup::list_snapshots(dir).ok()? {
+        let named = musaic_db::backup::parse_snapshot_name(&s.filename)
+            .is_some_and(|n| i64::try_from(n.version) == Ok(found));
+        if named && s.valid && s.schema_version == Some(found) && s.modified_unix >= changed {
+            return Some(s.filename);
+        }
+    }
+    None
 }
 
 /// Before a database this build wrote (v17 or later) is upgraded to the
 /// current schema: one copy of it, as a snapshot in `snapshot_dir` (named
-/// `library-<tag>-v<found>.db`, so it is listed, restorable and pruned with
-/// the other snapshots by the database's retention count). A database at
-/// the current version, a missing one and a Python-app one (v16 or older,
-/// which musaic-db backs up itself) get none: `Ok(None)`.
+/// `library-<tag>-v<found>.db`, so it is listed, restorable and, as the
+/// newest such copy, kept by the database's pruning until a later upgrade
+/// supersedes it). A database at the current version, a missing, empty or
+/// blank one and a Python-app one (v16 or older, which musaic-db backs up
+/// itself) get none: [`PreUpgradeCopy::NotNeeded`].
+///
+/// An existing database that cannot be opened read-only or whose version
+/// cannot be read is an error, not "nothing to copy": the migration that
+/// follows must not run without a copy because the check failed. (A file
+/// with no schema objects, no `schema_version` table or no version row is
+/// not a library at all; `Db::open_or_create` creates over a blank one and
+/// refuses the others without migrating them.)
 ///
 /// The copy holds no secret: rows of [`musaic_secrets::SECRET_KEYS`] left in
 /// `settings` (a key the OS keyring could not take yet) are deleted from the
@@ -265,31 +331,58 @@ pub fn snapshot_before_schema_step(
     db_path: &Path,
     snapshot_dir: &Path,
     now: SystemTime,
-) -> Result<Option<String>, PreUpgradeCopyFailed> {
-    if !db_path.is_file() || std::fs::metadata(db_path).map(|m| m.len()).unwrap_or(0) == 0 {
-        return Ok(None);
+) -> Result<PreUpgradeCopy, PreUpgradeCopyFailed> {
+    match std::fs::metadata(db_path) {
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(PreUpgradeCopy::NotNeeded);
+        }
+        Err(e) => {
+            return Err(PreUpgradeCopyFailed::Read {
+                db: db_path.display().to_string(),
+                reason: e.to_string(),
+            });
+        }
+        Ok(m) if !m.is_file() || m.len() == 0 => return Ok(PreUpgradeCopy::NotNeeded),
+        Ok(_) => {}
     }
+    let read_failed = |e: &dyn std::fmt::Display| PreUpgradeCopyFailed::Read {
+        db: db_path.display().to_string(),
+        reason: e.to_string(),
+    };
     // Read without migrating (and without creating anything).
-    let Ok(src) = Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-    else {
-        return Ok(None);
+    let src = Connection::open_with_flags(db_path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+        .map_err(|e| read_failed(&e))?;
+    src.busy_timeout(READ_BUSY_TIMEOUT)
+        .map_err(|e| read_failed(&e))?;
+    let has_table: bool = src
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version')",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| read_failed(&e))?;
+    if !has_table {
+        return Ok(PreUpgradeCopy::NotNeeded);
+    }
+    let found = match src.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get::<_, i64>(0)
+    }) {
+        Ok(v) => v,
+        Err(rusqlite::Error::QueryReturnedNoRows) => return Ok(PreUpgradeCopy::NotNeeded),
+        Err(e) => return Err(read_failed(&e)),
     };
-    let found: Option<i64> = src
-        .query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
-            r.get(0)
-        })
-        .ok();
-    let Some(found) =
-        found.filter(|v| *v > musaic_db::PYTHON_SCHEMA_VERSION && *v < musaic_db::SCHEMA_VERSION)
-    else {
-        return Ok(None);
-    };
-    let fail = |reason: String| PreUpgradeCopyFailed {
+    if found <= musaic_db::PYTHON_SCHEMA_VERSION || found >= musaic_db::SCHEMA_VERSION {
+        return Ok(PreUpgradeCopy::NotNeeded);
+    }
+    let fail = |reason: String| PreUpgradeCopyFailed::Copy {
         dir: snapshot_dir.display().to_string(),
         found,
         to: musaic_db::SCHEMA_VERSION,
         reason,
     };
+    if let Some(name) = existing_copy(snapshot_dir, db_path, found) {
+        return Ok(PreUpgradeCopy::Existing(name));
+    }
     let retention = musaic_db::settings::get_int(&src, "snapshot_retention_count", 10)
         .unwrap_or(10)
         .clamp(0, 100);
@@ -320,7 +413,7 @@ pub fn snapshot_before_schema_step(
         return Err(fail(e));
     }
     let _ = musaic_db::backup::prune_snapshots(snapshot_dir, retention);
-    Ok(Some(
+    Ok(PreUpgradeCopy::Taken(
         target
             .file_name()
             .map(|f| f.to_string_lossy().into_owned())

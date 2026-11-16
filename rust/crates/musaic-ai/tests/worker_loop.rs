@@ -441,3 +441,89 @@ fn stop_ends_the_loop() {
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(status(&env, &a), "queued", "stopped: nothing dispatched");
 }
+
+const OLD_RG: &str = "11111111-1111-4111-8111-111111111111";
+const AI_RG: &str = "22222222-2222-4222-8222-222222222222";
+const USER_RG: &str = "33333333-3333-4333-8333-333333333333";
+
+fn anchor_of(env: &StubEnv, album: &str) -> Option<String> {
+    env.open_db()
+        .unwrap()
+        .query_row(
+            "SELECT mb_release_group_mbid FROM albums WHERE id = ?1",
+            [album],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+/// Runs one metadata job whose provider answers with `AI_RG`, after setting
+/// the album's anchor to `OLD_RG`; `meanwhile` runs against the database while
+/// the job verifies the answer. Returns once the job has completed.
+fn ai_names_a_release_group(
+    meanwhile: Option<fn(&rusqlite::Connection)>,
+) -> (tempfile::TempDir, Arc<StubEnv>) {
+    let (tmp, env) = env(1);
+    let c = env.open_db().unwrap();
+    c.execute(
+        "UPDATE albums SET mb_release_group_mbid = ?1 WHERE id = 'a0'",
+        [OLD_RG],
+    )
+    .unwrap();
+    env.mb_status
+        .lock()
+        .unwrap()
+        .insert(AI_RG.into(), serde_json::json!(200));
+    if let Some(f) = meanwhile {
+        let db = env.db.clone();
+        *env.on_verify.lock().unwrap() = Some(Box::new(move || {
+            f(&rusqlite::Connection::open(&db).unwrap())
+        }));
+    }
+    let id = enqueue(&env, "a0", 1);
+    let p = replay();
+    p.push(Script {
+        events: vec![ProviderEvent::TurnComplete {
+            text: format!(
+                r#"{{"suggestions": {{"genre": "Pop"}}, "mb_release_group_mbid": "{AI_RG}"}}"#
+            ),
+        }],
+        ending: Ending::Done,
+    });
+    let _r = start(&env, p, Duration::from_secs(10));
+    wait_for("completed", || status(&env, &id) == "completed");
+    (tmp, env)
+}
+
+// The AI's release group is stored through a compare-and-set against the
+// anchor the job saw, so an unchanged album takes it...
+#[test]
+fn an_ai_release_group_is_stored_when_the_anchor_is_unchanged() {
+    let (_t, env) = ai_names_a_release_group(None);
+    assert_eq!(anchor_of(&env, "a0").as_deref(), Some(AI_RG));
+    assert_eq!(*env.anchor_events.lock().unwrap(), ["a0"]);
+}
+
+// ...and one the user changed while the job ran keeps the user's choice:
+// nothing is overwritten and no anchor event is published.
+#[test]
+fn a_change_made_while_the_job_ran_is_not_overwritten() {
+    let (_t, env) = ai_names_a_release_group(Some(|c| {
+        c.execute(
+            "UPDATE albums SET mb_release_group_mbid = ?1 WHERE id = 'a0'",
+            [USER_RG],
+        )
+        .unwrap();
+    }));
+    assert_eq!(anchor_of(&env, "a0").as_deref(), Some(USER_RG));
+    assert!(env.anchor_events.lock().unwrap().is_empty());
+    assert!(
+        env.log
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|l| l.contains("changed while the job ran")),
+        "{:?}",
+        env.log.lock().unwrap()
+    );
+}
