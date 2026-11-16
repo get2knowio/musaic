@@ -966,7 +966,10 @@ mod tests {
         );
         assert_eq!(listing(&base.join("lib")), ["abba - x"]);
         let loc = album_location(db.connection(), &id).unwrap().unwrap();
-        assert_eq!(loc.path, base.join("lib/abba - x").to_string_lossy());
+        assert_eq!(
+            loc.path,
+            base.join("lib").join("abba - x").to_string_lossy()
+        );
     }
 
     /// A folder that cannot be read back: the renames the OS reported done
