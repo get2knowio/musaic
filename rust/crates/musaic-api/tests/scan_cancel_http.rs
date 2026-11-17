@@ -217,13 +217,32 @@ async fn shutdown_cancels_a_running_scan() {
     let st = r.st.clone();
     eventually("the first album", || st.scan().state().scanned >= 1).await;
 
+    // The scan thread publishes `LibraryScanStopped` after it has set the
+    // terminal status that shutdown waits for, so a subscriber ahead of the
+    // recorder that is slow to run stands in for any scheduling delay there.
+    r.st.bus().register(
+        Topic::Event,
+        Subscriber::from_fn(|ev| {
+            if matches!(ev, Event::LibraryScanStopped { .. }) {
+                std::thread::sleep(Duration::from_millis(300));
+            }
+            Ok(())
+        })
+        .priority(100),
+    );
     let st = r.st.clone();
     let report = tokio::task::spawn_blocking(move || st.shutdown())
         .await
         .unwrap();
     assert!(report.scan_stopped, "{report:?}");
     assert_eq!(r.st.scan().state().status.as_str(), "cancelled");
-    assert_eq!(*r.ends.lock().unwrap(), ["stopped:cancelled"]);
+    // Shutdown waits for the scan's terminal status, not for the bus event
+    // the scan thread publishes just after it, so wait for that as the
+    // route test does.
+    let ends = Arc::clone(&r.ends);
+    eventually("scan end published", || !ends.lock().unwrap().is_empty()).await;
+    let ends: Vec<String> = r.ends.lock().unwrap().clone();
+    assert_eq!(ends, ["stopped:cancelled"]);
     assert_eq!(
         r.st.pool().state().status,
         PoolStatus::Idle,
