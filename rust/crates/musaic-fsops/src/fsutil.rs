@@ -32,13 +32,18 @@ pub(crate) fn fold(name: &str) -> String {
 /// spelling is there.
 pub(crate) fn listed(dir: &Path, name: &str) -> io::Result<bool> {
     for e in fs::read_dir(dir)? {
-        let n = e?.file_name();
-        let n = n.to_string_lossy();
-        if n == name || n.nfc().eq(name.nfc()) {
+        if lists_as(&e?.file_name(), name) {
             return Ok(true);
         }
     }
     Ok(false)
+}
+
+/// Whether a listed entry `n` is `name` as [`listed`] decides it: the same
+/// characters in the same case, after NFC normalisation.
+pub(crate) fn lists_as(n: &std::ffi::OsStr, name: &str) -> bool {
+    let n = n.to_string_lossy();
+    n == name || n.nfc().eq(name.nfc())
 }
 
 /// The longest name most volumes accept (255 bytes on ext4 / APFS, 255

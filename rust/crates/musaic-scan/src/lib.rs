@@ -10,5 +10,5 @@ mod listing;
 mod scan;
 
 pub use dirparse::{DirectoryParse, parse_album_dir};
-pub use listing::{list_flacs, py_resolve};
+pub use listing::{dir_names, list_flacs, listed_spelling, py_resolve};
 pub use scan::{Album, TrackArtist, TrackOrder, parse_tracknum, scan_album, scan_library};

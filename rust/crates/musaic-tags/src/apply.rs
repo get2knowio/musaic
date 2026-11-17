@@ -15,7 +15,18 @@
 //! had no way to remove a tag. Deliberate change: a whitespace-only
 //! suggestion is skipped like an empty one; the Python app stripped it after
 //! the emptiness test and wrote an empty tag.
+//!
+//! # Renamed files
+//!
+//! A file renamed to follow its new track number is reported
+//! ([`Event::FileRenamed`]) under the name its folder lists after the
+//! rename, not the name asked for: a volume that stores names in another
+//! normalisation form (HFS+ keeps them decomposed) lists the NFD spelling,
+//! and the scanner and the file rows use the listing. When the listing
+//! cannot say which entry it is, the name asked for is reported and the
+//! fact is logged.
 
+use std::ffi::OsString;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -333,6 +344,73 @@ pub fn apply_to_album_iter(
     dry_run: bool,
     emit: &mut dyn FnMut(Event),
 ) -> io::Result<()> {
+    apply_to_album_iter_with(
+        album_dir,
+        suggestions,
+        track_suggestions,
+        removals,
+        cover,
+        dry_run,
+        emit,
+        &|dir, _| musaic_scan::dir_names(dir),
+    )
+}
+
+/// The read-back after each file rename: `(album dir, new name)` -> the
+/// names the folder lists. The real one reads the folder; tests stand in a
+/// volume that stores names decomposed.
+type ReadBack<'a> = &'a dyn Fn(&Path, &str) -> io::Result<Vec<OsString>>;
+
+/// `path`, just renamed, as its folder lists it: the folder joined with the
+/// listed name ([`musaic_scan::listed_spelling`]), or `path` itself (logged)
+/// when the folder cannot be read or does not say which entry it is.
+fn as_listed(read_back: ReadBack, path: &Path) -> PathBuf {
+    let dir = path.parent().unwrap_or(Path::new(""));
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    // Taken before the listing: the identity of what was just renamed.
+    let handle = same_file::Handle::from_path(path).ok();
+    let listed = read_back(dir, &name)
+        .map(|names| musaic_scan::listed_spelling(dir, &name, &names, handle.as_ref()));
+    match listed {
+        Ok(Some(n)) => dir.join(n),
+        Ok(None) => {
+            musaic_log::warning(
+                "musaic.tags",
+                &format!(
+                    "could not tell which entry of {} is {name}; reporting the name as given",
+                    dir.display()
+                ),
+            );
+            path.to_path_buf()
+        }
+        Err(e) => {
+            musaic_log::warning(
+                "musaic.tags",
+                &format!(
+                    "could not read {} back after renaming {name}: {e}; reporting the name as given",
+                    dir.display()
+                ),
+            );
+            path.to_path_buf()
+        }
+    }
+}
+
+/// [`apply_to_album_iter`] with the read-back given.
+#[allow(clippy::too_many_arguments)]
+fn apply_to_album_iter_with(
+    album_dir: &Path,
+    suggestions: &Suggestions,
+    track_suggestions: &TrackSuggestions,
+    removals: &Removals,
+    cover: Option<(&[u8], &str)>,
+    dry_run: bool,
+    emit: &mut dyn FnMut(Event),
+    read_back: ReadBack,
+) -> io::Result<()> {
     if !album_dir.is_dir() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
@@ -592,11 +670,13 @@ pub fn apply_to_album_iter(
                 }
                 settled[k] = true;
                 renamed_count += 1;
+                // The name the folder lists is what the file rows take.
+                let listed = as_listed(read_back, fin);
                 emit(Event::FileRenamed {
                     old_path: orig.clone(),
-                    new_path: fin.clone(),
+                    new_path: listed.clone(),
                     old_filename: name_of(orig),
-                    new_filename: name_of(fin),
+                    new_filename: name_of(&listed),
                 });
             }
         }
@@ -715,4 +795,93 @@ pub fn apply_album_files(
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Minimal FLAC (STREAMINFO + VORBIS_COMMENT + PADDING, no audio).
+    fn flac_bytes(tags: &[(&str, &str)]) -> Vec<u8> {
+        let mut si = Vec::new();
+        si.extend_from_slice(&[0x10, 0, 0x10, 0, 0, 0, 0, 0, 0, 0]);
+        let packed: u64 = (44100u64 << 44) | (1 << 41) | (15 << 36) | 44100;
+        si.extend_from_slice(&packed.to_be_bytes());
+        si.extend_from_slice(&[0; 16]);
+        let mut vc = Vec::new();
+        vc.extend_from_slice(&4u32.to_le_bytes());
+        vc.extend_from_slice(b"test");
+        vc.extend_from_slice(&(tags.len() as u32).to_le_bytes());
+        for (k, v) in tags {
+            let e = format!("{k}={v}");
+            vc.extend_from_slice(&(e.len() as u32).to_le_bytes());
+            vc.extend_from_slice(e.as_bytes());
+        }
+        let mut out = b"fLaC".to_vec();
+        out.push(0);
+        out.extend_from_slice(&(si.len() as u32).to_be_bytes()[1..]);
+        out.extend_from_slice(&si);
+        out.push(0x04);
+        out.extend_from_slice(&(vc.len() as u32).to_be_bytes()[1..]);
+        out.extend_from_slice(&vc);
+        out.push(0x81);
+        out.extend_from_slice(&1024u32.to_be_bytes()[1..]);
+        out.extend_from_slice(&[0; 1024]);
+        out
+    }
+
+    const OLD: &str = "01 - Caf\u{e9}.flac";
+    const NFC_NEW: &str = "02 - Caf\u{e9}.flac";
+    const NFD_NEW: &str = "02 - Cafe\u{301}.flac";
+
+    /// A volume that stores names decomposed (HFS+): the file just renamed
+    /// is listed under its NFD spelling. Simulated by giving it that
+    /// spelling on disk before the folder is read.
+    const STORES_NFD: ReadBack = &|dir, name| {
+        if name == NFC_NEW {
+            std::fs::rename(dir.join(NFC_NEW), dir.join(NFD_NEW))?;
+        }
+        musaic_scan::dir_names(dir)
+    };
+
+    /// The renumbered file is reported under the name its folder lists,
+    /// which is the name its rows are moved to.
+    #[test]
+    fn a_renamed_file_is_reported_as_the_folder_lists_it() {
+        let tmp = tempfile::tempdir().unwrap();
+        let album = tmp.path().join("album");
+        std::fs::create_dir(&album).unwrap();
+        std::fs::write(album.join(OLD), flac_bytes(&[("TRACKNUMBER", "1")])).unwrap();
+        let mut renamed = Vec::new();
+        apply_to_album_iter_with(
+            &album,
+            &Vec::new(),
+            &vec![(
+                OLD.to_owned(),
+                vec![("tracknumber".to_owned(), Some("2".to_owned()))],
+            )],
+            &Removals::default(),
+            None,
+            false,
+            &mut |e| {
+                if let Event::FileRenamed {
+                    new_path,
+                    old_filename,
+                    new_filename,
+                    ..
+                } = e
+                {
+                    renamed.push((new_path, old_filename, new_filename));
+                }
+            },
+            STORES_NFD,
+        )
+        .unwrap();
+        let listed: Vec<OsString> = musaic_scan::dir_names(&album).unwrap();
+        assert_eq!(listed, [OsString::from(NFD_NEW)]);
+        assert_eq!(
+            renamed,
+            [(album.join(NFD_NEW), OLD.to_owned(), NFD_NEW.to_owned())]
+        );
+    }
 }
