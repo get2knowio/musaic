@@ -198,11 +198,13 @@ pub fn run_check(
     let mut unevaluated: std::collections::BTreeSet<String> = Default::default();
     let outcome: Result<(), CheckError> = (|| {
         let mut seen: HashSet<i64> = HashSet::new();
+        // Rows this run inserted: candidates for inheriting an ignore.
+        let mut created: Vec<(i64, Option<String>)> = Vec::new();
         let ctx = CheckCtx::new(conn, env);
         let mut emit = |f: Finding| -> Result<(), CheckError> {
             let detail = f.detail.as_ref().map(PyJson::dumps);
             let now = env.clock.now_iso();
-            let id = findings::upsert_finding(
+            let (id, is_new) = findings::upsert_finding_outcome(
                 conn,
                 check_id,
                 f.album_id.as_deref(),
@@ -212,6 +214,9 @@ pub fn run_check(
                 &now,
             )?;
             seen.insert(id);
+            if is_new {
+                created.push((id, f.album_id.clone()));
+            }
             issue_count += 1;
             Ok(())
         };
@@ -230,6 +235,14 @@ pub fn run_check(
             let now = env.clock.now_iso();
             let mut seen: Vec<i64> = seen.into_iter().collect();
             seen.sort_unstable();
+            // A finding whose summary changed is a new row; keep the user's
+            // ignore when it is unambiguously the same finding (one new row
+            // and one stale ignored row for the album).
+            for (id, album) in &created {
+                if created.iter().filter(|(_, a)| a == album).count() == 1 {
+                    findings::inherit_ignore(conn, check_id, *id, &seen, &now)?;
+                }
+            }
             // A check that saw the whole library resolves across it, so a
             // multi-album finding closes whichever member was fixed.
             let ids = if check.sees_whole_library() {
