@@ -183,6 +183,9 @@ Security.
 
 ### Fixed
 
+- The Rename files dialog no longer closes on a rename that was refused, only partly done,
+  or that skipped files it could not find. It stays open and says what happened: which files
+  were left alone, whether the album folder was renamed, and whether any file changed.
 - The track-number check no longer reports false "Duplicate track numbers" (an error, so it
   counted in the Needs attention badge) on an album kept in one folder as several discs
   that are each numbered from 1

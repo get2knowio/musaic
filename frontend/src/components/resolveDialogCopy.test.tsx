@@ -144,6 +144,61 @@ describe("filename Resolve dialog copy", () => {
     expect(await screen.findByText("Already named correctly")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nothing to rename" })).toBeDisabled();
   });
+
+  const applyUrl = "POST /api/checks/filename-mismatch/findings/11/apply";
+  const clickRename = async () =>
+    fireEvent.click(await screen.findByRole("button", { name: "Rename folder and 2 files" }));
+
+  it("keeps the dialog open and names the files that were not found", async () => {
+    routes[applyUrl] = {
+      ok: true,
+      renamed: 1,
+      errors: [],
+      message: "Renamed 1 files; 1 not found, skipped: '2.flac'",
+      skipped: [{ old: "2.flac", new: "02 - Two.flac", reason: "source_missing" }],
+    };
+    const onClose = vi.fn();
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={onClose} />);
+    await clickRename();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Renamed 1 file");
+    expect(alert).toHaveTextContent("2.flac");
+    expect(alert).toHaveTextContent("wasn't in the folder");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open and says nothing changed when the rename is refused", async () => {
+    routes[applyUrl] = {
+      ok: false,
+      renamed: 0,
+      errors: [],
+      message: "Refusing to overwrite an existing unrelated file: 01 - One.flac",
+    };
+    const onClose = vi.fn();
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={onClose} />);
+    await clickRename();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Couldn't rename the files");
+    expect(alert).toHaveTextContent("Refusing to overwrite an existing unrelated file: 01 - One.flac");
+    expect(alert).toHaveTextContent("No file was changed");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("says the folder was renamed when only the files failed", async () => {
+    routes[applyUrl] = {
+      ok: false,
+      renamed: 0,
+      errors: ["Rename staging failed for '1.flac': Permission denied"],
+      dir_renamed: true,
+      new_album_id: "aaaaaaaaaaaaaaaa",
+      message: "Rename staging failed for '1.flac': Permission denied; no file was renamed",
+    };
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={() => {}} />);
+    await clickRename();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The album folder was renamed");
+    expect(alert).toHaveTextContent("1.flac");
+  });
 });
 
 describe("duplicate Resolve dialog copy", () => {
