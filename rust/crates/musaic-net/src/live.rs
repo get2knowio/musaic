@@ -23,7 +23,7 @@
 //!   to fixed `https` origins (MusicBrainz, AcoustID); only their redirects
 //!   or a test's `with_origin` can name a loopback `http` URL.
 //! - Redirects (301, 302, 303, 307, 308) are followed for GET and HEAD, up to
-//!   30 hops (`requests.models.DEFAULT_REDIRECT_LIMIT`), each hop checked
+//!   [`MAX_REDIRECTS`] hops, each hop checked
 //!   against the HTTPS rule. A POST is never redirected (the Python app's only
 //!   POST, the AcoustID lookup, never is).
 //! - Timeouts: `Request::timeout` bounds connecting and each read, which is
@@ -59,8 +59,10 @@ use crate::{
     Transport, TransportError,
 };
 
-/// `requests.models.DEFAULT_REDIRECT_LIMIT`.
-pub const MAX_REDIRECTS: u32 = 30;
+/// Redirects followed for MusicBrainz and AcoustID, as for cover downloads
+/// ([`crate::preview::PREVIEW_MAX_REDIRECTS`]): these services answer
+/// directly, so a longer chain is a loop or a misbehaving server.
+pub const MAX_REDIRECTS: u32 = 5;
 /// When a request sets no timeout.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
 /// When a request sets no body limit.
@@ -146,6 +148,9 @@ struct Pinned {
     addr: SocketAddr,
     unresolvable: Vec<String>,
     declared: Vec<(String, IpAddr)>,
+    /// Tests: route the app's own (not `public_only`) requests through this
+    /// proxy, which is always the single proxy that agent uses.
+    proxy: Option<String>,
 }
 
 /// The error a `public_only` resolution answers with.
@@ -262,7 +267,38 @@ impl LiveTransport {
                 .iter()
                 .map(|(h, ip)| (h.to_ascii_lowercase(), *ip))
                 .collect(),
+            proxy: None,
         }))
+    }
+
+    /// [`Self::with_declared_dns`], with the app's own requests sent through
+    /// the HTTP proxy at `proxy_url` (tests of proxy behaviour: the
+    /// environment is not consulted, and the proxy name is resolved like any
+    /// other, so it lands on `addr`). [`Request::public_only`] requests still
+    /// use no proxy.
+    pub fn with_declared_dns_and_proxy(
+        addr: SocketAddr,
+        unresolvable: &[&str],
+        declared: &[(&str, IpAddr)],
+        proxy_url: &str,
+    ) -> Self {
+        let mut t = Self::with_declared_dns(addr, unresolvable, declared);
+        t.agent = Self::agent(
+            Some(Pinned {
+                addr,
+                unresolvable: unresolvable
+                    .iter()
+                    .map(|h| h.to_ascii_lowercase())
+                    .collect(),
+                declared: declared
+                    .iter()
+                    .map(|(h, ip)| (h.to_ascii_lowercase(), *ip))
+                    .collect(),
+                proxy: Some(proxy_url.to_string()),
+            }),
+            false,
+        );
+        t
     }
 
     fn build(pinned: Option<Pinned>) -> Self {
@@ -287,8 +323,14 @@ impl LiveTransport {
             .user_agent(crate::USER_AGENT)
             .timeout_connect(Some(DEFAULT_TIMEOUT))
             .timeout_per_read(Some(DEFAULT_TIMEOUT));
-        if tests || public_only {
+        if public_only {
             config = config.proxy(None);
+        } else if tests {
+            let proxy = pinned
+                .as_ref()
+                .and_then(|p| p.proxy.as_deref())
+                .and_then(|url| ureq::Proxy::new(url).ok());
+            config = config.proxy(proxy);
         }
         let resolver = Resolve {
             pinned,
