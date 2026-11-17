@@ -148,6 +148,51 @@ describe("useScanStream follows the albums snapshot", () => {
   });
 });
 
+describe("useScanStream: a change made during a scan", () => {
+  it("shows an album changed mid-scan at once, keeps streamed rows the database lacks", async () => {
+    server = [
+      makeAlbum({ id: "a", has_embedded_cover: false, dir_mtime: 1 }),
+      makeAlbum({ id: "b", has_embedded_cover: false, dir_mtime: 1 }),
+    ];
+    const { qc, hook } = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    await waitFor(() => expect(hook.result.current.albums).toHaveLength(2));
+    act(() => MockEventSource.last!.emit("start", { library_dir: "/music", total: 3, cached_count: 2, force: false }));
+    act(() => MockEventSource.last!.emit("album", makeAlbum({ id: "new", _status: "fresh" })));
+    await new Promise((r) => setTimeout(r, 10));
+
+    // A cover is uploaded for "a" while the scan runs: the database row changes
+    // and the bus invalidates the snapshot.
+    server = [makeAlbum({ id: "a", has_embedded_cover: true, dir_mtime: 99 }), server[1]];
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
+    });
+
+    await waitFor(() => {
+      const a = hook.result.current.albums.find((x) => x.id === "a");
+      expect(a?.has_embedded_cover).toBe(true);
+      expect(a?.dir_mtime).toBe(99);
+    });
+    // The scan has not ended, and its unsaved row is still shown.
+    expect(hook.result.current.scan.status).toBe("scanning");
+    expect(hook.result.current.albums.map((a) => a.id)).toContain("new");
+  });
+
+  it("does not let an older snapshot row replace one the scan streamed later", async () => {
+    const { qc, hook } = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    await waitFor(() => expect(hook.result.current.albums).toHaveLength(1));
+    act(() => MockEventSource.last!.emit("start", { library_dir: "/music", total: 1, cached_count: 0, force: false }));
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    act(() => MockEventSource.last!.emit("album", makeAlbum({ id: "a", dir_mtime: 50, _status: "fresh" })));
+    await new Promise((r) => setTimeout(r, 10));
+    expect(hook.result.current.albums[0].dir_mtime).toBe(50);
+  });
+});
+
 /**
  * A scan that ends without saving (cancelled, or aborted by the backend's
  * sanity check) is not reported as a finished scan: no "done" status, no
