@@ -570,7 +570,12 @@ function SheetBody({
             (findings stay real across the Present → Missing transition),
             but every Fix path would fail at the FS layer. Findings will
             reappear when the album returns. */}
-        {!isMissing && <FindingsSection album={displayAlbum} />}
+        {!isMissing && (
+          <FindingsSection
+            album={displayAlbum}
+            genreRowShown={corrections.rows.some((r) => r.key === "album:genre")}
+          />
+        )}
 
         {/* My Tags — user's own taxonomy ("Cocktail Hour", "Christmas",
             "Instrumental"…) for shuffling and playlist construction.

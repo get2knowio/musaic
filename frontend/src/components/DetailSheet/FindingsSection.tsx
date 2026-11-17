@@ -8,6 +8,7 @@ import {
   useFindingsForAlbum,
   useUnignoreFinding,
 } from "@/hooks/useChecks";
+import { GENRE_HINT_POINTER, genreHintLead, suggestedGenre } from "@/lib/genreHint";
 import type { Album, CheckFixKind, Finding } from "@/lib/types";
 
 import FindingFixButton from "../FindingFixButton";
@@ -16,6 +17,11 @@ import Section from "./Section";
 
 interface Props {
   album: Album;
+  /** Whether the corrections list above is showing a genre row right now.
+   *  A finding's genre line is only shown with it, so it never points at a
+   *  row that is not there (the proposal was discarded, or a finished job
+   *  proposes no genre). */
+  genreRowShown?: boolean;
 }
 
 /**
@@ -25,7 +31,7 @@ interface Props {
  * corrections are not repeated here: the panel shows them once, above
  * (CorrectionsDiff).
  */
-export default function FindingsSection({ album }: Props) {
+export default function FindingsSection({ album, genreRowShown = false }: Props) {
   const albumId = album.id;
   // Includes ignored — we render them in a collapsed sub-bucket inside the
   // section so the user can see them but they don't dominate the count.
@@ -69,7 +75,7 @@ export default function FindingsSection({ album }: Props) {
         </span>
       }
     >
-      <FindingsList findings={open} />
+      <FindingsList findings={open} genreRowShown={genreRowShown} />
       {ignored.length > 0 && <IgnoredCollapsed findings={ignored} />}
     </Section>
   );
@@ -89,11 +95,11 @@ function pickTopCheck(findings: Finding[]): string | null {
   return topId;
 }
 
-function FindingsList({ findings }: { findings: Finding[] }) {
+function FindingsList({ findings, genreRowShown }: { findings: Finding[]; genreRowShown: boolean }) {
   if (findings.length === 0) return null;
   return (
     <div className="divide-y divide-line">
-      {findings.map((f) => <FindingRow key={f.id} finding={f} />)}
+      {findings.map((f) => <FindingRow key={f.id} finding={f} genreRowShown={genreRowShown} />)}
     </div>
   );
 }
@@ -122,7 +128,7 @@ function IgnoredCollapsed({ findings }: { findings: Finding[] }) {
   );
 }
 
-function FindingRow({ finding }: { finding: Finding }) {
+function FindingRow({ finding, genreRowShown = false }: { finding: Finding; genreRowShown?: boolean }) {
   // Look up fix_kind from the registered check so we know whether to render
   // the Fix button. Cheap — checks list is small and cached.
   const { data: checks = [] } = useChecks();
@@ -139,6 +145,8 @@ function FindingRow({ finding }: { finding: Finding }) {
     );
   };
 
+  const genre = genreRowShown ? suggestedGenre(finding) : null;
+
   const SevIcon = finding.severity === "error" ? XCircle : finding.severity === "info" ? Info : AlertCircle;
   const sevClass = finding.severity === "error" ? "text-err" : finding.severity === "info" ? "text-fg-3" : "text-warn";
 
@@ -147,6 +155,11 @@ function FindingRow({ finding }: { finding: Finding }) {
       <SevIcon className={`w-4 h-4 shrink-0 mt-0.5 ${sevClass}`} />
       <div className="flex-1 min-w-0">
         <div>{finding.summary}</div>
+        {genre && (
+          <div className="text-[11px] text-fg-3 mt-0.5">
+            {genreHintLead(genre)} {GENRE_HINT_POINTER}
+          </div>
+        )}
         <div className="mono text-[11px] text-fg-4 mt-0.5 truncate">
           <Link
             to={`/attention?check=${encodeURIComponent(finding.check_id)}`}

@@ -102,6 +102,11 @@ pub struct AlbumDiffs {
     /// filename -> (field, value)s.
     pub applicable_tracks: Vec<(String, Vec<(&'static str, String)>)>,
     pub has_anchor: bool,
+    /// MusicBrainz's suggested genre, only when the genre is blank and the
+    /// album has an anchor (the album panel offers it as an unticked
+    /// correction under the same two conditions). A label for the finding;
+    /// nothing writes it.
+    pub genre_suggestion: Option<String>,
     pub summary: String,
     /// What these diffs rest on could not be read (a MusicBrainz request
     /// failed, the album's folder could not be read): they are not the
@@ -392,6 +397,11 @@ pub fn compute_diffs(
         ai_fallback_fields.push("genre");
     }
     let has_anchor = res.is_some_and(|r| r.anchor.is_some());
+    let genre_suggestion = res
+        .filter(|r| r.anchor.is_some())
+        .and_then(|r| r.canonical_genre.as_ref())
+        .map(|f| strip(&f.value).to_string())
+        .filter(|g| !g.is_empty() && missing_core.contains(&"genre"));
     let summary = build_summary(
         &missing_core,
         album_diffs.len(),
@@ -408,6 +418,7 @@ pub fn compute_diffs(
         applicable_album,
         applicable_tracks,
         has_anchor,
+        genre_suggestion,
         summary,
         unevaluated: resolver_failed || network_failed || !tracks_read,
     }
@@ -447,59 +458,66 @@ fn finding_for(a: &TagsRow, d: &AlbumDiffs) -> Option<Finding> {
         .clone()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| a.id.clone());
+    let mut detail = dict([
+        ("dir_name", a.dir_name.clone().into()),
+        ("is_compilation", a.is_compilation.into()),
+        ("headline", headline.into()),
+        ("has_anchor", a.mb_release_group_mbid.is_some().into()),
+        ("missing_core", strs(&d.missing_core)),
+        (
+            "album_diffs",
+            PyJson::List(
+                d.album_diffs
+                    .iter()
+                    .map(|x| {
+                        dict([
+                            ("field", x.field.into()),
+                            ("current", x.current.clone().into()),
+                            ("canonical", x.canonical.clone().into()),
+                            ("source", x.source.clone().into()),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "track_diffs",
+            PyJson::List(
+                d.track_diffs
+                    .iter()
+                    .map(|x| {
+                        dict([
+                            ("filename", x.filename.clone().into()),
+                            ("field", x.field.into()),
+                            ("current", x.current.clone().into()),
+                            ("canonical", x.canonical.clone().into()),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "sort_proposals",
+            PyJson::Dict(
+                d.sort_proposals
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.clone().into()))
+                    .collect(),
+            ),
+        ),
+        ("ai_fallback_fields", strs(&d.ai_fallback_fields)),
+    ]);
+    // Only when there is one, so other findings' detail is unchanged. A
+    // label: the album panel's corrections list re-derives the value, and
+    // the fix and the bulk action never write a genre.
+    if let (PyJson::Dict(items), Some(g)) = (&mut detail, &d.genre_suggestion) {
+        items.push(("genre_available".to_string(), g.clone().into()));
+    }
     Some(Finding {
         album_id: Some(a.id.clone()),
         severity: severity_for(&d.missing_core),
         summary: d.summary.clone(),
-        detail: Some(dict([
-            ("dir_name", a.dir_name.clone().into()),
-            ("is_compilation", a.is_compilation.into()),
-            ("headline", headline.into()),
-            ("has_anchor", a.mb_release_group_mbid.is_some().into()),
-            ("missing_core", strs(&d.missing_core)),
-            (
-                "album_diffs",
-                PyJson::List(
-                    d.album_diffs
-                        .iter()
-                        .map(|x| {
-                            dict([
-                                ("field", x.field.into()),
-                                ("current", x.current.clone().into()),
-                                ("canonical", x.canonical.clone().into()),
-                                ("source", x.source.clone().into()),
-                            ])
-                        })
-                        .collect(),
-                ),
-            ),
-            (
-                "track_diffs",
-                PyJson::List(
-                    d.track_diffs
-                        .iter()
-                        .map(|x| {
-                            dict([
-                                ("filename", x.filename.clone().into()),
-                                ("field", x.field.into()),
-                                ("current", x.current.clone().into()),
-                                ("canonical", x.canonical.clone().into()),
-                            ])
-                        })
-                        .collect(),
-                ),
-            ),
-            (
-                "sort_proposals",
-                PyJson::Dict(
-                    d.sort_proposals
-                        .iter()
-                        .map(|(k, v)| (k.to_string(), v.clone().into()))
-                        .collect(),
-                ),
-            ),
-            ("ai_fallback_fields", strs(&d.ai_fallback_fields)),
-        ])),
+        detail: Some(detail),
     })
 }
 
@@ -510,9 +528,12 @@ pub const REFRESH_AFTER: std::time::Duration = std::time::Duration::from_secs(
     crate::checks::unidentified_album::CACHE_REFRESH_DAYS * 24 * 3600,
 );
 
-/// Bump when the severity rule changes (see `input_extras`).
+/// Bump when what a finding's severity or detail is derived from changes
+/// (see `input_extras`).
 /// `genre-info/1`: a blank genre alone is `info`.
-pub const SEVERITY_RULE: &str = "severity/genre-info/1";
+/// `genre-info-hint/2`: the detail names MusicBrainz's genre when the genre
+/// is blank and there is one (`genre_available`); severity as in /1.
+pub const FINDING_RULE: &str = "finding/genre-info-hint/2";
 
 impl Check for TagsOutOfSync {
     fn meta(&self) -> &CheckMeta {
@@ -529,10 +550,10 @@ impl Check for TagsOutOfSync {
 
     /// A version of what a finding's severity is derived from. The sweep
     /// reruns a check only when its inputs digest changes and the digest does
-    /// not cover this code, so a change to the severity rule bumps
-    /// [`SEVERITY_RULE`] to rerun this check once (and no other).
+    /// not cover this code, so a change to the severity rule or the detail bumps
+    /// [`FINDING_RULE`] to rerun this check once (and no other).
     fn input_extras(&self, _ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
-        Ok(SEVERITY_RULE.to_string())
+        Ok(FINDING_RULE.to_string())
     }
 
     fn run(
