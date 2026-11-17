@@ -272,8 +272,11 @@ pub fn py_path_str(p: &Path) -> String {
 }
 
 /// `POST /api/config`: expand `~`, refuse a path that is not a directory
-/// (400), store the library directory, then drop its snapshot (the next
-/// scan re-reads it). Returns the stored `library_dir`. `open` opens a
+/// or cannot be listed (400, nothing stored: the previous folder stays in
+/// effect), store the library directory, then drop its snapshot (the next
+/// scan re-reads it). Only a change is checked: a folder that is already
+/// configured and has since gone away (an unmounted drive) is never touched
+/// here. Returns the stored `library_dir`. `open` opens a
 /// database connection (only when a library is stored); `save_failed`
 /// maps a failure to write the config.
 pub fn set_library_dir<E: From<HttpError> + From<musaic_db::Error>>(
@@ -286,6 +289,13 @@ pub fn set_library_dir<E: From<HttpError> + From<musaic_db::Error>>(
     let target = musaic_core::config::expand_user(dir, home);
     if !target.is_dir() {
         return Err(refuse(400, format!("Not a directory: {}", py_path_str(&target))).into());
+    }
+    if let Err(e) = std::fs::read_dir(&target) {
+        return Err(refuse(
+            400,
+            format!("Cannot read folder: {} ({e})", py_path_str(&target)),
+        )
+        .into());
     }
     let cfg = config
         .set_library_dir(&target.to_string_lossy(), home)

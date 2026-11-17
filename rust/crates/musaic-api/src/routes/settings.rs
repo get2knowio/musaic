@@ -53,6 +53,39 @@ pub async fn get_settings(State(st): State<AppState>) -> ApiResult {
     blocking(move || ok_value(settings_body(&st)?)).await?
 }
 
+/// The settings row that remembers the one-time "add an AcoustID key"
+/// prompt was dismissed. It is not part of `GET /api/settings`, and no
+/// check reads it.
+const ACOUSTID_PROMPT_DISMISSED: &str = "acoustid_prompt_dismissed";
+
+fn prompt_body(st: &AppState) -> Result<Value, ApiError> {
+    let conn = st.conn()?;
+    let dismissed = musaic_db::settings::get_bool(&conn, ACOUSTID_PROMPT_DISMISSED, false)?;
+    Ok(json!({ "dismissed": dismissed }))
+}
+
+/// `GET /api/prompts/acoustid`: `{"dismissed": bool}`.
+pub async fn acoustid_prompt(State(st): State<AppState>) -> ApiResult {
+    blocking(move || ok_value(prompt_body(&st)?)).await?
+}
+
+/// `POST /api/prompts/acoustid/dismiss`: remember the dismissal (idempotent)
+/// and publish `SettingsChanged` so open windows refresh.
+pub async fn dismiss_acoustid_prompt(State(st): State<AppState>) -> ApiResult {
+    let guard = st.begin_work()?;
+    blocking(move || {
+        let _guard = guard;
+        let conn = st.conn()?;
+        musaic_db::settings::set_raw(&conn, ACOUSTID_PROMPT_DISMISSED, "1")?;
+        drop(conn);
+        st.0.bus.publish(&musaic_events::Event::SettingsChanged {
+            keys: vec![ACOUSTID_PROMPT_DISMISSED.to_owned()],
+        });
+        ok_value(prompt_body(&st)?)
+    })
+    .await?
+}
+
 /// The PATCH's refusals as HTTP answers: 400 (range, provider), 503
 /// (keyring), 500 (database).
 fn patch_error(e: PatchError) -> ApiError {

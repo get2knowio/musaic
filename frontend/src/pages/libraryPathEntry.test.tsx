@@ -32,6 +32,8 @@ interface Call {
 
 let calls: Call[];
 let configAfterSave: AppConfig;
+/** When set, POST /api/config refuses with this reason (400). */
+let configRefusal: string | null;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -39,6 +41,7 @@ function json(body: unknown, status = 200): Response {
 
 beforeEach(() => {
   calls = [];
+  configRefusal = null;
   MockEventSource.instances.length = 0;
   configAfterSave = { library_dir: PICKED, exists: true } as AppConfig;
   vi.stubGlobal(
@@ -47,7 +50,9 @@ beforeEach(() => {
       const method = init?.method ?? "GET";
       calls.push({ url: String(url), method, body: init?.body ? JSON.parse(String(init.body)) : undefined });
       if (url === "/__musaic/dialog/folder" && method === "POST") return json({ path: PICKED });
-      if (url === "/api/config" && method === "POST") return json(configAfterSave);
+      if (url === "/api/config" && method === "POST") {
+        return configRefusal ? json({ detail: configRefusal }, 400) : json(configAfterSave);
+      }
       if (String(url).startsWith("/api/albums")) {
         return json({ albums: [], count: 0, library_dir: PICKED, scanned_at: null });
       }
@@ -129,16 +134,37 @@ describe("library path entry", () => {
     expect(screen.getByText("Configure your library")).toBeInTheDocument();
   });
 
-  it("a path that does not exist keeps the empty state and opens no scan", async () => {
-    configAfterSave = { library_dir: "/nope", exists: false } as AppConfig;
+  it("a refused path shows the reason beside the field, keeps what was typed, and a retry works", async () => {
+    configRefusal = "Not a directory: /nope";
+    renderLibrary();
+    const field = screen.getByRole("textbox", { name: "Library directory path" });
+    fireEvent.change(field, { target: { value: "/nope" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Not saved. There is no folder at /nope.");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveValue("/nope");
+    expect(scanStreams().length).toBe(0);
+    expect(screen.getByText("Configure your library")).toBeInTheDocument();
+
+    // Typing clears the message; a good path then saves and scans.
+    configRefusal = null;
+    fireEvent.change(field, { target: { value: PICKED } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(scanStreams().length).toBe(1));
+  });
+
+  it("an unreadable folder is explained in plain words", async () => {
+    configRefusal = "Cannot read folder: /locked (Permission denied (os error 13))";
     renderLibrary();
     fireEvent.change(screen.getByRole("textbox", { name: "Library directory path" }), {
-      target: { value: "/nope" },
+      target: { value: "/locked" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(calls.some((c) => c.url === "/api/config")).toBe(true));
-    await waitFor(() => expect(screen.getByText(/The configured directory doesn't exist/)).toBeInTheDocument());
-    expect(scanStreams().length).toBe(0);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Not saved. Musaic can't open /locked. Check that it is connected and that you may read it.",
+    );
   });
 
   it("Settings: the field still works and a save goes to the grid", async () => {

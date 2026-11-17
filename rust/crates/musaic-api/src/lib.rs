@@ -84,7 +84,23 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         CHECK_SWEEP_ROUTE,
         "the background check sweep's progress (issue #187: every check runs on its own); not a route of the Python app",
     ),
+    (
+        "GET",
+        ACOUSTID_PROMPT_ROUTE,
+        "whether the one-time \"add an AcoustID key\" prompt was dismissed; kept on the server because the desktop window's address changes on every launch, so browser storage would forget it; not a route of the Python app",
+    ),
+    (
+        "POST",
+        ACOUSTID_PROMPT_DISMISS_ROUTE,
+        "dismiss that prompt for good; not a route of the Python app",
+    ),
 ];
+
+/// `GET /api/prompts/acoustid` ([`EXTRA_ROUTES`]).
+pub const ACOUSTID_PROMPT_ROUTE: &str = "/api/prompts/acoustid";
+
+/// `POST /api/prompts/acoustid/dismiss` ([`EXTRA_ROUTES`]).
+pub const ACOUSTID_PROMPT_DISMISS_ROUTE: &str = "/api/prompts/acoustid/dismiss";
 
 /// `GET /api/checks/sweep` ([`EXTRA_ROUTES`]).
 pub const CHECK_SWEEP_ROUTE: &str = "/api/checks/sweep";
@@ -200,6 +216,12 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         .route(
             "/api/settings",
             get(settings::get_settings).patch(settings::patch_settings),
+        )
+        // Not Python app routes: the AcoustID prompt's dismissal ([`EXTRA_ROUTES`]).
+        .route(ACOUSTID_PROMPT_ROUTE, get(settings::acoustid_prompt))
+        .route(
+            ACOUSTID_PROMPT_DISMISS_ROUTE,
+            post(settings::dismiss_acoustid_prompt),
         )
         .route("/api/db/info", get(settings::db_info))
         .route("/api/db/backup", get(settings::db_backup))

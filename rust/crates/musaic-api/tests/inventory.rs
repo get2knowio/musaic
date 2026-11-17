@@ -179,6 +179,10 @@ fn the_extra_route_list_is_exactly_this() {
             // Deliberate addition: the background check sweep's progress
             // (issue #187).
             "GET /api/checks/sweep",
+            // Deliberate additions: the one-time AcoustID prompt's dismissal
+            // (issue #194), kept on the server.
+            "GET /api/prompts/acoustid",
+            "POST /api/prompts/acoustid/dismiss",
         ]
     );
 }
