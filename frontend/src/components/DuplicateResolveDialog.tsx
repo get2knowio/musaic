@@ -411,10 +411,20 @@ function CanonicalBanner({
     );
   }
   if (!canonical || !canonical.title) {
-    // No MBID, MB miss, or HTTP error. Quiet — don't take up space with
-    // a "we couldn't tell" banner. The reason is in the title attribute
-    // for the curious.
-    return null;
+    // A cluster with no MBID is an ordinary case: say nothing. Every other
+    // reason (MB has no such recording, offline, rate limited, ...) is shown
+    // as the server's sentence, so the user knows what happened and what to do.
+    if (!canonical?.reason || canonical.reason_code === "no_mbid") return null;
+    return (
+      <div
+        role="status"
+        data-reason-code={canonical.reason_code ?? undefined}
+        className="mb-3 flex items-start gap-2 text-xs leading-relaxed text-fg-3 bg-panel border border-line rounded px-3 py-2"
+      >
+        <Database className="w-3.5 h-3.5 shrink-0 mt-0.5 text-fg-4" />
+        <span>{canonical.reason}</span>
+      </div>
+    );
   }
   const tone = matched
     ? "border-ok/30 bg-ok-soft text-fg-2"

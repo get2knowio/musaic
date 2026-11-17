@@ -2119,9 +2119,7 @@
               "type": "int_parsing"
             },
             {
-              "input": [
-                1
-              ],
+              "input": [],
               "loc": [
                 "body",
                 "snapshot_retention_count"

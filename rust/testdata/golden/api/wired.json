@@ -1159,9 +1159,7 @@
         "json": {
           "detail": [
             {
-              "input": {
-                "old": "a.flac"
-              },
+              "input": {},
               "loc": [
                 "body",
                 "plan",

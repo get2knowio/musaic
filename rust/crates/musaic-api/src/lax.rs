@@ -12,9 +12,10 @@
 //! (`0 off f false n no 1 on t true y yes`, any case) and 0/1 to bool.
 //! Not reproduced: `url` keys (FastAPI drops them anyway), integers beyond
 //! i64, `ctx` for anything but `json_invalid` and `literal_error`, unicode /
-//! whitespace edge cases of pydantic's number parsing, and the body's key
-//! order inside an echoed `input` object (it is rendered sorted; no 422
-//! recorded from the Python app echoes an object with more than one key).
+//! whitespace edge cases of pydantic's number parsing.
+//!
+//! One deliberate difference from pydantic: `input` never carries a request
+//! body or a long value ([`bounded_input`]).
 //!
 //! The 422 bytes: [`validation_detail`] renders every error item in
 //! pydantic's `ErrorDetails` key order (`type, loc, msg, input, ctx`), as
@@ -70,8 +71,29 @@ fn to_json(v: &Value) -> Json {
     }
 }
 
+/// The longest string a 422 item echoes back, in characters.
+const MAX_ECHOED_CHARS: usize = 64;
+
+/// What a 422 item may say about the offending value: scalars and short
+/// strings as sent (the field is named by `loc`), a long string cut, and a
+/// list or object only as an empty one of the same kind. pydantic echoes the
+/// whole parent object for a missing field and the whole value otherwise,
+/// which would put a request body (an API key sent by mistake, a long
+/// payload) into the response and the log.
+fn bounded_input(input: Value) -> Value {
+    match input {
+        Value::Object(m) if !m.is_empty() => json!({}),
+        Value::Array(a) if !a.is_empty() => json!([]),
+        Value::String(s) if s.chars().count() > MAX_ECHOED_CHARS => {
+            let cut: String = s.chars().take(MAX_ECHOED_CHARS).collect();
+            Value::String(format!("{cut}..."))
+        }
+        other => other,
+    }
+}
+
 pub fn err(ty: &str, loc: Vec<Value>, msg: &str, input: Value) -> Value {
-    json!({"type": ty, "loc": loc, "msg": msg, "input": input})
+    json!({"type": ty, "loc": loc, "msg": msg, "input": bounded_input(input)})
 }
 
 /// pydantic's `literal_error` for `input` at `loc`, with `ctx.expected`

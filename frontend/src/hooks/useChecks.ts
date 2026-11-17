@@ -17,6 +17,7 @@ import {
   fixFinding,
   getCheck,
   getDuplicateFindingCanonical,
+  isTemporaryCanonicalFailure,
   ignoreFinding,
   listChecks,
   listFindings,
@@ -145,9 +146,12 @@ export function useDuplicateFindingCanonical(
     queryKey: ["duplicate-canonical", findingId],
     queryFn: () => getDuplicateFindingCanonical(findingId as number),
     enabled: enabled && findingId != null,
-    // MB recordings don't change; keep this fresh for a long time so
-    // repeat opens of the same dialog don't refetch.
-    staleTime: 24 * 60 * 60 * 1000,  // 1 day
+    // MB recordings don't change; keep an answer fresh for a long time so
+    // repeat opens of the same dialog don't refetch. A lookup that failed
+    // for a temporary reason (offline, rate limited) is stale at once, so
+    // reopening the dialog asks again.
+    staleTime: (query) =>
+      isTemporaryCanonicalFailure(query.state.data) ? 0 : 24 * 60 * 60 * 1000,
     gcTime: 7 * 24 * 60 * 60 * 1000, // keep in cache for a week
   });
 }

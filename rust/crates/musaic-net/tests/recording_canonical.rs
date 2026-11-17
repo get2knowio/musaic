@@ -14,8 +14,8 @@ use base64::Engine as _;
 use common::{replay_dir, replay_record};
 use musaic_log::{Level, capture};
 use musaic_net::{
-    MB_RECORDING_TIMEOUT, Method, MusicBrainzClient, RecordingCanonical, RecordingLookup,
-    ReplayTransport, Request, Response, Transport, TransportError, USER_AGENT,
+    LookupFailure, MB_RECORDING_TIMEOUT, Method, MusicBrainzClient, RecordingCanonical,
+    RecordingLookup, ReplayTransport, Request, Response, Transport, TransportError, USER_AGENT,
 };
 use serde_json::Value;
 
@@ -289,7 +289,7 @@ fn lookup_outcomes_done_and_failed() {
     )])));
     let (got, lines) =
         capture(|| MusicBrainzClient::new(&failed).recording_canonical_lookup(found_mbid()));
-    assert_eq!(got, RecordingLookup::Failed);
+    assert_eq!(got, RecordingLookup::Failed(LookupFailure::Unreachable));
     assert_eq!(lines.len(), 1);
     assert!(
         lines[0]
@@ -328,7 +328,11 @@ fn lookup_outcomes_done_and_failed() {
         let mbid = c["mbid"].as_str().unwrap();
         let (got, lines) = capture(|| client.recording_canonical_lookup(mbid));
         if c.get("raises").is_some() {
-            assert_eq!(got, RecordingLookup::Failed, "{name}");
+            assert_eq!(
+                got,
+                RecordingLookup::Failed(LookupFailure::UnreadableAnswer),
+                "{name}"
+            );
             assert_eq!(lines.len(), 1, "{name}: {lines:?}");
             assert_eq!(lines[0].level, Level::Warning);
             assert_eq!(lines[0].target, "musaic.mb_lookup");
@@ -352,15 +356,18 @@ fn lookup_outcomes_done_and_failed() {
     }
     assert!(malformed >= 10 && done >= 10, "{malformed} {done}");
     let notes: HashMap<&str, RecordingLookup> = [
-        ("CONSTRUCTED: service unavailable", RecordingLookup::Failed),
+        (
+            "CONSTRUCTED: service unavailable",
+            RecordingLookup::Failed(LookupFailure::RateLimited),
+        ),
         (
             "CONSTRUCTED: 200 whose body is not JSON",
-            RecordingLookup::Failed,
+            RecordingLookup::Failed(LookupFailure::UnreadableAnswer),
         ),
         ("CONSTRUCTED: blank title", RecordingLookup::Done(None)),
         (
             "CONSTRUCTED: a JSON array (the Python app's code raises)",
-            RecordingLookup::Failed,
+            RecordingLookup::Failed(LookupFailure::UnreadableAnswer),
         ),
     ]
     .into();
@@ -407,7 +414,10 @@ fn lookup_outcomes_done_and_failed() {
         }),
     )])));
     let (got, lines) = capture(|| MusicBrainzClient::new(&t).recording_canonical_lookup(long));
-    assert_eq!(got, RecordingLookup::Failed);
+    assert_eq!(
+        got,
+        RecordingLookup::Failed(LookupFailure::UnreadableAnswer)
+    );
     assert!(lines[0].message.len() < 400, "{}", lines[0].message.len());
     assert!(lines[0].message.ends_with("..."));
     // A long non-JSON body: the parse error names a position, never the
@@ -421,7 +431,10 @@ fn lookup_outcomes_done_and_failed() {
         }),
     )])));
     let (got, lines) = capture(|| MusicBrainzClient::new(&t).recording_canonical_lookup(long));
-    assert_eq!(got, RecordingLookup::Failed);
+    assert_eq!(
+        got,
+        RecordingLookup::Failed(LookupFailure::UnreadableAnswer)
+    );
     assert_eq!(lines.len(), 1);
     assert!(lines[0].message.len() < 400, "{}", lines[0].message.len());
     assert!(!lines[0].message.contains("xxxx"), "{}", lines[0].message);
