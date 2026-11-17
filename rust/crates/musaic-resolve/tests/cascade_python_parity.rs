@@ -504,6 +504,13 @@ fn run_case(case: &Value, deltas: &[Delta]) -> Vec<(usize, usize)> {
                 });
                 let mut want_requests = key_set(&step["requests"]);
                 let n = d::apply(deltas, &name, i, &mut want, &mut want_requests);
+                // Deliberate difference: one resolve publishes one anchor
+                // event, the last of those recorded.
+                if let Some(evs) = want["events"].as_array_mut()
+                    && evs.len() > 1
+                {
+                    evs.drain(..evs.len() - 1);
+                }
                 for k in [
                     "body",
                     "events",
