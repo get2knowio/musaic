@@ -15,6 +15,12 @@ Security.
 
 ### Changed
 
+- A "Tags don't match canonical" finding whose only blank core tag is the genre is now
+  informational. A blank title, album artist or year is still a warning. This build has no
+  way to fill in a missing genre, so the warning had no fix; the finding still says the
+  genre is missing ([#255](https://github.com/get2knowio/musaic/issues/255)). Existing
+  findings take the new severity when the check reruns once in the background, which needs
+  the app to be online (the check asks MusicBrainz); ignored ones stay ignored.
 - "Inconsistent artist sort" findings where the same artist carries two different sort
   values are now warnings, so they count in the Needs attention badge
   ([#255](https://github.com/get2knowio/musaic/issues/255)). A missing sort value that can
