@@ -426,6 +426,17 @@ pub fn check_album(
     finding_for(a, &compute_diffs(conn, resolver, a))
 }
 
+/// A blank title, album artist or year is a warning. A blank genre alone is
+/// informational: this build has no way to fill one in, so a warning would
+/// have no fix. The summary and detail still name it.
+fn severity_for(missing_core: &[&str]) -> Severity {
+    if missing_core.iter().any(|f| *f != "genre") {
+        Severity::Warn
+    } else {
+        Severity::Info
+    }
+}
+
 /// The finding for `a` from its diffs.
 fn finding_for(a: &TagsRow, d: &AlbumDiffs) -> Option<Finding> {
     if !d.has_any() {
@@ -438,11 +449,7 @@ fn finding_for(a: &TagsRow, d: &AlbumDiffs) -> Option<Finding> {
         .unwrap_or_else(|| a.id.clone());
     Some(Finding {
         album_id: Some(a.id.clone()),
-        severity: if d.missing_core.is_empty() {
-            Severity::Info
-        } else {
-            Severity::Warn
-        },
+        severity: severity_for(&d.missing_core),
         summary: d.summary.clone(),
         detail: Some(dict([
             ("dir_name", a.dir_name.clone().into()),
@@ -503,6 +510,10 @@ pub const REFRESH_AFTER: std::time::Duration = std::time::Duration::from_secs(
     crate::checks::unidentified_album::CACHE_REFRESH_DAYS * 24 * 3600,
 );
 
+/// Bump when the severity rule changes (see `input_extras`).
+/// `genre-info/1`: a blank genre alone is `info`.
+pub const SEVERITY_RULE: &str = "severity/genre-info/1";
+
 impl Check for TagsOutOfSync {
     fn meta(&self) -> &CheckMeta {
         &META
@@ -514,6 +525,14 @@ impl Check for TagsOutOfSync {
 
     fn refresh_after(&self) -> Option<std::time::Duration> {
         Some(REFRESH_AFTER)
+    }
+
+    /// A version of what a finding's severity is derived from. The sweep
+    /// reruns a check only when its inputs digest changes and the digest does
+    /// not cover this code, so a change to the severity rule bumps
+    /// [`SEVERITY_RULE`] to rerun this check once (and no other).
+    fn input_extras(&self, _ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
+        Ok(SEVERITY_RULE.to_string())
     }
 
     fn run(
