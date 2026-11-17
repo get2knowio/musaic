@@ -1,14 +1,37 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Music, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import {
   streamQuickFixAll,
-  type QuickFixProgress,
   type QuickFixSummary,
 } from "@/hooks/useChecks";
 import { useAiStatus } from "@/hooks/useAiStatus";
+import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
+import { useFindings } from "@/hooks/useChecks";
+import { displayArtist } from "@/lib/albumFields";
+import { plainReason, type BulkOutcome } from "@/lib/bulkFixReasons";
+import type { Album } from "@/lib/types";
+
+/** Rows listed per outcome group before "Show all N" (as on the Attention page). */
+export const RESULT_ROW_LIMIT = 50;
+
+/** One handled finding, as the closing list shows it. */
+interface ResultItem {
+  findingId: number;
+  album: string;
+  outcome: BulkOutcome;
+  /** Plain-language reason; empty for a fixed finding. */
+  reason: string;
+}
+
+function albumLabel(album: Album | undefined): string {
+  if (!album) return "Unknown album";
+  const artist = displayArtist(album);
+  const title = (album.title || "").trim() || album.dir_name;
+  return artist ? `${artist} \u2013 ${title}` : title;
+}
 
 /**
  * Modal that runs the MB-only bulk pass against every open finding for a
@@ -43,10 +66,26 @@ export function BulkQuickFixDialog({
     total: number;
     processed: number;
     counts: { fixed: number; skipped: number; errors: number; not_applicable: number };
-    last?: QuickFixProgress;
+    last?: ResultItem;
   }>({ total: totalFindings, processed: 0, counts: { fixed: 0, skipped: 0, errors: 0, not_applicable: 0 } });
   const [summary, setSummary] = useState<QuickFixSummary | null>(null);
+  const [items, setItems] = useState<ResultItem[]>([]);
   const cancelRef = useRef<(() => void) | null>(null);
+
+  // Album names come from what the page knew when the run started: findings
+  // and albums change as the run writes, and the list should name each album
+  // as the user saw it.
+  const { data: findings = [] } = useFindings();
+  const { data: albums = [] } = useAlbumsSnapshot();
+  const lookup = useRef<(findingId: number) => string>(() => "Unknown album");
+  const latest = useMemo(() => {
+    const byAlbum = new Map(albums.map((a) => [a.id, a]));
+    const albumOf = new Map(findings.map((f) => [f.id, f.album_id]));
+    return (findingId: number) => {
+      const albumId = albumOf.get(findingId);
+      return albumLabel(albumId ? byAlbum.get(albumId) : undefined);
+    };
+  }, [albums, findings]);
 
   // Reset everything when the dialog opens. CRITICAL: only depend on `open`,
   // not `totalFindings` — that prop changes during the run as findings get
@@ -59,6 +98,7 @@ export function BulkQuickFixDialog({
       setPhase("confirm");
       setProgress({ total: totalFindings, processed: 0, counts: { fixed: 0, skipped: 0, errors: 0, not_applicable: 0 } });
       setSummary(null);
+      setItems([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -74,18 +114,29 @@ export function BulkQuickFixDialog({
     // second one — the server would happily start another bulk loop and
     // we'd see the same album processed twice.
     if (cancelRef.current) return;
+    lookup.current = latest;
     setPhase("running");
+    setItems([]);
     setProgress((p) => ({ ...p, processed: 0 }));
     cancelRef.current = streamQuickFixAll(checkId, {
       onStart: (total) => setProgress((p) => ({ ...p, total })),
-      onProgress: (ev) => setProgress((p) => {
+      onProgress: (ev) => {
+        const item: ResultItem = {
+          findingId: ev.finding_id,
+          album: lookup.current(ev.finding_id),
+          outcome: ev.outcome,
+          reason: plainReason(ev.outcome, ev.message),
+        };
+        setItems((prev) => [...prev, item]);
+        setProgress((p) => {
         const next = { ...p.counts };
         if (ev.outcome === "fixed") next.fixed++;
         else if (ev.outcome === "skipped") next.skipped++;
         else if (ev.outcome === "error") next.errors++;
         else if (ev.outcome === "not-applicable") next.not_applicable++;
-        return { ...p, processed: p.processed + 1, counts: next, last: ev };
-      }),
+        return { ...p, processed: p.processed + 1, counts: next, last: item };
+        });
+      },
       onDone: (s) => {
         cancelRef.current = null;  // allow a future re-run from this dialog
         setSummary(s);
@@ -155,6 +206,12 @@ export function BulkQuickFixDialog({
             {phase === "done" && summary && (
               <DoneBody summary={summary} fixKind={fixKind} />
             )}
+            {phase === "done" && !summary && (
+              <p className="text-sm text-fg-2">
+                The run stopped before it finished. What was handled so far is listed below.
+              </p>
+            )}
+            {phase === "done" && <ResultsList items={items} stillOpen={summary?.still_open ?? 0} />}
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
@@ -277,7 +334,7 @@ function RunningBody({
   fmt: string;
   pct: number;
   counts: { fixed: number; skipped: number; errors: number; not_applicable: number };
-  last?: QuickFixProgress;
+  last?: ResultItem;
 }) {
   return (
     <>
@@ -302,8 +359,8 @@ function RunningBody({
           Latest: <span className={`mono ${
             last.outcome === "fixed" ? "text-ok" :
             last.outcome === "error" ? "text-err" : "text-fg-3"
-          }`}>{last.outcome}</span>
-          {" · "}{last.message}
+          }`}>{OUTCOME_WORD[last.outcome]}</span>
+          {" · "}{last.album}
         </div>
       )}
     </>
@@ -346,7 +403,7 @@ function DoneBody({
               ? "No findings were fully resolved."
               : fallsThroughToAi
                 ? "No findings were resolvable directly. The rest can still be fixed individually with AI."
-                : "No findings were resolvable. Check the per-finding messages for hints."}
+                : "No findings were resolvable. The reasons are listed below."}
             {stillOpenNote}
           </>
         ) : (
@@ -355,7 +412,7 @@ function DoneBody({
             {summary.total === 1 ? "" : "s"}.
             {stillOpenNote}
             {partial && fallsThroughToAi && " The rest can be fixed individually with AI."}
-            {partial && !fallsThroughToAi && " The rest stay open — see per-finding messages for why."}
+            {partial && !fallsThroughToAi && " The rest stay open; the reasons are listed below."}
           </>
         )}
       </p>
@@ -370,5 +427,97 @@ function Stat({ label, value, tone }: { label: string; value: number; tone: "ok"
       <div className="mono text-[10px] uppercase tracking-[0.06em] text-fg-4">{label}</div>
       <div className={`mono text-base font-semibold tabular-nums ${cls}`}>{value}</div>
     </div>
+  );
+}
+
+const OUTCOME_WORD: Record<BulkOutcome, string> = {
+  fixed: "fixed",
+  skipped: "skipped",
+  error: "failed",
+  "not-applicable": "not applicable",
+};
+
+// Problems first; fixed findings last and collapsed.
+const GROUPS: ReadonlyArray<{ outcome: BulkOutcome; title: string; tone: string }> = [
+  { outcome: "error", title: "Failed", tone: "text-err" },
+  { outcome: "skipped", title: "Skipped", tone: "text-fg-2" },
+  { outcome: "not-applicable", title: "Not applicable", tone: "text-fg-2" },
+  { outcome: "fixed", title: "Fixed", tone: "text-ok" },
+];
+
+function ResultsList({ items, stillOpen }: { items: ResultItem[]; stillOpen: number }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="mt-3 max-h-[40vh] overflow-y-auto space-y-3" data-testid="bulk-results">
+      {GROUPS.map((g) => {
+        const rows = items.filter((i) => i.outcome === g.outcome);
+        return rows.length === 0 ? null : (
+          <ResultGroup
+            key={g.outcome}
+            title={g.title}
+            tone={g.tone}
+            rows={rows}
+            collapsed={g.outcome === "fixed"}
+            note={
+              g.outcome === "fixed" && stillOpen > 0
+                ? `${stillOpen} of these did not fully resolve their finding and ${stillOpen === 1 ? "is" : "are"} still open.`
+                : undefined
+            }
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+function ResultGroup({
+  title,
+  tone,
+  rows,
+  collapsed,
+  note,
+}: {
+  title: string;
+  tone: string;
+  rows: ResultItem[];
+  collapsed: boolean;
+  note?: string;
+}) {
+  const [open, setOpen] = useState(!collapsed);
+  const [all, setAll] = useState(false);
+  const shown = all ? rows : rows.slice(0, RESULT_ROW_LIMIT);
+  return (
+    <section aria-label={title}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={`mono text-[11px] uppercase tracking-[0.06em] ${tone} hover:underline`}
+      >
+        {title} ({rows.length}) {open ? "\u2212" : "+"}
+      </button>
+      {note && <p className="text-xs text-fg-3 mt-0.5">{note}</p>}
+      {open && (
+        <>
+          <ul className="mt-1 rounded border border-line bg-panel-2 divide-y divide-line">
+            {shown.map((r) => (
+              <li key={r.findingId} className="px-2 py-1.5 text-xs">
+                <div className="text-fg truncate" title={r.album}>{r.album}</div>
+                {r.reason && <div className="text-fg-3">{r.reason}</div>}
+              </li>
+            ))}
+          </ul>
+          {!all && rows.length > RESULT_ROW_LIMIT && (
+            <button
+              type="button"
+              onClick={() => setAll(true)}
+              className="mt-2 h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition"
+            >
+              Show all {rows.length}
+            </button>
+          )}
+        </>
+      )}
+    </section>
   );
 }
