@@ -56,7 +56,8 @@
  *                                       (prefix-matched; the payload names
  *                                       the checks and albums but every
  *                                       open findings view refetches).
- *   SettingsChanged(keys)             → ["settings"], ["acoustid-prompt"]
+ *   SettingsChanged(keys)             → ["settings"], ["acoustid-prompt"],
+ *                                       ["ui-prefs"]
  *   LibraryScanStopped(reason)        → ["albums-snapshot"] only: an
  *                                       aborted / cancelled / failed scan
  *                                       wrote no album, but a cancelled
@@ -76,6 +77,7 @@ import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { ACOUSTID_PROMPT_QUERY_KEY } from "./useAcoustidPrompt";
+import { UI_PREFS_QUERY_KEY } from "./useUiPrefs";
 import { CHECKS_QUERY_KEY, FINDINGS_QUERY_KEY } from "./useChecks";
 import { SETTINGS_QUERY_KEY } from "./useJobs";
 
@@ -221,6 +223,7 @@ export function useLibraryEventsStream() {
       // Another window saved a key or dismissed the AcoustID prompt.
       qc.invalidateQueries({ queryKey: SETTINGS_QUERY_KEY });
       qc.invalidateQueries({ queryKey: ACOUSTID_PROMPT_QUERY_KEY });
+      qc.invalidateQueries({ queryKey: UI_PREFS_QUERY_KEY });
     });
     es.addEventListener("LibraryScanStopped", () => {
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });

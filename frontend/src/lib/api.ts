@@ -168,6 +168,21 @@ export function dismissAcoustidPrompt(): Promise<{ dismissed: boolean }> {
   return request("/api/prompts/acoustid/dismiss", { method: "POST" });
 }
 
+/** The light/dark theme and Library tile size; null: never chosen. */
+export interface UiPrefs {
+  theme: "light" | "dark" | null;
+  tile_columns: number | null;
+}
+
+export function getUiPrefs(): Promise<UiPrefs> {
+  return request<UiPrefs>("/api/ui-prefs");
+}
+
+/** Set the named preferences; null forgets one, a field left out is untouched. */
+export function putUiPrefs(prefs: Partial<UiPrefs>): Promise<UiPrefs> {
+  return request<UiPrefs>("/api/ui-prefs", { method: "PUT", body: JSON.stringify(prefs) });
+}
+
 export function getCheckSweepStatus(): Promise<CheckSweepStatus> {
   return request<CheckSweepStatus>("/api/checks/sweep");
 }

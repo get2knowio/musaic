@@ -1,9 +1,14 @@
 /**
- * The light/dark choice, kept in localStorage so it survives a reload.
- * Dark is the default (index.html starts with the `dark` class). Storage can
- * be unavailable or throw (private windows), so every access is guarded and
- * the page simply falls back to the default.
+ * The light/dark choice. The server keeps it (the desktop window's address
+ * changes on every launch, so browser storage alone forgets it);
+ * localStorage is only a fast cache so the page starts in the right theme
+ * before the server answers (see useUiPrefs). Dark is the default
+ * (index.html starts with the `dark` class). Storage can be unavailable or
+ * throw (private windows), so every access is guarded and the page simply
+ * falls back to the default.
  */
+import { putUiPrefs } from "@/lib/api";
+
 const STORAGE_KEY = "mm.theme";
 
 export type Theme = "light" | "dark";
@@ -27,11 +32,24 @@ export function applyStoredTheme(): void {
   if (stored) applyTheme(stored);
 }
 
-export function setTheme(theme: Theme): void {
-  applyTheme(theme);
+function cacheTheme(theme: Theme | null): void {
   try {
-    localStorage.setItem(STORAGE_KEY, theme);
+    if (theme === null) localStorage.removeItem(STORAGE_KEY);
+    else localStorage.setItem(STORAGE_KEY, theme);
   } catch {
     /* the choice still applies for this session */
   }
+}
+
+/** The server's answer wins: show it and refresh the cache. `null`: never chosen, so the default. */
+export function applyServerTheme(theme: Theme | null): void {
+  applyTheme(theme ?? "dark");
+  cacheTheme(theme);
+}
+
+export function setTheme(theme: Theme): void {
+  applyTheme(theme);
+  cacheTheme(theme);
+  // A failed write leaves the choice in place for this session.
+  putUiPrefs({ theme }).catch(() => {});
 }

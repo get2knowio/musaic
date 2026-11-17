@@ -165,10 +165,10 @@ describe("useLibraryEventsStream", () => {
     ]);
   });
 
-  it("SettingsChanged refreshes the settings and the AcoustID prompt", () => {
+  it("SettingsChanged refreshes the settings, the AcoustID prompt and the UI preferences", () => {
     const { invalidate, es } = setup();
     es.emit("SettingsChanged", { keys: ["acoustid_prompt_dismissed"] });
-    expect(keysOf(invalidate)).toEqual([["settings"], ["acoustid-prompt"]]);
+    expect(keysOf(invalidate)).toEqual([["settings"], ["acoustid-prompt"], ["ui-prefs"]]);
   });
 
   it("ignores a payload with no album_id (guards against a relay shape change)", () => {

@@ -57,6 +57,12 @@ pub fn set_raw(conn: &Connection, key: &str, value: &str) -> Result<()> {
     Ok(())
 }
 
+/// Remove a stored value (no row afterwards); a missing row is fine.
+pub fn delete_raw(conn: &Connection, key: &str) -> Result<()> {
+    conn.execute("DELETE FROM settings WHERE key = ?1", [key])?;
+    Ok(())
+}
+
 /// Stored value parsed as an integer; `default` when missing or unparseable.
 pub fn get_int(conn: &Connection, key: &str, default: i64) -> Result<i64> {
     Ok(get_raw(conn, key)?

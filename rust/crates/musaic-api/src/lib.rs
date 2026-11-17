@@ -94,7 +94,20 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         ACOUSTID_PROMPT_DISMISS_ROUTE,
         "dismiss that prompt for good; not a route of the Python app",
     ),
+    (
+        "GET",
+        UI_PREFS_ROUTE,
+        "the light/dark theme and Library tile size, kept on the server because the desktop window's address changes on every launch, so browser storage would forget them; not a route of the Python app",
+    ),
+    (
+        "PUT",
+        UI_PREFS_ROUTE,
+        "change those preferences; not a route of the Python app",
+    ),
 ];
+
+/// `GET` / `PUT /api/ui-prefs` ([`EXTRA_ROUTES`]).
+pub const UI_PREFS_ROUTE: &str = "/api/ui-prefs";
 
 /// `GET /api/prompts/acoustid` ([`EXTRA_ROUTES`]).
 pub const ACOUSTID_PROMPT_ROUTE: &str = "/api/prompts/acoustid";
@@ -222,6 +235,11 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         .route(
             ACOUSTID_PROMPT_DISMISS_ROUTE,
             post(settings::dismiss_acoustid_prompt),
+        )
+        // Not Python app routes: the UI preferences ([`EXTRA_ROUTES`]).
+        .route(
+            UI_PREFS_ROUTE,
+            get(settings::ui_prefs).put(settings::put_ui_prefs),
         )
         .route("/api/db/info", get(settings::db_info))
         .route("/api/db/backup", get(settings::db_backup))
