@@ -156,7 +156,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           onClick={(e) => { e.stopPropagation(); setFilenameOpen(true); }}
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
-          title="Review the rename plan and apply it on disk"
+          title="Review the new file names, then rename the files"
         >
           <FileEdit className="w-3 h-3" />
           Resolve…
@@ -180,7 +180,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           onClick={(e) => { e.stopPropagation(); setArtistSortOpen(true); }}
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
-          title="Set a canonical sort value across all cluster members"
+          title="Give this artist the same sort name everywhere"
         >
           <Users className="w-3 h-3" />
           Resolve…

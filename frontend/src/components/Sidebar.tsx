@@ -1,4 +1,4 @@
-import { AlertCircle, Disc3, History, ListMusic, Music2, Settings as SettingsIcon } from "lucide-react";
+import { AlertCircle, Disc3, Settings as SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
@@ -13,17 +13,10 @@ interface NavItem {
   label: string;
   icon: typeof Disc3;
   count?: number;
-  later?: boolean;
   badge?: { text: string; tone: "accent" | "warn" | "err" };
   /** Show a pulsing dot to indicate background activity (e.g. AI job running). */
   activity?: { label: string };
 }
-
-const FOLLOWUP_WORKSPACE_ITEMS: NavItem[] = [
-  { label: "Playlists", icon: ListMusic, later: true },
-  { label: "Plex sync", icon: Music2, later: true },
-  { label: "Scan history", icon: History, later: true },
-];
 
 export default function Sidebar() {
   const location = useLocation();
@@ -92,8 +85,8 @@ export default function Sidebar() {
   const activityLabel =
     runningCount > 0
       ? queuedCount > 0
-        ? `1 running, ${queuedCount} queued`
-        : "1 running"
+        ? `${runningCount} running, ${queuedCount} queued`
+        : `${runningCount} running`
       : queuedCount > 0
       ? `${queuedCount} queued`
       : null;
@@ -144,7 +137,9 @@ export default function Sidebar() {
         label="All albums"
         dotColor="var(--accent)"
         count={counts.all}
-        active={isLibrary && activeFilter === null}
+        // Never highlighted: with no filter the Library item above is the
+        // highlighted one, so the two do not light up together.
+        active={false}
         onClick={() => onFilterClick(null)}
       />
       {FILTERS.map((f) => (
@@ -174,37 +169,8 @@ export default function Sidebar() {
       >
         <SettingsIcon className="w-3.5 h-3.5" />
         <span>Settings</span>
-        <span className="ml-auto mono text-xs text-fg-4">,</span>
       </NavLink>
-
-      {/* Roadmap items — quietly listed below Settings so they're discoverable
-          without crowding the primary nav. Rendered as plain text rather than
-          interactive items so users don't try to click them. */}
-      <ComingSoonFooter items={FOLLOWUP_WORKSPACE_ITEMS} />
     </nav>
-  );
-}
-
-function ComingSoonFooter({ items }: { items: NavItem[] }) {
-  return (
-    <div className="mt-3 pt-2 border-t border-line">
-      <div className="mono text-[10px] uppercase tracking-[0.08em] text-fg-4 px-2.5 pb-1">
-        Coming soon
-      </div>
-      {items.map((item) => {
-        const Icon = item.icon;
-        return (
-          <div
-            key={item.label}
-            className="flex items-center gap-2.5 h-6 px-2.5 text-xs text-fg-4"
-            title={`${item.label} — coming in a future milestone`}
-          >
-            <Icon className="w-3 h-3 shrink-0 opacity-70" />
-            <span className="truncate">{item.label}</span>
-          </div>
-        );
-      })}
-    </div>
   );
 }
 
@@ -257,9 +223,6 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
       {item.count !== undefined && !item.badge && (
         <span className="ml-auto mono text-xs text-fg-4 tabular-nums">{item.count}</span>
       )}
-      {item.later && (
-        <span className="ml-auto mono text-[10.5px] text-fg-4 uppercase tracking-[0.06em]">v1.1</span>
-      )}
     </div>
   );
 
@@ -267,11 +230,9 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
     "flex items-center h-7 px-2.5 rounded relative transition";
   const activeClasses = active
     ? "bg-accent-soft text-accent font-medium before:content-[''] before:absolute before:-left-2.5 before:top-1 before:bottom-1 before:w-0.5 before:bg-accent before:rounded"
-    : item.later
-    ? "opacity-55 text-fg-3 cursor-default"
     : "text-fg-2 hover:bg-bg-3 hover:text-fg cursor-pointer";
 
-  if (item.to && !item.later) {
+  if (item.to) {
     return (
       <NavLink to={item.to} className={`${baseClasses} ${activeClasses}`}>
         {content}

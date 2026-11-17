@@ -38,6 +38,12 @@ function shortAlbum(j: Job, maxLen = 36): string {
 export function useJobsStream() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  // `navigate` changes identity on every route change; the stream must not,
+  // or each navigation would close and reopen it. Toasts read the latest.
+  const navigateRef = useRef(navigate);
+  useEffect(() => {
+    navigateRef.current = navigate;
+  }, [navigate]);
   const previousById = useRef<Map<string, Job>>(new Map());
 
   useEffect(() => {
@@ -73,7 +79,7 @@ export function useJobsStream() {
         const goTo = (path: string) => () => {
           // eslint-disable-next-line no-console
           console.debug("[toast] navigate →", path);
-          setTimeout(() => navigate(path), 0);
+          setTimeout(() => navigateRef.current(path), 0);
         };
 
         if (j.status === "completed") {
@@ -123,5 +129,5 @@ export function useJobsStream() {
     });
 
     return () => es.close();
-  }, [qc, navigate]);
+  }, [qc]);
 }

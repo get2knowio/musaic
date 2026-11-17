@@ -3,6 +3,8 @@ import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 
+import { setTheme } from "@/lib/theme";
+
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
 import {
   COLUMN_MAX,
@@ -30,13 +32,11 @@ const ROUTE_LABELS: { match: (path: string) => boolean; label: string }[] = [
   { match: (p) => p.startsWith("/settings"), label: "Settings" },
 ];
 
-function abbreviateHome(path: string): string {
-  return path.replace(/^\/Users\/[^/]+/, "~");
-}
-
 /**
- * Titlebar — 36px tall, full-width chrome with brand, breadcrumb, search,
- * view toggle, rescan, theme toggle, settings.
+ * Titlebar — 36px tall, full-width chrome with brand, the current page name,
+ * and (on Library only) search and the view toggle, then rescan, theme
+ * toggle and settings. The library folder is shown once, in the Library
+ * filter bar, not here.
  *
  * Narrow windows: the header never makes the page wider than the window
  * (`min-w-0` lets the app grid shrink it). The location crumb and the search
@@ -95,13 +95,8 @@ export default function Titlebar() {
     }
   };
 
-  // Breadcrumb: prefer the abbreviated configured library_dir, fall back to
-  // the current route name. Hardcoded "~/Music/Library" was misleading.
-  const libraryDir = config.data?.library_dir ?? null;
-  const routeLabel =
-    ROUTE_LABELS.find((r) => r.match(location.pathname))?.label ?? "";
   const crumb =
-    onLibrary && libraryDir ? abbreviateHome(libraryDir) : routeLabel;
+    ROUTE_LABELS.find((r) => r.match(location.pathname))?.label ?? "";
 
   const rescanDisabled = rescanning || scanning || !config.data?.exists;
   const rescanTitle = !config.data?.exists
@@ -120,13 +115,7 @@ export default function Titlebar() {
 
       {/* Breadcrumb / current location */}
       <div className="flex items-center gap-1.5 mono text-sm text-fg-3 ml-2 min-w-0 truncate max-w-md">
-        {onLibrary && libraryDir ? (
-          <span className="text-fg-2 truncate" title={libraryDir}>
-            {crumb}
-          </span>
-        ) : (
-          <span className="text-fg-2 truncate">{crumb}</span>
-        )}
+        <span className="text-fg-2 truncate">{crumb}</span>
       </div>
 
       <div className="flex-1" />
@@ -138,19 +127,20 @@ export default function Titlebar() {
       {/* Background health-check sweep — only visible while it has work. */}
       <CheckSweepPill />
 
-      {/* Search — writes ?q=… to the URL so Library page can filter */}
+      {/* Search and the view toggle only act on the Library page, so they
+          only show there. Search writes ?q=… to the URL for Library to filter. */}
+      {onLibrary && (
       <div className="flex items-center gap-2 bg-panel border border-line rounded-md px-2.5 h-8 w-80 min-w-32 shrink focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-soft)] transition">
         <Search className="w-3.5 h-3.5 text-fg-3 shrink-0" />
         <input
           type="search"
           value={query}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={onLibrary ? "Filter albums, artists, tracks…" : "Search…"}
-          disabled={!onLibrary}
-          className="bg-transparent border-0 outline-0 flex-1 min-w-0 text-sm placeholder:text-fg-4 disabled:opacity-60"
+          placeholder="Filter albums and artists…"
+          className="bg-transparent border-0 outline-0 flex-1 min-w-0 text-sm placeholder:text-fg-4"
         />
-        <span className="mono text-xs text-fg-3 border border-line bg-bg-2 px-1.5 py-0.5 rounded-sm shrink-0">/</span>
       </div>
+      )}
 
       {/* Tile-size slider — only meaningful when viewing the Library
           tile grid. List view ignores the column count, so we hide
@@ -158,6 +148,7 @@ export default function Titlebar() {
       {onLibrary && view === "tiles" && <TileColumnsSlider />}
 
       {/* View toggle */}
+      {onLibrary && (
       <div className="inline-flex shrink-0 border border-line rounded-md h-8 overflow-hidden bg-panel">
         <button
           className={`px-2.5 text-sm flex items-center gap-1 ${view === "tiles" ? "bg-bg-3 text-fg" : "text-fg-3"}`}
@@ -174,6 +165,7 @@ export default function Titlebar() {
           <List className="w-3.5 h-3.5" />
         </button>
       </div>
+      )}
 
       {/* Rescan */}
       <button
@@ -210,8 +202,8 @@ export default function Titlebar() {
 /**
  * 5-stop slider for choosing how many tile columns the Library grid
  * shows. Default (no preference set) uses the responsive auto-fill
- * layout — slider exposes 3..7 fixed-column overrides plus an
- * implicit "reset" via double-click on the label.
+ * layout — slider exposes 3..7 fixed-column overrides; a visible
+ * "×" next to the number puts it back to auto.
  */
 function TileColumnsSlider() {
   const columns = useTileColumns();
@@ -222,14 +214,9 @@ function TileColumnsSlider() {
 
   return (
     <div className="hidden lg:inline-flex shrink-0 items-center gap-2 h-8 px-2.5 border border-line rounded-md bg-panel">
-      <button
-        type="button"
-        onDoubleClick={() => setTileColumns(null)}
-        className="mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4 hover:text-fg-2 transition cursor-pointer"
-        title="Tiles per row · double-click to reset to auto"
-      >
+      <span className="mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">
         Size
-      </button>
+      </span>
       <input
         type="range"
         min={COLUMN_MIN}
@@ -241,9 +228,19 @@ function TileColumnsSlider() {
         aria-label={`Tiles per row (currently ${columns === null ? "auto" : columns})`}
         title={columns === null ? "Auto — drag to set fixed column count" : `${columns} columns per row`}
       />
-      <span className="mono text-[11px] tabular-nums text-fg-3 w-3 text-center">
-        {columns === null ? "·" : columns}
-      </span>
+      {columns === null ? (
+        <span className="mono text-[11px] text-fg-3 w-9 text-center">Auto</span>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setTileColumns(null)}
+          className="mono text-[11px] tabular-nums text-fg-3 hover:text-fg w-9 text-center cursor-pointer"
+          title="Back to automatic tile size"
+          aria-label={`${columns} per row. Back to automatic tile size`}
+        >
+          {columns} ×
+        </button>
+      )}
     </div>
   );
 }
@@ -269,9 +266,8 @@ function ThemeToggle() {
       className="inline-flex shrink-0 items-center justify-center w-6 h-6 border border-line rounded-[5px] bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
       title="Toggle theme"
       onClick={() => {
-        const root = document.documentElement;
         const next = !dark;
-        root.classList.toggle("dark", next);
+        setTheme(next ? "dark" : "light");
         setDark(next);
       }}
     >

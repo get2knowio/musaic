@@ -205,7 +205,11 @@ export default function ArtistSortResolveDialog({
     mutationFn: (v: string) =>
       applyInconsistentArtistSort(currentFinding.id, v),
     onSuccess: (r) => {
-      toast.success(r.message);
+      toast.success(
+        r.distinct_albums !== undefined
+          ? `Set the sort name to "${r.sort_value}" on ${r.applied} of ${r.distinct_albums} album${r.distinct_albums === 1 ? "" : "s"}.`
+          : r.message,
+      );
       // Cache invalidation is handled by the App-level
       // useLibraryEventsStream subscriber — apply_cluster_sort writes
       // through apply_direct which publishes AlbumTagsChanged per
@@ -220,7 +224,7 @@ export default function ArtistSortResolveDialog({
       } else {
         toast.success(
           totalInChain > 1
-            ? `Done — resolved all ${totalInChain} clusters in this batch.`
+            ? `Done — updated all ${totalInChain} artists in this batch.`
             : "Done.",
           { duration: 3000 },
         );
@@ -228,7 +232,7 @@ export default function ArtistSortResolveDialog({
       }
     },
     onError: (e) => {
-      toast.error((e as Error).message || "Couldn't apply sort value");
+      toast.error((e as Error).message || "Couldn't save the sort name");
     },
   });
 
@@ -251,7 +255,7 @@ export default function ArtistSortResolveDialog({
     const parts: string[] = [];
     if (albumCount > 0) parts.push(`${albumCount} album${albumCount === 1 ? "" : "s"}`);
     if (trackCount > 0) parts.push(`${trackCount} track${trackCount === 1 ? "" : "s"}`);
-    return `Apply to ${parts.join(" + ") || "cluster"}`;
+    return `Set sort name on ${parts.join(" + ") || "these items"}`;
   }, [albumCount, trackCount]);
 
   return (
@@ -266,7 +270,7 @@ export default function ArtistSortResolveDialog({
             <div className="flex items-center gap-2 min-w-0">
               <Users className="w-3.5 h-3.5 text-accent shrink-0" />
               <Dialog.Title className="font-semibold text-md truncate">
-                Normalize artist sort
+                Give this artist one sort name
               </Dialog.Title>
               {/* Chain progress indicator. Only shown when there's
                   more than one finding in the snapshot, so single-
@@ -289,28 +293,28 @@ export default function ArtistSortResolveDialog({
 
           <div className="px-4 py-3.5 space-y-3 overflow-y-auto max-h-[70vh]">
             <p className="text-sm text-fg-2">
-              {_summarize(albumCount, trackCount)} use credit variations that
-              all refer to the same artist. Setting a single canonical sort
-              value (typically <code className="mono text-fg">"Last, First"</code>)
-              groups them together in Plex / Roon sidebars and track-artist
-              views.
+              {_summarize(albumCount, trackCount)} credit this artist in slightly
+              different ways, so players like Plex and Roon can file them
+              in separate places. Choose one sort name (usually{" "}
+              <code className="mono text-fg">"Last, First"</code>) and Musaic
+              will write it to all of them.
             </p>
 
             {state === "propagatable" && canonical && (
               <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-ok-soft border border-ok/30 rounded px-3 py-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-ok shrink-0 mt-0.5" />
                 <span>
-                  One member of this cluster already has{" "}
-                  <code className="mono text-fg">{canonical}</code> — applying
-                  it to the rest will normalize the cluster.
+                  One of these already uses{" "}
+                  <code className="mono text-fg">{canonical}</code>. Applying
+                  it gives the rest the same sort name.
                 </span>
               </div>
             )}
 
             {state === "conflicting" && (
               <div className="text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
-                Members of this cluster have <b>different</b> sort tags. Pick
-                the one that should win, or type a new value.
+                These use <b>different</b> sort names. Pick the one to keep,
+                or type a new one.
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {existingSorts.map((s) => (
                     <button
@@ -331,7 +335,7 @@ export default function ArtistSortResolveDialog({
 
             <div>
               <label className="mono text-xs uppercase tracking-[0.06em] text-fg-4 block mb-1.5">
-                Canonical sort value
+                Sort name
               </label>
               <input
                 ref={sortInputRef}
@@ -346,15 +350,15 @@ export default function ArtistSortResolveDialog({
                 autoFocus
               />
               <div className="text-[11px] text-fg-4 mt-1 leading-relaxed">
-                Album members get ALBUMARTISTSORT; track members get
-                ARTISTSORT on the listed filenames only. Display
-                tags (album_artist / artist) stay untouched.
+                Albums get this as their album artist sort name. Tracks listed
+                below get it as their artist sort name; other tracks are not
+                touched. The artist names shown in your library don't change.
               </div>
             </div>
 
             <div className="border border-line rounded-md bg-panel-2 divide-y divide-line">
               <div className="flex items-center px-3 py-1.5 border-b border-line text-[11px] mono uppercase tracking-[0.06em] text-fg-4">
-                <span>Cluster ({members.length} {members.length === 1 ? "member" : "members"})</span>
+                <span>{members.length} {members.length === 1 ? "item" : "items"} to update</span>
               </div>
               {members.map((m, i) => (
                 <ClusterRow
@@ -511,12 +515,12 @@ function ChangePreview({
     return currentSort ? (
       <div
         className="mono text-[11px] text-fg-3 truncate"
-        title={`current sort: ${currentSort}`}
+        title={`current sort name: ${currentSort}`}
       >
         currently {currentSort}
       </div>
     ) : (
-      <div className="mono text-[11px] text-fg-4 italic">no sort tag</div>
+      <div className="mono text-[11px] text-fg-4 italic">no sort name</div>
     );
   }
 

@@ -13,6 +13,7 @@ vi.mock("sonner", () => ({
 
 import { toast } from "sonner";
 import DuplicateResolveDialog from "@/components/DuplicateResolveDialog";
+import ArtistSortResolveDialog from "@/components/ArtistSortResolveDialog";
 import FilenameMismatchResolveDialog from "@/components/FilenameMismatchResolveDialog";
 import type { Finding } from "@/lib/types";
 
@@ -196,6 +197,57 @@ describe("duplicate Resolve dialog copy", () => {
       expect(toast.success).toHaveBeenCalledWith("Moved 01 - A (1).flac to trash", {
         description: "You can move it back from Musaic's trash folder.",
       }),
+    );
+  });
+});
+
+describe("artist sort Resolve dialog copy", () => {
+  const finding = makeFinding(5, "inconsistent-artist-sort", {
+    state: "conflicting",
+    members: [
+      { kind: "album", album_id: "a1", dir_name: "Ray Conniff - One", album_artist: "Ray Conniff", sort: "Conniff, Ray" },
+      { kind: "album", album_id: "a2", dir_name: "Ray Conniff - Two", album_artist: "Ray Conniff Orchestra", sort: "Ray Conniff" },
+      { kind: "track", album_id: "a3", dir_name: "Various", artist: "Ray Conniff", filenames: ["01 - X.flac"], sort: "" },
+    ],
+  });
+  const APPLY = "Set sort name on 2 albums + 1 track";
+
+  beforeEach(() => {
+    routes[`POST /api/checks/inconsistent-artist-sort/findings/5/apply-sort`] = {
+      ok: true,
+      applied: 2,
+      cluster_size: 3,
+      distinct_albums: 3,
+      sort_value: "Conniff, Ray",
+      message: "Wrote sort='Conniff, Ray' to 2 of 3 album(s) in the cluster.",
+    };
+  });
+
+  it("says what will be written in plain words, without field keys or cluster", async () => {
+    wrap(<ArtistSortResolveDialog finding={finding} open onClose={() => {}} />);
+    expect(await screen.findByText("Give this artist one sort name")).toBeInTheDocument();
+    expect(screen.getByText(/credit this artist in slightly different ways/)).toBeInTheDocument();
+    expect(screen.getByText("Sort name")).toBeInTheDocument();
+    expect(screen.getByText("3 items to update")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: APPLY })).toBeInTheDocument();
+    for (const gone of [/ALBUMARTISTSORT/, /ARTISTSORT/, /album_artist/, /cluster/i, /canonical/i, /Normalize/]) {
+      expect(screen.queryByText(gone)).toBeNull();
+    }
+  });
+
+  it("sends the same request and reports the result in plain words", async () => {
+    wrap(<ArtistSortResolveDialog finding={finding} open onClose={() => {}} />);
+    const input = await screen.findByRole("textbox");
+    fireEvent.change(input, { target: { value: "Conniff, Ray" } });
+    fireEvent.click(screen.getByRole("button", { name: APPLY }));
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(posts()[0]).toEqual({
+      url: "/api/checks/inconsistent-artist-sort/findings/5/apply-sort",
+      method: "POST",
+      body: { sort_value: "Conniff, Ray" },
+    });
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Set the sort name to "Conniff, Ray" on 2 of 3 albums.'),
     );
   });
 });
