@@ -6,8 +6,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
-use musaic_core::pycompat::{is_py_space, strip};
-use musaic_scan::{flacmeta, list_flacs};
+use musaic_core::pycompat::{int, is_py_space, strip};
+use musaic_scan::{flacmeta, list_flacs, parse_tracknum};
 
 use crate::base::{
     Check, CheckCtx, CheckError, CheckMeta, CheckScope, Cost, Emit, Finding, FixKind, Severity,
@@ -44,11 +44,33 @@ pub fn findings_for(
     track_numbers: &[Option<i64>],
     track_count: i64,
 ) -> Vec<Finding> {
+    findings_on_disc(album_id, None, track_numbers, track_count)
+}
+
+/// [`findings_for`] for the tracks of one disc of a multi-disc album: the
+/// disc is named in the summary (a finding's identity is its summary, so two
+/// discs with the same problem stay two findings) and recorded in the detail.
+fn findings_on_disc(
+    album_id: &str,
+    disc: Option<i64>,
+    track_numbers: &[Option<i64>],
+    track_count: i64,
+) -> Vec<Finding> {
     let mut present: Vec<i64> = track_numbers.iter().flatten().copied().collect();
     present.sort_unstable();
     if present.len() < 2 {
         return Vec::new();
     }
+    let on_disc = disc.map(|d| format!(" on disc {d}")).unwrap_or_default();
+    let with_disc = |d: PyJson| {
+        let PyJson::Dict(mut items) = d else {
+            return Some(d);
+        };
+        if let Some(disc) = disc {
+            items.push(("disc".to_string(), PyJson::Int(disc)));
+        }
+        Some(PyJson::Dict(items))
+    };
     let unique: Vec<i64> = present
         .iter()
         .copied()
@@ -65,9 +87,9 @@ pub fn findings_for(
     if !missing.is_empty() {
         out.push(Finding {
             album_id: Some(album_id.to_string()),
-            summary: format!("Track-number gaps: missing {}", join(&missing)),
+            summary: format!("Track-number gaps{on_disc}: missing {}", join(&missing)),
             severity: Severity::Warn,
-            detail: Some(dict([
+            detail: with_disc(dict([
                 ("present", ints(&unique)),
                 ("missing", ints(&missing)),
                 ("expected_total", PyJson::Int(track_count)),
@@ -86,15 +108,74 @@ pub fn findings_for(
     if !dups.is_empty() {
         out.push(Finding {
             album_id: Some(album_id.to_string()),
-            summary: format!("Duplicate track numbers: {}", join(&dups)),
+            summary: format!("Duplicate track numbers{on_disc}: {}", join(&dups)),
             severity: Severity::Error,
-            detail: Some(dict([
+            detail: with_disc(dict([
                 ("present", ints(&present)),
                 ("duplicates", ints(&dups)),
             ])),
         });
     }
     out
+}
+
+/// Disc number of a file from its `DISCNUMBER` tag ("2", "2/3"), else from a
+/// disc-prefixed `TRACKNUMBER` ("2-05", "2.05"), as `parse_tracknum` reads
+/// those.
+fn disc_of(meta: &flacmeta::FlacMeta) -> Option<i64> {
+    let from_tag = meta
+        .values("discnumber")
+        .map(strip)
+        .find(|v| !v.is_empty())
+        .and_then(|v| int(v.split('/').next().unwrap_or("")));
+    if from_tag.is_some() {
+        return from_tag;
+    }
+    let raw = meta
+        .values("tracknumber")
+        .map(strip)
+        .find(|v| !v.is_empty())?;
+    let head = strip(raw.split('/').next().unwrap_or(""));
+    ['-', '.'].into_iter().find_map(|sep| {
+        let (disc, track) = head.rsplit_once(sep)?;
+        let digits = |t: &str| !t.is_empty() && t.chars().all(|c| c.is_ascii_digit());
+        let (disc, track) = (strip(disc), strip(track));
+        (digits(disc) && digits(track)).then(|| int(disc)).flatten()
+    })
+}
+
+/// Track numbers by disc number.
+type DiscTracks = BTreeMap<i64, Vec<Option<i64>>>;
+
+/// The track numbers of an album's files grouped by disc, read from the
+/// files. `Ok(None)`: no file names a disc (judge the album as one, from
+/// what the scan stored), or the folder lists no FLAC (nothing to read).
+/// A file that names no disc in an album whose other files do counts as disc
+/// 1, as the scanner's track order does. `Err`: a file could not be read.
+fn discs_on_disk(album_dir: &Path) -> Result<Option<DiscTracks>, ()> {
+    let mut files: Vec<(Option<i64>, Option<i64>)> = Vec::new();
+    for flac in list_flacs(album_dir) {
+        let meta = flacmeta::read(&flac).map_err(|_| ())?;
+        let track = meta
+            .values("tracknumber")
+            .map(strip)
+            .find(|v| !v.is_empty());
+        files.push((disc_of(&meta), parse_tracknum(track)));
+    }
+    if files.iter().all(|(disc, _)| disc.is_none()) {
+        return Ok(None);
+    }
+    let mut discs: BTreeMap<i64, Vec<Option<i64>>> = BTreeMap::new();
+    for (disc, track) in files {
+        discs.entry(disc.unwrap_or(1)).or_default().push(track);
+    }
+    Ok(Some(discs))
+}
+
+/// Whether the album's files name more than one disc. An unreadable folder
+/// is "no".
+pub fn spans_multiple_discs(album_dir: &Path) -> bool {
+    matches!(discs_on_disk(album_dir), Ok(Some(d)) if d.len() > 1)
 }
 
 impl Check for TrackGaps {
@@ -104,13 +185,36 @@ impl Check for TrackGaps {
 
     fn run(
         &self,
-        _ctx: &CheckCtx<'_>,
+        ctx: &CheckCtx<'_>,
         scope: &CheckScope,
         emit: &mut Emit<'_>,
     ) -> Result<(), CheckError> {
         for album in &scope.albums {
-            for f in findings_for(&album.id, &album.track_numbers, album.track_count) {
-                emit(f)?;
+            let whole = findings_for(&album.id, &album.track_numbers, album.track_count);
+            if whole.is_empty() {
+                // Judging per disc turns repeats into nothing, so the files
+                // are read only for albums that already have a finding: one
+                // tag read per file of those albums rather than of the whole
+                // library (this runs after every scan, often over a network
+                // share). Numbers that interleave across discs (disc 1 has
+                // 1 and 3, disc 2 has 2) are not looked at.
+                continue;
+            }
+            match discs_on_disk(Path::new(&album.path)) {
+                Ok(Some(discs)) if discs.len() > 1 => {
+                    for (disc, numbers) in &discs {
+                        let count = numbers.len() as i64;
+                        for f in findings_on_disc(&album.id, Some(*disc), numbers, count) {
+                            emit(f)?;
+                        }
+                    }
+                }
+                Ok(_) => {
+                    for f in whole {
+                        emit(f)?;
+                    }
+                }
+                Err(()) => ctx.could_not_evaluate(&album.id),
             }
         }
         Ok(())

@@ -918,6 +918,13 @@ fn apply_renumbering(
 
 /// `_try_deterministic`: MB title match, then AcoustID fingerprints.
 fn gaps_try_deterministic(env: &mut FixEnv<'_>, album_id: &str, path: &str) -> Option<FixResult> {
+    // The MusicBrainz tracklist is numbered straight through all discs, and
+    // both tiers write only TRACKNUMBER: on an album kept as several discs
+    // numbered from 1 that would replace the per-disc numbers with running
+    // ones. Leave such an album to a person (or the model fix).
+    if track_gaps::spans_multiple_discs(Path::new(path)) {
+        return None;
+    }
     let m = env.sources.find_tracklist(env.conn, album_id);
     if !(m.confident && !m.tracklist.is_empty()) {
         return None;
