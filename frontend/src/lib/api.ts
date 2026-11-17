@@ -159,6 +159,15 @@ export function getFingerprintPoolStatus(): Promise<FingerprintPoolStatus> {
   return request<FingerprintPoolStatus>("/api/fingerprint-pool/status");
 }
 
+/** Whether the one-time "add an AcoustID key" prompt was dismissed. */
+export function getAcoustidPrompt(): Promise<{ dismissed: boolean }> {
+  return request("/api/prompts/acoustid");
+}
+
+export function dismissAcoustidPrompt(): Promise<{ dismissed: boolean }> {
+  return request("/api/prompts/acoustid/dismiss", { method: "POST" });
+}
+
 export function getCheckSweepStatus(): Promise<CheckSweepStatus> {
   return request<CheckSweepStatus>("/api/checks/sweep");
 }

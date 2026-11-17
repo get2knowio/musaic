@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useSetLibraryDir } from "@/hooks/useLibraryConfig";
 import { requestScanOnNextLoad } from "@/hooks/useScanStream";
 import { hasNativeFolderPicker, pickFolder } from "@/lib/desktop";
+import { folderRefusalText } from "@/lib/folderRefusal";
 import type { AppConfig } from "@/lib/types";
 
 /**
@@ -16,10 +17,11 @@ import type { AppConfig } from "@/lib/types";
  *   Save (or Enter).
  *
  * Every save marks the session's scan as due (`requestScanOnNextLoad`);
- * one whose directory exists calls `onSaved`, which takes the user to the
- * grid, where the Library page opens the scan stream straight away. A
- * path that does not exist is saved with a warning and the field stays
- * open, as before.
+ * a saved folder calls `onSaved`, which takes the user to the grid, where
+ * the Library page opens the scan stream straight away. The server refuses
+ * a path that is not a readable folder and keeps the folder already in
+ * use; the reason is shown under the field and the user can try again.
+ * Put the form in a wrapping flex row: the reason takes a full line.
  */
 export default function LibraryPathForm({
   initial = "",
@@ -36,6 +38,7 @@ export default function LibraryPathForm({
   const setDir = useSetLibraryDir();
   const [draft, setDraft] = useState(initial);
   const [picking, setPicking] = useState(false);
+  const [refusal, setRefusal] = useState<string | null>(null);
   const native = hasNativeFolderPicker();
   const busy = setDir.isPending || picking;
 
@@ -46,20 +49,13 @@ export default function LibraryPathForm({
     // scan effect may run) before this call's onSuccess does. Harmless
     // when the save fails: the next load scans the configured directory.
     requestScanOnNextLoad();
+    setRefusal(null);
     setDir.mutate(trimmed, {
       onSuccess: (next) => {
-        if (next.exists) {
-          toast.success("Library directory updated");
-          onSaved?.(next);
-        } else {
-          // Server accepted the path but it doesn't exist on disk; keep the
-          // input open so the user can fix it.
-          toast.warning("Saved, but that directory doesn't exist", {
-            description: "Check the path and try again.",
-          });
-        }
+        toast.success("Library directory updated");
+        onSaved?.(next);
       },
-      onError: (e) => toast.error((e as Error).message || "Couldn't save library directory"),
+      onError: (e) => setRefusal(folderRefusalText((e as Error).message)),
     });
   };
 
@@ -97,7 +93,12 @@ export default function LibraryPathForm({
         placeholder="/Users/you/Music/FLAC"
         value={draft}
         disabled={setDir.isPending}
-        onChange={(e) => setDraft(e.target.value)}
+        aria-invalid={refusal ? true : undefined}
+        aria-describedby={refusal ? "library-path-refusal" : undefined}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          setRefusal(null);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") save(draft);
         }}
@@ -115,6 +116,15 @@ export default function LibraryPathForm({
       >
         {setDir.isPending ? "Saving…" : "Save"}
       </button>
+      {refusal && (
+        <p
+          id="library-path-refusal"
+          role="alert"
+          className="basis-full text-xs text-err leading-relaxed text-left"
+        >
+          {refusal}
+        </p>
+      )}
       {onCancel && (
         <button
           type="button"

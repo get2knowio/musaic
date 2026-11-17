@@ -3,6 +3,7 @@ import { Disc3 } from "lucide-react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import FilterBar from "@/components/FilterBar";
+import AcoustidPrompt from "@/components/AcoustidPrompt";
 import ScanRibbon from "@/components/ScanRibbon";
 import TileGrid from "@/components/TileGrid";
 import AlbumList from "@/components/AlbumList";
@@ -215,6 +216,7 @@ export default function LibraryPage() {
         activeFilterLabel={filterKey ? FILTERS_BY_KEY[filterKey].label : undefined}
       />
       <ScanRibbon scan={scan} onCancel={() => void cancel()} />
+      <AcoustidPrompt scannedAt={scan.scannedAt} />
       <div ref={rowRef} className="relative flex-1 min-h-0 flex">
         <ScrollPersistedArea ref={gridRef} inert={panelCoversGrid} storageKey={`mm.library.scroll.${view}`}>
           {albums.length === 0 && scan.status === "done" ? (

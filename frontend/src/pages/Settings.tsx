@@ -13,7 +13,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { ACOUSTID_KEY_HASH } from "@/components/AcoustidPrompt";
+import { useFingerprintPoolStatus } from "@/hooks/useFingerprintPoolStatus";
+import { fingerprintStatusLine } from "@/lib/fingerprintStatus";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
 import LibraryPathForm from "@/components/LibraryPathForm";
 import { libraryPathHelp } from "@/lib/desktop";
@@ -154,8 +157,8 @@ function GroupHeader({ children }: { children: React.ReactNode }) {
  * a folder by uploading every file inside — useless for our needs.
  * So in a browser we ask the user to paste/type the path; the desktop
  * window adds a native folder picker (components/LibraryPathForm.tsx).
- * The validation message comes back from the server when
- * `exists` is false.
+ * The server refuses a path that is not a readable folder and keeps the
+ * current one; the form shows its reason beside the field.
  */
 function LibrarySection() {
   const config = useLibraryConfig();
@@ -597,7 +600,7 @@ function Row({
     <div>
       <div className="flex items-center gap-3 mb-1">
         <label className="text-sm font-medium">{label}</label>
-        <div className="flex items-center gap-2 ml-auto">{children}</div>
+        <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">{children}</div>
       </div>
       <p className="text-xs text-fg-3 leading-relaxed">{help}</p>
     </div>
@@ -624,6 +627,21 @@ function FingerprintSection() {
   const [key, setKey] = useState("");
 
   const isSet = !!settings?.acoustid_api_key_set;
+  const { data: pool } = useFingerprintPoolStatus();
+  const statusLine = fingerprintStatusLine(
+    settings ? isSet : undefined,
+    pool,
+  );
+
+  // "Add a key in Settings" (components/AcoustidPrompt.tsx) lands here:
+  // scroll the field into view and focus it.
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (hash !== ACOUSTID_KEY_HASH || isLoading) return;
+    const field = document.getElementById("acoustid-key-input");
+    field?.scrollIntoView?.({ block: "center" });
+    field?.focus();
+  }, [hash, isLoading]);
 
   // When the user toggles into edit mode, clear any leftover input.
   useEffect(() => {
@@ -680,28 +698,40 @@ function FingerprintSection() {
           to identify each track regardless of what its title says. Free with registration.
         </p>
 
-        <div className="border border-line rounded p-3 bg-panel">
-          <div className="text-xs mono uppercase tracking-[0.06em] text-fg-4 mb-1.5">
-            Requirements
+        <p className="text-xs text-fg-3 leading-relaxed">
+          Nothing needs installing: Musaic computes fingerprints itself. All you need is a free
+          key from{" "}
+          <a
+            href="https://acoustid.org/new-application"
+            target="_blank"
+            rel="noopener"
+            className="text-accent hover:underline"
+          >
+            acoustid.org/new-application
+          </a>
+          .
+        </p>
+
+        {statusLine && (
+          <div
+            role="status"
+            id="fingerprint-status"
+            className={`flex items-start gap-2 text-xs leading-relaxed rounded border px-3 py-2 ${
+              statusLine.tone === "warn"
+                ? "bg-warn-soft border-warn/30 text-fg-2"
+                : "bg-panel border-line text-fg-2"
+            }`}
+          >
+            {statusLine.tone === "warn" ? (
+              <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+            ) : statusLine.tone === "ok" ? (
+              <Check className="w-3.5 h-3.5 text-ok shrink-0 mt-0.5" />
+            ) : (
+              <Fingerprint className="w-3.5 h-3.5 text-fg-3 shrink-0 mt-0.5" />
+            )}
+            <span>{statusLine.text}</span>
           </div>
-          <ul className="text-xs text-fg-3 space-y-1 leading-relaxed">
-            <li>
-              <code className="mono text-fg-2">brew install chromaprint</code>{" "}
-              (provides the <code className="mono">fpcalc</code> binary)
-            </li>
-            <li>
-              An AcoustID API key from{" "}
-              <a
-                href="https://acoustid.org/new-application"
-                target="_blank"
-                rel="noopener"
-                className="text-accent hover:underline"
-              >
-                acoustid.org/new-application
-              </a>
-            </li>
-          </ul>
-        </div>
+        )}
 
         <Row
           label="AcoustID API key"
@@ -734,7 +764,9 @@ function FingerprintSection() {
           ) : (
             <>
               <input
+                id="acoustid-key-input"
                 type="password"
+                aria-label="AcoustID API key"
                 placeholder={isSet ? "Enter new key…" : "Paste key…"}
                 value={key}
                 disabled={isLoading || update.isPending}
