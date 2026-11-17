@@ -164,18 +164,22 @@ fn a_resolver_error_leaves_the_albums_findings_open() {
     );
 }
 
-/// An ignore survives a rerun that rewords the finding: a finding is keyed
-/// by its summary, so the reworded one is a new row, and it must take the
-/// ignore over from the row it replaces rather than reappear on the
-/// "needs attention" list.
-#[test]
-fn an_ignore_survives_a_changed_summary() {
+/// Ignore the one tags-out-of-sync finding of an album with `start_year` and
+/// a blank genre, apply `update` to the album, rerun, and return
+/// `(old, rows)`: the ignored row as first stored and every row afterwards.
+fn ignore_then_change(
+    start_year: Option<&str>,
+    update: &str,
+) -> (
+    musaic_db::findings::FindingRow,
+    Vec<musaic_db::findings::FindingRow>,
+) {
     let (sb, db) = Sandbox::new();
     let conn = db.connection();
     let case = json!({
         "albums": [{
             "id": "a1", "library_path": "<LIB>", "path": "<LIB>/a1", "dir_name": "a1",
-            "title": "T", "artist": "A", "album_artist": "A", "year": "2000", "genre": null,
+            "title": "T", "artist": "A", "album_artist": "A", "year": start_year, "genre": null,
             "mb_release_group_mbid": "rg-1", "track_count": 1,
         }],
         "dirs": ["a1"],
@@ -200,19 +204,75 @@ fn an_ignore_survives_a_changed_summary() {
     musaic_checks::runner::ignore_finding(conn, &env, first[0].id, Some("on purpose"))
         .unwrap()
         .unwrap();
-
-    // A second missing field rewords the summary.
-    conn.execute("UPDATE albums SET year = NULL WHERE id = 'a1'", [])
-        .unwrap();
+    conn.execute(update, []).unwrap();
     run();
-    let all = musaic_db::findings::all_findings(conn).unwrap();
-    let open: Vec<_> = all.iter().filter(|f| f.resolved_at.is_none()).collect();
-    assert_eq!(open.len(), 1, "{all:?}");
-    assert_ne!(open[0].summary, first[0].summary, "the summary changed");
-    assert!(open[0].ignored_at.is_some(), "the ignore carried over");
-    assert_eq!(open[0].ignored_reason.as_deref(), Some("on purpose"));
-
-    // Rerunning again changes nothing.
+    // A further run changes nothing but when the findings were last seen.
+    let after = musaic_db::findings::all_findings(conn).unwrap();
     run();
-    assert_eq!(musaic_db::findings::all_findings(conn).unwrap().len(), 2);
+    let again = musaic_db::findings::all_findings(conn).unwrap();
+    let stable = |rows: &[musaic_db::findings::FindingRow]| {
+        rows.iter()
+            .map(|f| (f.id, f.resolved_at.clone(), f.ignored_at.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(stable(&again), stable(&after));
+    (first[0].clone(), after)
+}
+
+/// The ignored row (as first stored) and the one open row after a rerun that
+/// changed the album; fails unless exactly one row is open, the old one is
+/// resolved, and the summary changed.
+fn open_after(
+    start_year: Option<&str>,
+    update: &str,
+) -> (
+    musaic_db::findings::FindingRow,
+    musaic_db::findings::FindingRow,
+) {
+    let (old, rows) = ignore_then_change(start_year, update);
+    let open: Vec<_> = rows.iter().filter(|f| f.resolved_at.is_none()).collect();
+    assert_eq!(open.len(), 1, "{rows:?}");
+    let old_now = rows.iter().find(|f| f.id == old.id).unwrap();
+    assert!(old_now.resolved_at.is_some(), "the stale row is resolved");
+    assert_ne!(open[0].summary, old.summary, "the summary changed");
+    (old, open[0].clone())
+}
+
+/// A reworded finding of the same severity keeps the ignore (both warn).
+#[test]
+fn an_ignore_carries_to_a_reworded_finding_of_equal_severity() {
+    let (old, new) = open_after(None, "UPDATE albums SET title = NULL WHERE id = 'a1'");
+    assert_eq!(
+        (old.severity.as_str(), new.severity.as_str()),
+        ("warn", "warn")
+    );
+    assert!(new.ignored_at.is_some());
+    assert_eq!(new.ignored_reason.as_deref(), Some("on purpose"));
+}
+
+/// A reworded finding that is less severe keeps the ignore (warn to info).
+#[test]
+fn an_ignore_carries_to_a_less_severe_finding() {
+    let (old, new) = open_after(None, "UPDATE albums SET year = '2000' WHERE id = 'a1'");
+    assert_eq!(
+        (old.severity.as_str(), new.severity.as_str()),
+        ("warn", "info")
+    );
+    assert!(new.ignored_at.is_some());
+}
+
+/// An ignore never hides a worse problem: a blank genre alone (info) was
+/// ignored, then the year went blank too (warn). The new finding is
+/// un-ignored and the stale ignored row is resolved.
+#[test]
+fn an_ignore_does_not_carry_to_a_more_severe_finding() {
+    let (old, new) = open_after(
+        Some("2000"),
+        "UPDATE albums SET year = NULL WHERE id = 'a1'",
+    );
+    assert_eq!(
+        (old.severity.as_str(), new.severity.as_str()),
+        ("info", "warn")
+    );
+    assert!(new.ignored_at.is_none());
 }
