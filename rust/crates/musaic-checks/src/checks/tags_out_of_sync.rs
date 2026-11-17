@@ -363,6 +363,9 @@ pub fn compute_diffs(
             ("title", &r.canonical_title),
             ("album_artist", &r.canonical_album_artist),
             ("year", &r.canonical_year),
+            // A blank genre only: a genre the user set is theirs, and a
+            // different one is not drift (`album_diffs` never lists it).
+            ("genre", &r.canonical_genre),
         ] {
             if missing_core.contains(&field)
                 && let Some(f) = fact
@@ -388,7 +391,12 @@ pub fn compute_diffs(
         .copied()
         .filter(|f| !applicable_album.iter().any(|(k, _)| k == f) && *f != "album_artist")
         .collect();
-    if missing_core.contains(&"genre") && !ai_fallback_fields.contains(&"genre") {
+    // A blank genre the resolver could not fill is left for a model (or the
+    // user), as before.
+    if missing_core.contains(&"genre")
+        && !applicable_album.iter().any(|(k, _)| *k == "genre")
+        && !ai_fallback_fields.contains(&"genre")
+    {
         ai_fallback_fields.push("genre");
     }
     let has_anchor = res.is_some_and(|r| r.anchor.is_some());
@@ -427,14 +435,23 @@ pub fn check_album(
 }
 
 /// A blank title, album artist or year is a warning. A blank genre alone is
-/// informational: this build has no way to fill one in, so a warning would
-/// have no fix. The summary and detail still name it.
-fn severity_for(missing_core: &[&str]) -> Severity {
-    if missing_core.iter().any(|f| *f != "genre") {
+/// a warning when MusicBrainz's genre can fill it (the fix has something to
+/// write) and informational when it cannot: a warning with no fix is not
+/// useful. The summary and detail name a blank genre either way.
+fn severity_for(d: &AlbumDiffs) -> Severity {
+    if d.missing_core.iter().any(|f| *f != "genre") || genre_fill(d).is_some() {
         Severity::Warn
     } else {
         Severity::Info
     }
+}
+
+/// The genre the deterministic apply would write into a blank one.
+fn genre_fill(d: &AlbumDiffs) -> Option<&str> {
+    d.applicable_album
+        .iter()
+        .find(|(k, _)| *k == "genre")
+        .map(|(_, v)| v.as_str())
 }
 
 /// The finding for `a` from its diffs.
@@ -447,59 +464,65 @@ fn finding_for(a: &TagsRow, d: &AlbumDiffs) -> Option<Finding> {
         .clone()
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| a.id.clone());
+    let mut detail = dict([
+        ("dir_name", a.dir_name.clone().into()),
+        ("is_compilation", a.is_compilation.into()),
+        ("headline", headline.into()),
+        ("has_anchor", a.mb_release_group_mbid.is_some().into()),
+        ("missing_core", strs(&d.missing_core)),
+        (
+            "album_diffs",
+            PyJson::List(
+                d.album_diffs
+                    .iter()
+                    .map(|x| {
+                        dict([
+                            ("field", x.field.into()),
+                            ("current", x.current.clone().into()),
+                            ("canonical", x.canonical.clone().into()),
+                            ("source", x.source.clone().into()),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "track_diffs",
+            PyJson::List(
+                d.track_diffs
+                    .iter()
+                    .map(|x| {
+                        dict([
+                            ("filename", x.filename.clone().into()),
+                            ("field", x.field.into()),
+                            ("current", x.current.clone().into()),
+                            ("canonical", x.canonical.clone().into()),
+                        ])
+                    })
+                    .collect(),
+            ),
+        ),
+        (
+            "sort_proposals",
+            PyJson::Dict(
+                d.sort_proposals
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.clone().into()))
+                    .collect(),
+            ),
+        ),
+        ("ai_fallback_fields", strs(&d.ai_fallback_fields)),
+    ]);
+    // Only for a blank genre MusicBrainz can fill, so that other findings'
+    // detail is unchanged. A label: the fix re-derives the value.
+    if let (PyJson::Dict(items), Some(g)) = (&mut detail, genre_fill(d)) {
+        items.push(("genre_available".to_string(), g.into()));
+    }
     Some(Finding {
         album_id: Some(a.id.clone()),
-        severity: severity_for(&d.missing_core),
+        severity: severity_for(d),
         summary: d.summary.clone(),
-        detail: Some(dict([
-            ("dir_name", a.dir_name.clone().into()),
-            ("is_compilation", a.is_compilation.into()),
-            ("headline", headline.into()),
-            ("has_anchor", a.mb_release_group_mbid.is_some().into()),
-            ("missing_core", strs(&d.missing_core)),
-            (
-                "album_diffs",
-                PyJson::List(
-                    d.album_diffs
-                        .iter()
-                        .map(|x| {
-                            dict([
-                                ("field", x.field.into()),
-                                ("current", x.current.clone().into()),
-                                ("canonical", x.canonical.clone().into()),
-                                ("source", x.source.clone().into()),
-                            ])
-                        })
-                        .collect(),
-                ),
-            ),
-            (
-                "track_diffs",
-                PyJson::List(
-                    d.track_diffs
-                        .iter()
-                        .map(|x| {
-                            dict([
-                                ("filename", x.filename.clone().into()),
-                                ("field", x.field.into()),
-                                ("current", x.current.clone().into()),
-                                ("canonical", x.canonical.clone().into()),
-                            ])
-                        })
-                        .collect(),
-                ),
-            ),
-            (
-                "sort_proposals",
-                PyJson::Dict(
-                    d.sort_proposals
-                        .iter()
-                        .map(|(k, v)| (k.to_string(), v.clone().into()))
-                        .collect(),
-                ),
-            ),
-            ("ai_fallback_fields", strs(&d.ai_fallback_fields)),
-        ])),
+        detail: Some(detail),
     })
 }
 
@@ -512,7 +535,9 @@ pub const REFRESH_AFTER: std::time::Duration = std::time::Duration::from_secs(
 
 /// Bump when the severity rule changes (see `input_extras`).
 /// `genre-info/1`: a blank genre alone is `info`.
-pub const SEVERITY_RULE: &str = "severity/genre-info/1";
+/// `genre-fillable/2`: a blank genre alone is `warn` when the resolver has a
+/// genre to fill it with, `info` otherwise.
+pub const SEVERITY_RULE: &str = "severity/genre-fillable/2";
 
 impl Check for TagsOutOfSync {
     fn meta(&self) -> &CheckMeta {

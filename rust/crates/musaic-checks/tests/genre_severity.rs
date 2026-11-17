@@ -1,6 +1,7 @@
-//! tags-out-of-sync severity: a blank genre alone is informational (this
-//! build cannot fill one in, so a warning would have no fix); a blank title,
-//! album artist or year is a warning. The check carries a rule version in its
+//! tags-out-of-sync severity: a blank genre alone is a warning when the
+//! resolver has a genre to fill it with (the fix has something to write) and
+//! informational when it has none; a blank title, album artist or year is a
+//! warning. The check carries a rule version in its
 //! inputs digest so existing libraries rerun it once, and only it.
 
 mod common;
@@ -156,4 +157,54 @@ fn only_this_check_is_stale_after_the_rule_change() {
     let mut want = baseline;
     want.insert(0, CHECK);
     assert_eq!(stale(conn), want, "this check is stale; no other changed");
+}
+
+/// A resolver that has a genre for `with`, and nothing for any other album.
+struct GenreFor(&'static str);
+
+impl ResolutionSource for GenreFor {
+    fn resolve(&self, _conn: &Connection, album_id: &str) -> Result<Resolution, String> {
+        let fact = |v: &str| musaic_checks::Fact {
+            value: v.into(),
+            source: "musicbrainz".into(),
+        };
+        Ok(Resolution {
+            anchor: Some(fact("rg")),
+            canonical_genre: (album_id == self.0).then(|| fact("folk")),
+            ..Resolution::default()
+        })
+    }
+}
+
+/// Only an album whose resolution carries a genre gets the warning, and its
+/// detail says so; the one with none stays informational.
+#[test]
+fn a_blank_genre_alone_warns_only_when_a_genre_can_fill_it() {
+    let (sb, db) = Sandbox::new();
+    let conn = db.connection();
+    let mut with = album("with", &["genre"]);
+    let mut without = album("without", &["genre"]);
+    for a in [&mut with, &mut without] {
+        a["mb_release_group_mbid"] = json!("rg");
+    }
+    setup(&sb, conn, &json!({ "albums": [with, without] }));
+    let env = env(
+        registry(None, &Default::default()),
+        std::sync::Arc::new(GenreFor("with")),
+    );
+    run(conn, &sb, &env, CHECK);
+    assert_eq!(severity_of(conn, "with"), "warn");
+    assert_eq!(severity_of(conn, "without"), "info");
+    let detail = |album: &str| -> J {
+        let f = all_findings(conn)
+            .unwrap()
+            .into_iter()
+            .find(|f| f.album_id.as_deref() == Some(album))
+            .unwrap();
+        serde_json::from_str(f.detail_json.as_deref().unwrap()).unwrap()
+    };
+    assert_eq!(detail("with")["genre_available"], "folk");
+    assert!(detail("without").get("genre_available").is_none());
+    assert_eq!(detail("with")["ai_fallback_fields"], json!([]));
+    assert_eq!(detail("without")["ai_fallback_fields"], json!(["genre"]));
 }

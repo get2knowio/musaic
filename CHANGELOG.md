@@ -15,6 +15,15 @@ Security.
 
 ### Changed
 
+- "Apply MusicBrainz canonical" (the fix and the bulk action) now fills a blank genre with
+  the genre MusicBrainz already gives for the album: the top-voted release-group tag, with
+  at least two votes, written as MusicBrainz spells it (lower case). A genre you have set is
+  never replaced, and a different one is not reported as a difference. A blank genre alone is
+  a warning again when MusicBrainz has one to fill it with, and stays informational when it
+  has none; the finding's detail says when one is available. Existing findings take the new
+  severity when the check reruns once in the background, which needs the app to be online.
+  Part of [#259](https://github.com/get2knowio/musaic/issues/259); the `inc=genres` request,
+  tie-breaking and casing are still open there.
 - A "Tags don't match canonical" finding whose only blank core tag is the genre is now
   informational. A blank title, album artist or year is still a warning. This build has no
   way to fill in a missing genre, so the warning had no fix; the finding still says the
