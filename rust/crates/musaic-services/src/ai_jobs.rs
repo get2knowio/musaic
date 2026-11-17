@@ -197,29 +197,23 @@ pub fn enqueue_for_fix(
     ids: &dyn Fn() -> String,
     now_iso: &str,
 ) -> Result<Result<String, (String, String)>, JobError> {
-    let out = ai_jobs::enqueue(
-        conn,
-        &NewJob {
-            album_id: &req.album_id,
-            album_path: &req.album_path,
-            album_title: &req.album_title,
-            job_type: req.job_type,
-            hint: &req.hint,
-            attach_cover: true,
-        },
-        ids,
-        now_iso,
-    )?;
-    Ok(match out {
-        Ok(job) => Ok(job.id),
-        Err(EnqueueRefused::Conflict {
-            existing_job_id,
-            status,
-        }) => Err((existing_job_id, status)),
-        Err(EnqueueRefused::UnknownJobType(t)) => {
-            return Err(JobError::Internal(format!("unknown job type {t}")));
+    let job = NewJob {
+        album_id: &req.album_id,
+        album_path: &req.album_path,
+        album_title: &req.album_title,
+        job_type: req.job_type,
+        hint: &req.hint,
+        attach_cover: true,
+    };
+    match enqueue(conn, &job, ids, now_iso, &|| {}) {
+        Ok(Ok(job)) => Ok(Ok(job.id)),
+        Ok(Err(c)) => Ok(Err((c.existing_job_id, c.status))),
+        // The type comes from the fix, not from a client: a bad one is a bug.
+        Err(JobError::Refused(JobRefusal::UnknownJobType(t))) => {
+            Err(JobError::Internal(format!("unknown job type {t}")))
         }
-    })
+        Err(e) => Err(e),
+    }
 }
 
 // ------------------------------------------------------------- writes
@@ -227,7 +221,8 @@ pub fn enqueue_for_fix(
 /// `POST /api/ai/jobs/{job_id}/acted-on`: 404, 409 unless completed, 400
 /// for an action other than applied / discarded; metadata jobs stamp the
 /// album's `metadata_ai_acted_on_at` (a failure is logged, not answered).
-/// Returns the job as it is afterwards. `now_iso` is asked once per write.
+/// Returns the job as it is afterwards. `now_iso` is asked once, so the job's
+/// `acted_on_at` and the album's stamp are the same instant.
 pub fn mark_acted_on(
     conn: &Connection,
     job_id: &str,
@@ -243,9 +238,10 @@ pub fn mark_acted_on(
     if action != "applied" && action != "discarded" {
         return Err(JobRefusal::BadAction.into());
     }
-    ai_jobs::mark_acted_on(conn, job_id, action, &now_iso())?;
+    let now = now_iso();
+    ai_jobs::mark_acted_on(conn, job_id, action, &now)?;
     if (job.job_type == "metadata" || job.job_type == "metadata+cover")
-        && let Err(e) = ai_jobs::mark_metadata_ai_acted_on(conn, &job.album_id, &now_iso())
+        && let Err(e) = ai_jobs::mark_metadata_ai_acted_on(conn, &job.album_id, &now)
     {
         log.error(
             "musaic.api.jobs",
@@ -361,7 +357,5 @@ pub fn selected_provider(conn: &Connection) -> musaic_db::Result<(String, String
 
 /// Whether an `ai_api_key` is set (a store error counts as not set).
 pub fn api_key_set(secrets: &dyn musaic_secrets::SecretStore) -> bool {
-    musaic_secrets::secret(secrets, "ai_api_key")
-        .map(|k| !k.is_empty())
-        .unwrap_or(false)
+    secrets.is_set("ai_api_key").unwrap_or(false)
 }

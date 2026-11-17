@@ -24,6 +24,14 @@ pub trait SecretStore {
     fn set(&self, key: &str, value: &str) -> Result<(), StoreError>;
     /// Removing an absent entry is not an error.
     fn delete(&self, key: &str) -> Result<(), StoreError>;
+    /// Whether the entry holds a non-blank value. For a store that reports
+    /// the values it hands out (the app's log masking), this is the question
+    /// that does not hand one out.
+    fn is_set(&self, key: &str) -> Result<bool, StoreError> {
+        Ok(self
+            .get(key)?
+            .is_some_and(|v| !musaic_core::pycompat::strip(&v).is_empty()))
+    }
 }
 
 /// The platform keyring through the `keyring` crate: one generic password per

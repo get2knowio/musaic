@@ -310,6 +310,9 @@ impl SecretStore for MaskingStore {
     fn delete(&self, key: &str) -> Result<(), StoreError> {
         self.inner.delete(key)
     }
+    fn is_set(&self, key: &str) -> Result<bool, StoreError> {
+        self.inner.is_set(key)
+    }
 }
 
 /// The app's log: masks, then the host's sink.
@@ -869,5 +872,36 @@ mod tests {
             m.apply("a secret-value-12 and secret-value-1 and abc"),
             "a <redacted> and <redacted> and abc"
         );
+    }
+}
+
+#[cfg(test)]
+mod masking_store_tests {
+    use super::*;
+    use musaic_secrets::MemoryStore;
+
+    const KEY: &str = "ai_api_key";
+    const VALUE: &str = "plain-secret-value";
+
+    fn store() -> (MaskingStore, Masks) {
+        let inner = MemoryStore::new();
+        inner.set(KEY, VALUE).unwrap();
+        let masks = Masks::new();
+        (MaskingStore::new(Arc::new(inner), masks.clone()), masks)
+    }
+
+    #[test]
+    fn asking_whether_a_key_is_set_does_not_read_it_into_the_masks() {
+        let (store, masks) = store();
+        assert!(store.is_set(KEY).unwrap());
+        assert!(!store.is_set("acoustid_api_key").unwrap());
+        assert_eq!(masks.apply(VALUE), VALUE);
+    }
+
+    #[test]
+    fn reading_a_key_masks_it() {
+        let (store, masks) = store();
+        assert_eq!(store.get(KEY).unwrap().as_deref(), Some(VALUE));
+        assert_eq!(masks.apply(VALUE), REDACTED);
     }
 }
