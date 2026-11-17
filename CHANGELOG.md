@@ -15,6 +15,11 @@ Security.
 
 ### Changed
 
+- "Inconsistent artist sort" findings where the same artist carries two different sort
+  values are now warnings, so they count in the Needs attention badge
+  ([#255](https://github.com/get2knowio/musaic/issues/255)). A missing sort value that can
+  simply be copied, and a sort value missing everywhere, stay informational suggestions.
+  Existing findings take the new severity on the next launch; ignored ones stay ignored.
 - On the Needs attention page the "Other" view is now "Suggestions", and the tab shows how
   many suggestions there are. The main view says "N suggestions" (it switches to them),
   including when nothing needs a decision, so a low badge no longer hides fixable items.

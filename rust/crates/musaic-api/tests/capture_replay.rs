@@ -272,6 +272,10 @@ const DELTAS: &[(&str, &str)] = &[
         "deliberate change: the ARTIST-only Mono Harbor - Gaps is an album-level member of the Mono Harbor artist-sort cluster (tests/common/artist_only.rs)",
     ),
     (
+        "conflict_severity",
+        "deliberate change (issue #255): an inconsistent-artist-sort finding in state `conflicting` is a warning, not info (tests/common/conflict_severity.rs)",
+    ),
+    (
         "track_album",
         "deliberate change: each track of GET /api/albums/{id}/tracks carries its ALBUM tag (the album panel compares a proposed title with it)",
     ),
@@ -422,6 +426,9 @@ fn apply_deltas(
     }
     if common::artist_only::apply(want) > 0 {
         use_delta(used, "artist_only");
+    }
+    if common::conflict_severity::apply(want) > 0 {
+        use_delta(used, "conflict_severity");
     }
     // Track listings gain each file's ALBUM tag, read from the same files.
     if Regex::new(r"^\d{3}-tracks-").unwrap().is_match(name)

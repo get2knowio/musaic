@@ -3669,7 +3669,7 @@
               "ignored_reason": null,
               "last_seen_at": "<NOW>",
               "resolved_at": null,
-              "severity": "info",
+              "severity": "warn",
               "summary": "3 album-level + 1 track-level (4 tracks) for 'Mono Harbor'"
             },
             {
