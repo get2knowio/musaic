@@ -23,10 +23,14 @@ class ApiError extends Error {
   /** The body's `detail` as sent (string, object or list), for callers
    *  that branch on a structured conflict such as `active_job_exists`. */
   detail: unknown;
-  constructor(message: string, status: number, detail?: unknown) {
+  /** The whole JSON body, for the few refusals that carry keys beside
+   *  `detail` (the rename's `user_message`). */
+  body: unknown;
+  constructor(message: string, status: number, detail?: unknown, body?: unknown) {
     super(message);
     this.status = status;
     this.detail = detail;
+    this.body = body;
     this.name = "ApiError";
   }
 }
@@ -54,7 +58,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const raw = bodyDetail(body);
     const detail = errorDetailText(raw) ?? `${res.status} ${res.statusText}`;
-    throw new ApiError(detail, res.status, raw);
+    throw new ApiError(detail, res.status, raw, body);
   }
   return body as T;
 }
@@ -535,23 +539,43 @@ import type {
   FilenameRenameResult,
 } from "./types";
 
-export function applyFilenameRename(
+export async function applyFilenameRename(
   findingId: number,
   args: {
     plan: { old: string; new: string }[];
     dirRename?: { old: string; new: string };
   },
 ): Promise<FilenameRenameResult> {
-  return request(
-    `/api/checks/filename-mismatch/findings/${findingId}/apply`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        plan: args.plan,
-        dir_rename: args.dirRename ?? null,
-      }),
-    },
-  );
+  try {
+    return await request<FilenameRenameResult>(
+      `/api/checks/filename-mismatch/findings/${findingId}/apply`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          plan: args.plan,
+          dir_rename: args.dirRename ?? null,
+        }),
+      },
+    );
+  } catch (e) {
+    // A rename the server refused (409) explains itself beside `detail`:
+    // hand the dialog a result, so it shows the sentence for the user and
+    // stays open, instead of a toast with the technical text.
+    if (e instanceof ApiError && e.status === 409) {
+      const b = e.body as { user_message?: unknown; reason_code?: unknown } | null;
+      if (b && typeof b.user_message === "string") {
+        return {
+          ok: false,
+          renamed: 0,
+          errors: [],
+          message: e.message,
+          user_message: b.user_message,
+          reason_code: typeof b.reason_code === "string" ? b.reason_code : undefined,
+        };
+      }
+    }
+    throw e;
+  }
 }
 
 /** Re-derive the rename plan for a finding against current disk + DB

@@ -31,6 +31,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use musaic_core::pycompat;
+use musaic_core::rename_reason::{Reason, quoted};
 
 use crate::cover::{build_picture, normalize_to_jpeg};
 use crate::flac::{FlacFile, Picture};
@@ -166,8 +167,59 @@ pub struct RenameFailure {
     pub filename: String,
     /// The name it was to get.
     pub new_filename: String,
-    /// Why it was not renamed.
+    /// Why it was not renamed, as the technical text (for the log and old
+    /// clients; not for display).
     pub error: String,
+    /// The class of failure; [`Reason::code`] is the stable code.
+    pub reason: Reason,
+    /// A plain sentence for the user: what happened and what to do.
+    pub user_message: String,
+}
+
+/// Why one entry of a stopped rename batch kept its name: the class of the
+/// error for the entry the batch stopped at, "stopped" for the others.
+fn batch_reason(name: &str, stopped_at: &str, e: &io::Error) -> Reason {
+    if name == stopped_at {
+        Reason::from_io(e)
+    } else {
+        Reason::BatchStopped
+    }
+}
+
+/// The sentence for a file whose track-number rename did not happen. The
+/// tags are already saved; `left_as` is the temporary name a file that could
+/// not be moved back is stuck under.
+fn plain_failure(
+    name: &str,
+    new_name: &str,
+    stopped_at: &str,
+    reason: Reason,
+    left_as: Option<&str>,
+) -> String {
+    let mut s = if reason == Reason::BatchStopped {
+        format!(
+            "{} was not renamed to {} because renaming {} failed first. {}",
+            quoted(name),
+            quoted(new_name),
+            quoted(stopped_at),
+            reason.advice()
+        )
+    } else {
+        format!(
+            "{} could not be renamed to {} because {}. {}",
+            quoted(name),
+            quoted(new_name),
+            reason.cause(),
+            reason.advice()
+        )
+    };
+    if let Some(tmp) = left_as {
+        s.push_str(&format!(
+            " The file is now called {}; rename it back by hand.",
+            quoted(tmp)
+        ));
+    }
+    s
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -661,6 +713,13 @@ fn apply_to_album_iter_with(
                         filename: name_of(orig),
                         new_filename: name_of(fin),
                         error: format!("{} already exists", name_of(fin)),
+                        reason: Reason::AlreadyExists,
+                        user_message: format!(
+                            "{} was not renamed to {} because a file with that name is already in the folder. {}",
+                            quoted(&name_of(orig)),
+                            quoted(&name_of(fin)),
+                            Reason::AlreadyExists.advice()
+                        ),
                     });
                     continue;
                 }
@@ -699,24 +758,37 @@ fn apply_to_album_iter_with(
                 } else {
                     format!("not renamed: the batch stopped at {at}")
                 };
+                let mut left_as = None;
                 if tmp.exists() && !orig.exists() {
                     if let Err(e2) = std::fs::rename(tmp, orig) {
                         error = format!("{error}; the file is left as {}: {e2}", name_of(tmp));
+                        left_as = Some(name_of(tmp));
                     }
                 } else if tmp.exists() {
                     error = format!(
                         "{error}; the file is left as {}: its name is taken",
                         name_of(tmp)
                     );
+                    left_as = Some(name_of(tmp));
                 }
+                let reason = batch_reason(&name_of(orig), &at, &e);
                 rename_failures.push(RenameFailure {
                     filename: name_of(orig),
                     new_filename: name_of(fin),
                     error,
+                    reason,
+                    user_message: plain_failure(
+                        &name_of(orig),
+                        &name_of(fin),
+                        &at,
+                        reason,
+                        left_as.as_deref(),
+                    ),
                 });
             }
             // Entries the first pass never reached keep their names too.
             for (orig, target_name) in &pending_renames[staged.len()..] {
+                let reason = batch_reason(&name_of(orig), &at, &e);
                 rename_failures.push(RenameFailure {
                     filename: name_of(orig),
                     new_filename: target_name.clone(),
@@ -725,6 +797,8 @@ fn apply_to_album_iter_with(
                     } else {
                         format!("not renamed: the batch stopped at {at}")
                     },
+                    reason,
+                    user_message: plain_failure(&name_of(orig), target_name, &at, reason, None),
                 });
             }
         }

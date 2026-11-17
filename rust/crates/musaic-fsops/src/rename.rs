@@ -62,6 +62,7 @@ use std::path::{Path, PathBuf};
 
 use musaic_core::album_id;
 use musaic_core::pycompat::strip;
+use musaic_core::rename_reason::{Reason, couldnt_rename, quoted, quoted_list};
 use musaic_db::albums::upsert_album;
 use musaic_db::renames::{
     DirMigration, album_location, rename_album_directory, rename_track_files,
@@ -137,6 +138,13 @@ pub struct RenameOutcome {
     pub skipped: Vec<SkippedEntry>,
     pub detail: Option<RenameDetail>,
     pub album_renamed: Option<AlbumRenamed>,
+    /// The main reason when something was refused, failed or needs a note
+    /// (`None` for a rename that did exactly what was asked). `message` keeps
+    /// the technical text for the log and for older clients; a user is shown
+    /// `user_message`.
+    pub reason: Option<Reason>,
+    /// A plain sentence for the user, set whenever `reason` is.
+    pub user_message: Option<String>,
 }
 
 impl RenameOutcome {
@@ -149,7 +157,70 @@ impl RenameOutcome {
             skipped: Vec::new(),
             detail: None,
             album_renamed: None,
+            reason: None,
+            user_message: None,
         }
+    }
+
+    /// A refusal that changed nothing: the technical `message` and the plain
+    /// sentence for the user.
+    fn refuse(reason: Reason, message: impl Into<String>, user: impl Into<String>) -> Self {
+        RenameOutcome {
+            reason: Some(reason),
+            user_message: Some(user.into()),
+            ..RenameOutcome::fail(message)
+        }
+    }
+}
+
+/// "Renamed the album folder and 2 files.": what a rename did, in plain words.
+fn plain_summary(renamed: usize, dir_renamed: bool) -> String {
+    let files = format!("{renamed} file{}", if renamed != 1 { "s" } else { "" });
+    match (dir_renamed, renamed > 0) {
+        (true, true) => format!("Renamed the album folder and {files}."),
+        (true, false) => "Renamed the album folder.".to_string(),
+        (false, true) => format!("Renamed {files}."),
+        (false, false) => "No file was renamed.".to_string(),
+    }
+}
+
+/// The plain sentence for files left alone because they were not in the
+/// folder ("" when there are none).
+fn plain_missing(skipped: &[SkippedEntry]) -> String {
+    let names: Vec<&str> = skipped
+        .iter()
+        .filter(|e| e.reason == SkipReason::SourceMissing)
+        .map(|e| e.old.as_str())
+        .collect();
+    match names.len() {
+        0 => String::new(),
+        1 => format!(
+            "{} wasn't in the folder, so it was left alone.",
+            quoted(names[0])
+        ),
+        _ => format!(
+            "{} weren't in the folder, so they were left alone.",
+            quoted_list(&names, NAMES_IN_MESSAGE)
+        ),
+    }
+}
+
+/// A file that is not under its own name any more, and where it is.
+struct Stuck {
+    /// The technical line, as it goes into `message` and `errors`.
+    line: String,
+    old: String,
+    /// The name it has now (a temporary one, or the new spelling).
+    now: String,
+}
+
+impl Stuck {
+    fn plain(&self) -> String {
+        format!(
+            "{} could not be put back under its old name and is now called {}; rename it back by hand.",
+            quoted(&self.old),
+            quoted(&self.now)
+        )
     }
 }
 
@@ -275,7 +346,7 @@ fn stage(old: &Path) -> std::io::Result<PathBuf> {
 
 /// Move every staged file back to its own name. Returns a line for each
 /// file that could not be moved back (it keeps its temporary name).
-fn roll_back(staged: &[(PathBuf, PathBuf, PathBuf)]) -> Vec<String> {
+fn roll_back(staged: &[(PathBuf, PathBuf, PathBuf)]) -> Vec<Stuck> {
     let mut stuck = Vec::new();
     for (o, t, _) in staged {
         if let Err(e) = rename_noclobber(t, o) {
@@ -283,7 +354,11 @@ fn roll_back(staged: &[(PathBuf, PathBuf, PathBuf)]) -> Vec<String> {
                 TARGET,
                 &format!("execute_renames: rollback failed for {}: {e}", o.display()),
             );
-            stuck.push(format!("{} is left as {}: {e}", name_of(o), name_of(t)));
+            stuck.push(Stuck {
+                line: format!("{} is left as {}: {e}", name_of(o), name_of(t)),
+                old: name_of(o),
+                now: name_of(t),
+            });
         }
     }
     stuck
@@ -325,10 +400,17 @@ const NOT_KEPT: &str = "the volume did not keep the new spelling of the name (it
 /// Put a file whose new spelling the volume did not keep back under its
 /// old name (through a temporary name, as it got there). `Err` says where
 /// it is left.
-fn put_back(at: &Path, old: &Path) -> Result<(), String> {
-    let tmp = stage(at).map_err(|e| format!("{} could not be put back: {e}", name_of(old)))?;
-    rename_noclobber(&tmp, old)
-        .map_err(|e| format!("{} is left as {}: {e}", name_of(old), name_of(&tmp)))
+fn put_back(at: &Path, old: &Path) -> Result<(), Stuck> {
+    let tmp = stage(at).map_err(|e| Stuck {
+        line: format!("{} could not be put back: {e}", name_of(old)),
+        old: name_of(old),
+        now: name_of(at),
+    })?;
+    rename_noclobber(&tmp, old).map_err(|e| Stuck {
+        line: format!("{} is left as {}: {e}", name_of(old), name_of(&tmp)),
+        old: name_of(old),
+        now: name_of(&tmp),
+    })
 }
 
 /// [`execute_renames`] with the read-back given. A rename whose result
@@ -359,6 +441,17 @@ fn execute_renames_with(
             "; could not read the folder back to check the new spelling of {}",
             name_list(&unverified.iter().map(String::as_str).collect::<Vec<_>>())
         ));
+        let note = format!(
+            "Musaic couldn't read the folder back to check the new spelling of {}, so it can't confirm the rename. Rescan the library to be sure.",
+            quoted_list(&unverified, NAMES_IN_MESSAGE)
+        );
+        let dir_renamed = out.detail.as_ref().is_some_and(|d| d.dir_renamed);
+        out.user_message = Some(match out.user_message.take() {
+            Some(u) => format!("{u} {note}"),
+            None if out.ok => format!("{} {note}", plain_summary(out.renamed, dir_renamed)),
+            None => note,
+        });
+        out.reason.get_or_insert(Reason::Unverified);
     }
     out
 }
@@ -414,6 +507,14 @@ fn read_back_as_listed(
     }
 }
 
+fn exists_sentence(name: &str) -> String {
+    format!(
+        "A file named {} is already in the folder, so nothing was renamed. {}",
+        quoted(name),
+        Reason::AlreadyExists.advice()
+    )
+}
+
 fn run_renames(
     conn: &mut Connection,
     env: &RenameEnv,
@@ -424,16 +525,28 @@ fn run_renames(
     unverified: &mut Vec<String>,
 ) -> RenameOutcome {
     if env.library_dir.is_none_or(str::is_empty) {
-        return RenameOutcome::fail("No library configured");
+        return RenameOutcome::refuse(
+            Reason::NoLibrary,
+            "No library configured",
+            "No music folder is set up, so nothing was renamed. Choose a music folder in Settings, then try again.",
+        );
     }
     let row = match album_location(conn, album_id_in) {
         Ok(Some(r)) => r,
-        _ => return RenameOutcome::fail("Album not found"),
+        _ => {
+            return RenameOutcome::refuse(
+                Reason::AlbumNotFound,
+                "Album not found",
+                "This album is no longer in the library, so nothing was renamed. Rescan the library, then check again.",
+            );
+        }
     };
     if let Some(since) = row.missing_since.as_deref().filter(|s| !s.is_empty()) {
-        return RenameOutcome::fail(format!(
-            "Album is missing from disk (missing since {since}); nothing was renamed"
-        ));
+        return RenameOutcome::refuse(
+            Reason::AlbumMissing,
+            format!("Album is missing from disk (missing since {since}); nothing was renamed"),
+            "This album's folder is missing from disk, so nothing was renamed. Rescan the library once the folder is back.",
+        );
     }
     // The row's own library; the configured one only for a row without it.
     let library = if row.library_path.is_empty() {
@@ -444,7 +557,11 @@ fn run_renames(
     };
     let mut album_dir = PathBuf::from(&row.path);
     if !album_dir.is_dir() {
-        return RenameOutcome::fail(format!("Album directory missing: {}", album_dir.display()));
+        return RenameOutcome::refuse(
+            Reason::FolderMissing,
+            format!("Album directory missing: {}", album_dir.display()),
+            "The album's folder can't be found on disk, so nothing was renamed. Rescan the library, then check again.",
+        );
     }
 
     // ---- preflight: directory ----
@@ -452,13 +569,24 @@ fn run_renames(
     if let Some(dr) = dir_rename {
         let new_base = strip(&dr.new);
         if new_base.is_empty() {
-            return RenameOutcome::fail("dir_rename.new is empty");
+            return RenameOutcome::refuse(
+                Reason::NameNotAllowed,
+                "dir_rename.new is empty",
+                "The new folder name is empty, so nothing was renamed.",
+            );
         }
         if has_sep(new_base) {
-            return RenameOutcome::fail(format!(
-                "Refusing dir rename target with path separator: {}",
-                py_repr(new_base)
-            ));
+            return RenameOutcome::refuse(
+                Reason::NameNotAllowed,
+                format!(
+                    "Refusing dir rename target with path separator: {}",
+                    py_repr(new_base)
+                ),
+                format!(
+                    "{} can't be used as a folder name because it contains a slash or backslash, so nothing was renamed. Change the folder template, then try again.",
+                    quoted(new_base)
+                ),
+            );
         }
         let parent = album_dir
             .parent()
@@ -466,10 +594,17 @@ fn run_renames(
             .unwrap_or_default();
         let target = parent.join(new_base);
         if target.exists() && !samefile(&target, &album_dir) {
-            return RenameOutcome::fail(format!(
-                "Refusing to overwrite existing directory: {}",
-                name_of(&target)
-            ));
+            return RenameOutcome::refuse(
+                Reason::AlreadyExists,
+                format!(
+                    "Refusing to overwrite existing directory: {}",
+                    name_of(&target)
+                ),
+                format!(
+                    "A folder named {} already exists, so nothing was renamed. Rename or move that folder, then try again.",
+                    quoted(&name_of(&target))
+                ),
+            );
         }
         new_dir = Some(target);
     }
@@ -484,10 +619,17 @@ fn run_renames(
             continue;
         }
         if has_sep(new) {
-            return RenameOutcome::fail(format!(
-                "Refusing rename target with path separator: {}",
-                py_repr(new)
-            ));
+            return RenameOutcome::refuse(
+                Reason::NameNotAllowed,
+                format!(
+                    "Refusing rename target with path separator: {}",
+                    py_repr(new)
+                ),
+                format!(
+                    "{} can't be used as a file name because it contains a slash or backslash, so nothing was renamed. Change the filename template, then try again.",
+                    quoted(new)
+                ),
+            );
         }
         let (old_p, new_p) = (album_dir.join(old), album_dir.join(new));
         if !old_p.is_file() {
@@ -538,10 +680,18 @@ fn run_renames(
     let mut targets = std::collections::HashSet::new();
     for (_, new) in &cleaned {
         if !targets.insert(fold(new)) {
-            return RenameOutcome::fail(format!(
-                "Refusing rename: more than one file would be renamed to {}",
-                py_repr(new)
-            ));
+            return RenameOutcome::refuse(
+                Reason::DuplicateTarget,
+                format!(
+                    "Refusing rename: more than one file would be renamed to {}",
+                    py_repr(new)
+                ),
+                format!(
+                    "More than one file would be renamed to {}, so nothing was renamed. {}",
+                    quoted(new),
+                    Reason::DuplicateTarget.advice()
+                ),
+            );
         }
     }
     // A target that differs from a file already in the folder only in case
@@ -561,9 +711,11 @@ fn run_renames(
                 .iter()
                 .find(|n| fold(n) == key && !sources.contains(n.as_str()))
             {
-                return RenameOutcome::fail(format!(
-                    "Refusing to overwrite an existing unrelated file: {n}"
-                ));
+                return RenameOutcome::refuse(
+                    Reason::AlreadyExists,
+                    format!("Refusing to overwrite an existing unrelated file: {n}"),
+                    exists_sentence(n),
+                );
             }
         }
     }
@@ -576,10 +728,14 @@ fn run_renames(
                 .iter()
                 .any(|(old, _)| samefile(&new_p, &album_dir.join(old)))
         {
-            return RenameOutcome::fail(format!(
-                "Refusing to overwrite an existing unrelated file: {}",
-                name_of(&new_p)
-            ));
+            return RenameOutcome::refuse(
+                Reason::AlreadyExists,
+                format!(
+                    "Refusing to overwrite an existing unrelated file: {}",
+                    name_of(&new_p)
+                ),
+                exists_sentence(&name_of(&new_p)),
+            );
         }
     }
 
@@ -592,7 +748,12 @@ fn run_renames(
         // normalisation-insensitive volume it changes the on-disk spelling
         // (through a temporary name, see `rename_dir`).
         if let Err(e) = rename_dir(&album_dir, &target) {
-            return RenameOutcome::fail(format!("Couldn't rename directory: {e}"));
+            let reason = Reason::from_io(&e);
+            return RenameOutcome::refuse(
+                reason,
+                format!("Couldn't rename directory: {e}"),
+                couldnt_rename("The album folder", reason),
+            );
         }
         let Some(listed) = read_back_as_listed(read_back, &target, unverified) else {
             // Nothing moved in the database yet: put the folder back and
@@ -601,14 +762,18 @@ fn run_renames(
                 "Couldn't rename directory to {}: {NOT_KEPT}",
                 py_repr(&name_of(&target))
             );
+            let mut user = couldnt_rename("The album folder", Reason::NotKept);
             if let Err(e) = rename_dir(&target, &album_dir) {
                 musaic_log::error(
                     TARGET,
                     &format!("execute_renames: putting the dir back failed: {e}"),
                 );
                 message.push_str(&format!("; the folder could not be put back: {e}"));
+                user.push_str(
+                    " The folder could not be put back under its old name either; check its name in your file manager.",
+                );
             }
-            return RenameOutcome::fail(message);
+            return RenameOutcome::refuse(Reason::NotKept, message, user);
         };
         // The id, the stored path, the rescan and the event all follow the
         // listed spelling, the one a later full scan derives the id from.
@@ -631,14 +796,18 @@ fn run_renames(
                         "execute_renames: cache migration failed; rolling back dir rename: {e}"
                     ),
                 );
+                let mut user = couldnt_rename("The album folder", Reason::LibraryUpdateFailed);
                 if let Err(e) = rename_dir(&target, &album_dir) {
                     musaic_log::error(
                         TARGET,
                         &format!("execute_renames: rollback of dir rename also failed: {e}"),
                     );
+                    user = "The album folder was renamed, but Musaic couldn't update its library records and couldn't put the folder back. Rescan the library to pick up the new name.".to_string();
                 }
-                return RenameOutcome::fail(
+                return RenameOutcome::refuse(
+                    Reason::LibraryUpdateFailed,
                     "Cache migration failed during dir rename; rolled back",
+                    user,
                 );
             }
         }
@@ -680,23 +849,32 @@ fn run_renames(
                 ),
                 detail: None,
                 album_renamed: event,
+                reason: None,
+                user_message: None,
             };
         }
+        let missing = plain_missing(&skipped);
         return RenameOutcome {
             ok: true,
             message: format!("Nothing to rename{}", skipped_suffix(&skipped)),
             album_renamed: event,
+            reason: (!missing.is_empty()).then_some(Reason::NotFound),
+            user_message: (!missing.is_empty()).then(|| format!("Nothing was renamed. {missing}")),
             skipped,
             ..RenameOutcome::fail("")
         };
     }
     if cleaned.is_empty() {
         rescan(conn, env, &library, &album_dir, RESCAN_AFTER_DIR);
+        let missing = plain_missing(&skipped);
         return RenameOutcome {
             ok: true,
             message: format!("Renamed album directory{}", skipped_suffix(&skipped)),
             renamed: 0,
             already_renamed: false,
+            reason: (!missing.is_empty()).then_some(Reason::NotFound),
+            user_message: (!missing.is_empty())
+                .then(|| format!("{} {missing}", plain_summary(0, true))),
             skipped,
             detail: Some(RenameDetail {
                 errors: Vec::new(),
@@ -725,11 +903,18 @@ fn run_renames(
                 // The Python app's OSError text names the file; io::Error's
                 // does not, so the name is added here.
                 let mut message = format!("Rename staging failed for {}: {e}", py_repr(old));
+                let reason = Reason::from_io(&e);
+                let mut user = couldnt_rename(&quoted(old), reason);
                 let stuck = roll_back(&staged);
                 if stuck.is_empty() {
                     message.push_str("; no file was renamed");
                 } else {
-                    message.push_str(&format!("; {}", stuck.join("; ")));
+                    let lines: Vec<&str> = stuck.iter().map(|s| s.line.as_str()).collect();
+                    message.push_str(&format!("; {}", lines.join("; ")));
+                    for s in &stuck {
+                        user.push(' ');
+                        user.push_str(&s.plain());
+                    }
                 }
                 // After a dir rename this still reports it.
                 return match dir_migration {
@@ -748,11 +933,13 @@ fn run_renames(
                                 dir_migration,
                             }),
                             album_renamed,
+                            reason: Some(reason),
+                            user_message: Some(user),
                         }
                     }
                     None => RenameOutcome {
                         skipped,
-                        ..RenameOutcome::fail(message)
+                        ..RenameOutcome::refuse(reason, message, user)
                     },
                 };
             }
@@ -761,7 +948,9 @@ fn run_renames(
     let mut renamed = 0;
     let mut errors = Vec::new();
     let mut failed: Vec<String> = Vec::new();
-    let mut stuck: Vec<String> = Vec::new();
+    // Each failed file with why, for the sentence the user is shown.
+    let mut why: Vec<(String, Reason)> = Vec::new();
+    let mut stuck: Vec<Stuck> = Vec::new();
     let mut not_kept = 0;
     for (old_p, tmp, new_p) in &staged {
         let moved = rename_noclobber(tmp, new_p)
@@ -775,10 +964,11 @@ fn run_renames(
                     name_of(new_p)
                 ));
                 failed.push(name_of(old_p));
-                if let Err(line) = put_back(new_p, old_p) {
-                    musaic_log::error(TARGET, &format!("execute_renames: {line}"));
-                    errors.push(line.clone());
-                    stuck.push(line);
+                why.push((name_of(old_p), Reason::NotKept));
+                if let Err(s) = put_back(new_p, old_p) {
+                    musaic_log::error(TARGET, &format!("execute_renames: {}", s.line));
+                    errors.push(s.line.clone());
+                    stuck.push(s);
                 }
             }
             Ok(Some(listed)) => {
@@ -801,6 +991,7 @@ fn run_renames(
             Err(e) => {
                 errors.push(format!("{} → {}: {e}", name_of(old_p), name_of(new_p)));
                 failed.push(name_of(old_p));
+                why.push((name_of(old_p), Reason::from_io(&e)));
                 if let Err(e) = rename_noclobber(tmp, old_p) {
                     // filename_mismatch.py:706 (`log.exception`: ERROR).
                     musaic_log::error(
@@ -813,7 +1004,11 @@ fn run_renames(
                     // The file is only under its temporary name now: say so.
                     let line = format!("{} is left as {}: {e}", name_of(old_p), name_of(tmp));
                     errors.push(line.clone());
-                    stuck.push(line);
+                    stuck.push(Stuck {
+                        line,
+                        old: name_of(old_p),
+                        now: name_of(tmp),
+                    });
                 }
             }
         }
@@ -872,16 +1067,51 @@ fn run_renames(
                 files(not_kept)
             ));
         }
-        for line in &stuck {
-            message.push_str(&format!("; {line}"));
+        for s in &stuck {
+            message.push_str(&format!("; {}", s.line));
         }
     }
     message.push_str(&skipped_suffix(&skipped));
+
+    // What the user is shown: one sentence per kind of failure, naming the
+    // files, then the files that are not under their own name, then any
+    // files that were not in the folder. A clean run has none of it.
+    let missing = plain_missing(&skipped);
+    let mut reason = None;
+    let mut parts: Vec<String> = Vec::new();
+    if why.is_empty() {
+        if !missing.is_empty() {
+            reason = Some(Reason::NotFound);
+            parts.push(plain_summary(renamed, dir_renamed));
+        }
+    } else {
+        reason = Some(why[0].1);
+        let mut seen: Vec<Reason> = Vec::new();
+        for (_, r) in &why {
+            if seen.contains(r) {
+                continue;
+            }
+            seen.push(*r);
+            let names: Vec<&str> = why
+                .iter()
+                .filter(|(_, x)| x == r)
+                .map(|(n, _)| n.as_str())
+                .collect();
+            parts.push(couldnt_rename(&quoted_list(&names, NAMES_IN_MESSAGE), *r));
+        }
+        parts.extend(stuck.iter().map(Stuck::plain));
+    }
+    if !missing.is_empty() {
+        parts.push(missing);
+    }
+    let user_message = reason.map(|_| parts.join(" "));
     RenameOutcome {
         ok: (renamed > 0 || dir_renamed) && errors.is_empty(),
         message: strip(&message).to_string(),
         renamed,
         already_renamed: false,
+        reason,
+        user_message,
         skipped,
         detail: Some(RenameDetail {
             errors,
@@ -1199,5 +1429,82 @@ mod tests {
         assert_ne!(ev.new_album_id, id);
         assert_eq!(listing(&base.join("lib")), ["ABBA - x"]);
         assert_eq!(listing(&base.join("lib/ABBA - x")), ["01 - One.flac"]);
+        assert_eq!(out.reason, Some(Reason::Unverified));
+        assert_eq!(
+            out.user_message.as_deref(),
+            Some(
+                "Renamed the album folder and 1 file. Musaic couldn't read the folder back to \
+                 check the new spelling of \u{201c}ABBA - x\u{201d} and \u{201c}01 - One.flac\u{201d}, \
+                 so it can't confirm the rename. Rescan the library to be sure."
+            )
+        );
+    }
+
+    /// What a user is shown is never the technical text.
+    fn assert_plain(user: &str) {
+        for raw in [
+            "os error",
+            "Permission denied",
+            "No such file",
+            "Couldn't rename directory",
+        ] {
+            assert!(!user.contains(raw), "{raw:?} in {user}");
+        }
+        // No Python-style quoted name: the only apostrophes are in contractions.
+        let words = user.replace("n't", "nt").replace("'s ", "s ");
+        assert!(!words.contains('\''), "{user}");
+    }
+
+    #[test]
+    fn a_file_the_volume_did_not_keep_has_a_code_and_a_plain_sentence() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = musaic_testdata::canonical(tmp.path());
+        let (mut db, lib, id) = library(&base);
+        let out = execute_renames_with(
+            db.connection_mut(),
+            &env(&lib),
+            &id,
+            &[entry("01 - one.flac", "01 - One.flac")],
+            None,
+            NEVER_KEPT,
+        );
+        assert_eq!(out.reason.map(Reason::code), Some("case_not_kept"));
+        let user = out.user_message.unwrap();
+        assert_eq!(
+            user,
+            "\u{201c}01 - one.flac\u{201d} couldn't be renamed because the volume doesn't keep \
+             upper and lower case in names. Choose a name that differs by more than upper and lower case."
+        );
+        assert_plain(&user);
+        // The technical text is as it was.
+        assert!(
+            out.message
+                .starts_with("No file was renamed; 1 error(s): not renamed '01 - one.flac'"),
+            "{}",
+            out.message
+        );
+        assert!(out.detail.unwrap().errors[0].contains(NOT_KEPT));
+    }
+
+    #[test]
+    fn a_folder_the_volume_did_not_keep_has_a_code_and_a_plain_sentence() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = musaic_testdata::canonical(tmp.path());
+        let (mut db, lib, id) = library(&base);
+        let out = execute_renames_with(
+            db.connection_mut(),
+            &env(&lib),
+            &id,
+            &[],
+            Some(&entry("abba - x", "ABBA - x")),
+            NEVER_KEPT,
+        );
+        assert_eq!(out.reason.map(Reason::code), Some("case_not_kept"));
+        let user = out.user_message.unwrap();
+        assert!(
+            user.starts_with("The album folder couldn't be renamed because"),
+            "{user}"
+        );
+        assert_plain(&user);
     }
 }

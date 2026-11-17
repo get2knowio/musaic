@@ -40,7 +40,7 @@ use musaic_services::fix_flow::{self, FixFindingError};
 use musaic_services::{HttpError, Json};
 use serde_json::{Map, Value, json};
 
-use crate::http::{ApiError, ApiResult, blocking, ok_ordered};
+use crate::http::{ApiError, ApiResult, blocking, json_ordered, ok_ordered};
 use crate::lax::{Fields, Params, err, parse_json_body, unprocessable};
 use crate::routes::tags::svc;
 use crate::sse;
@@ -277,7 +277,21 @@ pub async fn apply_filename_rename(
         ))
     })
     .await?;
-    json_ok(r)
+    match r {
+        Ok(j) => ok_ordered(&j),
+        // `detail` as for every refusal, plus the code and the sentence the
+        // rename code gives for it.
+        Err(e) if !e.extra.is_empty() => {
+            let mut pairs = vec![("detail".to_string(), Json::from(e.error.detail.as_str()))];
+            pairs.extend(
+                e.extra
+                    .iter()
+                    .map(|(k, v)| (k.clone(), Json::from(v.as_str()))),
+            );
+            Ok(json_ordered(e.error.status, &Json::Obj(pairs)))
+        }
+        Err(e) => Err(svc(e.error)),
+    }
 }
 
 // ------------------------------------------------------------- duplicate-tracks

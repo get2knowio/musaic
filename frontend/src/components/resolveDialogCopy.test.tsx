@@ -26,6 +26,8 @@ interface Call {
 }
 let calls: Call[];
 let routes: Record<string, unknown>;
+/** Status for a route that does not answer 200. */
+let statuses: Record<string, number>;
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -34,16 +36,19 @@ function json(body: unknown, status = 200): Response {
 beforeEach(() => {
   calls = [];
   routes = {};
+  statuses = {};
   vi.mocked(toast.success).mockClear();
   vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.warning).mockClear();
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       const method = init?.method ?? "GET";
       const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body;
       calls.push({ url: String(url), method, body });
-      const hit = routes[`${method} ${String(url)}`];
-      return hit === undefined ? json({ detail: "not found" }, 404) : json(hit);
+      const key = `${method} ${String(url)}`;
+      const hit = routes[key];
+      return hit === undefined ? json({ detail: "not found" }, 404) : json(hit, statuses[key] ?? 200);
     }),
   );
 });
@@ -155,6 +160,8 @@ describe("filename Resolve dialog copy", () => {
       renamed: 1,
       errors: [],
       message: "Renamed 1 files; 1 not found, skipped: '2.flac'",
+      reason_code: "not_found",
+      user_message: "Renamed 1 file. \u201c2.flac\u201d wasn't in the folder, so it was left alone.",
       skipped: [{ old: "2.flac", new: "02 - Two.flac", reason: "source_missing" }],
     };
     const onClose = vi.fn();
@@ -164,40 +171,90 @@ describe("filename Resolve dialog copy", () => {
     expect(alert).toHaveTextContent("Renamed 1 file");
     expect(alert).toHaveTextContent("2.flac");
     expect(alert).toHaveTextContent("wasn't in the folder");
+    expect(alert).not.toHaveTextContent("not found, skipped");
+    expect(toast.success).toHaveBeenCalledWith(
+      "Renamed 1 file. \u201c2.flac\u201d wasn't in the folder, so it was left alone.",
+    );
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("keeps the dialog open and says nothing changed when the rename is refused", async () => {
-    routes[applyUrl] = {
-      ok: false,
-      renamed: 0,
-      errors: [],
-      message: "Refusing to overwrite an existing unrelated file: 01 - One.flac",
-    };
+  const RAW = "Refusing to overwrite an existing unrelated file: 01 - One.flac";
+  const SENTENCE =
+    "A file named \u201c01 - One.flac\u201d is already in the folder, so nothing was renamed. " +
+    "Rename or move that file, then try again.";
+
+  it("keeps the dialog open and shows the sentence, not the technical text, when the rename is refused", async () => {
+    // The server answers a refusal with 409 and the sentence beside `detail`.
+    routes[applyUrl] = { detail: RAW, reason_code: "already_exists", user_message: SENTENCE };
+    statuses[applyUrl] = 409;
     const onClose = vi.fn();
     wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={onClose} />);
     await clickRename();
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Couldn't rename the files");
-    expect(alert).toHaveTextContent("Refusing to overwrite an existing unrelated file: 01 - One.flac");
+    expect(alert).toHaveTextContent(SENTENCE);
     expect(alert).toHaveTextContent("No file was changed");
+    expect(alert).not.toHaveTextContent("Refusing");
     expect(onClose).not.toHaveBeenCalled();
+    // Not a red toast with the raw text either.
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(vi.mocked(toast.warning).mock.calls.flat().join(" ")).not.toContain("Refusing");
   });
 
-  it("says the folder was renamed when only the files failed", async () => {
+  it("never shows the technical message when the server sent no sentence", async () => {
+    routes[applyUrl] = { ok: false, renamed: 0, errors: [], message: RAW };
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={() => {}} />);
+    await clickRename();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Something went wrong while renaming");
+    expect(alert).not.toHaveTextContent("Refusing");
+    expect(alert).not.toHaveTextContent("01 - One.flac");
+  });
+
+  it("says the folder was renamed when only the files failed, in plain words", async () => {
+    const sentence =
+      "\u201c1.flac\u201d couldn't be renamed because Musaic isn't allowed to change it. " +
+      "Check that you can change files in this folder, then try again.";
     routes[applyUrl] = {
       ok: false,
       renamed: 0,
-      errors: ["Rename staging failed for '1.flac': Permission denied"],
+      errors: ["Rename staging failed for '1.flac': Permission denied (os error 13)"],
       dir_renamed: true,
       new_album_id: "aaaaaaaaaaaaaaaa",
-      message: "Rename staging failed for '1.flac': Permission denied; no file was renamed",
+      message: "Rename staging failed for '1.flac': Permission denied (os error 13); no file was renamed",
+      reason_code: "permission_denied",
+      user_message: sentence,
     };
     wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={() => {}} />);
     await clickRename();
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("The album folder was renamed");
-    expect(alert).toHaveTextContent("1.flac");
+    expect(alert).toHaveTextContent(sentence);
+    expect(alert).not.toHaveTextContent("os error");
+    expect(alert).not.toHaveTextContent("Permission denied");
+    expect(alert).not.toHaveTextContent("Rename staging failed");
+  });
+
+  it("shows the sentence for a partly done rename, and in the toast", async () => {
+    const sentence =
+      "\u201c2.flac\u201d couldn't be renamed because another program is using it. " +
+      "Close any program that has it open (a music player or a sync tool, for example), then try again.";
+    routes[applyUrl] = {
+      ok: false,
+      renamed: 1,
+      errors: ["2.flac \u2192 02 - Two.flac: The process cannot access the file (os error 32)"],
+      message: "1 file; 1 error(s): not renamed '2.flac'",
+      reason_code: "in_use",
+      user_message: sentence,
+    };
+    wrap(<FilenameMismatchResolveDialog finding={finding} open onClose={() => {}} />);
+    await clickRename();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(sentence);
+    expect(alert).toHaveTextContent("1 file had already been renamed");
+    expect(alert).not.toHaveTextContent("error(s)");
+    expect(alert).not.toHaveTextContent("os error");
+    expect(toast.warning).toHaveBeenCalledWith(sentence);
   });
 });
 
