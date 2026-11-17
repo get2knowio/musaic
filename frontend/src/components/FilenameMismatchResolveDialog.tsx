@@ -412,7 +412,7 @@ function RenameRow({ entry }: { entry: FilenameRenameEntry }) {
         </div>
         {stale && entry.collides_with && (
           <div className="text-[11px] text-warn mt-0.5 truncate" title={entry.collides_with}>
-            same new name as {entry.collides_with}
+            would collide with {entry.collides_with}
           </div>
         )}
       </div>

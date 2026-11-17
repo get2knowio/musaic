@@ -500,6 +500,29 @@ fn run_renames(
             ));
         }
     }
+    // A target that differs from a file already in the folder only in case
+    // or normalisation is refused on every volume, as the preview says: the
+    // file that stays would be one name away from the new one. A name that
+    // is itself a source moves away and does not count.
+    if let Ok(rd) = std::fs::read_dir(&album_dir) {
+        let sources: std::collections::HashSet<&str> =
+            cleaned.iter().map(|(old, _)| old.as_str()).collect();
+        let names: Vec<String> = rd
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        for (_, new) in &cleaned {
+            let key = fold(new);
+            if let Some(n) = names
+                .iter()
+                .find(|n| fold(n) == key && !sources.contains(n.as_str()))
+            {
+                return RenameOutcome::fail(format!(
+                    "Refusing to overwrite an existing unrelated file: {n}"
+                ));
+            }
+        }
+    }
     // Collisions with existing files: the same file as a source
     // (that source moves away first) is not a collision.
     for (_, new) in &cleaned {
