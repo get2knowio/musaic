@@ -13,6 +13,18 @@ Security.
 
 ## [Unreleased]
 
+### Added
+
+- A "Tags don't match canonical" finding whose genre is blank now says when MusicBrainz
+  suggests one: "MusicBrainz suggests "folk" as the genre. Review it in the album's
+  corrections." On Needs attention the line links to the album's panel; in the panel it
+  shows while the corrections list has the genre row. The genre is never written by the fix
+  or by the bulk action: the suggestion is MusicBrainz's top-voted tag, which is not always a
+  genre, so it stays a row in the album's corrections that starts unticked, for you to review.
+  The severity is unchanged (a blank genre alone is still informational). Existing findings
+  gain the line when the check reruns once in the background, which needs the app to be
+  online. Part of [#259](https://github.com/get2knowio/musaic/issues/259).
+
 ### Changed
 
 - A "Tags don't match canonical" finding whose only blank core tag is the genre is now

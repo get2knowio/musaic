@@ -6,6 +6,7 @@ import { useUnignoreFinding } from "@/hooks/useChecks";
 import FindingFixButton from "@/components/FindingFixButton";
 import IgnoreFindingControl from "@/components/IgnoreFindingControl";
 import { displayArtist } from "@/lib/albumFields";
+import { GENRE_HINT_POINTER, genreHintLead, suggestedGenre } from "@/lib/genreHint";
 import type { Album, Finding } from "@/lib/types";
 
 export function FindingRow({
@@ -34,6 +35,8 @@ export function FindingRow({
       { onError: (e) => toast.error((e as Error).message || "Couldn't restore") },
     );
   };
+
+  const genre = suggestedGenre(finding);
 
   const SevIcon = finding.severity === "error" ? XCircle : finding.severity === "info" ? Info : AlertCircle;
   const sevClass = finding.severity === "error" ? "text-err" : finding.severity === "info" ? "text-fg-3" : "text-warn";
@@ -106,6 +109,19 @@ export function FindingRow({
             </>
           )}
         </div>
+        {genre && finding.album_id && !album?.missing_since && (
+          // The album's corrections list is in the panel the link above
+          // opens. A Missing album's panel shows none, so no line for it.
+          <div className="text-[11px] text-fg-3 mt-0.5">
+            {genreHintLead(genre)}{" "}
+            <Link
+              to={`/library/${encodeURIComponent(finding.album_id)}`}
+              className="text-accent hover:underline"
+            >
+              {GENRE_HINT_POINTER}
+            </Link>
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         {album?.missing_since && fixKind !== "none" && !finding.ignored_at ? (

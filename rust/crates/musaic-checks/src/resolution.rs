@@ -34,6 +34,9 @@ pub struct Resolution {
     pub canonical_album_artist: Option<Fact>,
     pub canonical_year: Option<Fact>,
     pub canonical_album_artist_sort: Option<Fact>,
+    /// The top-voted MusicBrainz tag of the release group, as the resolver
+    /// gives it (`pick_primary_genre`; not re-cased).
+    pub canonical_genre: Option<Fact>,
     pub tracks: Vec<TrackMatch>,
     /// A MusicBrainz request failed while resolving (network down,
     /// offline, a server error): the canonical values may be missing for
@@ -85,6 +88,7 @@ impl Resolution {
             canonical_album_artist: f("canonical_album_artist"),
             canonical_year: f("canonical_year"),
             canonical_album_artist_sort: f("canonical_album_artist_sort"),
+            canonical_genre: f("canonical_genre"),
             tracks,
             network_failed: false,
         })

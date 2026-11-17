@@ -1,7 +1,8 @@
 //! tags-out-of-sync severity: a blank genre alone is informational (this
 //! build cannot fill one in, so a warning would have no fix); a blank title,
 //! album artist or year is a warning. The check carries a rule version in its
-//! inputs digest so existing libraries rerun it once, and only it.
+//! inputs digest so existing libraries rerun it once, and only it. The finding
+//! detail says when MusicBrainz suggests a genre; that never moves severity.
 
 mod common;
 
@@ -9,7 +10,7 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use common::{Sandbox, env, registry, setup};
 use musaic_checks::inputs::{album_check_digest, album_digests, plan_stale};
-use musaic_checks::{Resolution, ResolutionSource, ScopeKind, run_check};
+use musaic_checks::{Fact, Resolution, ResolutionSource, ScopeKind, run_check};
 use musaic_db::findings::all_findings;
 use rusqlite::Connection;
 use serde_json::{Value as J, json};
@@ -146,7 +147,7 @@ fn only_this_check_is_stale_after_the_rule_change() {
     let baseline = stale(conn);
     assert!(!baseline.contains(&CHECK), "{baseline:?}");
 
-    // This check's rows as the previous version recorded them: no extras.
+    // This check's rows as an earlier version recorded them: no extras.
     let bases = album_digests(conn, &sb.lib_s, None).unwrap();
     let old: Vec<(String, String)> = bases
         .iter()
@@ -156,4 +157,86 @@ fn only_this_check_is_stale_after_the_rule_change() {
     let mut want = baseline;
     want.insert(0, CHECK);
     assert_eq!(stale(conn), want, "this check is stale; no other changed");
+}
+
+/// Answers every album with MusicBrainz's genre "folk" (and an anchor).
+struct Folk;
+
+impl ResolutionSource for Folk {
+    fn resolve(&self, _conn: &Connection, _album_id: &str) -> Result<Resolution, String> {
+        let fact = |v: &str| {
+            Some(Fact {
+                value: v.into(),
+                source: "musicbrainz".into(),
+            })
+        };
+        Ok(Resolution {
+            anchor: fact("rg"),
+            canonical_genre: fact("folk"),
+            ..Resolution::default()
+        })
+    }
+}
+
+fn detail_of(conn: &Connection, album: &str) -> J {
+    let f = all_findings(conn)
+        .unwrap()
+        .into_iter()
+        .find(|f| f.check_id == CHECK && f.album_id.as_deref() == Some(album))
+        .unwrap_or_else(|| panic!("no finding for {album}"));
+    serde_json::from_str(f.detail_json.as_deref().unwrap()).unwrap()
+}
+
+/// The finding says MusicBrainz has a genre only when the genre is blank,
+/// and a suggestion never changes severity: genre alone stays `info`, a
+/// blank title, album artist or year stays `warn`.
+#[test]
+fn a_suggested_genre_is_a_label_and_never_changes_severity() {
+    let a = |id: &str, blank: &[&str]| {
+        let mut j = album(id, blank);
+        j["mb_release_group_mbid"] = json!("rg");
+        j
+    };
+    let (sb, db) = Sandbox::new();
+    let conn = db.connection();
+    setup(
+        &sb,
+        conn,
+        &json!({ "albums": [
+            a("genre", &["genre"]),
+            a("genre_year", &["genre", "year"]),
+            a("title", &["title", "genre"]),
+            a("artist", &["album_artist", "artist", "genre"]),
+            a("year_only", &["year"]),
+        ] }),
+    );
+    let env = env(
+        registry(None, &Default::default()),
+        std::sync::Arc::new(Folk),
+    );
+    run(conn, &sb, &env, CHECK);
+    assert_eq!(severity_of(conn, "genre"), "info");
+    assert_eq!(severity_of(conn, "genre_year"), "warn");
+    assert_eq!(severity_of(conn, "title"), "warn");
+    assert_eq!(severity_of(conn, "artist"), "warn");
+    assert_eq!(severity_of(conn, "year_only"), "warn");
+    for id in ["genre", "genre_year", "title", "artist"] {
+        assert_eq!(detail_of(conn, id)["genre_available"], "folk", "{id}");
+    }
+    // A genre the album has: no hint.
+    assert!(
+        detail_of(conn, "year_only")
+            .get("genre_available")
+            .is_none()
+    );
+}
+
+/// Without a suggestion (no anchor, or none given) there is no key.
+#[test]
+fn no_suggestion_no_key() {
+    let (sb, db, env) = world(vec![album("genre", &["genre"])]);
+    let conn = db.connection();
+    run(conn, &sb, &env, CHECK);
+    assert_eq!(severity_of(conn, "genre"), "info");
+    assert!(detail_of(conn, "genre").get("genre_available").is_none());
 }
