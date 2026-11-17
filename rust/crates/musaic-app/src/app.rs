@@ -448,6 +448,10 @@ impl AppBuilder {
             resolver: checks_resolution,
             clock: Arc::new(startup::ChecksClock(clock.clone())),
             notify,
+            publish: {
+                let bus = bus.clone();
+                Arc::new(move |ev| bus.publish(&ev))
+            },
         };
         let thumbs_dir = config.dir().join("thumbs");
         let gate = WorkGate::new();

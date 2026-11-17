@@ -287,6 +287,10 @@ const DELTAS: &[(&str, &str)] = &[
         "settings_changed",
         "deliberate addition (issue #187): a settings write publishes SettingsChanged (setting names only), which the library-events stream relays",
     ),
+    (
+        "checks_rerun_finished",
+        "deliberate addition (issue #204): a batch of check runs that finished publishes ChecksRerunFinished (check and album ids only), which the library-events stream relays",
+    ),
 ];
 
 fn use_delta(used: &mut BTreeMap<&'static str, usize>, id: &'static str) {
@@ -912,13 +916,24 @@ async fn api_offline_capture_replays() {
         .unwrap()
         .iter()
         .filter(|(e, d)| {
-            if e != "SettingsChanged" {
-                return true;
+            match e.as_str() {
+                "SettingsChanged" => {
+                    // Names only, never a value.
+                    assert!(d["keys"].is_array(), "{d}");
+                    use_delta(&mut run.deltas_used, "settings_changed");
+                    false
+                }
+                "ChecksRerunFinished" => {
+                    // Ids only, and each batch finishes on its own thread, so
+                    // their order between batches is not the capture's.
+                    for k in ["checks", "failed", "album_ids"] {
+                        assert!(d[k].is_array(), "{d}");
+                    }
+                    use_delta(&mut run.deltas_used, "checks_rerun_finished");
+                    false
+                }
+                _ => true,
             }
-            // Names only, never a value.
-            assert!(d["keys"].is_array(), "{d}");
-            use_delta(&mut run.deltas_used, "settings_changed");
-            false
         })
         .map(|(e, d)| json!({"event": e, "data": d}))
         .collect();

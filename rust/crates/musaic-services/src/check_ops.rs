@@ -70,6 +70,11 @@ pub fn run_check_logged<E: From<RunError>>(
                     ),
                 );
             }
+            // A user-started run is a batch of one.
+            let mut report = musaic_checks::RerunReport::new();
+            let scoped = album_ids.filter(|_| kind == ScopeKind::Albums);
+            report.record(&run, scoped);
+            report.publish(env);
             Ok(run)
         }
         Err(e) => Err(E::from(e)),

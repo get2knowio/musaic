@@ -154,17 +154,24 @@ fn payloads_match_python_bytes() {
     assert_eq!(ready_frame(), g["ready_frame"].as_str().unwrap());
 }
 
-/// Deliberate additions the Python app does not have, both plain `Event`s
+/// Deliberate additions the Python app does not have, all plain `Event`s
 /// (not album-scoped), like `LibraryScanCompleted`; nothing in the catalog
 /// subscribes to them by name, so only the `Event`-wide subscribers
-/// (findings notify, check sweep wake, SSE relay) run:
+/// (findings notify, check sweep wake, SSE relay) are registered for them:
 ///
 /// * `LibraryScanStopped` (issue #193): a scan that ended without saving;
 /// * `SettingsChanged` (issue #187): a settings write, with the names of the
-///   settings written, for the background check sweep.
+///   settings written, for the background check sweep;
+/// * `ChecksRerunFinished` (issue #204): a batch of check runs finished and
+///   its findings are written. The findings notify and the sweep wake ignore
+///   it, so only the relay acts on it.
 ///
 /// Every other kind must match the recording.
-const ADDED_KINDS: &[EventKind] = &[EventKind::LibraryScanStopped, EventKind::SettingsChanged];
+const ADDED_KINDS: &[EventKind] = &[
+    EventKind::LibraryScanStopped,
+    EventKind::SettingsChanged,
+    EventKind::ChecksRerunFinished,
+];
 
 /// Deliberate addition (issue #187): the background check sweep's
 /// subscriber, on every event, between the findings notify and the relay.
@@ -216,6 +223,29 @@ fn mro_matches_python() {
         assert_eq!(names, [added.name(), "Event"]);
         assert!(!added.is_album_scoped());
     }
+}
+
+/// `ChecksRerunFinished`'s relay frame (check and album ids only) and its
+/// keyword constructor.
+#[test]
+fn checks_rerun_finished_payload_and_fields() {
+    let e = Event::ChecksRerunFinished {
+        checks: vec!["filename-mismatch".into(), "track-gaps".into()],
+        failed: vec!["track-gaps".into()],
+        album_ids: vec![],
+    };
+    assert_eq!(
+        RelayMessage::from_event(&e).frame(),
+        "event: ChecksRerunFinished\ndata: {\"checks\": [\"filename-mismatch\", \"track-gaps\"], \"failed\": [\"track-gaps\"], \"album_ids\": []}\n\n"
+    );
+    assert_eq!(
+        Event::from_fields("ChecksRerunFinished", []),
+        Ok(Event::ChecksRerunFinished {
+            checks: vec![],
+            failed: vec![],
+            album_ids: vec![]
+        })
+    );
 }
 
 /// `SettingsChanged`'s relay frame (setting names only) and its keyword

@@ -15,6 +15,12 @@ Security.
 
 ### Added
 
+- The library-events stream now reports when a batch of health-check runs has finished
+  (`ChecksRerunFinished`: the checks that ran, the ones that failed, the albums it was
+  limited to), published once the findings are written: after a post-scan or rename rerun,
+  after a background sweep pass, and after a check run you start. The UI refreshes findings
+  and checks from it as well as from the checks stream. Part of [#204](https://github.com/get2knowio/musaic/issues/204).
+
 - A "Tags don't match canonical" finding whose genre is blank now says when MusicBrainz
   suggests one: "MusicBrainz suggests "folk" as the genre. Review it in the album's
   corrections." On Needs attention the line links to the album's panel; in the panel it

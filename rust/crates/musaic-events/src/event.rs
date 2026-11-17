@@ -15,7 +15,8 @@
 //!        ├─ LibraryScanCompleted(album_count)
 //!        ├─ BulkBatchCompleted()
 //!        ├─ LibraryScanStopped(reason, album_count)   (not in the Python app)
-//!        └─ SettingsChanged(keys)                      (not in the Python app)
+//!        ├─ SettingsChanged(keys)                      (not in the Python app)
+//!        └─ ChecksRerunFinished(checks, failed, album_ids)   (not in the Python app)
 //! ```
 //!
 //! `LibraryScanStopped` is new (deliberate change): a scan that ended
@@ -28,6 +29,17 @@
 //! publishes it with the names of the settings it wrote (never a value), so
 //! the background check sweep can mark the checks whose results depend on
 //! one of them (templates, the AcoustID key) stale.
+//!
+//! `ChecksRerunFinished` is new too (deliberate change): published once when
+//! a batch of check runs has finished and its findings are written (a
+//! post-scan or rename rerun, a background sweep pass, a user-started run).
+//! The relay forwards it after the findings are in the database, which the
+//! event that caused the rerun cannot promise (that one reaches the UI first).
+//! It carries references only: the ids of the checks that ran, the ones whose
+//! run failed, and the albums the batch was limited to (empty: the whole
+//! library; also used when the list would be long, see
+//! `musaic_checks::RERUN_ALBUM_LIST_MAX`). Nothing subscribes to it but the
+//! relay: it never starts a rerun and never wakes the check sweep.
 //!
 //! Here the concrete classes are one enum ([`Event`]); the two abstract
 //! classes become [`Topic::Event`] / [`Topic::AlbumScoped`], and
@@ -79,6 +91,11 @@ pub enum Event {
     SettingsChanged {
         keys: Vec<String>,
     },
+    ChecksRerunFinished {
+        checks: Vec<String>,
+        failed: Vec<String>,
+        album_ids: Vec<String>,
+    },
 }
 
 /// The concrete event class, without its data.
@@ -95,6 +112,7 @@ pub enum EventKind {
     BulkBatchCompleted,
     LibraryScanStopped,
     SettingsChanged,
+    ChecksRerunFinished,
 }
 
 /// What a subscriber registers for: one concrete class, or one of the two
@@ -108,7 +126,7 @@ pub enum Topic {
 }
 
 impl EventKind {
-    pub const ALL: [EventKind; 11] = [
+    pub const ALL: [EventKind; 12] = [
         EventKind::AlbumTagsChanged,
         EventKind::AlbumCoverChanged,
         EventKind::AlbumRenamed,
@@ -120,6 +138,7 @@ impl EventKind {
         EventKind::BulkBatchCompleted,
         EventKind::LibraryScanStopped,
         EventKind::SettingsChanged,
+        EventKind::ChecksRerunFinished,
     ];
 
     /// The Python class name: the SSE `event:` name.
@@ -136,6 +155,7 @@ impl EventKind {
             EventKind::BulkBatchCompleted => "BulkBatchCompleted",
             EventKind::LibraryScanStopped => "LibraryScanStopped",
             EventKind::SettingsChanged => "SettingsChanged",
+            EventKind::ChecksRerunFinished => "ChecksRerunFinished",
         }
     }
 
@@ -152,6 +172,7 @@ impl EventKind {
                 | EventKind::BulkBatchCompleted
                 | EventKind::LibraryScanStopped
                 | EventKind::SettingsChanged
+                | EventKind::ChecksRerunFinished
         )
     }
 
@@ -181,6 +202,7 @@ impl EventKind {
             EventKind::BulkBatchCompleted => plain!(BulkBatchCompleted),
             EventKind::LibraryScanStopped => plain!(LibraryScanStopped),
             EventKind::SettingsChanged => plain!(SettingsChanged),
+            EventKind::ChecksRerunFinished => plain!(ChecksRerunFinished),
         }
     }
 }
@@ -272,6 +294,7 @@ impl Event {
             Event::BulkBatchCompleted => EventKind::BulkBatchCompleted,
             Event::LibraryScanStopped { .. } => EventKind::LibraryScanStopped,
             Event::SettingsChanged { .. } => EventKind::SettingsChanged,
+            Event::ChecksRerunFinished { .. } => EventKind::ChecksRerunFinished,
         }
     }
 
@@ -336,6 +359,15 @@ impl Event {
                 album_count,
             } => vec![("reason", Str(reason)), ("album_count", Int(*album_count))],
             Event::SettingsChanged { keys } => vec![("keys", StrList(keys))],
+            Event::ChecksRerunFinished {
+                checks,
+                failed,
+                album_ids,
+            } => vec![
+                ("checks", StrList(checks)),
+                ("failed", StrList(failed)),
+                ("album_ids", StrList(album_ids)),
+            ],
         }
     }
 
@@ -449,6 +481,11 @@ impl Event {
             },
             EventKind::SettingsChanged => Event::SettingsChanged {
                 keys: list_or("keys", take("keys"))?,
+            },
+            EventKind::ChecksRerunFinished => Event::ChecksRerunFinished {
+                checks: list_or("checks", take("checks"))?,
+                failed: list_or("failed", take("failed"))?,
+                album_ids: list_or("album_ids", take("album_ids"))?,
             },
         };
         if let Some((k, _)) = args.first() {

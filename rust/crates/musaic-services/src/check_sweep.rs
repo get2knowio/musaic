@@ -62,7 +62,7 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime};
 
 use musaic_checks::inputs::{StaleWork, plan_stale};
-use musaic_checks::{CheckEnv, Granularity, ScopeKind};
+use musaic_checks::{CheckEnv, Granularity, RerunReport, ScopeKind};
 use musaic_events::Event;
 use rusqlite::Connection;
 
@@ -550,6 +550,20 @@ fn open<'a>(inner: &'a Inner, deps: &SweepDeps) -> Result<Option<ConnSlot<'a>>, 
 }
 
 /// One pass: plan what is stale, then run it, batch by batch.
+/// Publishes the pass's `ChecksRerunFinished` when dropped, so every way out
+/// of [`pass`] (the early returns on a halt included) reports the runs that
+/// already wrote findings.
+struct PassFinished<'a> {
+    env: &'a CheckEnv,
+    report: RerunReport,
+}
+
+impl Drop for PassFinished<'_> {
+    fn drop(&mut self) {
+        std::mem::take(&mut self.report).publish(self.env);
+    }
+}
+
 fn pass(inner: &Inner, deps: &SweepDeps) -> Result<(), Halt> {
     let Some(lib) = (deps.library_dir)().filter(|l| !l.is_empty()) else {
         return Ok(());
@@ -616,6 +630,12 @@ fn pass(inner: &Inner, deps: &SweepDeps) -> Result<(), Halt> {
         }
     });
     let mut failed = 0usize;
+    // One `ChecksRerunFinished` for the pass, however it ends (done, halted
+    // by a restore or shutdown, library folder gone), when a run started.
+    let mut finished = PassFinished {
+        env: &deps.env,
+        report: RerunReport::new(),
+    };
     for work in &plan {
         inner.update(|s| s.current_check = Some(work.check_id.to_string()));
         let batches: Vec<Option<&[String]>> = match work.granularity {
@@ -690,6 +710,9 @@ fn pass(inner: &Inner, deps: &SweepDeps) -> Result<(), Halt> {
                 c.in_batch = false;
             }
             inner.cv.notify_all();
+            if let Ok(Ok(run)) = &r {
+                finished.report.record(run, batch);
+            }
             match r {
                 Ok(Ok(run)) if run.status == "completed" => {}
                 Ok(Ok(run)) => {

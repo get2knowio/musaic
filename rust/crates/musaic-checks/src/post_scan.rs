@@ -10,6 +10,7 @@ use musaic_scan::py_resolve;
 use rusqlite::Connection;
 
 use crate::base::{CheckEnv, ScopeKind};
+use crate::rerun::RerunReport;
 use crate::runner::{RunError, run_check};
 
 /// One check's result in a sweep. A failing check is reported here and the
@@ -114,6 +115,12 @@ impl SideEffects for ChecksSideEffects {
     ) -> Result<(), SubscriberError> {
         let conn = (self.open)()?;
         let entries = post_scan_sweep(&conn, &self.env, library_dir, album_ids);
+        let ids = album_ids.filter(|ids| !ids.is_empty());
+        let mut report = RerunReport::new();
+        for run in entries.iter().filter_map(|e| e.result.as_ref().ok()) {
+            report.record(run, ids);
+        }
+        report.publish(&self.env);
         sweep_error(&entries).map_or(Ok(()), Err)
     }
 
@@ -124,7 +131,7 @@ impl SideEffects for ChecksSideEffects {
         album_ids: &[String],
     ) -> Result<(), SubscriberError> {
         let conn = (self.open)()?;
-        run_check(
+        let run = run_check(
             &conn,
             &self.env,
             check_id,
@@ -132,6 +139,9 @@ impl SideEffects for ChecksSideEffects {
             ScopeKind::Albums,
             Some(album_ids),
         )?;
+        let mut report = RerunReport::new();
+        report.record(&run, Some(album_ids));
+        report.publish(&self.env);
         Ok(())
     }
 

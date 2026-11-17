@@ -8,18 +8,22 @@
  *
  * Division of responsibility with useChecksStream:
  *
- *   useLibraryEventsStream owns **album-state** caches —
- *     ["albums-snapshot"], ["tracks", id], ["album-resolution", id]
- *   useChecksStream owns **findings/checks** caches —
- *     ["findings"], ["checks"], ["check"]
+ *   useLibraryEventsStream owns the caches an event says changed —
+ *     ["albums-snapshot"], ["tracks", id], ["album-resolution", id], and,
+ *     on ChecksRerunFinished, ["findings"], ["checks"], ["check"]
+ *   useChecksStream keeps what the bus does not carry: the live state of a
+ *     running check (the ["checks"] summary on every run start / end),
+ *     ignore / unignore (no bus event), and the sweep progress pill.
  *
- * The split matters because the backend's `_post_scan_rerun` subscriber
- * runs in a background thread (registered `background=True` in
- * `event_subscribers.py`). The relay's SSE event arrives on the
- * frontend BEFORE the rerun finishes; invalidating findings/checks
- * here would refetch stale data and flicker. Instead we let
- * useChecksStream invalidate findings/checks when `notify_changed()`
- * fires from inside `run_check` — which is reliably after the rerun.
+ * The check reruns a mutation triggers run on a background thread, so the
+ * relay's event for the mutation reaches this hook BEFORE the rerun has
+ * finished: invalidating findings on it would refetch stale data and
+ * flicker. The backend therefore publishes ChecksRerunFinished once the
+ * rerun's findings are written (post-scan and rename reruns, a background
+ * sweep pass, a user-started run), and findings are invalidated on that
+ * event only. Because useChecksStream also invalidates findings when a run
+ * ends, the handler below reuses a refetch already in flight
+ * (cancelRefetch: false) instead of cancelling it and fetching twice.
  *
  * Event → invalidation map (mirrors the bus contract in
  * `musaic/library_events.py`):
@@ -48,6 +52,10 @@
  *   LibraryScanCompleted              → broad refresh (snapshot + every
  *                                       per-album tracks/resolution).
  *   BulkBatchCompleted                → same.
+ *   ChecksRerunFinished               → ["findings"], ["checks"], ["check"]
+ *                                       (prefix-matched; the payload names
+ *                                       the checks and albums but every
+ *                                       open findings view refetches).
  *   LibraryScanStopped(reason)        → ["albums-snapshot"] only: an
  *                                       aborted / cancelled / failed scan
  *                                       wrote no album, but a cancelled
@@ -65,6 +73,8 @@
  */
 import { useEffect } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+
+import { CHECKS_QUERY_KEY, FINDINGS_QUERY_KEY } from "./useChecks";
 
 type EventPayload = {
   album_id?: string;
@@ -196,6 +206,14 @@ export function useLibraryEventsStream() {
     });
     es.addEventListener("LibraryScanCompleted", () => onLibraryWide());
     es.addEventListener("BulkBatchCompleted", () => onLibraryWide());
+    es.addEventListener("ChecksRerunFinished", () => {
+      // Findings are written by the time this arrives. A refetch that
+      // useChecksStream's run-ended invalidation already started is reused.
+      const reuse = { cancelRefetch: false };
+      qc.invalidateQueries({ queryKey: FINDINGS_QUERY_KEY }, reuse);
+      qc.invalidateQueries({ queryKey: CHECKS_QUERY_KEY }, reuse);
+      qc.invalidateQueries({ queryKey: ["check"] }, reuse);
+    });
     es.addEventListener("LibraryScanStopped", () => {
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
     });
@@ -216,8 +234,8 @@ export function useLibraryEventsStream() {
  * transient SSE drop can't leave caches indefinitely stale — staleTime
  * is Infinity on most of these, so refetch-on-focus won't save us.
  *
- * Findings/checks/check live on useChecksStream's own
- * /api/checks/stream channel and are kept fresh there; not our concern.
+ * Findings/checks/check are not resynced here: useChecksStream's
+ * /api/checks/stream channel refreshes them on every run start and end.
  */
 function resyncAllBusCaches(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ["albums-snapshot"] });

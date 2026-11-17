@@ -27,7 +27,7 @@ use musaic_checks::{
     NoResolver, Registry, ScopeKind, SystemClock, run_check, run_post_scan_checks,
 };
 use musaic_db::findings::{all_findings, all_runs};
-use musaic_events::{Bus, Event, register_all};
+use musaic_events::{Bus, Event, EventKind, Subscriber, Topic, register_all};
 use serde_json::json;
 
 static PUBLISHER: CheckMeta = CheckMeta {
@@ -64,16 +64,31 @@ struct World {
     sb: Sandbox,
     _db: musaic_db::Db,
     bus: Arc<Bus>,
+    /// Every `ChecksRerunFinished` the bus delivered, in order.
+    finished: Arc<Mutex<Vec<Event>>>,
 }
 
 fn world(registry: Registry, case: serde_json::Value) -> World {
     let (sb, db) = Sandbox::new();
     setup(&sb, db.connection(), &case);
+    let bus = Arc::new(Bus::new());
+    let finished = Arc::new(Mutex::new(Vec::new()));
+    let sink = finished.clone();
+    bus.register(
+        Topic::Kind(EventKind::ChecksRerunFinished),
+        Subscriber::from_fn(move |ev| {
+            sink.lock().unwrap().push(ev.clone());
+            Ok(())
+        })
+        .key("test_collect_finished"),
+    );
+    let publisher = bus.clone();
     let env = CheckEnv {
         registry,
         resolver: Arc::new(NoResolver),
         clock: Arc::new(SystemClock),
         notify: Arc::new(|| {}),
+        publish: Arc::new(move |ev| publisher.publish(&ev)),
     };
     let db_path = sb.db_path.clone();
     let lib = sb.lib_s.clone();
@@ -93,9 +108,13 @@ fn world(registry: Registry, case: serde_json::Value) -> World {
         resolver_invalidate: Arc::new(|_| Ok(())),
         delete_thumb: Arc::new(|_| Ok(())),
     };
-    let bus = Arc::new(Bus::new());
     register_all(&bus, Arc::new(fx), None);
-    World { sb, _db: db, bus }
+    World {
+        sb,
+        _db: db,
+        bus,
+        finished,
+    }
 }
 
 /// Wait for every background subscriber to finish. Returns as soon as they
@@ -270,4 +289,144 @@ fn manual_run_has_no_guard() {
     let env = CheckEnv::new(Arc::new(NoResolver));
     assert!(run_check(&conn, &env, "nope", &w.sb.lib_s, ScopeKind::All, None).is_err());
     assert!(all_runs(&conn).unwrap().is_empty());
+}
+
+fn scan_check_ids() -> Vec<String> {
+    Registry::default()
+        .iter()
+        .filter(|c| c.meta().runs_during_scan)
+        .map(|c| c.meta().id.to_string())
+        .collect()
+}
+
+/// A scoped rerun triggered by an album event ends with one
+/// `ChecksRerunFinished` naming the checks it ran and the album, published
+/// after the findings are written.
+#[test]
+fn album_rerun_publishes_one_finished_event_after_its_findings() {
+    let w = world(Registry::default(), gaps_case());
+    let conn = w.sb.open();
+    w.bus.publish(&Event::AlbumTagsChanged {
+        album_id: "a1".into(),
+        fields: vec!["tracknumber".into()],
+    });
+    idle(&w);
+    assert_eq!(
+        *w.finished.lock().unwrap(),
+        [Event::ChecksRerunFinished {
+            checks: scan_check_ids(),
+            failed: vec![],
+            album_ids: vec!["a1".into()],
+        }]
+    );
+    // The findings the event reports are in the database already.
+    let gaps = all_findings(&conn)
+        .unwrap()
+        .into_iter()
+        .filter(|f| f.check_id == "track-gaps" && f.album_id.as_deref() == Some("a1"))
+        .count();
+    assert_eq!(gaps, 1);
+}
+
+/// A library-wide rerun, and a bulk loop's single one, each publish one
+/// event with no album list.
+#[test]
+fn library_wide_and_bulk_reruns_publish_one_event_each() {
+    let w = world(Registry::default(), gaps_case());
+    w.bus
+        .publish(&Event::LibraryScanCompleted { album_count: 2 });
+    idle(&w);
+    let want = Event::ChecksRerunFinished {
+        checks: scan_check_ids(),
+        failed: vec![],
+        album_ids: vec![],
+    };
+    assert_eq!(
+        w.finished.lock().unwrap().as_slice(),
+        std::slice::from_ref(&want)
+    );
+
+    musaic_events::run_bulk(&w.bus, true, || {
+        for id in ["a1", "a2"] {
+            w.bus.publish(&Event::AlbumTagsChanged {
+                album_id: id.into(),
+                fields: vec![],
+            });
+        }
+    });
+    idle(&w);
+    assert_eq!(*w.finished.lock().unwrap(), [want.clone(), want]);
+}
+
+/// The event never starts a rerun: publishing it directly runs nothing, and
+/// the event published at the end of a rerun does not start a second one.
+#[test]
+fn rerun_finished_event_starts_no_rerun() {
+    let w = world(Registry::default(), gaps_case());
+    w.bus.publish(&Event::ChecksRerunFinished {
+        checks: scan_check_ids(),
+        failed: vec![],
+        album_ids: vec![],
+    });
+    idle(&w);
+    assert!(runs(&w).is_empty(), "{:?}", runs(&w));
+
+    w.bus
+        .publish(&Event::LibraryScanCompleted { album_count: 2 });
+    idle(&w);
+    assert_eq!(runs(&w).len(), scan_check_ids().len(), "one sweep only");
+    assert_eq!(
+        w.finished.lock().unwrap().len(),
+        2,
+        "the direct one and the sweep's"
+    );
+}
+
+static FAILING: CheckMeta = CheckMeta {
+    id: "failing",
+    label: "Failing",
+    description: "",
+    category: "metadata",
+    cost: Cost::Cheap,
+    runs_during_scan: true,
+    fix_kind: FixKind::None,
+    bulk_action_label: None,
+};
+
+struct Failing;
+
+impl Check for Failing {
+    fn meta(&self) -> &CheckMeta {
+        &FAILING
+    }
+    fn run(&self, _: &CheckCtx<'_>, _: &CheckScope, _: &mut Emit<'_>) -> Result<(), CheckError> {
+        Err(CheckError::Failed("boom".into()))
+    }
+}
+
+/// A check that fails still wrote its run: the event names it in `failed`.
+#[test]
+fn failed_run_is_reported_in_failed() {
+    let w = world(Registry::new(vec![Arc::new(Failing)]), gaps_case());
+    w.bus
+        .publish(&Event::LibraryScanCompleted { album_count: 2 });
+    idle(&w);
+    assert_eq!(
+        *w.finished.lock().unwrap(),
+        [Event::ChecksRerunFinished {
+            checks: vec!["failing".into()],
+            failed: vec!["failing".into()],
+            album_ids: vec![],
+        }]
+    );
+}
+
+/// A batch in which no run started (here, no check to run) publishes nothing.
+#[test]
+fn a_batch_without_runs_publishes_nothing() {
+    let w = world(Registry::new(vec![]), gaps_case());
+    w.bus
+        .publish(&Event::LibraryScanCompleted { album_count: 2 });
+    idle(&w);
+    assert!(w.finished.lock().unwrap().is_empty());
 }

@@ -38,6 +38,7 @@ pub mod inputs;
 pub mod post_scan;
 pub mod pyjson;
 pub mod registry;
+pub mod rerun;
 pub mod resolution;
 pub mod runner;
 pub mod wording;
@@ -48,5 +49,6 @@ pub use base::{
 };
 pub use post_scan::{ChecksSideEffects, SweepEntry, post_scan_sweep, run_post_scan_checks};
 pub use registry::Registry;
+pub use rerun::{RERUN_ALBUM_LIST_MAX, RerunReport};
 pub use resolution::{Fact, NoResolver, Resolution, ResolutionSource, TrackMatch};
 pub use runner::{RunError, run_check};

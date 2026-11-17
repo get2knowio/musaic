@@ -181,6 +181,8 @@ struct Rig {
     /// Holds the whole-library check's run (see `Recording::hold`).
     hold: Arc<AtomicBool>,
     log: Arc<Lines>,
+    /// Every `ChecksRerunFinished` the sweep published, in order.
+    finished: Arc<Mutex<Vec<Event>>>,
 }
 
 /// How a rig differs from the default.
@@ -268,6 +270,7 @@ fn rig_with(o: Opts) -> Rig {
     let panic: Arc<AtomicBool> = Arc::default();
     let hold: Arc<AtomicBool> = Arc::default();
     let log: Arc<Lines> = Arc::default();
+    let finished: Arc<Mutex<Vec<Event>>> = Arc::default();
     let sweeper = CheckSweeper::new();
     let release = Arc::new(AtomicBool::new(true));
     let waiting = Arc::new(AtomicBool::new(false));
@@ -303,6 +306,10 @@ fn rig_with(o: Opts) -> Rig {
         }),
         clock: Arc::new(SystemClock),
         notify: Arc::new(|| {}),
+        publish: {
+            let finished = finished.clone();
+            Arc::new(move |ev| finished.lock().unwrap().push(ev))
+        },
     };
     let busy = Arc::new(AtomicBool::new(false));
     let b2 = busy.clone();
@@ -332,6 +339,7 @@ fn rig_with(o: Opts) -> Rig {
         panic,
         hold,
         log,
+        finished,
     }
 }
 
@@ -407,12 +415,27 @@ fn first_pass_runs_everything_then_nothing_is_stale() {
     assert_eq!(r.sweeper.state().status, SweepStatus::Idle);
     let st = r.sweeper.state();
     assert_eq!((st.total, st.completed), (7, 7));
+    // One event for the whole pass, once its findings are written; the
+    // whole-library run makes it library-wide.
+    assert_eq!(
+        *r.finished.lock().unwrap(),
+        [Event::ChecksRerunFinished {
+            checks: ids(&["filename-mismatch", "whole-library", "tags-out-of-sync"]),
+            failed: vec![],
+            album_ids: vec![],
+        }]
+    );
 
     // Nothing changed: a wake plans nothing.
     let before = runs(&r).len();
     r.sweeper.wake();
     settle(&r);
     assert_eq!(runs(&r).len(), before);
+    assert_eq!(
+        r.finished.lock().unwrap().len(),
+        1,
+        "a pass that ran nothing publishes nothing"
+    );
     assert!(
         !r.seen
             .lock()
@@ -446,6 +469,7 @@ fn a_changed_album_reruns_alone() {
             ("tags-out-of-sync", ids(&["a2"])),
         ]
     );
+    assert_eq!(r.finished.lock().unwrap().len(), 2, "one event per pass");
     // A setting a check depends on makes it stale everywhere.
     r.seen.lock().unwrap().clear();
     r.sweeper.on_event(&Event::SettingsChanged {
@@ -455,6 +479,14 @@ fn a_changed_album_reruns_alone() {
     assert_eq!(
         r.seen.lock().unwrap().clone(),
         vec![("filename-mismatch", ids(&ALBUMS))]
+    );
+    assert_eq!(
+        r.finished.lock().unwrap().last(),
+        Some(&Event::ChecksRerunFinished {
+            checks: ids(&["filename-mismatch"]),
+            failed: vec![],
+            album_ids: ids(&ALBUMS),
+        })
     );
     // A setting no check depends on changes nothing.
     r.seen.lock().unwrap().clear();
@@ -726,6 +758,7 @@ fn still_stale_drops_what_another_run_refreshed() {
         resolver: Arc::new(musaic_checks::NoResolver),
         clock: Arc::new(SystemClock),
         notify: Arc::new(|| {}),
+        publish: Arc::new(|_| {}),
     };
     let c = conn(&r.db);
     let now = SystemTime::now();

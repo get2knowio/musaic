@@ -179,15 +179,27 @@ the SSE relay). Callers never call those directly.
 - Event types: `rust/crates/musaic-events/src/event.rs` (`AlbumTagsChanged`,
   `AlbumCoverChanged`, `AlbumRenamed`, `AlbumMbAnchorSet`, `TrackFingerprinted`,
   `AlbumDeleted`, `AlbumMarkedMissing`, `LibraryScanCompleted`, `BulkBatchCompleted`,
-  `LibraryScanStopped`, `SettingsChanged`). Only a scan that saved its snapshot publishes
-  `LibraryScanCompleted` (post-scan reruns, fingerprint pool kick-off); an aborted,
-  cancelled or failed scan publishes `LibraryScanStopped(reason)` and starts nothing.
+  `LibraryScanStopped`, `SettingsChanged`, `ChecksRerunFinished`). Only a scan that saved
+  its snapshot publishes `LibraryScanCompleted` (post-scan reruns, fingerprint pool
+  kick-off); an aborted, cancelled or failed scan publishes `LibraryScanStopped(reason)`
+  and starts nothing.
+- `ChecksRerunFinished(checks, failed, album_ids)` reports that a batch of check runs has
+  finished and its findings are written; references only (check ids, the ones whose run
+  failed, the albums the batch was limited to, empty for the whole library or a long
+  list). Published once per batch by `musaic-checks/src/rerun.rs` (`RerunReport`): the
+  post-scan and rename reruns (`post_scan.rs`, so also a rerun replayed after a restore),
+  one per background sweep pass (`check_sweep.rs`, also when the pass is cut short), and a
+  user-started run (`check_ops::run_check_logged`). A bulk loop still yields one rerun and
+  one event. A failed run is listed in `failed`; a batch where no run started publishes
+  nothing. It is a report, never a trigger: no rerun subscriber is registered for it, and
+  the catalog skips the check sweep wake and the findings notify for it, so it cannot
+  loop (`musaic-events/tests/rerun_finished.rs`).
 - Bus (priorities, background subscribers, isolation): `musaic-events/src/bus.rs`.
 - The subscriber list: `musaic-events/src/catalog.rs` (`CATALOG`, `register_all`); the
   real side effects: `musaic-checks/src/post_scan.rs` and
   `musaic-services/src/gated_reruns.rs`; wired in `musaic-app/src/app.rs`.
 - The background check sweep (`musaic-services/src/check_sweep.rs`) is one more
-  subscriber (`_check_sweep_wake`): every event wakes it, and it reruns each check where
+  subscriber (`_check_sweep_wake`): every event but `ChecksRerunFinished` wakes it, and it reruns each check where
   the inputs digest recorded by its last completed run (`check_inputs`,
   `musaic-checks/src/inputs.rs`) no longer matches. It yields to scans, restores and
   any work holding the work gate, uses the background network path (and skips network
@@ -245,8 +257,14 @@ The backend relays every bus event to `GET /api/library-events/stream`
 (`musaic-events/src/relay.rs`: priority 400, after every other subscriber; bounded
 drop-oldest queue per connection; route in `musaic-api/src/routes/system.rs`). One
 App-level hook, `frontend/src/hooks/useLibraryEventsStream.ts`, maps events to TanStack
-Query invalidations for albums, tracks and resolution; `useChecksStream.ts` owns findings
-and checks (it fires at the end of a rerun, which the relay event precedes). Mutation
+Query invalidations for albums, tracks and resolution, and for findings and checks on
+`ChecksRerunFinished`: the rerun a mutation triggers runs in the background, so the
+mutation's own event reaches the UI before the findings are written, and findings are
+refreshed only on the event published after them. `useChecksStream.ts`
+(`/api/checks/stream`) stays for what the bus does not carry: a running check's state
+(every run start and end), ignore / unignore, and the sweep's progress; its invalidation
+of findings at the end of a run overlaps the bus path, so the bus handler reuses a
+refetch already in flight (`cancelRefetch: false`). Mutation
 handlers in the UI do not call `invalidateQueries`. Caches kept fresh this way use
 `staleTime: Infinity`; any other stale time in `frontend/src/hooks/` needs a comment
 saying why.
