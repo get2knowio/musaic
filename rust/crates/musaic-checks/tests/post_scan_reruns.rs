@@ -79,10 +79,15 @@ fn world(registry: Registry, case: serde_json::Value) -> World {
     let lib = sb.lib_s.clone();
     let fx = ChecksSideEffects {
         env,
+        // As the app opens them (`musaic_app::open_conn`): 30 s busy timeout.
+        // rusqlite's own default is 5 s, and two reruns for one event write
+        // at once on separate threads. SQLite's busy handler is not a queue,
+        // so the one that loses is starved until its timeout while the other
+        // makes many short commits, which a slow disk (a Windows runner) can
+        // stretch past 5 s: "database is locked", and a rerun missing from
+        // the recorded runs.
         open: Arc::new(move || {
-            let c = rusqlite::Connection::open(&db_path)?;
-            c.pragma_update(None, "foreign_keys", "ON")?;
-            Ok(c)
+            musaic_db::open_connection(&db_path).map_err(|e| e.to_string().into())
         }),
         library_dir: Arc::new(move || Some(lib.clone())),
         resolver_invalidate: Arc::new(|_| Ok(())),
@@ -93,8 +98,12 @@ fn world(registry: Registry, case: serde_json::Value) -> World {
     World { sb, _db: db, bus }
 }
 
+/// Wait for every background subscriber to finish. Returns as soon as they
+/// have; the deadline only has to catch a hang, and must outlast the busy
+/// timeout (30 s) a subscriber can legitimately spend waiting for the other's
+/// writes, so that a stuck write shows up as its own error, not as this one.
 fn idle(w: &World) {
-    assert!(w.bus.wait_background_idle(Duration::from_secs(20)));
+    assert!(w.bus.wait_background_idle(Duration::from_secs(60)));
 }
 
 fn runs(w: &World) -> Vec<(String, String)> {
