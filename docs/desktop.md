@@ -156,9 +156,9 @@ There is no updater, no deep-link handler and no tray icon.
 
 | What | Where |
 |---|---|
-| Database, settings, logs, thumbnails, trash, window state | the config dir: `--config-dir`, else `MUSAIC_CONFIG_DIR`, else `~/.musaic` (Windows: `%USERPROFILE%\.musaic`) |
+| Database, settings (including the theme and tile size), logs, thumbnails, trash, window state | the config dir: `--config-dir`, else `MUSAIC_CONFIG_DIR`, else `~/.musaic` (Windows: `%USERPROFILE%\.musaic`) |
 | API keys | the OS keyring, service name `musaic` |
-| Web view storage (UI preferences, HTTP cache) | managed by the platform's webview, outside the config dir: macOS `~/Library/WebKit/io.get2know.musaic` and `~/Library/Caches/io.get2know.musaic`; Windows `%LOCALAPPDATA%\io.get2know.musaic\`; Linux `~/.local/share/io.get2know.musaic/` |
+| Web view storage (HTTP cache, and a copy of the theme and tile size used only for the first paint; the web view's address changes on every launch, so nothing there is kept from one launch to the next) | managed by the platform's webview, outside the config dir: macOS `~/Library/WebKit/io.get2know.musaic` and `~/Library/Caches/io.get2know.musaic`; Windows `%LOCALAPPDATA%\io.get2know.musaic\`; Linux `~/.local/share/io.get2know.musaic/` |
 
 A launch from Finder, the Start menu or a desktop launcher has no
 `MUSAIC_CONFIG_DIR`, so it opens `~/.musaic`. A database written by the Python

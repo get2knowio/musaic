@@ -11,6 +11,7 @@ import { useJobsStream } from "@/hooks/useJobsStream";
 import { useChecksStream } from "@/hooks/useChecksStream";
 import { useFingerprintPoolStream } from "@/hooks/useFingerprintPoolStream";
 import { useLibraryEventsStream } from "@/hooks/useLibraryEventsStream";
+import { useSyncUiPrefs } from "@/hooks/useUiPrefs";
 import { useTrackLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
 
 /**
@@ -39,6 +40,10 @@ export default function App() {
   // bus events round-trip back here to invalidate the right keys.
   // See docs/connectivity_design.md.
   useLibraryEventsStream();
+
+  // The theme and tile size live on the server (the desktop window's
+  // address changes on every launch); show them once they arrive.
+  useSyncUiPrefs();
 
   // Save the user's last /library URL to sessionStorage so the Sidebar's
   // "Library" link can restore the same filter / search / open album when

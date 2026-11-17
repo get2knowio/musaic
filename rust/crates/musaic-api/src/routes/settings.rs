@@ -86,6 +86,96 @@ pub async fn dismiss_acoustid_prompt(State(st): State<AppState>) -> ApiResult {
     .await?
 }
 
+/// The settings rows holding the UI preferences. They are not part of
+/// `GET /api/settings`, and no check reads them.
+const UI_THEME: &str = "ui_theme";
+const UI_TILE_COLUMNS: &str = "ui_tile_columns";
+
+/// The Library tile-size slider's range (frontend `useTileColumns`).
+const TILE_COLUMNS_MIN: i64 = 3;
+const TILE_COLUMNS_MAX: i64 = 7;
+
+fn ui_prefs_body(st: &AppState) -> Result<Value, ApiError> {
+    let conn = st.conn()?;
+    let theme =
+        musaic_db::settings::get_raw(&conn, UI_THEME)?.filter(|t| t == "light" || t == "dark");
+    let columns = musaic_db::settings::get_raw(&conn, UI_TILE_COLUMNS)?
+        .and_then(|v| v.parse::<i64>().ok())
+        .filter(|n| (TILE_COLUMNS_MIN..=TILE_COLUMNS_MAX).contains(n));
+    Ok(json!({ "theme": theme, "tile_columns": columns }))
+}
+
+/// `GET /api/ui-prefs`: `{"theme": "light"|"dark"|null, "tile_columns": 3..7|null}`
+/// (null: never chosen).
+pub async fn ui_prefs(State(st): State<AppState>) -> ApiResult {
+    blocking(move || ok_value(ui_prefs_body(&st)?)).await?
+}
+
+/// `PUT /api/ui-prefs`: set the preferences named in the body (`theme`,
+/// `tile_columns`); a field set to `null` is forgotten, a field left out is
+/// untouched. 400 for an unknown field or a value out of range. Publishes
+/// `SettingsChanged` (names only) so open windows refresh.
+pub async fn put_ui_prefs(State(st): State<AppState>, body: Bytes) -> ApiResult {
+    let Some(Value::Object(map)) = parse_json_body(&body)? else {
+        return Err(ApiError::new(
+            400,
+            "the body must be a JSON object".to_owned(),
+        ));
+    };
+    let mut writes: Vec<(&'static str, Option<String>)> = Vec::new();
+    for (k, v) in &map {
+        match (k.as_str(), v) {
+            ("theme", Value::Null) => writes.push((UI_THEME, None)),
+            ("theme", Value::String(t)) if t == "light" || t == "dark" => {
+                writes.push((UI_THEME, Some(t.clone())));
+            }
+            ("theme", _) => {
+                return Err(ApiError::new(
+                    400,
+                    "theme must be \"light\", \"dark\" or null".to_owned(),
+                ));
+            }
+            ("tile_columns", Value::Null) => writes.push((UI_TILE_COLUMNS, None)),
+            ("tile_columns", n)
+                if n.as_i64()
+                    .is_some_and(|n| (TILE_COLUMNS_MIN..=TILE_COLUMNS_MAX).contains(&n)) =>
+            {
+                writes.push((UI_TILE_COLUMNS, Some(n.to_string())));
+            }
+            ("tile_columns", _) => {
+                return Err(ApiError::new(
+                    400,
+                    format!(
+                        "tile_columns must be a whole number from {TILE_COLUMNS_MIN} to {TILE_COLUMNS_MAX} or null"
+                    ),
+                ));
+            }
+            (other, _) => {
+                return Err(ApiError::new(400, format!("unknown preference {other:?}")));
+            }
+        }
+    }
+    let guard = st.begin_work()?;
+    blocking(move || {
+        let _guard = guard;
+        let conn = st.conn()?;
+        for (key, value) in &writes {
+            match value {
+                Some(v) => musaic_db::settings::set_raw(&conn, key, v)?,
+                None => musaic_db::settings::delete_raw(&conn, key)?,
+            }
+        }
+        drop(conn);
+        if !writes.is_empty() {
+            st.0.bus.publish(&musaic_events::Event::SettingsChanged {
+                keys: writes.iter().map(|(k, _)| (*k).to_owned()).collect(),
+            });
+        }
+        ok_value(ui_prefs_body(&st)?)
+    })
+    .await?
+}
+
 /// The PATCH's refusals as HTTP answers: 400 (range, provider), 503
 /// (keyring), 500 (database).
 fn patch_error(e: PatchError) -> ApiError {

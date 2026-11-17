@@ -96,7 +96,7 @@ works but cannot store keys, and the Settings page says so.
 |---|---|
 | Library database, settings, logs, thumbnails, trash | `~/.musaic/` (Windows: `%USERPROFILE%\.musaic\`) |
 | API keys (for example your AcoustID key) | the OS keyring: macOS Keychain, Windows Credential Manager, or the Secret Service on Linux — service name `musaic` |
-| Web view storage (UI preferences, cache) | macOS: `~/Library/WebKit/io.get2know.musaic` and `~/Library/Caches/io.get2know.musaic`. Windows: `%LOCALAPPDATA%\io.get2know.musaic\`. Linux: `~/.local/share/io.get2know.musaic/` |
+| Web view storage (cache) | macOS: `~/Library/WebKit/io.get2know.musaic` and `~/Library/Caches/io.get2know.musaic`. Windows: `%LOCALAPPDATA%\io.get2know.musaic\`. Linux: `~/.local/share/io.get2know.musaic/` |
 
 Inside `~/.musaic/`:
 

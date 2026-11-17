@@ -183,6 +183,9 @@ fn the_extra_route_list_is_exactly_this() {
             // (issue #194), kept on the server.
             "GET /api/prompts/acoustid",
             "POST /api/prompts/acoustid/dismiss",
+            // Deliberate additions: the theme and tile size, kept on the server.
+            "GET /api/ui-prefs",
+            "PUT /api/ui-prefs",
         ]
     );
 }
