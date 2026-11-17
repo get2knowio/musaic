@@ -24,7 +24,45 @@ import type {
   FilenameMismatchDetail,
   FilenameMismatchPlanPreview,
   FilenameRenameEntry,
+  FilenameRenameResult,
 } from "@/lib/types";
+
+/** What the dialog says after a rename that did not go cleanly. */
+interface RenameNotice {
+  title: string;
+  lines: string[];
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** Null when the rename did exactly what was asked. Otherwise the words
+ *  for the user: what happened, to which files, and what they can do. */
+function describeRenameResult(r: FilenameRenameResult): RenameNotice | null {
+  const missing = (r.skipped ?? []).filter((e) => e.reason === "source_missing");
+  if (r.ok && missing.length === 0) return null;
+  if (r.ok) {
+    return {
+      title: `Renamed ${plural(r.renamed, "file")}, but ${plural(missing.length, "file")} ${missing.length === 1 ? "wasn't" : "weren't"} in the folder`,
+      lines: [
+        ...missing.map((e) => `${e.old} wasn't in the folder, so it was left alone.`),
+        "It may have been moved or renamed outside Musaic. Rescan the library, then check again.",
+      ],
+    };
+  }
+  const lines = [r.message || "Something went wrong while renaming."];
+  if (r.dir_renamed) {
+    return {
+      title: "The album folder was renamed, but the files inside were not",
+      lines: [...lines, "Close this and run the check again to see what is left."],
+    };
+  }
+  lines.push(
+    r.renamed === 0
+      ? "No file was changed. You can fix the cause and try again, or skip this album."
+      : `${plural(r.renamed, "file")} had already been renamed. Run the check again to see what is left.`,
+  );
+  return { title: "Couldn't rename the files", lines };
+}
 
 interface Props {
   finding: Finding;
@@ -57,6 +95,7 @@ export default function FilenameMismatchResolveDialog({
     );
     setChainSnapshot(filtered.length > 0 ? filtered : [finding]);
     setCurrentFindingId(finding.id);
+    setNotice(null);
   }, [open, finding.id]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentFinding =
@@ -112,6 +151,8 @@ export default function FilenameMismatchResolveDialog({
     [renames],
   );
 
+  const [notice, setNotice] = useState<RenameNotice | null>(null);
+
   const mutation = useMutation({
     mutationFn: () =>
       applyFilenameRename(currentFinding.id, {
@@ -125,6 +166,13 @@ export default function FilenameMismatchResolveDialog({
         toast.success(r.message);
       } else {
         toast.warning(r.message || "Some files couldn't be renamed");
+      }
+      // A rename that was refused, partly done, or skipped files is not
+      // something to scroll past in a toast: stay here and say it.
+      const problem = describeRenameResult(r);
+      if (problem) {
+        setNotice(problem);
+        return;
       }
       // Cache invalidation is handled by the App-level
       // useLibraryEventsStream subscriber — execute_renames publishes
@@ -157,6 +205,7 @@ export default function FilenameMismatchResolveDialog({
   };
 
   const onSkipNext = () => {
+    setNotice(null);
     if (hasNext) {
       const next = chainSnapshot[currentIndex + 1];
       setCurrentFindingId(next.id);
@@ -222,6 +271,21 @@ export default function FilenameMismatchResolveDialog({
               <div className="flex items-center gap-2 text-xs text-fg-3 bg-panel-2 border border-line rounded px-3 py-2">
                 <Loader2 className="w-3.5 h-3.5 spin shrink-0" />
                 <span>Checking the album's files…</span>
+              </div>
+            )}
+
+            {notice && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="font-medium text-fg">{notice.title}</div>
+                  {notice.lines.map((l, i) => (
+                    <div key={i} className="mt-0.5 text-fg-3 break-words">{l}</div>
+                  ))}
+                </div>
               </div>
             )}
 
