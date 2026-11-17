@@ -36,7 +36,7 @@ use musaic_resolve::source::{
 };
 use musaic_resolve::{AlbumResolution, Env, Resolver, db_store::DbStore};
 use musaic_scan::{flacmeta, list_flacs, py_resolve};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 use crate::clock::Clock;
 use crate::fingerprint::{
@@ -187,25 +187,46 @@ pub struct DbAlbums<'a> {
 }
 
 /// `services.albums.cached_album_dict(album_id)`: the row, when it belongs
-/// to the configured library (Missing or not). Never walks the disk.
+/// to the configured library (Missing or not). Never walks the disk. A
+/// database error is returned, not read as "not cached": a locked database
+/// must not look like an album that is gone.
 pub fn cached_album(
     conn: &Connection,
     library_dir: Option<&str>,
     album_id: &str,
-) -> Option<crate::albums::AlbumRow> {
-    let lib = library_dir.filter(|l| !l.is_empty())?;
+) -> rusqlite::Result<Option<crate::albums::AlbumRow>> {
+    let Some(lib) = library_dir.filter(|l| !l.is_empty()) else {
+        return Ok(None);
+    };
     let lib = py_resolve(Path::new(lib)).to_string_lossy().into_owned();
-    let owner: String = conn
+    let owner: Option<String> = conn
         .query_row(
             "SELECT library_path FROM albums WHERE id = ?1",
             [album_id],
             |r| r.get(0),
         )
-        .ok()?;
-    if owner != lib {
-        return None;
+        .optional()?;
+    if owner.as_deref() != Some(lib.as_str()) {
+        return Ok(None);
     }
-    crate::albums::get_album_by_id(conn, album_id).ok()?
+    crate::albums::get_album_by_id(conn, album_id)
+}
+
+/// [`cached_album`] for callers whose interface can only say "not cached"
+/// (the resolver's and the job worker's album sources): a database error is
+/// logged, so it is not mistaken for a missing album without a trace.
+pub fn cached_album_logged(
+    conn: &Connection,
+    library_dir: Option<&str>,
+    album_id: &str,
+) -> Option<crate::albums::AlbumRow> {
+    cached_album(conn, library_dir, album_id).unwrap_or_else(|e| {
+        musaic_log::error(
+            "musaic.services.albums",
+            &format!("Couldn't read album {album_id} from the database: {e}"),
+        );
+        None
+    })
 }
 
 fn album_dir(conn: &Connection, album_id: &str) -> Option<String> {
@@ -223,7 +244,7 @@ pub fn file_name(p: &Path) -> String {
 
 impl AlbumSource for DbAlbums<'_> {
     fn album(&self, album_id: &str) -> Option<AlbumRecord> {
-        let row = cached_album(self.conn, self.library_dir, album_id)?;
+        let row = cached_album_logged(self.conn, self.library_dir, album_id)?;
         let mbid = row
             .json
             .get("mb_release_group_mbid")

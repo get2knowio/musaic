@@ -285,7 +285,7 @@ impl WorkerEnv for AppEnv {
     fn album(&self, conn: &Connection, album_id: &str) -> Option<Py> {
         let st = self.st()?;
         let lib = st.library_dir();
-        musaic_services::sources::cached_album(conn, lib.as_deref(), album_id)
+        musaic_services::sources::cached_album_logged(conn, lib.as_deref(), album_id)
             .map(|row| Py::from(&row.json))
     }
 

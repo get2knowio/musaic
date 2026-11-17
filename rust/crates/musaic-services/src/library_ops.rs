@@ -17,7 +17,7 @@ use musaic_core::pycompat::round1;
 use musaic_events::{Bus, Event};
 use musaic_resolve::Resolver;
 use musaic_scan::{TrackOrder, py_resolve};
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 use crate::albums::{AlbumRow, album_to_json, find_album_by_id, load_snapshot};
 use crate::apply::HttpError;
@@ -71,7 +71,7 @@ pub fn sort_albums(rows: &mut [Json]) {
 }
 
 /// The library's cached albums and its `scanned_at` (`""` when never
-/// scanned or unreadable).
+/// scanned; a database error is returned).
 pub fn snapshot(conn: &Connection, library_dir: &str) -> rusqlite::Result<(String, Vec<AlbumRow>)> {
     let lib = resolved(library_dir);
     let scanned_at: Option<String> = conn
@@ -80,7 +80,7 @@ pub fn snapshot(conn: &Connection, library_dir: &str) -> rusqlite::Result<(Strin
             [&lib],
             |r| r.get::<_, Option<String>>(0),
         )
-        .ok()
+        .optional()?
         .flatten();
     let rows = load_snapshot(conn, &lib)?;
     Ok((scanned_at.unwrap_or_default(), rows))
@@ -94,8 +94,7 @@ pub fn snapshot(conn: &Connection, library_dir: &str) -> rusqlite::Result<(Strin
 /// refuses a Missing album (409), finds the cached row by loading
 /// the library's whole snapshot (a database error is a 500), while this
 /// one looks the id up directly ([`cached_album`]: the row must belong to
-/// the configured library; a database error there falls through to the
-/// live walk).
+/// the configured library); a database error is a 500, as there.
 pub fn resolve_album_dict(
     conn: &Connection,
     library_dir: Option<&str>,
@@ -105,7 +104,9 @@ pub fn resolve_album_dict(
     let Some(lib) = library_dir.filter(|l| !l.is_empty()) else {
         return Err(refuse(409, NO_LIBRARY));
     };
-    if let Some(row) = cached_album(conn, Some(lib), album_id) {
+    if let Some(row) =
+        cached_album(conn, Some(lib), album_id).map_err(|e| refuse(500, e.to_string()))?
+    {
         return Ok((row.album.id.clone(), row.album.path.clone(), row.json));
     }
     match find_album_by_id(Path::new(lib), album_id, order) {
@@ -202,13 +203,13 @@ fn tracks_json(album_dir: &str, with_album: bool) -> Json {
 /// `DELETE /api/albums/{id}` (the only path that drops an album row): 404
 /// unless the album is cached for `library_dir`; the connection is closed
 /// before `AlbumDeleted` is published. The caller holds a work guard.
-pub fn delete_album<E: From<musaic_db::Error> + From<HttpError>>(
+pub fn delete_album<E: From<musaic_db::Error> + From<rusqlite::Error> + From<HttpError>>(
     conn: Connection,
     bus: &Bus,
     library_dir: Option<&str>,
     album_id: &str,
 ) -> Result<(), E> {
-    if cached_album(&conn, library_dir, album_id).is_none() {
+    if cached_album(&conn, library_dir, album_id)?.is_none() {
         return Err(E::from(refuse(
             404,
             format!("Album {} not in cache", musaic_fsops::py_repr(album_id)),
@@ -334,8 +335,8 @@ pub fn list_albums<E: From<musaic_db::Error> + From<rusqlite::Error>>(
 
 /// `GET /api/albums/{id}/resolution`: the album must resolve (409 / 404,
 /// [`resolve_album_dict`]); then the resolver's answer as the Python app's
-/// `to_dict()`. `library_dir` is read once for the lookup and once for
-/// the resolve, as the route did. Tier 0c is reachable here: with an
+/// `to_dict()`. `library_dir` is read once, for the lookup and the
+/// resolve alike. Tier 0c is reachable here: with an
 /// AcoustID key the parts fingerprint the album (stored,
 /// `TrackFingerprinted`) and vote. `parts` builds the resolver's parts
 /// (reading the AcoustID key) only once the album has resolved; `failed`
@@ -351,8 +352,8 @@ pub fn album_resolution<E: From<HttpError>>(
     force: bool,
     failed: impl FnOnce(String) -> E,
 ) -> Result<serde_json::Value, E> {
-    resolve_album_dict(conn, library_dir().as_deref(), album_id, order)?;
     let lib = library_dir();
+    resolve_album_dict(conn, lib.as_deref(), album_id, order)?;
     let r = parts()
         .resolve(conn, lib.as_deref(), album_id, hint, force)
         .map_err(failed)?;
