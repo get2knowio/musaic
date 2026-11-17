@@ -579,7 +579,12 @@ export interface FilenameRenameResult {
   errors: string[];
   /** The message also sums these up. Present only when non-empty. */
   skipped?: SkippedRename[];
+  /** The technical text, for the log. Not for display. */
   message: string;
+  /** Present when the rename was refused, failed, or needs a note: a stable
+   *  code and the plain sentence to show the user. */
+  reason_code?: string;
+  user_message?: string;
   /** True when the album dir was renamed as part of this apply. */
   dir_renamed?: boolean;
   /** New album_id after the dir rename (sha1 of the new path).
@@ -637,7 +642,11 @@ export interface FileChange {
 export interface RenameFailure {
   filename: string;
   new_filename: string;
+  /** The technical text, for the log. Not for display. */
   error: string;
+  reason_code?: string;
+  /** The plain sentence to show the user. */
+  user_message?: string;
 }
 
 export type ApplyEvent =

@@ -1,6 +1,12 @@
 import { AlertTriangle } from "lucide-react";
 import type { RenameFailure } from "@/lib/types";
 
+/** What to say when the server gave no sentence for a file. The technical
+ *  `error` text is never shown. */
+function fallback(f: RenameFailure): string {
+  return `“${f.filename}” could not be renamed to “${f.new_filename}”. Rescan the library, then try again.`;
+}
+
 /**
  * Files whose track number was written but which kept their old names, each
  * with the reason. The tags are saved; only the rename did not happen.
@@ -19,8 +25,7 @@ export default function RenameFailures({ failures }: { failures: RenameFailure[]
       <ul className="list-disc pl-5 space-y-0.5 text-fg-3">
         {failures.map((f, i) => (
           <li key={i} className="break-words">
-            <span className="mono">{f.filename}</span> could not be renamed to{" "}
-            <span className="mono">{f.new_filename}</span>: {f.error}
+            {f.user_message || fallback(f)}
           </li>
         ))}
       </ul>

@@ -35,11 +35,21 @@ interface RenameNotice {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
+const GENERIC_RENAME_PROBLEM =
+  "Something went wrong while renaming. Try again; if it keeps happening, the details are in Musaic's log.";
+
 /** Null when the rename did exactly what was asked. Otherwise the words
  *  for the user: what happened, to which files, and what they can do. */
 function describeRenameResult(r: FilenameRenameResult): RenameNotice | null {
   const missing = (r.skipped ?? []).filter((e) => e.reason === "source_missing");
-  if (r.ok && missing.length === 0) return null;
+  const unchecked = r.reason_code === "unverified";
+  if (r.ok && missing.length === 0 && !unchecked) return null;
+  if (r.ok && missing.length === 0) {
+    return {
+      title: "Renamed, but Musaic couldn't check the result",
+      lines: [r.user_message || GENERIC_RENAME_PROBLEM],
+    };
+  }
   if (r.ok) {
     return {
       title: `Renamed ${plural(r.renamed, "file")}, but ${plural(missing.length, "file")} ${missing.length === 1 ? "wasn't" : "weren't"} in the folder`,
@@ -49,7 +59,9 @@ function describeRenameResult(r: FilenameRenameResult): RenameNotice | null {
       ],
     };
   }
-  const lines = [r.message || "Something went wrong while renaming."];
+  // `r.message` is the technical text (system errors, quoted names): the
+  // sentence the server gives for the user is shown, or a generic one.
+  const lines = [r.user_message || GENERIC_RENAME_PROBLEM];
   if (r.dir_renamed) {
     return {
       title: "The album folder was renamed, but the files inside were not",
@@ -162,10 +174,12 @@ export default function FilenameMismatchResolveDialog({
           : undefined,
       }),
     onSuccess: (r) => {
+      // The toast gets the same plain text as the dialog; `message` is only
+      // shown for a clean result, whose wording is plain ("2 files").
       if (r.ok) {
-        toast.success(r.message);
+        toast.success(r.user_message || r.message);
       } else {
-        toast.warning(r.message || "Some files couldn't be renamed");
+        toast.warning(r.user_message || "Some files couldn't be renamed");
       }
       // A rename that was refused, partly done, or skipped files is not
       // something to scroll past in a toast: stay here and say it.

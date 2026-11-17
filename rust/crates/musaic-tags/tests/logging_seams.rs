@@ -169,6 +169,11 @@ fn rename_onto_existing_file_logs_rollback() {
             filename: "01 a.flac".into(),
             new_filename: "02 a.flac".into(),
             error: "02 a.flac already exists".into(),
+            reason: musaic_core::rename_reason::Reason::AlreadyExists,
+            user_message: "\u{201c}01 a.flac\u{201d} was not renamed to \u{201c}02 a.flac\u{201d} \
+                           because a file with that name is already in the folder. \
+                           Rename or move that file, then try again."
+                .into(),
         }]
     );
     let r = only(
@@ -223,6 +228,19 @@ fn failed_rename_batch_logs_error() {
         ("01 a.flac", "02 a.flac")
     );
     assert!(!failures[0].error.is_empty());
+    // Not running as root, so the folder refused the rename: permission.
+    assert_eq!(failures[0].reason.code(), "permission_denied");
+    assert_eq!(
+        failures[0].user_message,
+        "\u{201c}01 a.flac\u{201d} could not be renamed to \u{201c}02 a.flac\u{201d} because \
+         Musaic isn't allowed to change it. Check that you can change files in this folder, \
+         then try again."
+    );
+    assert!(
+        !failures[0].user_message.contains(&failures[0].error),
+        "{}",
+        failures[0].user_message
+    );
 }
 
 // The same batch failure part-way through: the first file is staged, the
@@ -294,4 +312,23 @@ fn failed_rename_batch_names_every_file_left_unrenamed() {
         failures[0].error,
         format!("not renamed: the batch stopped at {long}")
     );
+    // What the panel shows: a code and a plain sentence per file, never the
+    // technical `error` text.
+    assert_eq!(failures[0].reason.code(), "batch_stopped");
+    assert_eq!(
+        failures[0].user_message,
+        "\u{201c}01 a.flac\u{201d} was not renamed to \u{201c}03 a.flac\u{201d} because renaming \
+         \u{201c}02 b.flac\u{201d} failed first. Fix that file, then try again."
+    );
+    assert!(
+        failures[1].user_message.starts_with(
+            "\u{201c}02 b.flac\u{201d} could not be renamed to \u{201c}04 b.flac\u{201d} because"
+        ),
+        "{}",
+        failures[1].user_message
+    );
+    for f in &failures {
+        assert!(!f.user_message.contains("os error"), "{}", f.user_message);
+        assert!(!f.user_message.contains(&f.error), "{}", f.user_message);
+    }
 }

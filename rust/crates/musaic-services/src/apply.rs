@@ -392,6 +392,8 @@ pub fn tag_event_json(ev: &TagEvent) -> Json {
                                     ("filename", Json::from(f.filename.as_str())),
                                     ("new_filename", Json::from(f.new_filename.as_str())),
                                     ("error", Json::from(f.error.as_str())),
+                                    ("reason_code", Json::from(f.reason.code())),
+                                    ("user_message", Json::from(f.user_message.as_str())),
                                 ])
                             })
                             .collect(),

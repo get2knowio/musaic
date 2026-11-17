@@ -1368,6 +1368,13 @@ pub fn rename_outcome_json(o: &RenameOutcome) -> Json {
             ),
         ));
     }
+    // Only when the rename needs a note, so a clean result keeps its shape:
+    // a stable code and the sentence to show the user (`message` is the
+    // technical text).
+    if let (Some(r), Some(u)) = (o.reason, &o.user_message) {
+        pairs.push(("reason_code".into(), Json::from(r.code())));
+        pairs.push(("user_message".into(), Json::from(u.as_str())));
+    }
     if let Some(d) = &o.detail {
         pairs.push((
             "errors".into(),
@@ -1407,7 +1414,7 @@ pub fn apply_filename_rename(
     finding_id: i64,
     plan: &[PlanEntry],
     dir_rename: Option<&PlanEntry>,
-) -> Result<Json, HttpError> {
+) -> Result<Json, RenameApplyError> {
     let f = finding_for(env.conn, finding_id, "filename-mismatch")?;
     let album_id = f
         .album_id
@@ -1415,7 +1422,7 @@ pub fn apply_filename_rename(
         .filter(|a| !a.is_empty())
         .ok_or_else(|| err(400, "Finding has no album"))?;
     if plan.is_empty() && dir_rename.is_none() {
-        return Err(err(400, "plan or dir_rename is required"));
+        return Err(err(400, "plan or dir_rename is required").into());
     }
     crate::apply::refuse_missing(env.conn, &album_id)?;
     let now = (env.now)();
@@ -1438,9 +1445,34 @@ pub fn apply_filename_rename(
         } else {
             out.message.clone()
         };
-        return Err(err(409, msg));
+        let mut e = RenameApplyError::from(err(409, msg));
+        if let (Some(r), Some(u)) = (out.reason, &out.user_message) {
+            e.extra = vec![
+                ("reason_code".into(), r.code().into()),
+                ("user_message".into(), u.clone()),
+            ];
+        }
+        return Err(e);
     }
     Ok(rename_outcome_json(&out))
+}
+
+/// A refusal of the rename apply: the usual `detail` plus, for a refusal
+/// the rename code explains, extra top-level body keys (`reason_code`,
+/// `user_message`) that sit beside `detail` and leave it untouched.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenameApplyError {
+    pub error: HttpError,
+    pub extra: Vec<(String, String)>,
+}
+
+impl From<HttpError> for RenameApplyError {
+    fn from(error: HttpError) -> Self {
+        RenameApplyError {
+            error,
+            extra: Vec::new(),
+        }
+    }
 }
 
 // ---------- delete-duplicate ----------

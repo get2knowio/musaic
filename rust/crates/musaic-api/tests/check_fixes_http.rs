@@ -34,6 +34,8 @@
 //!   track_tags rows.
 //! - "delete unreachable album" is refused with 409; nothing
 //!   changes.
+//! - the "rename collision" refusal also carries `reason_code` and
+//!   `user_message` beside its recorded `detail`.
 //! - `dir_migration` also counts `album_blocked_mb_release_groups`.
 //! - "delete last copy (album empties)" keeps Juliet's row and marks
 //!   it Missing (AlbumMarkedMissing; its tags and surviving fingerprint
@@ -482,6 +484,7 @@ async fn check_fix_routes_replay_the_python_app() {
     let mut used = BTreeMap::from([
         ("AI jobs enqueued", 0usize),
         ("sidecar after rename", 0),
+        ("rename refusal sentence", 0),
         ("delete unreachable", 0),
         ("blocklist rows follow", 0),
         ("last copy keeps album", 0),
@@ -586,6 +589,14 @@ async fn check_fix_routes_replay_the_python_app() {
             ] {
                 want_state[k] = prev_state[k].clone();
             }
+        }
+        if label == "rename collision" {
+            *used.get_mut("rename refusal sentence").unwrap() += 1;
+            want_body["reason_code"] = json!("already_exists");
+            want_body["user_message"] = json!(
+                "A file named \u{201c}y.txt\u{201d} is already in the folder, so nothing was \
+                 renamed. Rename or move that file, then try again."
+            );
         }
         if label == "rename files" {
             *used.get_mut("sidecar after rename").unwrap() += 1;
@@ -703,6 +714,7 @@ async fn check_fix_routes_replay_the_python_app() {
     }
     assert_eq!(used["AI jobs enqueued"], 8, "AI-queue steps");
     assert_eq!(used["sidecar after rename"], 1);
+    assert_eq!(used["rename refusal sentence"], 1);
     assert_eq!(used["delete unreachable"], 1);
     assert_eq!(used["no model backend"], 11, "skipped unidentified albums");
     assert_eq!(used["blocklist rows follow"], 1);

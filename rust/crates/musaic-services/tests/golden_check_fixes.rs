@@ -566,6 +566,7 @@ fn check_fixes_replay_the_python_app() {
                 });
                 check_fixes::apply_filename_rename(&mut env, fid("finding_id"), &plan, dr.as_ref())
                     .map(|j| w.nv(&j.to_value()))
+                    .map_err(|e| e.error)
             }
             "delete_duplicate_file" => check_fixes::delete_duplicate_file(
                 &mut env,
