@@ -107,6 +107,7 @@ impl World {
             resolver: Arc::new(NoResolver),
             clock: Arc::new(SystemClock),
             notify: Arc::new(|| {}),
+            publish: Arc::new(|_| {}),
         };
         let run = run_check(
             &self.conn,

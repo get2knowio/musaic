@@ -230,6 +230,9 @@ pub struct CheckEnv {
     pub clock: Arc<dyn Clock>,
     /// `runner.notify_changed()`: wakes `/api/checks/stream`.
     pub notify: Arc<dyn Fn() + Send + Sync>,
+    /// Publishes an event on the app's bus: the callers that run a batch of
+    /// checks publish `ChecksRerunFinished` through it ([`crate::rerun`]).
+    pub publish: Arc<dyn Fn(musaic_events::Event) + Send + Sync>,
 }
 
 impl CheckEnv {
@@ -240,6 +243,7 @@ impl CheckEnv {
             resolver,
             clock: Arc::new(SystemClock),
             notify: Arc::new(|| {}),
+            publish: Arc::new(|_| {}),
         }
     }
 }

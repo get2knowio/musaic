@@ -135,6 +135,26 @@ describe("useLibraryEventsStream", () => {
     ]);
   });
 
+  it("ChecksRerunFinished invalidates findings, checks and check details, reusing an in-flight refetch", () => {
+    const { invalidate, es } = setup();
+    es.emit("ChecksRerunFinished", {
+      checks: ["track-gaps"],
+      failed: [],
+      album_ids: ["a1"],
+    });
+    expect(keysOf(invalidate)).toEqual([["findings"], ["checks"], ["check"]]);
+    for (const call of invalidate.mock.calls) {
+      expect(call[1]).toEqual({ cancelRefetch: false });
+    }
+  });
+
+  it("ChecksRerunFinished leaves the album caches alone", () => {
+    const { invalidate, remove, es } = setup();
+    es.emit("ChecksRerunFinished", { checks: [], failed: [], album_ids: [] });
+    expect(keysOf(invalidate)).not.toContainEqual(["albums-snapshot"]);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
   it("re-invalidates every bus cache on (re)connect via the open event", () => {
     const { invalidate, es } = setup();
     es.emit("open");

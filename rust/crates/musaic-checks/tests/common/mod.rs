@@ -414,6 +414,7 @@ pub fn env(registry: Registry, resolver: Arc<dyn ResolutionSource>) -> CheckEnv 
         resolver,
         clock: Arc::new(CounterClock::default()),
         notify: Arc::new(|| {}),
+        publish: Arc::new(|_| {}),
     }
 }
 
