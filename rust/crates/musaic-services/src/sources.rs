@@ -74,10 +74,14 @@ impl<T: Transport + Clone> NetMusicBrainz<T> {
 /// search query, which says our request was wrong, not that there is nothing
 /// to find, and an album recorded as checked on that basis would never be
 /// looked at again.
+///
+/// A cancelled request is not an outage but it is not an answer either: the
+/// resolution it leaves behind is incomplete, so it is treated the same way
+/// (not remembered, and a check leaves the album's findings as they are).
 pub(crate) fn is_outage(e: &NetError) -> bool {
     match e {
         NetError::Http(s) => *s != 404,
-        NetError::Network(_) | NetError::Parse(_) => true,
+        NetError::Network(_) | NetError::Parse(_) | NetError::Cancelled => true,
     }
 }
 
@@ -121,6 +125,7 @@ impl<T: Transport> MusicBrainzSource for NetMusicBrainz<T> {
             FrontCover::Verified { .. } => Ok(200),
             FrontCover::Missing => Ok(404),
             FrontCover::Status(s) => Ok(s),
+            FrontCover::Failed(e) if e.is_cancelled() => Err(NetError::Cancelled),
             FrontCover::Failed(e) => Err(NetError::Network(e.to_string())),
         };
         let outage = match &r {
@@ -335,6 +340,27 @@ impl FingerprintSource for AcoustIdFingerprints<'_> {
     }
 }
 
+/// An [`AcoustIdLookup`] that marks the resolution incomplete when a request
+/// was cancelled, so it is not remembered as an answer.
+struct FlagCancelled<'a, L> {
+    inner: &'a L,
+    incomplete: &'a AtomicBool,
+}
+
+impl<L: AcoustIdLookup> AcoustIdLookup for FlagCancelled<'_, L> {
+    fn lookup(
+        &self,
+        fingerprint: &str,
+        duration_s: u64,
+    ) -> Result<Vec<musaic_resolve::acoustid::LookupResult>, NetError> {
+        let r = self.inner.lookup(fingerprint, duration_s);
+        if matches!(r, Err(NetError::Cancelled)) {
+            self.incomplete.store(true, Ordering::SeqCst);
+        }
+        r
+    }
+}
+
 /// The owned parts of one resolve, all `Send + Sync + 'static`, so a host
 /// can move (or share) them into `spawn_blocking` and build the borrowing
 /// sources there.
@@ -408,10 +434,14 @@ impl<T: Transport + Clone> ResolveParts<T> {
             .as_deref()
             .filter(|k| !k.is_empty())
             .map(|k| AcoustIdClient::new(self.transport.clone(), k));
+        let flagged = client.as_ref().map(|inner| FlagCancelled {
+            inner,
+            incomplete: &mb.failed,
+        });
         let fingerprints = AcoustIdFingerprints {
             conn,
             fingerprinter: self.fingerprinter.as_ref(),
-            acoustid: client.as_ref().map(|c| c as &dyn AcoustIdLookup),
+            acoustid: flagged.as_ref().map(|c| c as &dyn AcoustIdLookup),
             bus: &self.bus,
             now_iso: &now_iso,
         };
@@ -513,5 +543,36 @@ mod tests {
         let (r, failed) = caa_failed(Fixed(Err(())));
         assert!(r.is_err());
         assert!(failed, "no answer from the archive is an outage");
+    }
+
+    // A cancelled AcoustID lookup leaves the resolution incomplete, whichever
+    // path made the request.
+    #[test]
+    fn a_cancelled_acoustid_lookup_marks_the_resolution_incomplete() {
+        type Answer = Result<Vec<musaic_resolve::acoustid::LookupResult>, NetError>;
+        struct Answers(Answer);
+        impl AcoustIdLookup for Answers {
+            fn lookup(&self, _fingerprint: &str, _duration_s: u64) -> Answer {
+                self.0.clone()
+            }
+        }
+        let flag_for = |a: Answer| {
+            let incomplete = AtomicBool::new(false);
+            let inner = Answers(a);
+            let flagged = FlagCancelled {
+                inner: &inner,
+                incomplete: &incomplete,
+            };
+            let got = flagged.lookup("fp", 1);
+            (got, incomplete.load(Ordering::SeqCst))
+        };
+        assert!(!flag_for(Ok(Vec::new())).1, "an answer is complete");
+        assert!(
+            !flag_for(Err(NetError::Network("down".into()))).1,
+            "outages are flagged elsewhere"
+        );
+        let (got, flagged) = flag_for(Err(NetError::Cancelled));
+        assert!(matches!(got, Err(NetError::Cancelled)));
+        assert!(flagged);
     }
 }

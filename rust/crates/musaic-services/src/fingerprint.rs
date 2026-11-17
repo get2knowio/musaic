@@ -143,6 +143,8 @@ pub trait AcoustIdLookup {
 /// `status: error` answer counts as unreadable).
 pub fn net_error(e: ClientError) -> NetError {
     match e {
+        // The caller stopped the request (shutdown): not a network failure.
+        ClientError::Transport(t) if t.is_cancelled() => NetError::Cancelled,
         ClientError::Transport(t) => NetError::Network(t.to_string()),
         ClientError::Status { status, .. } => NetError::Http(status),
         other => NetError::Parse(other.to_string()),
@@ -307,6 +309,10 @@ struct LookupFailures {
 
 impl LookupFailures {
     fn record(&mut self, filename: &str, answer: &Result<Vec<LookupResult>, NetError>) {
+        // A cancelled request is neither asked nor failed: it is not logged.
+        if matches!(answer, Err(NetError::Cancelled)) {
+            return;
+        }
         self.asked += 1;
         if let Err(e) = answer {
             log_lookup_failure(filename, e);
@@ -613,7 +619,13 @@ pub fn fingerprint_album(
             });
             break;
         }
-        let answer = env.acoustid.map(|a| a.lookup(&fp, dur));
+        let mut answer = env.acoustid.map(|a| a.lookup(&fp, dur));
+        // A lookup the caller cancelled says nothing about the file: keep
+        // the fingerprint, store no lookup outcome, and stop after this row.
+        let lookup_cancelled = matches!(answer, Some(Err(NetError::Cancelled)));
+        if lookup_cancelled {
+            answer = None;
+        }
         if let Some(a) = &answer {
             failures.record(&filename, a);
         }
@@ -635,6 +647,12 @@ pub fn fingerprint_album(
             out.lookups.insert(filename, a);
         }
         out.tracks.push(TrackFingerprint::from(&rec));
+        if lookup_cancelled {
+            result = Err(FingerprintError::Cancelled {
+                stored: out.tracks.len(),
+            });
+            break;
+        }
     }
 
     failures.log_summary(album_path);
@@ -673,6 +691,14 @@ fn lookup_stored(
         }
         let prev = rows[i].clone();
         let answer = acoustid.lookup(&prev.fingerprint, prev.duration_s as u64);
+        // Cancelled: the stored row stays as it was (no failure counted, no
+        // retry delay) and nothing more is asked.
+        if matches!(answer, Err(NetError::Cancelled)) {
+            result = Err(FingerprintError::Cancelled {
+                stored: asked.len(),
+            });
+            break;
+        }
         failures.record(&prev.filename, &answer);
         let rec = next_row(
             Some(&prev),

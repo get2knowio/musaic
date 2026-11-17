@@ -168,6 +168,10 @@ pub fn failure_reason(failure: LookupFailure) -> (&'static str, String) {
             "service_error",
             format!("MusicBrainz reported an error (HTTP {status}). Try again later."),
         ),
+        LookupFailure::Cancelled => (
+            "cancelled",
+            "The lookup was cancelled because Musaic is closing. Reopen this dialog to try again.".into(),
+        ),
         LookupFailure::UnreadableAnswer => (
             "unreadable_answer",
             "MusicBrainz sent an answer Musaic could not read. Try again later.".into(),

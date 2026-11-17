@@ -581,7 +581,7 @@ pub fn find_release(
             // Python app logged only a `requests` exception
             // (mb_lookup.py:170), so a 503 (rate limiting) or an unreadable
             // body never reached the server log.
-            if !matches!(e, NetError::Network(_)) {
+            if !matches!(e, NetError::Network(_) | NetError::Cancelled) {
                 musaic_log::warning(
                     "musaic.mb_lookup",
                     &format!("MusicBrainz search failed: {e}"),
@@ -596,6 +596,17 @@ pub fn find_release(
                     "Search response was not valid JSON".to_owned(),
                     "MusicBrainz (parse error)",
                 ),
+                // The app was closing: say so, and log at most a debug line.
+                NetError::Cancelled => {
+                    musaic_log::debug(
+                        "musaic.mb_lookup",
+                        "MusicBrainz search cancelled before it was sent",
+                    );
+                    (
+                        "Cancelled: Musaic was closing".to_owned(),
+                        "MusicBrainz (cancelled)",
+                    )
+                }
                 // The Python app writes `{type(e).__name__}: {e}` of the requests
                 // exception; this build has no such type name.
                 NetError::Network(d) => {

@@ -211,6 +211,8 @@ enum Answer {
     Status(u16),
     /// No answer at all.
     Down,
+    /// The request was cancelled while it waited (the app is closing).
+    Cancelled,
 }
 
 /// `{"status": "ok", "results": [...]}`: one result per `(score, recording ids)`.
@@ -284,6 +286,7 @@ impl Transport for AcoustIdStub {
                 headers: vec![("Content-Type".into(), "text/html".into())],
                 body: b"<html>busy</html>".to_vec(),
             }),
+            Answer::Cancelled => Err(TransportError::Stopped),
             Answer::Down => Err(TransportError::Connect {
                 url: request.redacted_url(),
                 detail: "connection refused (test)".into(),
@@ -1086,4 +1089,94 @@ fn a_refusing_fingerprinter_keeps_rows_and_remembers_nothing() {
     assert_eq!(w.rows(FOLDER_ART), before);
     assert!(rejects(&w, FOLDER_ART).is_empty());
     assert!(announced(&log).is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// Cancelled requests
+
+/// [`run`] that hands back the result.
+fn try_run(
+    w: &World,
+    album: &str,
+    fpr: &CountingChromaprint,
+    stub: &AcoustIdStub,
+    bus: &Bus,
+    now: &str,
+) -> Result<
+    musaic_services::fingerprint::AlbumFingerprints,
+    musaic_services::fingerprint::FingerprintError,
+> {
+    let conn = w.conn();
+    let client = AcoustIdClient::new(stub, "synthetic-test-key");
+    let env = FingerprintEnv {
+        conn: &conn,
+        fingerprinter: fpr,
+        acoustid: Some(&client as &dyn AcoustIdLookup),
+        bus,
+        now_iso: now,
+        cancel: None,
+    };
+    fingerprint_album(&env, &w.id(album), &w.path(album), false)
+}
+
+/// A lookup cancelled at shutdown is not a failed lookup: the album's run
+/// ends as cancelled, the file keeps its fingerprint but records no outcome
+/// (no failure counted, no retry delay), nothing further is asked, and
+/// nothing is logged above DEBUG. The next run asks again.
+#[test]
+fn a_cancelled_lookup_is_not_recorded_as_a_failed_one() {
+    use musaic_services::fingerprint::FingerprintError;
+    let w = World::new(&[FOLDER_ART], &[], &[]);
+    let p = prints(&w, FOLDER_ART);
+    let files = flac_names(&w.root.join(FOLDER_ART));
+    let (first, second) = (&files[0], &files[1]);
+    let stub = AcoustIdStub::default();
+    stub.set(&p[first].0, Answer::Cancelled);
+    let fpr = CountingChromaprint::default();
+    let (bus, _log) = recording_bus();
+
+    // First computation: the fingerprint is kept, no lookup outcome.
+    let (got, lines) = musaic_log::capture(|| try_run(&w, FOLDER_ART, &fpr, &stub, &bus, &at(T0)));
+    assert!(
+        matches!(got, Err(FingerprintError::Cancelled { stored: 1 })),
+        "{got:?}"
+    );
+    assert_eq!(stub.asked_count(), 1, "nothing is asked after a cancel");
+    assert_eq!(
+        state(&w.row(FOLDER_ART, first)),
+        (None, None, None, 0, None)
+    );
+    let loud: Vec<_> = lines
+        .iter()
+        .filter(|l| l.level != musaic_log::Level::Debug)
+        .collect();
+    assert!(loud.is_empty(), "{loud:?}");
+
+    // Asked again, it completes.
+    stub.set(&p[first].0, ok(&[(0.95, &[REC_A])]));
+    stub.set(&p[second].0, ok(&[(0.95, &[REC_B])]));
+    try_run(&w, FOLDER_ART, &fpr, &stub, &bus, &at(T0)).unwrap();
+    assert_eq!(
+        state(&w.row(FOLDER_ART, first)),
+        (Some(REC_A), Some(0.95), Some(LOOKUP_DONE), 0, None)
+    );
+
+    // A stored print whose earlier lookup failed: a cancelled retry leaves
+    // the row (failure count and retry time) exactly as it was.
+    stub.set(&p[second].0, Answer::Down);
+    run(&w, FOLDER_ART, &fpr, &stub, true, &bus, &at(T0), true);
+    let before = w.row(FOLDER_ART, second);
+    assert_eq!(before.acoustid_lookup_failures, 1);
+    stub.set(&p[second].0, Answer::Cancelled);
+    let (got, lines) = musaic_log::capture(|| try_run(&w, FOLDER_ART, &fpr, &stub, &bus, &at(T0)));
+    assert!(
+        matches!(got, Err(FingerprintError::Cancelled { stored: 0 })),
+        "{got:?}"
+    );
+    assert_eq!(state(&w.row(FOLDER_ART, second)), state(&before));
+    let loud: Vec<_> = lines
+        .iter()
+        .filter(|l| l.level != musaic_log::Level::Debug)
+        .collect();
+    assert!(loud.is_empty(), "{loud:?}");
 }

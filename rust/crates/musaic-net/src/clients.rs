@@ -370,6 +370,13 @@ impl<T: Transport> MusicBrainzClient<T> {
             &self.origin,
         )) {
             Ok(r) => r,
+            Err(e) if e.is_cancelled() => {
+                musaic_log::debug(
+                    "musaic.mb_lookup",
+                    &format!("MB recording lookup cancelled for {recording}"),
+                );
+                return (Ok(None), Outcome::Retry(LookupFailure::Cancelled));
+            }
             Err(e) => {
                 musaic_log::warning(
                     "musaic.mb_lookup",
@@ -490,6 +497,9 @@ pub enum LookupFailure {
     ServiceError(u16),
     /// A 200 whose body was not the expected JSON.
     UnreadableAnswer,
+    /// The caller cancelled the request (the app is closing); nothing
+    /// failed and nothing was learned.
+    Cancelled,
 }
 
 impl RecordingLookup {
