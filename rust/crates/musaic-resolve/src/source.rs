@@ -30,6 +30,9 @@ pub enum NetError {
     Http(u16),
     /// A body that could not be read.
     Parse(String),
+    /// The caller cancelled the request (the app is closing). Nothing
+    /// failed and nothing was learned: not an outage, not "no match".
+    Cancelled,
 }
 
 impl fmt::Display for NetError {
@@ -38,6 +41,7 @@ impl fmt::Display for NetError {
             NetError::Network(d) => write!(f, "network error: {d}"),
             NetError::Http(s) => write!(f, "HTTP {s}"),
             NetError::Parse(d) => write!(f, "parse error: {d}"),
+            NetError::Cancelled => write!(f, "request cancelled"),
         }
     }
 }

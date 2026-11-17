@@ -140,6 +140,13 @@ pub enum CoverError {
     Transport(TransportError),
 }
 
+impl CoverError {
+    /// The caller cancelled the download ([`TransportError::is_cancelled`]).
+    pub fn is_cancelled(&self) -> bool {
+        matches!(self, CoverError::Transport(t) if t.is_cancelled())
+    }
+}
+
 impl From<PreviewError> for CoverError {
     fn from(e: PreviewError) -> Self {
         match e {
@@ -294,7 +301,10 @@ impl<T: Transport> CoverArtClient<T> {
                 // 200 returned None silently there, as here; the type, size
                 // and signature refusals are not logged either.
                 // `e` is this build's text, not requests'.
-                if matches!(
+                // A cancelled download (the app is closing) is no failure.
+                if e.is_cancelled() {
+                    musaic_log::debug("musaic.tags", &format!("cover download cancelled: {e}"));
+                } else if matches!(
                     e,
                     CoverError::Refused(_)
                         | CoverError::TooManyRedirects(_)

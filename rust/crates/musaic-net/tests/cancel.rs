@@ -251,3 +251,25 @@ fn an_unset_flag_changes_nothing() {
     }
     assert_eq!(*log.lock().unwrap(), [0, 1, 2].map(SECS));
 }
+
+/// A cover download cancelled at shutdown is no failure: it logs nothing
+/// above DEBUG (a refused or unreachable download is a WARNING), and says
+/// it was cancelled.
+#[test]
+fn a_cancelled_cover_download_is_not_logged_as_a_failure() {
+    struct Stopped;
+    impl Transport for Stopped {
+        fn send(&self, _r: &Request) -> Result<Response, TransportError> {
+            Err(TransportError::Stopped)
+        }
+    }
+    let client = musaic_net::CoverArtClient::new(Stopped);
+    let (got, lines) = musaic_log::capture(|| client.download("https://example.com/cover.jpg"));
+    let e = got.unwrap_err();
+    assert!(e.is_cancelled(), "{e}");
+    let loud: Vec<_> = lines
+        .iter()
+        .filter(|l| l.level != musaic_log::Level::Debug)
+        .collect();
+    assert!(loud.is_empty(), "{loud:?}");
+}
