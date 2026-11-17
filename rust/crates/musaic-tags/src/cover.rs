@@ -9,6 +9,7 @@
 
 use std::io::Cursor;
 
+use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 use jpeg_encoder::{ChromaSubsamplingMethod, ColorType as JpegColor, Encoder, SamplingFactor};
 
@@ -113,7 +114,7 @@ pub fn normalize_to_jpeg(image_bytes: &[u8], quality: u8) -> Vec<u8> {
 }
 
 fn encode(image_bytes: &[u8], quality: u8) -> Result<Vec<u8>, String> {
-    let (header, decoder) =
+    let (header, mut decoder) =
         open_header(image_bytes).ok_or_else(|| "cannot identify image file".to_owned())?;
     // Pillow raises "image file is truncated" when the data ends before the
     // decoder is done; zune-jpeg instead pads the image with grey. Entropy-
@@ -122,7 +123,12 @@ fn encode(image_bytes: &[u8], quality: u8) -> Result<Vec<u8>, String> {
     if header.format == ImageFormat::Jpeg && !jpeg_reaches_eoi(image_bytes) {
         return Err("image file is truncated".to_owned());
     }
-    let img = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
+    // The output carries no EXIF, so an orientation the source asked a viewer
+    // to apply is applied to the pixels here; otherwise the cover would show
+    // sideways once the tag is gone. (The earlier implementation ignored it.)
+    let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
+    let mut img = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
+    img.apply_orientation(orientation);
     let (data, w, h, color) =
         pixels_for_jpeg(img).ok_or_else(|| "cannot write mode I;16 as JPEG".to_owned())?;
     let too_large = |_| format!("image too large for JPEG ({w}x{h})");
