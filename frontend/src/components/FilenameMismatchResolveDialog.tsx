@@ -42,7 +42,7 @@ function describeRenameResult(r: FilenameRenameResult): RenameNotice | null {
   if (r.ok && missing.length === 0) return null;
   if (r.ok) {
     return {
-      title: `Renamed ${plural(r.renamed, "file")}, but ${plural(missing.length, "file")} wasn't in the folder`,
+      title: `Renamed ${plural(r.renamed, "file")}, but ${plural(missing.length, "file")} ${missing.length === 1 ? "wasn't" : "weren't"} in the folder`,
       lines: [
         ...missing.map((e) => `${e.old} wasn't in the folder, so it was left alone.`),
         "It may have been moved or renamed outside Musaic. Rescan the library, then check again.",
