@@ -4051,7 +4051,7 @@
           "ignored_reason": null,
           "last_seen_at": "2026-01-01T00:00:03Z",
           "resolved_at": null,
-          "severity": "info",
+          "severity": "warn",
           "summary": "2 credit instances for 'Percy Farrow' / 'Percy Farrow Featuring X'"
         }
       ],
@@ -4185,7 +4185,7 @@
           "ignored_reason": null,
           "last_seen_at": "2026-01-01T00:00:02Z",
           "resolved_at": null,
-          "severity": "info",
+          "severity": "warn",
           "summary": "1 album-level + 1 track-level (1 tracks) for 'Driftwoods' / 'The Driftwoods'"
         }
       ],

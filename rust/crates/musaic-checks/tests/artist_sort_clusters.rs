@@ -193,3 +193,66 @@ fn an_artist_only_album_alone_is_not_a_cluster() {
     run(conn, &sb, &env, None);
     assert_eq!(open(conn), vec![]);
 }
+
+/// Only a conflicting cluster (two different sort values for one artist) is
+/// a warning; the other states stay informational.
+#[test]
+fn only_a_conflicting_cluster_is_a_warning() {
+    let (sb, db, env) = world(vec![
+        album("a1", Some("The Kilo"), "The Kilo", Some("Kilo, The")),
+        album("a2", Some("The Kilo"), "The Kilo", None),
+        album("b1", Some("Lima"), "Lima", Some("Lima")),
+        album("b2", Some("Lima"), "Lima", Some("Lima, X")),
+    ]);
+    let conn = db.connection();
+    run(conn, &sb, &env, None);
+    let by_album = |id: &str| {
+        musaic_db::findings::all_findings(conn)
+            .unwrap()
+            .into_iter()
+            .find(|f| f.album_id.as_deref() == Some(id))
+            .unwrap()
+    };
+    assert_eq!(by_album("a1").severity, "info", "propagatable");
+    assert_eq!(by_album("b1").severity, "warn", "conflicting");
+}
+
+/// A finding recorded as `info` before the severity changed becomes `warn`
+/// on the next run (the upsert refreshes severity); an ignored one stays
+/// ignored.
+#[test]
+fn an_existing_conflicting_finding_becomes_a_warning_and_ignored_stays_ignored() {
+    let (sb, db, env) = world(vec![
+        album("a1", Some("Lima"), "Lima", Some("Lima")),
+        album("a2", Some("Lima"), "Lima", Some("Lima, X")),
+        album("b1", Some("Mike"), "Mike", Some("Mike")),
+        album("b2", Some("Mike"), "Mike", Some("Mike, Y")),
+    ]);
+    let conn = db.connection();
+    run(conn, &sb, &env, None);
+    let ids: Vec<i64> = musaic_db::findings::all_findings(conn)
+        .unwrap()
+        .iter()
+        .map(|f| f.id)
+        .collect();
+    assert_eq!(ids.len(), 2);
+    // As an earlier version left them.
+    conn.execute("UPDATE check_findings SET severity = 'info'", [])
+        .unwrap();
+    musaic_checks::runner::ignore_finding(conn, &env, ids[1], Some("on purpose"))
+        .unwrap()
+        .unwrap();
+
+    run(conn, &sb, &env, None);
+    let all = musaic_db::findings::all_findings(conn).unwrap();
+    let get = |id: i64| all.iter().find(|f| f.id == id).unwrap();
+    assert_eq!(get(ids[0]).severity, "warn");
+    assert!(get(ids[0]).ignored_at.is_none());
+    assert_eq!(
+        get(ids[1]).severity,
+        "warn",
+        "severity is refreshed either way"
+    );
+    assert!(get(ids[1]).ignored_at.is_some(), "and it is still ignored");
+    assert!(get(ids[1]).resolved_at.is_none());
+}

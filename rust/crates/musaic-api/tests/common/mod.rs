@@ -6,6 +6,7 @@
 
 pub mod ai_wording;
 pub mod artist_only;
+pub mod conflict_severity;
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

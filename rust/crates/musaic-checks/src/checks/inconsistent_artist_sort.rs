@@ -350,7 +350,13 @@ fn build_finding(
     Finding {
         album_id: Some(representative),
         summary,
-        severity: Severity::Info,
+        // Two different sort values for one artist is a conflict somebody has
+        // to settle; a missing or propagatable one is a suggestion.
+        severity: if state == ClusterState::Conflicting {
+            Severity::Warn
+        } else {
+            Severity::Info
+        },
         detail: Some(dict([
             ("primary_token", token.into()),
             ("state", state.as_str().into()),
