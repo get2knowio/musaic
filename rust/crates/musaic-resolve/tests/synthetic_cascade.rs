@@ -261,7 +261,9 @@ fn confident_name_search_hit_is_checked_persisted_and_refined() {
             (RG_ALBUM.to_owned(), Some(REL_ALBUM.to_owned()), 100),
         ]
     );
-    assert!(!resolved.events.is_empty());
+    // Two anchor writes (the hit, then the release id Tier 1 learns) and the
+    // first-anchor notice are still one event for the resolve.
+    assert_eq!(resolved.events.len(), 1, "{:?}", resolved.events);
     assert!(
         resolved
             .events

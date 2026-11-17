@@ -126,7 +126,7 @@ pub struct AnchorSetEvent {
 pub struct Resolved {
     /// The same `Arc` for every call served from the memo (Python: `r1 is r2`).
     pub resolution: Arc<AlbumResolution>,
-    /// Anchor writes this call made, in the order the Python app publishes them.
+    /// At most one event, for the anchor as this call left it (empty when it wrote none).
     pub events: Vec<AnchorSetEvent>,
     pub from_memo: bool,
 }
@@ -310,6 +310,13 @@ impl Resolver {
                 album_id: album_id.to_owned(),
                 source: a.source.clone(),
             });
+        }
+        // One resolve is one anchor change for subscribers: each event makes
+        // them invalidate this album's memo and rerun the post-scan checks,
+        // and none of them reads the intermediate writes. Keep the last event,
+        // which describes the anchor as the resolve left it.
+        if events.len() > 1 {
+            events.drain(..events.len() - 1);
         }
         Ok(Resolved {
             resolution,
