@@ -165,6 +165,15 @@ Security.
 
 ### Fixed
 
+- The track-number check no longer reports false "Duplicate track numbers" (an error, so it
+  counted in the Needs attention badge) on an album kept in one folder as several discs
+  that are each numbered from 1
+  ([#256](https://github.com/get2knowio/musaic/issues/256)). Gaps and repeats are now
+  judged per disc, using the `DISCNUMBER` tag or a disc-prefixed track number such as
+  `2-05`; findings on such an album name the disc. Albums with no disc information are
+  judged as before. Existing false findings close on the next launch. The automatic
+  renumbering fix no longer runs on an album that spans several discs, because the
+  MusicBrainz tracklist it uses is numbered straight through all discs.
 - The automatic check sweep and the copy taken before a schema upgrade are stricter about
   what counts as an answer ([#251](https://github.com/get2knowio/musaic/issues/251)). A
   resolver error leaves an album "could not evaluate" (its findings stay and it is checked
