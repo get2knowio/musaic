@@ -48,6 +48,9 @@ struct Recording {
     refresh: Option<Duration>,
     /// While set, computing this check's inputs panics.
     panic: Arc<AtomicBool>,
+    /// While set, a run stays inside `run` after recording that it began
+    /// (an uninterruptible batch: the sweep only stops between batches).
+    hold: Arc<AtomicBool>,
 }
 
 impl Check for Recording {
@@ -72,6 +75,9 @@ impl Check for Recording {
     ) -> Result<(), CheckError> {
         let ids: Vec<String> = scope.albums.iter().map(|a| a.id.clone()).collect();
         self.seen.lock().unwrap().push((self.meta.id, ids.clone()));
+        while self.hold.load(Ordering::SeqCst) {
+            std::thread::sleep(Duration::from_millis(2));
+        }
         for id in ids {
             emit(Finding {
                 summary: format!("{} finding", self.meta.id),
@@ -172,6 +178,8 @@ struct Rig {
     waiting: Arc<AtomicBool>,
     libdir: PathBuf,
     panic: Arc<AtomicBool>,
+    /// Holds the whole-library check's run (see `Recording::hold`).
+    hold: Arc<AtomicBool>,
     log: Arc<Lines>,
 }
 
@@ -191,6 +199,29 @@ impl Default for Opts {
             refresh: None,
         }
     }
+}
+
+/// How long a test lets the sweep take to stop. The sweep stops between
+/// batches, never inside one (only a network wait is interruptible), so a
+/// stop can wait for a whole check run: a few dozen database commits, each
+/// as slow as the runner's disk makes it (Windows CI has shown stalls of
+/// seconds). What is being waited for is the end of that run, not a
+/// property of the sweep, so the bound only has to catch a hang: the same
+/// 20 s every other wait in this file allows. [`wait_for`] is the matching
+/// bound for conditions; the promptness of a stop is asserted separately, on
+/// a network wait that writes nothing
+/// (`shutdown_is_prompt_during_a_network_wait`).
+const STOP_BUDGET: Duration = Duration::from_secs(20);
+
+/// Stop the sweep and say what it was doing if it does not stop.
+fn stop(r: &Rig) {
+    let stopped = r.sweeper.stop_within(STOP_BUDGET);
+    assert!(
+        stopped,
+        "the sweep did not stop within {STOP_BUDGET:?}: {:?}, log {:?}",
+        r.sweeper.state(),
+        r.log.0.lock().unwrap()
+    );
 }
 
 const ALBUMS: [&str; 3] = ["a1", "a2", "a3"];
@@ -235,6 +266,7 @@ fn rig_with(o: Opts) -> Rig {
     .unwrap();
     let seen: Seen = Arc::default();
     let panic: Arc<AtomicBool> = Arc::default();
+    let hold: Arc<AtomicBool> = Arc::default();
     let log: Arc<Lines> = Arc::default();
     let sweeper = CheckSweeper::new();
     let release = Arc::new(AtomicBool::new(true));
@@ -248,6 +280,7 @@ fn rig_with(o: Opts) -> Rig {
             seen: seen.clone(),
             refresh: None,
             panic: panic.clone(),
+            hold: Arc::default(),
         }),
         Arc::new(Recording {
             meta: &WHOLE,
@@ -255,6 +288,7 @@ fn rig_with(o: Opts) -> Rig {
             seen: seen.clone(),
             refresh: o.refresh,
             panic: Arc::default(),
+            hold: hold.clone(),
         }),
     ]);
     let env = CheckEnv {
@@ -296,6 +330,7 @@ fn rig_with(o: Opts) -> Rig {
         waiting,
         libdir,
         panic,
+        hold,
         log,
     }
 }
@@ -385,7 +420,7 @@ fn first_pass_runs_everything_then_nothing_is_stale() {
             .iter()
             .any(|(_, a)| a.contains(&"gone".to_string()))
     );
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
 }
 
 // An album whose row changed is rerun alone by the per-album checks;
@@ -428,7 +463,7 @@ fn a_changed_album_reruns_alone() {
     });
     settle(&r);
     assert!(r.seen.lock().unwrap().is_empty());
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
 }
 
 // While the app is busy (a scan, other work, a restore) the sweep waits
@@ -455,7 +490,7 @@ fn waits_while_the_app_is_busy() {
         r.seen.lock().unwrap().clone(),
         vec![("filename-mismatch", ids(&ALBUMS))]
     );
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
 }
 
 // A suspension (what a restore does) stops a network wait at once: the
@@ -529,7 +564,7 @@ fn a_suspension_interrupts_a_network_wait_and_records_nothing_from_it() {
         .collect();
     got.sort();
     assert_eq!(got, ids(&ALBUMS));
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
 }
 
 // Shutdown stops a sweep waiting on the network promptly.
@@ -569,7 +604,7 @@ fn an_absent_library_is_not_checked() {
     r.sweeper.wake();
     settle(&r);
     assert_eq!(inputs(&r).len(), 7);
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
 }
 
 // Offline, checks that use the network are not planned.
@@ -583,7 +618,7 @@ fn offline_plans_no_network_check() {
     let checks: Vec<&str> = r.seen.lock().unwrap().iter().map(|(c, _)| *c).collect();
     assert_eq!(checks, ["filename-mismatch", "whole-library"]);
     assert!(!inputs(&r).iter().any(|(c, _)| c == "tags-out-of-sync"));
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
 }
 
 fn count(r: &Rig, check: &str) -> usize {
@@ -609,7 +644,36 @@ fn refresh_windows_fire_without_events() {
     // checked_at has a one-second resolution: this takes a few seconds.
     wait_for("the refresh", || count(&r, "whole-library") >= 2);
     assert_eq!(count(&r, "filename-mismatch"), 1);
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    // The refresh run is likely still going: the stop waits for it.
+    stop(&r);
+}
+
+// A stop does not interrupt a check run that has begun: it takes effect
+// when the batch ends. (This is why `stop` allows a run's duration.)
+#[test]
+fn a_stop_waits_for_the_running_batch_and_then_completes() {
+    let r = rig_with(Opts {
+        refresh_tick: Duration::from_millis(100),
+        refresh: Some(Duration::from_secs(1)),
+        ..Opts::default()
+    });
+    settle(&r);
+    r.hold.store(true, Ordering::SeqCst);
+    let before = count(&r, "whole-library");
+    wait_for("a refresh run to begin", || {
+        count(&r, "whole-library") > before
+    });
+    let sweeper = r.sweeper.clone();
+    let stopping = std::thread::spawn(move || sweeper.stop_within(STOP_BUDGET));
+    // The run is held, so the stop cannot have completed; no deadline can
+    // make this assertion flaky, only a stop that interrupts a batch.
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(!stopping.is_finished(), "stopped inside a running batch");
+    r.hold.store(false, Ordering::SeqCst);
+    assert!(
+        stopping.join().unwrap(),
+        "did not stop once the batch ended"
+    );
 }
 
 // A panic while planning is logged, leaves the sweep idle and its thread
@@ -638,7 +702,7 @@ fn a_panic_while_planning_does_not_kill_the_sweep() {
     r.sweeper.wake();
     settle(&r);
     assert_eq!(inputs(&r).len(), 7);
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
 }
 
 // Right before a batch, the sweep asks again what is stale: albums another
@@ -648,7 +712,7 @@ fn a_panic_while_planning_does_not_kill_the_sweep() {
 fn still_stale_drops_what_another_run_refreshed() {
     let r = rig();
     settle(&r);
-    assert!(r.sweeper.stop_within(Duration::from_secs(5)));
+    stop(&r);
     let seen: Seen = Arc::default();
     let env = CheckEnv {
         registry: Registry::new(vec![Arc::new(Recording {
@@ -657,6 +721,7 @@ fn still_stale_drops_what_another_run_refreshed() {
             seen,
             refresh: None,
             panic: Arc::default(),
+            hold: Arc::default(),
         })]),
         resolver: Arc::new(musaic_checks::NoResolver),
         clock: Arc::new(SystemClock),
