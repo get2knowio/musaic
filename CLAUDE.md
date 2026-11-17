@@ -242,6 +242,12 @@ final path, as Python's `Path.resolve()` gives there (8.3 short names expanded, 
 case, no `\\?\` prefix: `musaic-core/src/config.rs` `windows_realpath`), so one folder
 has one id however its path was typed.
 
+An id, a stored path and a file row are derived from the spelling the filesystem
+lists, which can differ from the one asked for (HFS+ stores names decomposed, NFD): code
+that creates or moves a row reads the name back from the parent directory after the
+rename and never records the requested one (`musaic-scan/src/listing.rs`
+`listed_spelling`, used by `musaic-fsops/src/rename.rs` and `musaic-tags/src/apply.rs`).
+
 ### 4. One accessor per album-field cascade
 
 The "album artist" and sort-key fallbacks are defined once:

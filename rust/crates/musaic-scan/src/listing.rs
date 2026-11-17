@@ -1,6 +1,7 @@
 //! The one FLAC listing every layer uses.
 
 use std::collections::HashSet;
+use std::ffi::OsString;
 use std::path::{Component, Path, PathBuf};
 
 /// FLAC files directly inside `album_dir`: regular files (symlinks followed)
@@ -38,6 +39,45 @@ pub fn list_flacs(album_dir: &Path) -> Vec<PathBuf> {
         out.push(path);
     }
     out
+}
+
+/// The names `dir` lists, in the order the listing returns them. `Err` when
+/// the directory, or an entry while listing it, cannot be read.
+pub fn dir_names(dir: &Path) -> std::io::Result<Vec<OsString>> {
+    std::fs::read_dir(dir)?
+        .map(|e| e.map(|e| e.file_name()))
+        .collect()
+}
+
+/// The name under which a directory lists an entry that was just created or
+/// renamed as `name`: `name` itself when `names` (the directory's listing)
+/// has it, else the one listed entry that is the same file as `entry` (a
+/// handle on it, taken right after the rename; same device and inode or
+/// file index, never a comparison of strings). A volume that stores names
+/// in another form (HFS+ keeps them decomposed, NFD) lists the entry under
+/// that spelling, and the scanner derives album ids and file rows from the
+/// listing, so whatever records the entry has to use the same spelling.
+///
+/// `None` when no entry, or more than one (hard links), is the same file,
+/// or there is no handle to compare with: the caller cannot tell which
+/// spelling is there and must not guess.
+pub fn listed_spelling(
+    dir: &Path,
+    name: &str,
+    names: &[OsString],
+    entry: Option<&same_file::Handle>,
+) -> Option<OsString> {
+    if names.iter().any(|n| n == name) {
+        return Some(OsString::from(name));
+    }
+    let entry = entry?;
+    let mut same = names
+        .iter()
+        .filter(|n| same_file::Handle::from_path(dir.join(n)).is_ok_and(|h| h == *entry));
+    match (same.next(), same.next()) {
+        (Some(n), None) => Some(n.clone()),
+        _ => None,
+    }
 }
 
 /// `Path(name).suffix.lower() == ".flac"`: the suffix starts at the last dot,
@@ -115,4 +155,33 @@ fn resolve_abs(abs: &Path, hops: u32) -> PathBuf {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The exact name wins; otherwise the one same-file entry; two
+    /// same-file entries (hard links) or no handle say nothing.
+    #[test]
+    fn listed_spelling_takes_the_exact_name_or_the_one_same_file_entry() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        std::fs::write(dir.join("a.flac"), b"a").unwrap();
+        std::fs::write(dir.join("other.flac"), b"b").unwrap();
+        let a = same_file::Handle::from_path(dir.join("a.flac")).unwrap();
+        let names = dir_names(dir).unwrap();
+        let s = |name: &str, names: &[OsString], h: Option<&same_file::Handle>| {
+            listed_spelling(dir, name, names, h)
+        };
+        assert_eq!(s("a.flac", &names, None), Some("a.flac".into()));
+        // Listed under another spelling (as a volume that rewrites names
+        // would): the entry that is the same file.
+        assert_eq!(s("A.FLAC", &names, Some(&a)), Some("a.flac".into()));
+        assert_eq!(s("A.FLAC", &names, None), None);
+        std::fs::hard_link(dir.join("a.flac"), dir.join("b.flac")).unwrap();
+        let names = dir_names(dir).unwrap();
+        assert_eq!(s("A.FLAC", &names, Some(&a)), None);
+        assert_eq!(s("b.flac", &names, Some(&a)), Some("b.flac".into()));
+    }
 }

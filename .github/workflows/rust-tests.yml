@@ -200,6 +200,15 @@ jobs:
         working-directory: rust
         run: cargo test --workspace --locked --no-fail-fast
 
+      # A real HFS+ volume, which stores names decomposed (NFD): a disk
+      # image the test creates, mounts under a temp dir without root, and
+      # detaches. `#[ignore]`d in the workspace run, so it runs only here.
+      - name: Test renames on an HFS+ volume
+        id: hfs
+        if: runner.os == 'macOS'
+        working-directory: rust
+        run: cargo test -p musaic-fsops --locked --test listed_spelling -- --ignored --nocapture
+
       - name: Result
         id: result
         if: always()

@@ -49,7 +49,15 @@
 //!   name, and the entry is reported as not renamed, never as success. On
 //!   an insensitive volume a source whose new spelling is already the one
 //!   listed is "already renamed".
+//! - The new album id, the stored folder path and each file's new name in
+//!   its rows come from the name the parent directory lists after the
+//!   rename, not from the name asked for: a volume that stores names in
+//!   another normalisation form (HFS+ keeps them decomposed) lists the NFD
+//!   spelling, and the scanner derives ids and file rows from the listing.
+//!   When the listing cannot say which entry it is, the name asked for is
+//!   kept and the fact is logged.
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use musaic_core::album_id;
@@ -58,10 +66,10 @@ use musaic_db::albums::upsert_album;
 use musaic_db::renames::{
     DirMigration, album_location, rename_album_directory, rename_track_files,
 };
-use musaic_scan::{TrackOrder, py_resolve, scan_album};
+use musaic_scan::{TrackOrder, dir_names, listed_spelling, py_resolve, scan_album};
 use rusqlite::Connection;
 
-use crate::fsutil::{fold, listed, rename_dir, rename_noclobber, temp_name};
+use crate::fsutil::{fold, listed, lists_as, rename_dir, rename_noclobber, temp_name};
 use crate::plan::TARGET;
 use crate::pyrepr::py_repr;
 
@@ -233,19 +241,20 @@ const RESCAN_AFTER_FILES: &str = "execute_renames: post-rename rescan failed (co
 
 /// `dir/name` as the directory spells it: on a case- or
 /// normalisation-insensitive volume `name` may open an entry listed under
-/// another spelling (same-file and equal when folded); that entry's path.
-/// `dir/name` itself when it is listed, nothing matches, or the folder
-/// cannot be read.
+/// another spelling (same-file and equal when folded, an NFD spelling of
+/// an NFC name included); that entry's path. `dir/name` itself when it is
+/// listed exactly, nothing matches, or the folder cannot be read.
 fn spelled_on_disk(dir: &Path, name: &str) -> PathBuf {
     let path = dir.join(name);
-    if !matches!(listed(dir, name), Ok(false)) {
-        return path;
-    }
-    let Ok(rd) = std::fs::read_dir(dir) else {
+    let Ok(names) = dir_names(dir) else {
         return path;
     };
-    rd.flatten()
-        .map(|e| e.path())
+    if names.iter().any(|n| n == name) {
+        return path;
+    }
+    names
+        .into_iter()
+        .map(|n| dir.join(n))
         .find(|p| fold(&name_of(p)) == fold(name) && samefile(p, &path))
         .unwrap_or(path)
 }
@@ -297,14 +306,18 @@ pub fn execute_renames(
     plan: &[PlanEntry],
     dir_rename: Option<&PlanEntry>,
 ) -> RenameOutcome {
-    execute_renames_with(conn, env, album_id_in, plan, dir_rename, &listed)
+    execute_renames_with(conn, env, album_id_in, plan, dir_rename, &|dir, _| {
+        dir_names(dir)
+    })
 }
 
-/// "Did the volume keep this spelling?": `(parent dir, new name)`, asked
-/// after each rename. The real one reads the directory ([`listed`]); tests
-/// stand in a volume that does not preserve case, or a folder that cannot
-/// be read back. `Err`: the folder could not be read, so it is unknown.
-type KeptSpelling<'a> = &'a dyn Fn(&Path, &str) -> std::io::Result<bool>;
+/// The read-back after each rename: `(parent dir, new name)` -> the names
+/// the parent directory lists. The real one reads the directory
+/// ([`dir_names`]); tests stand in a volume that does not preserve case,
+/// one that stores names in another normalisation form, or a folder that
+/// cannot be read back. `Err`: the folder could not be read, so what it
+/// holds is unknown.
+type ReadBack<'a> = &'a dyn Fn(&Path, &str) -> std::io::Result<Vec<OsString>>;
 
 const NOT_KEPT: &str = "the volume did not keep the new spelling of the name (it does not \
                         preserve case); not renamed";
@@ -329,7 +342,7 @@ fn execute_renames_with(
     album_id_in: &str,
     plan: &[PlanEntry],
     dir_rename: Option<&PlanEntry>,
-    kept: KeptSpelling,
+    read_back: ReadBack,
 ) -> RenameOutcome {
     let mut unverified: Vec<String> = Vec::new();
     let mut out = run_renames(
@@ -338,7 +351,7 @@ fn execute_renames_with(
         album_id_in,
         plan,
         dir_rename,
-        kept,
+        read_back,
         &mut unverified,
     );
     if !unverified.is_empty() {
@@ -350,22 +363,53 @@ fn execute_renames_with(
     out
 }
 
-/// Whether the new spelling is on disk: `true` also when the folder
-/// could not be read back (recorded in `unverified` and logged).
-fn check_kept(kept: KeptSpelling, dir: &Path, name: &str, unverified: &mut Vec<String>) -> bool {
-    match kept(dir, name) {
-        Ok(k) => k,
+/// Where an entry just renamed to `path` is, as its parent directory lists
+/// it: `None` when the volume did not keep the new spelling (no listed
+/// name is `path`'s name, up to NFC normalisation); otherwise the parent
+/// joined with the listed name (the same name, or the volume's own form of
+/// it). `path` itself when the folder could not be read back (recorded in
+/// `unverified` and logged) or the listing does not say which entry it is
+/// (logged).
+fn read_back_as_listed(
+    read_back: ReadBack,
+    path: &Path,
+    unverified: &mut Vec<String>,
+) -> Option<PathBuf> {
+    let dir = path.parent().unwrap_or(Path::new(""));
+    let name = name_of(path);
+    // Taken before the listing: the identity of what was just renamed.
+    let handle = same_file::Handle::from_path(path).ok();
+    let names = match read_back(dir, &name) {
+        Ok(names) => names,
         Err(e) => {
             musaic_log::warning(
                 TARGET,
                 &format!(
                     "execute_renames: could not read {} back to check {}: {e}",
                     dir.display(),
-                    py_repr(name)
+                    py_repr(&name)
                 ),
             );
-            unverified.push(name.to_string());
-            true
+            unverified.push(name);
+            return Some(path.to_path_buf());
+        }
+    };
+    if !names.iter().any(|n| lists_as(n, &name)) {
+        return None;
+    }
+    match listed_spelling(dir, &name, &names, handle.as_ref()) {
+        Some(listed) => Some(dir.join(listed)),
+        None => {
+            musaic_log::warning(
+                TARGET,
+                &format!(
+                    "execute_renames: could not tell which entry of {} is {}; \
+                     recording the name as given",
+                    dir.display(),
+                    py_repr(&name)
+                ),
+            );
+            Some(path.to_path_buf())
         }
     }
 }
@@ -376,7 +420,7 @@ fn run_renames(
     album_id_in: &str,
     plan: &[PlanEntry],
     dir_rename: Option<&PlanEntry>,
-    kept: KeptSpelling,
+    read_back: ReadBack,
     unverified: &mut Vec<String>,
 ) -> RenameOutcome {
     if env.library_dir.is_none_or(str::is_empty) {
@@ -550,8 +594,7 @@ fn run_renames(
         if let Err(e) = rename_dir(&album_dir, &target) {
             return RenameOutcome::fail(format!("Couldn't rename directory: {e}"));
         }
-        let parent = target.parent().map(Path::to_path_buf).unwrap_or_default();
-        if !check_kept(kept, &parent, &name_of(&target), unverified) {
+        let Some(listed) = read_back_as_listed(read_back, &target, unverified) else {
             // Nothing moved in the database yet: put the folder back and
             // keep the album's id.
             let mut message = format!(
@@ -566,7 +609,10 @@ fn run_renames(
                 message.push_str(&format!("; the folder could not be put back: {e}"));
             }
             return RenameOutcome::fail(message);
-        }
+        };
+        // The id, the stored path, the rescan and the event all follow the
+        // listed spelling, the one a later full scan derives the id from.
+        let target = listed;
         let id = album_id(&py_resolve(&target).to_string_lossy());
         match rename_album_directory(
             conn,
@@ -718,8 +764,10 @@ fn run_renames(
     let mut stuck: Vec<String> = Vec::new();
     let mut not_kept = 0;
     for (old_p, tmp, new_p) in &staged {
-        match rename_noclobber(tmp, new_p) {
-            Ok(()) if !check_kept(kept, &album_dir, &name_of(new_p), unverified) => {
+        let moved = rename_noclobber(tmp, new_p)
+            .map(|()| read_back_as_listed(read_back, new_p, unverified));
+        match moved {
+            Ok(None) => {
                 not_kept += 1;
                 errors.push(format!(
                     "{} → {}: {NOT_KEPT}",
@@ -733,10 +781,11 @@ fn run_renames(
                     stuck.push(line);
                 }
             }
-            Ok(()) => {
+            Ok(Some(listed)) => {
                 renamed += 1;
+                // The rows take the name the folder lists, as a scan does.
                 if let Err(e) =
-                    rename_track_files(conn, &new_album_id, &name_of(old_p), &name_of(new_p))
+                    rename_track_files(conn, &new_album_id, &name_of(old_p), &name_of(&listed))
                 {
                     // filename_mismatch.py:618 (`log.exception`: ERROR).
                     musaic_log::error(
@@ -744,7 +793,7 @@ fn run_renames(
                         &format!(
                             "execute_renames: track-tag migration failed for {} \u{2192} {} (continuing): {e}",
                             name_of(old_p),
-                            name_of(new_p)
+                            name_of(&listed)
                         ),
                     );
                 }
@@ -846,9 +895,11 @@ fn run_renames(
 
 #[cfg(test)]
 mod tests {
-    //! A volume that takes a rename but does not keep the new spelling
-    //! cannot be made in a temp dir, so the read-back is replaced by one
-    //! that always answers "not kept"; the renames themselves are real.
+    //! A volume that takes a rename but does not keep the new spelling, or
+    //! one that stores names decomposed, cannot be made in a temp dir, so
+    //! the read-back is replaced by one that lists no such entry, or one
+    //! that gives the entry its NFD spelling first; the renames themselves
+    //! are real.
 
     use super::*;
     use musaic_db::{Db, albums};
@@ -921,13 +972,138 @@ mod tests {
         }
     }
 
-    const NEVER_KEPT: KeptSpelling = &|_, _| Ok(false);
-    const UNREADABLE: KeptSpelling = &|_, _| {
+    /// A volume that took the rename but lists no entry under the new
+    /// spelling.
+    const NEVER_KEPT: ReadBack = &|_, _| Ok(Vec::new());
+    const UNREADABLE: ReadBack = &|_, _| {
         Err(std::io::Error::new(
             std::io::ErrorKind::PermissionDenied,
             "denied",
         ))
     };
+    /// A volume that stores names decomposed (HFS+): the entry just renamed
+    /// is listed under its NFD spelling. Simulated by giving it that
+    /// spelling on disk before the folder is read, so a later scan reads
+    /// the same listing on every platform.
+    const STORES_NFD: ReadBack = &|dir, name| {
+        use unicode_normalization::UnicodeNormalization;
+        let nfd: String = name.nfd().collect();
+        if nfd != name {
+            std::fs::rename(dir.join(name), dir.join(&nfd))?;
+        }
+        dir_names(dir)
+    };
+
+    const NFC_DIR: &str = "Caf\u{e9} - x";
+    const NFD_DIR: &str = "Cafe\u{301} - x";
+    const NFC_FILE: &str = "01 - Caf\u{e9}.flac";
+    const NFD_FILE: &str = "01 - Cafe\u{301}.flac";
+
+    /// One fingerprint, one track tag and one finding for `file` of `id`.
+    fn add_rows(conn: &Connection, id: &str, file: &str) {
+        conn.execute(
+            "INSERT INTO track_fingerprints (album_id, filename, fingerprint, duration_s, \
+             last_computed_at) VALUES (?1, ?2, 'AQAA', 1.0, ?3)",
+            [id, file, NOW],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO track_tags (album_id, filename, tag, created_at) \
+             VALUES (?1, ?2, 'keep', ?3)",
+            [id, file, NOW],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO check_findings (check_id, album_id, summary, first_seen_at, \
+             last_seen_at) VALUES ('missing_cover', ?1, 'no cover', ?2, ?2)",
+            [id, NOW],
+        )
+        .unwrap();
+    }
+
+    /// `(table, album_id, filename)` of every per-album row.
+    fn rows(conn: &Connection) -> Vec<(String, String, String)> {
+        let mut out = Vec::new();
+        for (table, file) in [
+            ("track_fingerprints", "filename"),
+            ("track_tags", "filename"),
+            ("check_findings", "''"),
+        ] {
+            let mut stmt = conn
+                .prepare(&format!("SELECT album_id, {file} FROM {table}"))
+                .unwrap();
+            let found = stmt
+                .query_map([], |r| Ok((table.to_string(), r.get(0)?, r.get(1)?)))
+                .unwrap();
+            out.extend(found.map(Result::unwrap));
+        }
+        out
+    }
+
+    /// On a volume that lists the renamed folder and file under their NFD
+    /// spelling, the new id, the stored path, the event and the file rows
+    /// follow the listing; a full scan afterwards then finds the same
+    /// album: nothing is marked Missing, no row is added, and the rows
+    /// still belong to it.
+    #[test]
+    fn a_volume_that_stores_names_decomposed_gets_the_listed_spelling() {
+        let tmp = tempfile::tempdir().unwrap();
+        let base = musaic_testdata::canonical(tmp.path());
+        let (mut db, lib, id) = library(&base);
+        add_rows(db.connection(), &id, "01 - one.flac");
+        let out = execute_renames_with(
+            db.connection_mut(),
+            &env(&lib),
+            &id,
+            &[entry("01 - one.flac", NFC_FILE)],
+            Some(&entry("abba - x", NFC_DIR)),
+            STORES_NFD,
+        );
+        assert!(out.ok, "{}", out.message);
+        assert_eq!(listing(&base.join("lib")), [NFD_DIR]);
+        let album = Path::new(&lib).join(NFD_DIR);
+        assert_eq!(
+            listing(&album),
+            [crate::sidecar::SIDECAR_FILENAME, NFD_FILE]
+        );
+        let sidecar = std::fs::read_to_string(crate::sidecar::sidecar_path(&album)).unwrap();
+        assert!(sidecar.contains(NFD_FILE), "{sidecar}");
+
+        let new_id = album_id(&py_resolve(&album).to_string_lossy());
+        assert_ne!(
+            new_id,
+            album_id(&py_resolve(&base.join("lib").join(NFC_DIR)).to_string_lossy())
+        );
+        let ev = out.album_renamed.expect("AlbumRenamed");
+        assert_eq!(
+            (ev.old_album_id.as_str(), ev.new_album_id.as_str()),
+            (id.as_str(), new_id.as_str())
+        );
+        let loc = album_location(db.connection(), &new_id)
+            .unwrap()
+            .expect("row under the listed id");
+        assert_eq!(loc.path, album.to_string_lossy());
+        let want = |file: &str| {
+            vec![
+                (
+                    "track_fingerprints".to_string(),
+                    new_id.clone(),
+                    file.to_string(),
+                ),
+                ("track_tags".to_string(), new_id.clone(), file.to_string()),
+                ("check_findings".to_string(), new_id.clone(), String::new()),
+            ]
+        };
+        assert_eq!(rows(db.connection()), want(NFD_FILE));
+
+        let scanned = scan_library(Path::new(&lib), TrackOrder::Filename);
+        let ids: Vec<&str> = scanned.iter().map(|a| a.id.as_str()).collect();
+        assert_eq!(ids, [new_id.as_str()]);
+        let snap = albums::save_snapshot(db.connection_mut(), &lib, NOW, NOW, &scanned).unwrap();
+        assert!(snap.newly_missing.is_empty(), "{snap:?}");
+        assert!(snap.inserted.is_empty(), "{snap:?}");
+        assert_eq!(rows(db.connection()), want(NFD_FILE));
+    }
 
     /// The file is put back under its old name and reported as not
     /// renamed: no success, no AlbumRenamed, its rows untouched.
