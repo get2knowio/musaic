@@ -54,7 +54,12 @@ async fn a_refused_folder_leaves_the_configured_one_and_says_why() {
     )
     .await;
     assert_eq!(r.status, 400);
-    assert!(r.json()["detail"].as_str().unwrap().contains(&missing));
+    assert!(
+        r.json()["detail"]
+            .as_str()
+            .unwrap()
+            .contains("no-such-folder")
+    );
 
     let r = call(&app, "GET", "/api/config", None).await;
     assert_eq!(r.json()["library_dir"], stored);
