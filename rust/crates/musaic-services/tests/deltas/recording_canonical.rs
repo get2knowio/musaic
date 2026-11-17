@@ -16,6 +16,10 @@
 //!   whose body is not JSON (the Python app's silent `None`) also logs a
 //!   WARNING, `returned a body that is not JSON: {parse error}`.
 //!
+//! * every 200 answer carries a `reason_code` after `reason`, and a lookup
+//!   that did not complete (a failed request, a 503, a 200 that cannot be
+//!   read) has its own reason sentence instead of the no-recording one.
+//!
 //! Every other step, field and byte is the Python app's. Each replaced part
 //! differs from the Python app's (checked), so a delta that changes nothing
 //! fails here.
@@ -64,6 +68,56 @@ pub const NOT_JSON_STEPS: [&str; 2] = [
 
 /// The step the no-recording body is taken from (a 200 with that reason).
 const NO_RECORDING_TEMPLATE: &str = "HTTP 503";
+
+pub const UNREACHABLE: &str = "Couldn't reach MusicBrainz. Check the internet connection and that offline mode is off, then reopen this dialog.";
+pub const RATE_LIMITED: &str =
+    "MusicBrainz is busy or limiting requests. Wait a minute, then reopen this dialog.";
+pub const UNREADABLE: &str = "MusicBrainz sent an answer Musaic could not read. Try again later.";
+
+/// (reason code, sentence) of the steps whose lookup did not complete.
+fn failure_of(label: &str) -> Option<(&'static str, &'static str)> {
+    match label {
+        "request fails (unrecorded)" | "request failed before: the None is cached" => {
+            Some(("unreachable", UNREACHABLE))
+        }
+        "HTTP 503" | "HTTP 503 again: the None is cached" => Some(("rate_limited", RATE_LIMITED)),
+        "200 whose body is not JSON"
+        | "200 not JSON again: the None is cached"
+        | "JSON array: the Python app raises"
+        | "JSON array again: nothing was cached" => Some(("unreadable_answer", UNREADABLE)),
+        _ => None,
+    }
+}
+
+/// Adds `reason_code` (and the reason sentence of a failed lookup) to a
+/// 200 answer's `json` and `raw`.
+fn with_reason_code(want: &mut Value, label: &str) {
+    let Some(obj) = want["response"]["json"].as_object() else {
+        return;
+    };
+    if !obj.contains_key("reason") || want["response"]["status"] != 200 {
+        return;
+    }
+    let (code, text) = match (&obj["reason"], failure_of(label)) {
+        (Value::Null, _) => (Value::Null, Value::Null),
+        (_, Some((c, t))) => (json!(c), json!(t)),
+        (r, None) if r == "no recording MBID for this cluster" => (json!("no_mbid"), r.clone()),
+        (r, None) => (json!("not_found"), r.clone()),
+    };
+    let j = &mut want["response"]["json"];
+    j["reason"] = text;
+    j["reason_code"] = code;
+    let part = |k: &str| serde_json::to_string(&want["response"]["json"][k]).unwrap();
+    let raw = format!(
+        "{{\"title\":{},\"artist\":{},\"mbid\":{},\"reason\":{},\"reason_code\":{}}}",
+        part("title"),
+        part("artist"),
+        part("mbid"),
+        part("reason"),
+        part("reason_code"),
+    );
+    want["response"]["raw"] = json!(raw);
+}
 
 fn mbid_of(step: &Value) -> String {
     let url = step["requests"][0]["url"].as_str().unwrap();
@@ -182,6 +236,7 @@ pub fn expected_steps(g: &Value) -> Vec<Value> {
                 }]),
             );
         }
+        with_reason_code(&mut want, label);
         if uncached > 0 {
             replace(
                 &mut want,

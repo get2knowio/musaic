@@ -203,10 +203,8 @@ fn real_albums_anchor_by_coverage_and_refine_like_the_python() {
         let id = backfill["album_id"].as_str().unwrap().to_owned();
         assert_eq!(
             r.events,
-            vec![
-                (id.clone(), "musicbrainz".into()),
-                (id, "fingerprint+mb".into())
-            ],
+            // One event per resolve: the anchor as the resolve left it.
+            vec![(id, "fingerprint+mb".into())],
             "{label}"
         );
         assert_eq!(*r.fps.calls.borrow(), 1);

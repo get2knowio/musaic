@@ -30,7 +30,7 @@ pub use caa::{
     CoverImage, FrontCover,
 };
 pub use clients::{
-    ACOUSTID_META, ACOUSTID_TIMEOUT, AcoustIdClient, ClientError, FailureClass,
+    ACOUSTID_META, ACOUSTID_TIMEOUT, AcoustIdClient, ClientError, FailureClass, LookupFailure,
     MB_RECORDING_TIMEOUT, MB_TIMEOUT, MalformedRecording, MusicBrainzClient, RecordingCanonical,
     RecordingLookup, USER_AGENT, join_artist_credits, name_search_terms, parse_recording_canonical,
 };

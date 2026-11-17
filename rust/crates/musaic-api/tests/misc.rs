@@ -370,3 +370,43 @@ async fn listed_providers_can_be_saved() {
         )
     );
 }
+
+// A 422 names the field and the rule, never the caller's body: a missing
+// field does not echo the other fields (a key sent by mistake stays out of
+// the response), and a wrong-typed long value is cut.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn validation_errors_do_not_echo_the_request_body() {
+    let sb = Sandbox::new();
+    let app = router(sb.state_no_lifespan());
+    let body = json!({"filenames": [], "api_key": "dummy-secret-0123456789"});
+    let r = call(
+        &app,
+        "POST",
+        "/api/albums/0123456789abcdef/tags",
+        Some(&body),
+    )
+    .await;
+    assert_eq!(r.status, 422, "{}", r.text());
+    assert!(
+        !r.text().contains("dummy-secret"),
+        "the body is echoed: {}",
+        r.text()
+    );
+    let item = &r.json()["detail"][0];
+    assert_eq!(item["type"], "missing");
+    assert_eq!(item["loc"], json!(["body", "tag"]));
+    assert_eq!(item["msg"], "Field required");
+    assert_eq!(item["input"], json!({}));
+
+    // A wrong-typed value is echoed only up to a bound.
+    let long = "x".repeat(5000);
+    let r = call(
+        &app,
+        "POST",
+        "/api/albums/0123456789abcdef/tags",
+        Some(&json!({"tag": 5, "filenames": long})),
+    )
+    .await;
+    assert_eq!(r.status, 422, "{}", r.text());
+    assert!(r.text().len() < 1000, "{} bytes", r.text().len());
+}

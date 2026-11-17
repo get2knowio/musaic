@@ -5887,9 +5887,7 @@
       "body": {
         "detail": [
           {
-            "input": {
-              "filenames": []
-            },
+            "input": {},
             "loc": [
               "body",
               "tag"
@@ -7916,9 +7914,7 @@
       "body": {
         "detail": [
           {
-            "input": [
-              "x"
-            ],
+            "input": [],
             "loc": [
               "body",
               "track_tags"
@@ -10022,9 +10018,7 @@
       "body": {
         "detail": [
           {
-            "input": {
-              "description": "x"
-            },
+            "input": {},
             "loc": [
               "body",
               "tag"

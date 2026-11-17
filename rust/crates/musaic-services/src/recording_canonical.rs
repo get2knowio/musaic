@@ -7,7 +7,10 @@
 //!   `Finding not found`.
 //! * Its stored detail's `recording_mbid` (falsy: none) is looked up with
 //!   `mb_lookup.get_recording_canonical` ([`MusicBrainzClient::recording_canonical`]).
-//! * The answer is `{title, artist, mbid, reason}` in that key order.
+//! * The answer is `{title, artist, mbid, reason, reason_code}` in that key
+//!   order. `reason` is a sentence for the user; `reason_code` is stable
+//!   (`no_mbid`, `not_found`, `unreachable`, `rate_limited`,
+//!   `service_error`, `unreadable_answer`), both null when a title is given.
 //!
 //! The Python app's `lru_cache(maxsize=2048)` on `get_recording_canonical` is
 //! [`RecordingCanonicalCache`]: one per server lifetime, owned by the host.
@@ -24,7 +27,7 @@
 //!   recording" until the server restarted.
 //! * A malformed 200 (a shape the Python app's code raised on, its
 //!   route answering 500) is "no answer": the route gives the
-//!   [`NO_RECORDING_REASON`] body, and a WARNING is logged on
+//!   `unreadable_answer` reason, and a WARNING is logged on
 //!   `musaic.mb_lookup` by the client. Not kept (it is not definitive).
 //!
 //! The route reads no album files and writes nothing, so it takes no
@@ -36,7 +39,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use musaic_db::findings::get_finding;
-use musaic_net::{MusicBrainzClient, RecordingCanonical, RecordingLookup, Transport};
+use musaic_net::{
+    LookupFailure, MusicBrainzClient, RecordingCanonical, RecordingLookup, Transport,
+};
 use rusqlite::Connection;
 use serde_json::Value;
 
@@ -88,19 +93,19 @@ impl RecordingCanonicalCache {
         &self,
         mb: &MusicBrainzClient<T>,
         mbid: &str,
-    ) -> Option<RecordingCanonical> {
+    ) -> RecordingLookup {
         {
             let mut lru = self.lock();
             lru.tick += 1;
             let tick = lru.tick;
             if let Some((hit, used)) = lru.entries.get_mut(mbid) {
                 *used = tick;
-                return hit.clone();
+                return RecordingLookup::Done(hit.clone());
             }
         }
         let answer = match mb.recording_canonical_lookup(mbid) {
             RecordingLookup::Done(answer) => answer,
-            RecordingLookup::Failed => return None,
+            failed @ RecordingLookup::Failed(_) => return failed,
         };
         let mut lru = self.lock();
         lru.tick += 1;
@@ -116,23 +121,58 @@ impl RecordingCanonicalCache {
                 lru.entries.remove(&k);
             }
         }
-        answer
+        RecordingLookup::Done(answer)
     }
+}
+
+/// Why there is no title: a stable code for the UI plus a plain sentence.
+struct Reason {
+    code: &'static str,
+    text: String,
 }
 
 fn body(
     title: Option<&str>,
     artist: Option<&str>,
     mbid: Option<&str>,
-    reason: Option<&str>,
+    reason: Option<Reason>,
 ) -> Json {
     let s = |v: Option<&str>| v.map_or(Json::Null, |v| Json::Str(v.to_owned()));
     Json::obj([
         ("title", s(title)),
         ("artist", s(artist)),
         ("mbid", s(mbid)),
-        ("reason", s(reason)),
+        ("reason", s(reason.as_ref().map(|r| r.text.as_str()))),
+        ("reason_code", s(reason.as_ref().map(|r| r.code))),
     ])
+}
+
+/// The reason code of the no-MBID answer.
+pub const NO_MBID_CODE: &str = "no_mbid";
+/// The reason code of the no-recording answer (MusicBrainz has none).
+pub const NO_RECORDING_CODE: &str = "not_found";
+
+/// The reason for a lookup that did not complete. MusicBrainz needs no key,
+/// so there is no key case; every sentence says what to do next.
+pub fn failure_reason(failure: LookupFailure) -> (&'static str, String) {
+    match failure {
+        LookupFailure::Unreachable => (
+            "unreachable",
+            "Couldn't reach MusicBrainz. Check the internet connection and that offline mode is off, then reopen this dialog.".into(),
+        ),
+        LookupFailure::RateLimited => (
+            "rate_limited",
+            "MusicBrainz is busy or limiting requests. Wait a minute, then reopen this dialog.".into(),
+        ),
+        LookupFailure::ServiceError(status) => (
+            "service_error",
+            format!("MusicBrainz reported an error (HTTP {status}). Try again later."),
+        ),
+        LookupFailure::UnreadableAnswer => (
+            "unreadable_answer",
+            "MusicBrainz sent an answer Musaic could not read. Try again later.".into(),
+        ),
+    }
 }
 
 /// health.py:248-252.
@@ -152,7 +192,7 @@ fn internal(detail: impl Into<String>) -> HttpError {
 /// `Internal Server Error`, the detail is for the log) where the Python
 /// app's handler raised: a database error, a stored detail or MBID of a
 /// shape the Python app's code failed on. A malformed MusicBrainz answer is
-/// not one of them: it answers [`NO_RECORDING_REASON`].
+/// not one of them: it answers the `unreadable_answer` reason.
 pub fn duplicate_finding_canonical<T: Transport>(
     conn: &Connection,
     finding_id: i64,
@@ -194,10 +234,26 @@ pub fn duplicate_finding_canonical<T: Transport>(
         Some(other) => return Err(internal(format!("finding detail is {other}"))),
     };
     let Some(mbid) = mbid else {
-        return Ok(body(None, None, None, Some(NO_MBID_REASON)));
+        let reason = Reason {
+            code: NO_MBID_CODE,
+            text: NO_MBID_REASON.into(),
+        };
+        return Ok(body(None, None, None, Some(reason)));
     };
     match cache.get_or_lookup(mb, mbid) {
-        Some(c) => Ok(body(Some(&c.title), Some(&c.artist), Some(mbid), None)),
-        None => Ok(body(None, None, Some(mbid), Some(NO_RECORDING_REASON))),
+        RecordingLookup::Done(Some(c)) => {
+            Ok(body(Some(&c.title), Some(&c.artist), Some(mbid), None))
+        }
+        RecordingLookup::Done(None) => {
+            let reason = Reason {
+                code: NO_RECORDING_CODE,
+                text: NO_RECORDING_REASON.into(),
+            };
+            Ok(body(None, None, Some(mbid), Some(reason)))
+        }
+        RecordingLookup::Failed(failure) => {
+            let (code, text) = failure_reason(failure);
+            Ok(body(None, None, Some(mbid), Some(Reason { code, text })))
+        }
     }
 }

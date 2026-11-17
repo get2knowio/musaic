@@ -457,14 +457,40 @@ export function applyInconsistentArtistSort(
 }
 
 
+/** Why a recording lookup gave no title. Stable codes; the sentence is in
+ *  `reason`. `unreachable`, `rate_limited`, `service_error` and
+ *  `unreadable_answer` are temporary: asking again later can succeed. */
+export type CanonicalReasonCode =
+  | "no_mbid"
+  | "not_found"
+  | "unreachable"
+  | "rate_limited"
+  | "service_error"
+  | "unreadable_answer";
+
 /** What MusicBrainz says the cluster's recording_mbid actually is.
- *  Title + artist are null when no MBID was attached, MB returned 404,
- *  or the request failed — `reason` carries the human explanation. */
+ *  Title + artist are null when no MBID was attached, MB has no such
+ *  recording, or the lookup failed. `reason` is a plain sentence for the
+ *  user and `reason_code` says which case it is; both are null when a
+ *  title is given. */
 export interface CanonicalRecording {
   title: string | null;
   artist: string | null;
   mbid: string | null;
   reason: string | null;
+  reason_code: CanonicalReasonCode | null;
+}
+
+/** True when the lookup failed for a reason that may go away (no
+ *  connection, rate limit, service trouble), so the answer is not worth
+ *  keeping. */
+export function isTemporaryCanonicalFailure(c: CanonicalRecording | undefined): boolean {
+  return (
+    c?.reason_code === "unreachable" ||
+    c?.reason_code === "rate_limited" ||
+    c?.reason_code === "service_error" ||
+    c?.reason_code === "unreadable_answer"
+  );
 }
 
 /** Lazy MB lookup for a duplicate-tracks finding. Backend caches in-process

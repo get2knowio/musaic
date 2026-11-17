@@ -157,7 +157,7 @@ fn every_recorded_step_is_reproduced() {
                     .collect();
                 assert!(at.is_sorted(), "{label}: {keys:?} vs {raw}");
                 at.dedup();
-                assert_eq!(at.len(), 4, "{label}");
+                assert_eq!(at.len(), 5, "{label}");
             }
             Err(e) => {
                 assert_eq!(
@@ -368,8 +368,21 @@ fn failures_are_asked_again_definitive_answers_are_kept() {
     };
     let no_recording = |mbid: &str| {
         serde_json::json!({"title": null, "artist": null, "mbid": mbid,
-                           "reason": "MusicBrainz didn't return a recording for that MBID"})
+                           "reason": "MusicBrainz didn't return a recording for that MBID",
+                           "reason_code": "not_found"})
     };
+    let failed = |mbid: &str, code: &str, text: &str| {
+        serde_json::json!({"title": null, "artist": null, "mbid": mbid,
+                           "reason": text, "reason_code": code})
+    };
+    let want_failures = [
+        ("unreachable", deltas::UNREACHABLE),
+        ("rate_limited", deltas::RATE_LIMITED),
+        ("rate_limited", deltas::RATE_LIMITED),
+        ("unreadable_answer", deltas::UNREADABLE),
+        ("unreadable_answer", deltas::UNREADABLE),
+        ("unreadable_answer", deltas::UNREADABLE),
+    ];
     // Six failures in a row: each one a request, each "no recording", none kept.
     let want_lines: [Option<&str>; 6] = [
         Some("MB recording lookup failed for "),
@@ -388,7 +401,8 @@ fn failures_are_asked_again_definitive_answers_are_kept() {
     ];
     for (i, line) in want_lines.iter().enumerate() {
         let (got, lines) = ask(flaky);
-        assert_eq!(got, Ok(no_recording(flaky)), "failure {i}");
+        let (code, text) = want_failures[i];
+        assert_eq!(got, Ok(failed(flaky, code, text)), "failure {i}");
         assert_eq!(t.asked().len(), 1, "failure {i}: asked again");
         assert_eq!(cache.len(), 0, "failure {i}: not kept");
         match line {
@@ -405,6 +419,7 @@ fn failures_are_asked_again_definitive_answers_are_kept() {
     let want = found["response"]["json"].clone();
     let mut want = want;
     want["mbid"] = serde_json::json!(flaky);
+    want["reason_code"] = serde_json::Value::Null;
     assert_eq!(ask(flaky).0, Ok(want.clone()));
     assert_eq!(t.asked().len(), 1);
     assert_eq!(ask(flaky).0, Ok(want));
@@ -414,4 +429,84 @@ fn failures_are_asked_again_definitive_answers_are_kept() {
     assert_eq!(ask(gone).0, Ok(no_recording(gone)));
     assert_eq!(t.asked().len(), 1, "the 404 is remembered");
     assert_eq!(cache.len(), 2);
+}
+
+// Every way a lookup can end has its own reason code and sentence, so the
+// duplicate-tracks dialog can say which case happened. Public data only: the
+// answers are scripted.
+#[test]
+fn each_lookup_outcome_has_its_own_reason() {
+    let g = golden();
+    let dup = g["provenance"]["duplicate_finding_id"].as_i64().unwrap();
+    let ids: Vec<String> = (0..7)
+        .map(|i| format!("bbbbbbbb-0000-4000-8000-00000000000{i}"))
+        .collect();
+    let t = Sequence::new(vec![
+        (
+            &ids[0],
+            vec![Err(TransportError::Dns {
+                host: "musicbrainz.org".into(),
+            })],
+        ),
+        (&ids[1], vec![answer(429, "{}")]),
+        (&ids[2], vec![answer(503, "{}")]),
+        (&ids[3], vec![answer(500, "{}")]),
+        (&ids[4], vec![answer(200, "<html></html>")]),
+        (&ids[5], vec![answer(404, "")]),
+        (&ids[6], vec![answer(200, "{\"title\": \"T\"}")]),
+    ]);
+    let mb = MusicBrainzClient::new(&t);
+    let cache = RecordingCanonicalCache::new();
+    let tmp = tempfile::tempdir().unwrap();
+    let conn = db_copy(tmp.path());
+    let ask = |mbid: &str| {
+        conn.execute(
+            "UPDATE check_findings SET detail_json=?1 WHERE id=?2",
+            rusqlite::params![serde_json::json!({"recording_mbid": mbid}).to_string(), dup],
+        )
+        .unwrap();
+        let body = duplicate_finding_canonical(&conn, dup, &mb, &cache).unwrap();
+        let v = body.to_value();
+        (
+            v["reason_code"].as_str().map(str::to_owned),
+            v["reason"].as_str().map(str::to_owned),
+        )
+    };
+    let want: [(&str, &str); 6] = [
+        ("unreachable", deltas::UNREACHABLE),
+        ("rate_limited", deltas::RATE_LIMITED),
+        ("rate_limited", deltas::RATE_LIMITED),
+        (
+            "service_error",
+            "MusicBrainz reported an error (HTTP 500). Try again later.",
+        ),
+        ("unreadable_answer", deltas::UNREADABLE),
+        (
+            "not_found",
+            "MusicBrainz didn't return a recording for that MBID",
+        ),
+    ];
+    for (i, (code, text)) in want.iter().enumerate() {
+        assert_eq!(
+            ask(&ids[i]),
+            (Some((*code).to_owned()), Some((*text).to_owned())),
+            "{i}"
+        );
+    }
+    assert_eq!(
+        ask(&ids[6]),
+        (None, None),
+        "a found recording has no reason"
+    );
+    // No MBID at all.
+    conn.execute(
+        "UPDATE check_findings SET detail_json='{}' WHERE id=?1",
+        rusqlite::params![dup],
+    )
+    .unwrap();
+    let v = duplicate_finding_canonical(&conn, dup, &mb, &cache)
+        .unwrap()
+        .to_value();
+    assert_eq!(v["reason_code"], "no_mbid");
+    assert_eq!(v["reason"], "no recording MBID for this cluster");
 }

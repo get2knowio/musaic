@@ -352,7 +352,8 @@ fn concurrent_resolves_of_one_album_coalesce() {
     assert_eq!(world.take_writes().len(), 2);
     let computed: Vec<_> = results.iter().filter(|r| !r.from_memo).collect();
     assert_eq!(computed.len(), 1);
-    assert_eq!(computed[0].events.len(), 3);
+    // One resolve, one anchor event (the last write).
+    assert_eq!(computed[0].events.len(), 1);
     for r in &results {
         assert!(Arc::ptr_eq(&r.resolution, &results[0].resolution));
     }
@@ -438,7 +439,7 @@ fn anchor_persists_in_the_database_and_short_circuits() {
 
     let first = resolver.resolve(&env, &id, "", false).unwrap();
     assert_eq!(first.resolution.anchor_strategy, "dir-search");
-    assert_eq!(first.events.len(), 3);
+    assert_eq!(first.events.len(), 1);
     let python_after = &case["results"][0]["store_after"];
     let row = musaic_db::mb_anchor::get_album_mb_anchor(&conn, &id)
         .unwrap()

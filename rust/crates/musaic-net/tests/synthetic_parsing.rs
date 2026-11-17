@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use common::{FaultServer, closed_port};
 use musaic_log::{Level, capture};
 use musaic_net::{
-    AcoustIdClient, ClientError, FailureClass, LiveTransport, MusicBrainzClient,
+    AcoustIdClient, ClientError, FailureClass, LiveTransport, LookupFailure, MusicBrainzClient,
     RecordingCanonical, RecordingLookup, ReplayTransport, Request, Transport, TransportError,
     USER_AGENT,
 };
@@ -252,6 +252,37 @@ fn recording_release_groups_are_deduplicated() {
     );
 }
 
+/// A failed recording lookup says why: no answer at all, a rate-limit
+/// status, another status, a body that cannot be read.
+#[test]
+fn recording_lookup_failures_say_why() {
+    let req = MusicBrainzClient::<ReplayTransport>::recording_canonical_request;
+    let ids: Vec<String> = (0..5)
+        .map(|i| format!("{}{i}", &REC_SECOND[..35]))
+        .collect();
+    let t = Canned::default()
+        .fail(&req(&ids[0]), "musicbrainz.org")
+        .answer(&req(&ids[1]), json_response(429, &json!({})))
+        .answer(&req(&ids[2]), json_response(503, &json!({})))
+        .answer(&req(&ids[3]), json_response(500, &json!({})))
+        .answer(&req(&ids[4]), response(200, &[], b"<html></html>"));
+    let mb = MusicBrainzClient::new(&t);
+    let got: Vec<RecordingLookup> = ids
+        .iter()
+        .map(|id| capture(|| mb.recording_canonical_lookup(id)).0)
+        .collect();
+    assert_eq!(
+        got,
+        [
+            RecordingLookup::Failed(LookupFailure::Unreachable),
+            RecordingLookup::Failed(LookupFailure::RateLimited),
+            RecordingLookup::Failed(LookupFailure::RateLimited),
+            RecordingLookup::Failed(LookupFailure::ServiceError(500)),
+            RecordingLookup::Failed(LookupFailure::UnreadableAnswer),
+        ]
+    );
+}
+
 /// The recording lookup: the title stripped; the artist is every credit's
 /// name (or its artist's name) followed by its joinphrase, a credit without
 /// a name skipped together with its joinphrase, the whole stripped.
@@ -328,7 +359,7 @@ fn recording_lookup_outcomes() {
 
     let failed = |id: &str, head: String| {
         let (got, lines) = capture(|| mb.recording_canonical_lookup(id));
-        assert_eq!(got, RecordingLookup::Failed, "{id}");
+        assert!(matches!(got, RecordingLookup::Failed(_)), "{id}");
         assert_eq!(lines.len(), 1, "{id}: {lines:?}");
         assert_eq!(lines[0].level, Level::Warning);
         assert_eq!(lines[0].target, "musaic.mb_lookup");

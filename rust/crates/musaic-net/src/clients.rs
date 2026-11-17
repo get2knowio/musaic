@@ -327,7 +327,7 @@ impl<T: Transport> MusicBrainzClient<T> {
     pub fn recording_canonical_lookup(&self, recording: &str) -> RecordingLookup {
         match self.recording_canonical_outcome(recording) {
             (Ok(answer), Outcome::Definitive) => RecordingLookup::Done(answer),
-            (Ok(_), Outcome::Retry) => RecordingLookup::Failed,
+            (Ok(_), Outcome::Retry(failure)) => RecordingLookup::Failed(failure),
             (Ok(_), Outcome::NotJson(why)) => {
                 // Logged like a malformed answer (the Python app's
                 // function returned None for it without a line).
@@ -338,7 +338,7 @@ impl<T: Transport> MusicBrainzClient<T> {
                         cut_detail(why)
                     ),
                 );
-                RecordingLookup::Failed
+                RecordingLookup::Failed(LookupFailure::UnreadableAnswer)
             }
             (Err(MalformedRecording(why)), _) => {
                 musaic_log::warning(
@@ -348,7 +348,7 @@ impl<T: Transport> MusicBrainzClient<T> {
                         cut_detail(why)
                     ),
                 );
-                RecordingLookup::Failed
+                RecordingLookup::Failed(LookupFailure::UnreadableAnswer)
             }
         }
     }
@@ -375,7 +375,7 @@ impl<T: Transport> MusicBrainzClient<T> {
                     "musaic.mb_lookup",
                     &format!("MB recording lookup failed for {recording}: {e}"),
                 );
-                return (Ok(None), Outcome::Retry);
+                return (Ok(None), Outcome::Retry(LookupFailure::Unreachable));
             }
         };
         if resp.status == 404 {
@@ -386,7 +386,11 @@ impl<T: Transport> MusicBrainzClient<T> {
                 "musaic.mb_lookup",
                 &format!("MB recording lookup HTTP {} for {recording}", resp.status),
             );
-            return (Ok(None), Outcome::Retry);
+            let failure = match resp.status {
+                429 | 503 => LookupFailure::RateLimited,
+                status => LookupFailure::ServiceError(status),
+            };
+            return (Ok(None), Outcome::Retry(failure));
         }
         let data = match serde_json::from_slice::<serde_json::Value>(&resp.body) {
             Ok(d) => d,
@@ -396,7 +400,7 @@ impl<T: Transport> MusicBrainzClient<T> {
         let outcome = if parsed.is_ok() {
             Outcome::Definitive
         } else {
-            Outcome::Retry
+            Outcome::Retry(LookupFailure::UnreadableAnswer)
         };
         (parsed, outcome)
     }
@@ -457,7 +461,7 @@ enum Outcome {
     Definitive,
     /// A failed request or another status (already logged), or a malformed
     /// shape (the `Err` side carries why).
-    Retry,
+    Retry(LookupFailure),
     /// A 200 whose body is not JSON (the parse error); logged by
     /// [`MusicBrainzClient::recording_canonical_lookup`] only.
     NotJson(String),
@@ -471,7 +475,21 @@ pub enum RecordingLookup {
     Done(Option<RecordingCanonical>),
     /// The lookup did not complete (network, status, unreadable or
     /// malformed answer). Not remembered; the next request asks again.
-    Failed,
+    Failed(LookupFailure),
+}
+
+/// Why a recording lookup did not complete, for the answer's reason.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LookupFailure {
+    /// The request could not be made or got no answer: no connection,
+    /// offline mode, a timeout, a certificate or TLS failure.
+    Unreachable,
+    /// MusicBrainz answered 429 or 503, which it uses to limit request rates.
+    RateLimited,
+    /// MusicBrainz answered with another unexpected status.
+    ServiceError(u16),
+    /// A 200 whose body was not the expected JSON.
+    UnreadableAnswer,
 }
 
 impl RecordingLookup {
@@ -479,7 +497,7 @@ impl RecordingLookup {
     pub fn answer(&self) -> Option<&RecordingCanonical> {
         match self {
             RecordingLookup::Done(a) => a.as_ref(),
-            RecordingLookup::Failed => None,
+            RecordingLookup::Failed(_) => None,
         }
     }
 }

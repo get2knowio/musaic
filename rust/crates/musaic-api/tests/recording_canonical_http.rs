@@ -164,12 +164,9 @@ async fn a_new_server_asks_again() {
     musaic_testdata::require_private!("replay", "golden/checks/recording_canonical.json");
     let g = golden();
     let dup = g["provenance"]["duplicate_finding_id"].as_i64().unwrap();
-    let found = g["steps"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|s| s["label"] == "found")
-        .unwrap();
+    // The step as this build answers it (the recorded one plus the deltas).
+    let steps = deltas::expected_steps(&g);
+    let found = steps.iter().find(|s| s["label"] == "found").unwrap();
     let sb = Sandbox::new();
     let db = sb.cfg.join("library.db");
     std::fs::copy(musaic_testdata::public("db/v16-synthetic-offline.db"), &db).unwrap();

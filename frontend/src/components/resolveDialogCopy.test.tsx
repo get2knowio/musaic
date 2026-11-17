@@ -254,6 +254,50 @@ describe("duplicate Resolve dialog copy", () => {
       }),
     );
   });
+
+  describe("MusicBrainz lookup line", () => {
+    const mbid = "c0000000-0000-4000-8000-00000000000c";
+    const canonicalUrl = "GET /api/checks/duplicate-tracks/findings/7/canonical";
+    const failure = (reason_code: string, reason: string) => ({
+      title: null, artist: null, mbid, reason, reason_code,
+    });
+
+    it.each([
+      ["not_found", "MusicBrainz didn't return a recording for that MBID"],
+      [
+        "unreachable",
+        "Couldn't reach MusicBrainz. Check the internet connection and that offline mode is off, then reopen this dialog.",
+      ],
+      ["rate_limited", "MusicBrainz is busy or limiting requests. Wait a minute, then reopen this dialog."],
+      ["service_error", "MusicBrainz reported an error (HTTP 500). Try again later."],
+      ["unreadable_answer", "MusicBrainz sent an answer Musaic could not read. Try again later."],
+    ])("shows the sentence for %s", async (code, sentence) => {
+      routes[canonicalUrl] = failure(code, sentence);
+      wrap(<DuplicateResolveDialog finding={finding} open onClose={() => {}} />);
+      const line = await screen.findByText(sentence);
+      expect(line.closest("[role=status]")).toHaveAttribute("data-reason-code", code);
+    });
+
+    it("says nothing for a cluster with no recording id", async () => {
+      routes[canonicalUrl] = {
+        title: null, artist: null, mbid: null,
+        reason: "no recording MBID for this cluster", reason_code: "no_mbid",
+      };
+      wrap(<DuplicateResolveDialog finding={finding} open onClose={() => {}} />);
+      await screen.findByText("Remove duplicate copies");
+      await waitFor(() => expect(calls.some((c) => c.url.endsWith("/canonical"))).toBe(true));
+      expect(screen.queryByText(/no recording MBID/)).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("shows the recording when MusicBrainz answered", async () => {
+      routes[canonicalUrl] = {
+        title: "Bridge", artist: "Someone", mbid, reason: null, reason_code: null,
+      };
+      wrap(<DuplicateResolveDialog finding={finding} open onClose={() => {}} />);
+      expect(await screen.findByText(/MusicBrainz says this audio is/)).toBeInTheDocument();
+    });
+  });
 });
 
 describe("artist sort Resolve dialog copy", () => {
