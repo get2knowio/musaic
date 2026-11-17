@@ -120,6 +120,17 @@ impl Network {
         }
     }
 
+    /// [`Self::shared`], except that on the paced live transport a request
+    /// waiting for its pacing slot or a retry delay ends with
+    /// [`TransportError::Stopped`] once `cancel` is set (shutdown). The
+    /// other networks answer at once and have nothing to wait on.
+    pub fn shared_cancellable(&self, cancel: Arc<AtomicBool>) -> SharedTransport {
+        match self {
+            Network::Paced(p) => Arc::new(p.as_ref().clone().with_cancel(cancel)),
+            _ => self.shared(),
+        }
+    }
+
     /// The transport for background work (the check sweep), over the same
     /// connections and limiter as `foreground` (this network's
     /// [`Self::shared`]): it yields to foreground requests, waits while

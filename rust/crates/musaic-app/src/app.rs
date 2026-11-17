@@ -425,7 +425,8 @@ impl AppBuilder {
             tick.send_modify(|n| *n += 1);
         });
         let resolver = Arc::new(Resolver::new());
-        let transport = self.network.shared();
+        let net_cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let transport = self.network.shared_cancellable(net_cancel.clone());
         let parts = startup::parts_factory(
             resolver.clone(),
             transport.clone(),
@@ -448,6 +449,10 @@ impl AppBuilder {
             resolver: checks_resolution,
             clock: Arc::new(startup::ChecksClock(clock.clone())),
             notify,
+            publish: {
+                let bus = bus.clone();
+                Arc::new(move |ev| bus.publish(&ev))
+            },
         };
         let thumbs_dir = config.dir().join("thumbs");
         let gate = WorkGate::new();
@@ -532,6 +537,7 @@ impl AppBuilder {
             key_scrub,
             recording_canonical: musaic_services::recording_canonical::RecordingCanonicalCache::new(
             ),
+            net_cancel,
             shutting_down: watch::channel(false).0,
             shutdown_pool_wait: self.shutdown_pool_wait,
             sweeper,
@@ -599,6 +605,9 @@ fn retry_once(inner: &AppInner) -> Option<ScrubOutcome> {
 /// The application's parts. Fields are public so a host (musaic-api's
 /// handlers) reads them directly.
 pub struct AppInner {
+    /// Set when shutdown begins: a request waiting on the network's pacing
+    /// or a retry delay ends at once instead of holding shutdown.
+    pub net_cancel: Arc<std::sync::atomic::AtomicBool>,
     pub config: ConfigDir,
     pub db_path: PathBuf,
     pub secrets: SharedSecrets,
@@ -846,6 +855,9 @@ impl App {
     /// connection open, and a scan finishing during shutdown restarted the
     /// pool that had just been stopped.)
     pub fn shutdown(&self) -> ShutdownReport {
+        self.0
+            .net_cancel
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         // The sweep first: it stops its request in flight at once, and it
         // must not start a batch after the scan below ends.
         let sweep_stopped = self.0.sweeper.stop_within(SHUTDOWN_SWEEP_WAIT);

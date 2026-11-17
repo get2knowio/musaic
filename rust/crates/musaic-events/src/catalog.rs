@@ -281,6 +281,10 @@ fn guarded_rerun(
     run_post_scan_guarded(|| fx.run_post_scan_checks(lib, album_ids)).unwrap_or(Ok(()))
 }
 
+fn is_rerun_finished(ev: &Event) -> bool {
+    ev.kind() == EventKind::ChecksRerunFinished
+}
+
 fn run_handler(handler: Handler, fx: &dyn SideEffects, ev: &Event) -> Result<(), SubscriberError> {
     match handler {
         Handler::ResolverInvalidate => match ev.album_id() {
@@ -336,7 +340,14 @@ fn run_handler(handler: Handler, fx: &dyn SideEffects, ev: &Event) -> Result<(),
             let ids = [new_album_id.clone()];
             with_post_scan_rerun(|| fx.run_check_scoped("filename-mismatch", &lib, &ids))
         }
+        // The runner notified the checks stream itself when its runs
+        // finished; this event only reports that they did.
+        Handler::FindingsRunnerNotify if is_rerun_finished(ev) => Ok(()),
         Handler::FindingsRunnerNotify => fx.notify_findings_changed(),
+        // A finished rerun changes no input of any check: waking the sweep
+        // for it would plan a pass that finds nothing stale, and a pass that
+        // did run something publishes this event again.
+        Handler::CheckSweepWake if is_rerun_finished(ev) => Ok(()),
         // Every event, whatever the guard flags: waking the sweep is cheap
         // and idempotent, and the sweep itself waits for scans, bulk runs
         // and restores to end.

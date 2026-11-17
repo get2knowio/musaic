@@ -36,7 +36,8 @@ pub use clients::{
 };
 pub use live::{LiveClients, LiveTransport};
 pub use pacing::{
-    Clock, Limiter, MAX_RETRY_WAIT, Paced, PacingPolicy, RetryPolicy, SystemClock, process_limiter,
+    CANCEL_POLL, Clock, Limiter, MAX_RETRY_WAIT, Paced, PacingPolicy, RetryPolicy, SystemClock,
+    process_limiter,
 };
 pub use replay::{FollowRedirects, ReplayTransport};
 pub use request::{Method, Request, Response};
@@ -85,15 +86,23 @@ pub enum TransportError {
     /// URL or an address that is not on the public internet.
     #[error("refused to fetch {url}: {reason}")]
     Refused { url: String, reason: String },
-    /// A [`BackgroundPaced`] request was stopped by its caller while it
-    /// waited for a quiet slot; nothing was sent.
-    #[error("background request stopped before it was sent")]
+    /// The request was cancelled by its caller while it waited for a pacing
+    /// slot or a retry delay (a [`BackgroundPaced`] stop flag, a
+    /// [`Paced::with_cancel`] flag); nothing more was sent. Not a network
+    /// failure: [`TransportError::is_cancelled`].
+    #[error("request cancelled before it was sent")]
     Stopped,
     #[error("transport: {0}")]
     Other(String),
 }
 
 impl TransportError {
+    /// The caller cancelled the request ([`TransportError::Stopped`]); the
+    /// network did nothing wrong.
+    pub fn is_cancelled(&self) -> bool {
+        matches!(self, TransportError::Stopped)
+    }
+
     /// The host was unreachable in a way that says "offline" (DNS, refused
     /// connection, timeout), as opposed to a server that answered badly.
     pub fn is_offline(&self) -> bool {

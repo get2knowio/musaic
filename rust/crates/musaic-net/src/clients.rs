@@ -55,11 +55,20 @@ pub enum FailureClass {
     Parse,
     /// AcoustID answered `{"status": "error"}`.
     Service,
+    /// The caller cancelled the request; nothing failed.
+    Cancelled,
 }
 
 impl ClientError {
+    /// The request was cancelled by its caller (see
+    /// [`TransportError::is_cancelled`]), as opposed to failing.
+    pub fn is_cancelled(&self) -> bool {
+        matches!(self, ClientError::Transport(t) if t.is_cancelled())
+    }
+
     pub fn class(&self) -> FailureClass {
         match self {
+            ClientError::Transport(t) if t.is_cancelled() => FailureClass::Cancelled,
             ClientError::Transport(_) => FailureClass::Network,
             ClientError::Status { .. } => FailureClass::Http,
             ClientError::Parse { .. } => FailureClass::Parse,

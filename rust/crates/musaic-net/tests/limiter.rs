@@ -328,16 +328,96 @@ fn retry_after_is_capped_at_thirty_seconds() {
     );
 }
 
-/// An HTTP-date Retry-After is treated as absent (the limiter has
-/// no wall clock to compare it with): our own backoff applies.
+/// An HTTP date as a server writes it (IMF-fixdate), `secs` after the epoch.
+fn http_date(secs: u64) -> String {
+    let days = (secs / 86_400) as i64;
+    let rem = secs % 86_400;
+    // Civil date from days since the epoch.
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = doy - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = yoe + era * 400 + i64::from(month <= 2);
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    const WEEKDAYS: [&str; 7] = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
+    format!(
+        "{}, {day:02} {} {year} {:02}:{:02}:{:02} GMT",
+        WEEKDAYS[(days % 7) as usize],
+        MONTHS[month as usize - 1],
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
+}
+
+fn unix_now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
+}
+
+/// An HTTP-date Retry-After is honoured like the numeric form: a date a
+/// few seconds ahead is the wait (to the second the wall clock moved while
+/// the test ran); a date far ahead waits the 30 s cap and the request goes
+/// on; a date already past, or one that is not a date, falls back to our own
+/// backoff.
 #[test]
-fn http_date_retry_after_is_treated_as_absent() {
+fn http_date_retry_after_is_honoured() {
+    // 12 s ahead: the second the wall clock ticks over between building and
+    // reading the header can shave a second or two, never add one.
     ThreadClock::reset();
-    let t = BusyFirst::new(2, 503, Some("Wed, 21 Oct 2099 07:28:00 GMT"));
+    let t = BusyFirst::new(1, 503, Some(&http_date(unix_now() + 12)));
     MusicBrainzClient::new(Paced::new(&t, ThreadClock))
         .search_release_groups("A", "B")
         .unwrap();
-    assert_eq!(t.rec.times("musicbrainz.org"), [0, 1, 3].map(SECS));
+    let sent = t.rec.times("musicbrainz.org");
+    assert_eq!(sent.len(), 2, "{sent:?}");
+    assert!(
+        (SECS(9)..=SECS(12)).contains(&sent[1]),
+        "waited {:?} for a date 12 s ahead",
+        sent[1]
+    );
+
+    // Far ahead: capped, not stalled for years.
+    ThreadClock::reset();
+    let t = BusyFirst::new(1, 429, Some("Wed, 21 Oct 2099 07:28:00 GMT"));
+    MusicBrainzClient::new(Paced::new(&t, ThreadClock))
+        .search_release_groups("A", "B")
+        .unwrap();
+    assert_eq!(t.rec.times("musicbrainz.org"), [0, 30].map(SECS));
+
+    // Past, or not a date at all: our backoff (1 s, then 2 s).
+    for ra in ["Sun, 06 Nov 1994 08:49:37 GMT", "next Tuesday", "-5", ""] {
+        ThreadClock::reset();
+        let t = BusyFirst::new(2, 503, Some(ra));
+        MusicBrainzClient::new(Paced::new(&t, ThreadClock))
+            .search_release_groups("A", "B")
+            .unwrap();
+        assert_eq!(
+            t.rec.times("musicbrainz.org"),
+            [0, 1, 3].map(SECS),
+            "{ra:?}"
+        );
+    }
+}
+
+/// A numeric figure too large for any integer waits the cap rather than
+/// being ignored.
+#[test]
+fn an_enormous_numeric_retry_after_waits_the_cap() {
+    ThreadClock::reset();
+    let t = BusyFirst::new(1, 503, Some("99999999999999999999999999"));
+    MusicBrainzClient::new(Paced::new(&t, ThreadClock))
+        .search_release_groups("A", "B")
+        .unwrap();
+    assert_eq!(t.rec.times("musicbrainz.org"), [0, 30].map(SECS));
 }
 
 /// A busy answer to one caller holds every caller on that host.

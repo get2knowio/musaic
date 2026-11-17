@@ -11,6 +11,11 @@
  * sweep's progress (after the first "state", then on every change); it is
  * written into the sweep-status cache the titlebar pill reads.
  *
+ * The library-events stream also reports a finished rerun
+ * (ChecksRerunFinished, see useLibraryEventsStream) and invalidates the
+ * same findings caches. This stream stays for what the bus does not carry:
+ * a running check's state, ignore / unignore, and the sweep's progress.
+ *
  * Why invalidate findings rather than push them in the SSE payload?
  * Findings can grow into the hundreds; the summary already gives us a
  * change signal, and a single invalidation triggers one targeted REST
