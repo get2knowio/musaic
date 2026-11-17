@@ -134,6 +134,9 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
   const [libraryDir, setLibraryDir] = useState<string | null>(null);
   const [scan, setScan] = useState<ScanState>(INITIAL);
   const streamRef = useRef<{ close: () => void } | null>(null);
+  // When each row in the list was last put there by the cached load or the
+  // scan stream, so a snapshot can tell which rows it is newer than.
+  const rowStamps = useRef<Map<string, number>>(new Map());
 
   // Sorted view derived once per render.
   // Sort key MUST mirror the artist string the tile/row renders. Otherwise
@@ -169,7 +172,12 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
         const cached = await listAlbums();
         if (cancelled) return;
         const map = new Map<string, Album>();
-        for (const a of cached.albums) map.set(a.id, a);
+        const now = Date.now();
+        rowStamps.current = new Map();
+        for (const a of cached.albums) {
+          map.set(a.id, a);
+          rowStamps.current.set(a.id, now);
+        }
         setAlbumsById(map);
         setLibraryDir(cached.library_dir);
         setScan((s) => ({
@@ -196,7 +204,12 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
           const cached = await listAlbums();
           if (cancelled) return;
           const map = new Map<string, Album>();
-          for (const a of cached.albums) map.set(a.id, a);
+          const now = Date.now();
+          rowStamps.current = new Map();
+          for (const a of cached.albums) {
+            map.set(a.id, a);
+            rowStamps.current.set(a.id, now);
+          }
           setAlbumsById(map);
           setScan((s) => ({ ...s, scannedAt: cached.scanned_at || null }));
         } catch {
@@ -225,6 +238,7 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
             break;
 
           case "album":
+            rowStamps.current.set(ev.album.id, Date.now());
             setAlbumsById((prev) => {
               const next = new Map(prev);
               next.set(ev.album.id, ev.album);
@@ -357,6 +371,7 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
   const rescan = useCallback(async () => {
     await rescanLibrary();
     setAlbumsById(new Map());
+    rowStamps.current = new Map();
     _initialScanDone = true;  // ensure flag stays set after manual rescan
     start(true);
   }, [start]);
@@ -411,6 +426,30 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
     for (const a of snapshot.data) map.set(a.id, a);
     setAlbumsById(map);
     setSnapshotSyncs((n) => n + 1);
+  }, [enabled, scan.status, snapshot.data, snapshot.dataUpdatedAt, snapshot.isFetching]);
+
+  // While a scan runs the list is not replaced: it holds rows the scan read
+  // that the database does not have yet. But an album changed meanwhile (a
+  // cover uploaded, tags applied) is saved to the database at once, so a row
+  // whose snapshot was fetched after the list last got that row is taken
+  // from the snapshot. Rows only the stream knows stay; none are added.
+  const mergedAt = useRef(0);
+  useEffect(() => {
+    if (!enabled || !isScanBusy(scan.status)) return;
+    if (!snapshot.data || snapshot.isFetching) return;
+    if (snapshot.dataUpdatedAt <= mergedAt.current) return;
+    mergedAt.current = snapshot.dataUpdatedAt;
+    const at = snapshot.dataUpdatedAt;
+    const newer = snapshot.data.filter((a) => at > (rowStamps.current.get(a.id) ?? Infinity));
+    if (newer.length === 0) return;
+    setAlbumsById((prev) => {
+      const next = new Map(prev);
+      for (const a of newer) {
+        if (next.has(a.id)) next.set(a.id, a);
+        rowStamps.current.set(a.id, at);
+      }
+      return next;
+    });
   }, [enabled, scan.status, snapshot.data, snapshot.dataUpdatedAt, snapshot.isFetching]);
 
   return { albums, scan, libraryDir, rescan, cancel, snapshotSyncs };
