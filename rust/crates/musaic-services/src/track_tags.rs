@@ -39,10 +39,9 @@ use std::path::Path;
 
 use musaic_core::pycompat::strip;
 use musaic_db::track_tags as db;
-use musaic_scan::{TrackOrder, py_resolve};
+use musaic_scan::TrackOrder;
 use rusqlite::Connection;
 
-use crate::albums::{self, album_to_json};
 use crate::apply::{HttpError, ResolvedAlbum, refuse_missing};
 use crate::json::Json;
 
@@ -75,26 +74,9 @@ pub fn resolve_album_dict(
     album_id: &str,
     order: TrackOrder,
 ) -> Result<ResolvedAlbum, HttpError> {
-    let Some(lib) = library_dir.filter(|l| !l.is_empty()) else {
-        return Err(err(409, "No library directory configured"));
-    };
-    let resolved = py_resolve(Path::new(lib)).to_string_lossy().into_owned();
-    let cached = albums::load_snapshot(conn, &resolved).map_err(db_err)?;
-    if let Some(row) = cached.into_iter().find(|r| r.id() == album_id) {
-        return Ok(ResolvedAlbum {
-            id: row.album.id.clone(),
-            path: row.album.path.clone(),
-            json: row.json,
-        });
-    }
-    match albums::find_album_by_id(Path::new(lib), album_id, order) {
-        Some(a) => Ok(ResolvedAlbum {
-            id: a.id.clone(),
-            path: a.path.clone(),
-            json: album_to_json(&a),
-        }),
-        None => Err(err(404, "Album not found (try rescanning the library)")),
-    }
+    let (id, path, json) =
+        crate::library_ops::resolve_album_dict(conn, library_dir, album_id, order)?;
+    Ok(ResolvedAlbum { id, path, json })
 }
 
 /// `list_album_filenames`: the album's FLAC basenames (musaic-scan listing).

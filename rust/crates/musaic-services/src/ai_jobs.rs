@@ -120,6 +120,12 @@ impl From<musaic_db::Error> for JobError {
     }
 }
 
+impl From<rusqlite::Error> for JobError {
+    fn from(e: rusqlite::Error) -> Self {
+        JobError::Db(e.into())
+    }
+}
+
 impl From<JobRefusal> for JobError {
     fn from(r: JobRefusal) -> Self {
         JobError::Refused(r)
@@ -151,10 +157,10 @@ pub fn album_for_job(
     conn: &Connection,
     library_dir: Option<&str>,
     album_id: &str,
-) -> Result<AlbumRow, JobRefusal> {
-    match crate::sources::cached_album(conn, library_dir, album_id) {
+) -> Result<AlbumRow, JobError> {
+    match crate::sources::cached_album(conn, library_dir, album_id)? {
         Some(row) => Ok(row),
-        None => Err(JobRefusal::AlbumNotInCache(album_id.to_string())),
+        None => Err(JobRefusal::AlbumNotInCache(album_id.to_string()).into()),
     }
 }
 

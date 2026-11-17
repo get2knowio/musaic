@@ -22,8 +22,8 @@
 //! or, when the album already has an active job, `{ok: false, message:
 //! "Already has an active job (<status>)", job_id: <existing>}`. A fix that
 //! wrote something first (tags-out-of-sync) answers the same way (as the
-//! Python app does). As in the Python app, this enqueue does not notify the jobs
-//! stream or wake the dispatcher.
+//! Python app does). The Python app's enqueue did not notify the jobs stream or
+//! wake the dispatcher; the handler does, once the fix has finished.
 //!
 //! With no model backend (the provider is
 //! `musaic_ai::Unconfigured`) [`run_fix_env`] hands the not-available
