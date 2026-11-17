@@ -182,6 +182,28 @@ pub fn upsert_finding(
     detail_json: Option<&str>,
     now: &str,
 ) -> Result<i64> {
+    Ok(upsert_finding_outcome(
+        conn,
+        check_id,
+        album_id,
+        severity,
+        summary,
+        detail_json,
+        now,
+    )?
+    .0)
+}
+
+/// [`upsert_finding`], also saying whether the row was newly inserted.
+pub fn upsert_finding_outcome(
+    conn: &Connection,
+    check_id: &str,
+    album_id: Option<&str>,
+    severity: &str,
+    summary: &str,
+    detail_json: Option<&str>,
+    now: &str,
+) -> Result<(i64, bool)> {
     let tx = crate::immediate(conn)?;
     let existing: Option<i64> = tx
         .query_row(
@@ -190,14 +212,14 @@ pub fn upsert_finding(
             |r| r.get(0),
         )
         .optional()?;
-    let id = match existing {
+    let (id, created) = match existing {
         Some(id) => {
             tx.execute(
                 "UPDATE check_findings SET last_seen_at=?1, severity=?2, detail_json=?3, \
                  resolved_at=NULL WHERE id=?4",
                 params![now, severity, detail_json, id],
             )?;
-            id
+            (id, false)
         }
         None => {
             tx.execute(
@@ -205,11 +227,66 @@ pub fn upsert_finding(
                  first_seen_at, last_seen_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
                 params![check_id, album_id, severity, summary, detail_json, now],
             )?;
-            tx.last_insert_rowid()
+            (tx.last_insert_rowid(), true)
         }
     };
     tx.commit()?;
-    Ok(id)
+    Ok((id, created))
+}
+
+/// Carry a user's ignore across a change of summary. A finding is keyed by
+/// its summary, so a rerun whose wording changed inserts a new row and
+/// leaves the ignored one behind. When `new_id` (just inserted) and exactly
+/// one other open, ignored finding of the same check and album that this run
+/// did not see (`seen_ids`) are the only candidates, the new row takes the
+/// ignore and the old row is resolved. Several candidates are ambiguous (a
+/// check may emit several findings per album) and nothing is moved.
+/// Returns whether an ignore was carried over.
+pub fn inherit_ignore(
+    conn: &Connection,
+    check_id: &str,
+    new_id: i64,
+    seen_ids: &[i64],
+    now: &str,
+) -> Result<bool> {
+    let tx = crate::immediate(conn)?;
+    let album: Option<Option<String>> = tx
+        .query_row(
+            "SELECT album_id FROM check_findings WHERE id=?1 AND ignored_at IS NULL",
+            params![new_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let Some(album) = album else {
+        return Ok(false);
+    };
+    let mut stmt = tx.prepare(
+        "SELECT id, ignored_at, ignored_reason FROM check_findings WHERE check_id=?1 \
+         AND album_id IS ?2 AND resolved_at IS NULL AND ignored_at IS NOT NULL",
+    )?;
+    let old: Vec<(i64, String, Option<String>)> = stmt
+        .query_map(params![check_id, album], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    drop(stmt);
+    let old: Vec<_> = old
+        .into_iter()
+        .filter(|(id, _, _)| !seen_ids.contains(id))
+        .collect();
+    let [(old_id, at, reason)] = old.as_slice() else {
+        return Ok(false);
+    };
+    tx.execute(
+        "UPDATE check_findings SET ignored_at=?1, ignored_reason=?2 WHERE id=?3",
+        params![at, reason, new_id],
+    )?;
+    tx.execute(
+        "UPDATE check_findings SET resolved_at=?1 WHERE id=?2",
+        params![now, old_id],
+    )?;
+    tx.commit()?;
+    Ok(true)
 }
 
 /// Resolve every open, un-ignored finding of `check_id` whose id is not in

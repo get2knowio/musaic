@@ -163,3 +163,56 @@ fn a_resolver_error_leaves_the_albums_findings_open() {
         "evaluated again, the finding closes"
     );
 }
+
+/// An ignore survives a rerun that rewords the finding: a finding is keyed
+/// by its summary, so the reworded one is a new row, and it must take the
+/// ignore over from the row it replaces rather than reappear on the
+/// "needs attention" list.
+#[test]
+fn an_ignore_survives_a_changed_summary() {
+    let (sb, db) = Sandbox::new();
+    let conn = db.connection();
+    let case = json!({
+        "albums": [{
+            "id": "a1", "library_path": "<LIB>", "path": "<LIB>/a1", "dir_name": "a1",
+            "title": "T", "artist": "A", "album_artist": "A", "year": "2000", "genre": null,
+            "mb_release_group_mbid": "rg-1", "track_count": 1,
+        }],
+        "dirs": ["a1"],
+    });
+    setup(&sb, conn, &case);
+    let log = Default::default();
+    let env = env(registry(None, &log), Arc::new(Flaky(Default::default())));
+    let run = || {
+        run_check(
+            conn,
+            &env,
+            "tags-out-of-sync",
+            &sb.lib_s,
+            ScopeKind::All,
+            None,
+        )
+        .unwrap()
+    };
+    run();
+    let first = musaic_db::findings::all_findings(conn).unwrap();
+    assert_eq!(first.len(), 1);
+    musaic_checks::runner::ignore_finding(conn, &env, first[0].id, Some("on purpose"))
+        .unwrap()
+        .unwrap();
+
+    // A second missing field rewords the summary.
+    conn.execute("UPDATE albums SET year = NULL WHERE id = 'a1'", [])
+        .unwrap();
+    run();
+    let all = musaic_db::findings::all_findings(conn).unwrap();
+    let open: Vec<_> = all.iter().filter(|f| f.resolved_at.is_none()).collect();
+    assert_eq!(open.len(), 1, "{all:?}");
+    assert_ne!(open[0].summary, first[0].summary, "the summary changed");
+    assert!(open[0].ignored_at.is_some(), "the ignore carried over");
+    assert_eq!(open[0].ignored_reason.as_deref(), Some("on purpose"));
+
+    // Rerunning again changes nothing.
+    run();
+    assert_eq!(musaic_db::findings::all_findings(conn).unwrap().len(), 2);
+}
