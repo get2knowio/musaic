@@ -7,7 +7,7 @@
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { StrictMode, type ReactNode } from "react";
 
 const toast = vi.hoisted(() =>
   Object.assign(vi.fn(), { warning: vi.fn(), error: vi.fn(), success: vi.fn() }),
@@ -64,6 +64,41 @@ async function finishScan() {
   await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
   act(() => MockEventSource.last!.emit("done", { count: server.length, scanned_at: 2 }));
 }
+
+describe("useScanStream first scan", () => {
+  it("still scans when the effect mounts twice (dev StrictMode)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderHook(() => useScanStream({ enabled: true }), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <StrictMode>
+          <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+        </StrictMode>
+      ),
+    });
+    await waitFor(() =>
+      expect(
+        MockEventSource.instances.some((i) => i.url.includes("/api/scan/stream") && !i.closed),
+      ).toBe(true),
+    );
+  });
+
+  it("reattaches when the page left mid-scan, and only reloads the cache after a scan ended", async () => {
+    const first = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    first.hook.unmount();
+    const before = MockEventSource.instances.length;
+    const second = setup();
+    await waitFor(() => expect(MockEventSource.instances.length).toBeGreaterThan(before));
+    act(() => MockEventSource.last!.emit("done", { count: 1, scanned_at: 2 }));
+    await waitFor(() => expect(second.hook.result.current.scan.status).toBe("done"));
+    second.hook.unmount();
+
+    const after = MockEventSource.instances.length;
+    const third = setup();
+    await waitFor(() => expect(third.hook.result.current.scan.status).toBe("done"));
+    expect(MockEventSource.instances.length).toBe(after);
+  });
+});
 
 describe("useScanStream follows the albums snapshot", () => {
   it("takes a snapshot fetched after the scan settled", async () => {

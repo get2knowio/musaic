@@ -341,9 +341,18 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
     if (_initialScanDone) {
       return refreshFromCache();
     }
-    _initialScanDone = true;
+    // The flag is set when the scan ends (below), not here: a dev-mode
+    // double mount closes the first stream at once, and the second mount
+    // must still open the scan instead of reading the cache.
     return start(false);
   }, [enabled, start, refreshFromCache]);
+
+  // The first scan of the session reached an end: later mounts only reload
+  // the cached snapshot. A mount that goes away mid-scan leaves the flag
+  // unset, so the next one reattaches to the running scan's stream.
+  useEffect(() => {
+    if (isSettled(scan.status) || scan.status === "error") _initialScanDone = true;
+  }, [scan.status]);
 
   const rescan = useCallback(async () => {
     await rescanLibrary();

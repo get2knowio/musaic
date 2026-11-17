@@ -442,6 +442,8 @@ export function applyInconsistentArtistSort(
   ok: boolean;
   applied: number;
   cluster_size: number;
+  /** Distinct albums the cluster touches (older servers omit it). */
+  distinct_albums?: number;
   sort_value: string;
   message: string;
 }> {

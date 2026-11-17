@@ -45,7 +45,7 @@ describe("titlebar at narrow widths", () => {
 
   it("shrinks the crumb and the search box first", () => {
     renderTitlebar();
-    const crumb = screen.getByTitle(/A very long library folder name/);
+    const crumb = screen.getByText("Library");
     expect(crumb).toHaveClass("truncate");
     expect(crumb.parentElement).toHaveClass("min-w-0", "truncate");
     const search = screen.getByRole("searchbox");
