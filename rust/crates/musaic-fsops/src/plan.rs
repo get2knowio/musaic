@@ -10,7 +10,8 @@
 //! the Python app: `execute_renames` carries out case-only renames on every
 //! volume, so the check's finding and the fix agree. Deliberate change: two
 //! targets that differ only in case collide (`collides_with`), since
-//! `execute_renames` refuses such a pair.
+//! `execute_renames` refuses such a pair; so does a target that equals the
+//! name of a file that is not being renamed.
 
 use std::path::Path;
 
@@ -144,7 +145,11 @@ pub fn check_album(
 ) -> Result<Vec<RenameEntry>, RenderError> {
     let mut renames = Vec::new();
     let mut seen_targets: std::collections::HashMap<String, String> = Default::default();
+    // Every FLAC in the folder; the ones left out of the plan keep their
+    // names (see below).
+    let mut all_names: Vec<String> = Vec::new();
     for flac in list_flacs(album_path) {
+        all_names.push(file_name(&flac));
         let meta = match flacmeta::read(&flac) {
             Ok(m) => m,
             Err(e) => {
@@ -204,6 +209,23 @@ pub fn check_album(
             artist: artist_value,
             collides_with,
         });
+    }
+    // A target that equals (folded) the name of a file that stays where it
+    // is (already correct, or one the plan skips) would land on that file:
+    // `execute_renames` refuses it, so the preview flags it too. A file that
+    // is itself being renamed does not count, since it moves away (and a
+    // case-only rename of a file onto its own spelling is no collision).
+    let renamed: std::collections::HashSet<&str> =
+        renames.iter().map(|r| r.filename.as_str()).collect();
+    let staying: std::collections::HashMap<String, &String> = all_names
+        .iter()
+        .filter(|n| !renamed.contains(n.as_str()))
+        .map(|n| (fold(n), n))
+        .collect();
+    for r in &mut renames {
+        if let Some(existing) = staying.get(&fold(&r.expected)) {
+            r.collides_with = Some((*existing).clone());
+        }
     }
     Ok(renames)
 }

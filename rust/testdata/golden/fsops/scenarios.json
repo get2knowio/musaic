@@ -2652,7 +2652,7 @@
             "renames": [
               {
                 "artist": "Mono Harbor",
-                "collides_with": null,
+                "collides_with": "01 - Dawn.flac",
                 "expected": "01 - Dawn.flac",
                 "filename": "0 dawn.flac",
                 "title": "Dawn",
@@ -5621,7 +5621,7 @@
             "renames": [
               {
                 "artist": "Mono Harbor",
-                "collides_with": null,
+                "collides_with": "01 - A.flac",
                 "expected": "01 - A.flac",
                 "filename": "0 a.flac",
                 "title": "A",

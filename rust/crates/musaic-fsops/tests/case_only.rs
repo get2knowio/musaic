@@ -422,3 +422,68 @@ fn a_hard_link_is_not_mistaken_for_an_already_done_case_only_rename() {
     );
     assert_eq!(listing(&album), ["X.flac", "one.flac"]);
 }
+
+/// A target that matches (case-folded) a file that is already correctly
+/// named and not part of the plan is flagged in the preview, and executing
+/// it is refused with nothing changed, on every volume.
+#[test]
+fn a_target_colliding_with_a_correct_file_is_flagged_and_refused() {
+    let tmp = tempfile::tempdir().unwrap();
+    let base = musaic_testdata::canonical(tmp.path());
+    let lib = base.join("lib");
+    let album = lib.join("ABBA - Gold [FLAC]");
+    std::fs::create_dir_all(&album).unwrap();
+    for (name, title) in [("01 - One.flac", "One"), ("1.flac", "one")] {
+        std::fs::write(
+            album.join(name),
+            flac_bytes(&[
+                ("TRACKNUMBER", "1"),
+                ("TITLE", title),
+                ("ALBUMARTIST", "ABBA"),
+                ("ARTIST", "ABBA"),
+                ("ALBUM", "Gold"),
+            ]),
+        )
+        .unwrap();
+    }
+    let db_path = base.join("library.db");
+    std::fs::copy(musaic_testdata::public("db/v16-empty.db"), &db_path).unwrap();
+    let (mut db, _) = Db::open(&db_path).unwrap();
+    let lib_s = py_resolve(&lib).to_string_lossy().into_owned();
+    let scanned = scan_library(&lib, TrackOrder::Filename);
+    albums::save_snapshot(db.connection_mut(), &lib_s, NOW, NOW, &scanned).unwrap();
+    let id = scanned[0].id.clone();
+
+    let plan = derive_plan(db.connection(), &id).unwrap().unwrap();
+    let got: Vec<(&str, &str, Option<&str>)> = plan
+        .renames
+        .iter()
+        .map(|r| {
+            (
+                r.filename.as_str(),
+                r.expected.as_str(),
+                r.collides_with.as_deref(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        got,
+        [("1.flac", "01 - one.flac", Some("01 - One.flac"))],
+        "{plan:?}"
+    );
+
+    let out = execute_renames(
+        db.connection_mut(),
+        &env(&lib_s),
+        &id,
+        &[entry("1.flac", "01 - one.flac")],
+        None,
+    );
+    assert!(!out.ok, "{}", out.message);
+    assert!(
+        out.message.contains("existing unrelated file"),
+        "{}",
+        out.message
+    );
+    assert_eq!(listing(&album), ["01 - One.flac", "1.flac"]);
+}
