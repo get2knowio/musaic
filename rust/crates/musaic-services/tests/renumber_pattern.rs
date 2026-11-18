@@ -224,3 +224,131 @@ fn a_pattern_whose_number_does_not_come_first_renames_nothing() {
     w.renumber(&[("05 - Song.flac", "6")]);
     assert_eq!(w.names(), ["05 - Song.flac"]);
 }
+
+// The filename-mismatch plan renders `{disc}` by the same rule.
+
+type Planned = Vec<(String, String, Option<String>)>;
+
+impl World {
+    /// (current name, expected name, collides_with) of every planned rename.
+    fn plan(&self) -> Planned {
+        let plan = musaic_fsops::plan::derive_plan(&self.conn, &self.album_id)
+            .unwrap()
+            .unwrap();
+        assert!(plan.error.is_none());
+        plan.renames
+            .into_iter()
+            .map(|r| (r.filename, r.expected, r.collides_with))
+            .collect()
+    }
+}
+
+fn expected(plan: &Planned) -> Vec<&str> {
+    plan.iter().map(|(_, e, _)| e.as_str()).collect()
+}
+
+const STALE_TWO_DISCS: &[F] = &[("a.flac", Some("1"), "5"), ("b.flac", Some("2"), "5")];
+
+#[test]
+fn a_two_disc_folder_plans_each_files_own_disc_without_a_collision() {
+    let w = world("Test Artist - Box [FLAC]", STALE_TWO_DISCS, &[]);
+    w.set_template(DISC_TRACK);
+    let plan = w.plan();
+    assert_eq!(expected(&plan), ["1-05 - Song.flac", "2-05 - Song.flac"]);
+    assert!(plan.iter().all(|(_, _, c)| c.is_none()));
+}
+
+#[test]
+fn a_two_disc_folder_under_a_track_only_pattern_reports_the_real_collision() {
+    let w = world("Test Artist - Box [FLAC]", STALE_TWO_DISCS, &[]);
+    w.set_template("{tracknumber:02} - {title}");
+    let plan = w.plan();
+    assert_eq!(expected(&plan), ["05 - Song.flac", "05 - Song.flac"]);
+    // The second file's target is the first's.
+    assert_eq!(plan[0].2, None);
+    assert_eq!(plan[1].2.as_deref(), Some("a.flac"));
+}
+
+#[test]
+fn a_single_disc_album_plans_no_disc_part_under_a_disc_track_pattern() {
+    let w = world(
+        "Test Artist - Box [FLAC]",
+        &[("a.flac", Some("1"), "5")],
+        &[],
+    );
+    w.set_template(DISC_TRACK);
+    assert_eq!(expected(&w.plan()), ["05 - Song.flac"]);
+}
+
+#[test]
+fn a_disc_prefixed_track_number_names_the_disc_without_a_disc_tag() {
+    let w = world(
+        "Test Artist - Box [FLAC]",
+        &[("a.flac", None, "1-05"), ("b.flac", None, "2-05")],
+        &[],
+    );
+    w.set_template(DISC_TRACK);
+    assert_eq!(
+        expected(&w.plan()),
+        ["1-05 - Song.flac", "2-05 - Song.flac"]
+    );
+}
+
+#[test]
+fn per_disc_folders_without_disc_tags_plan_the_folders_disc() {
+    let w = world(
+        "Test Artist - Box (disc 2 of 2) [FLAC]",
+        &[("a.flac", None, "5")],
+        &[],
+    );
+    w.set_template(DISC_TRACK);
+    assert_eq!(expected(&w.plan()), ["2-05 - Song.flac"]);
+}
+
+#[test]
+fn a_folder_named_for_a_disc_without_a_total_keeps_its_disc_in_the_plan() {
+    let w = world(
+        "Test Artist - Box (disc 2) [FLAC]",
+        &[("a.flac", None, "5")],
+        &[],
+    );
+    w.set_template(DISC_TRACK);
+    assert_eq!(expected(&w.plan()), ["2-05 - Song.flac"]);
+}
+
+#[test]
+fn a_renumber_and_the_plan_agree_on_every_files_prefix() {
+    type Case = (
+        &'static str,
+        &'static [F],
+        &'static [(&'static str, &'static str)],
+    );
+    let cases: [Case; 4] = [
+        (
+            "Test Artist - Box [FLAC]",
+            TWO_DISCS,
+            &[("1-05 - Song.flac", "6"), ("2-05 - Song.flac", "7")],
+        ),
+        (
+            "Test Artist - Box [FLAC]",
+            &[("1-05 - Song.flac", Some("1"), "5")],
+            &[("1-05 - Song.flac", "6")],
+        ),
+        (
+            "Test Artist - Box (disc 2 of 3) [FLAC]",
+            &[("2-05 - Song.flac", None, "5")],
+            &[("2-05 - Song.flac", "6")],
+        ),
+        (
+            "Test Artist - Box (disc 2) [FLAC]",
+            &[("2-05 - Song.flac", None, "5")],
+            &[("2-05 - Song.flac", "6")],
+        ),
+    ];
+    for (dir, files, to) in cases {
+        let mut w = world(dir, files, &[]);
+        w.set_template(DISC_TRACK);
+        w.renumber(to);
+        assert_eq!(w.plan(), Planned::new(), "{dir}: {:?}", w.names());
+    }
+}

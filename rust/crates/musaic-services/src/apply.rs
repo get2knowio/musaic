@@ -153,7 +153,9 @@ impl Numbering {
         };
         let number = musaic_fsops::template::NumberTemplate::parse(template);
         let multi_disc = number.as_ref().is_some_and(|n| n.has_disc())
-            && (disc_total.is_some_and(|t| t > 1) || files_span_discs(album_dir));
+            && musaic_scan::flacmeta::set_spans_discs(disc_number, disc_total, || {
+                musaic_scan::flacmeta::DiscEvidence::of_folder(album_dir)
+            });
         Numbering::Pattern {
             number,
             multi_disc,
@@ -178,33 +180,6 @@ impl Numbering {
             }
         }
     }
-}
-
-/// Whether the folder's files say the set has more than one disc: two
-/// different disc numbers among them, or a total above one in
-/// `DISCTOTAL` / `TOTALDISCS` / the part after the slash of `DISCNUMBER`.
-fn files_span_discs(album_dir: &Path) -> bool {
-    let mut discs = std::collections::BTreeSet::new();
-    for path in musaic_scan::list_flacs(album_dir) {
-        let Ok(meta) = musaic_scan::flacmeta::read(&path) else {
-            continue;
-        };
-        if let Some(d) =
-            musaic_scan::flacmeta::file_disc(meta.values("discnumber"), meta.values("tracknumber"))
-        {
-            discs.insert(d);
-        }
-        let total_of = |key: &str| meta.values(key).find_map(musaic_core::pycompat::int);
-        let slash_total = meta.values("discnumber").find_map(|v| {
-            v.split_once('/')
-                .and_then(|(_, t)| musaic_core::pycompat::int(t))
-        });
-        let total = [total_of("disctotal"), total_of("totaldiscs"), slash_total];
-        if total.into_iter().flatten().any(|t| t > 1) {
-            return true;
-        }
-    }
-    discs.len() > 1
 }
 
 /// What to apply (`apply_album_changes_iter`'s keyword arguments).
