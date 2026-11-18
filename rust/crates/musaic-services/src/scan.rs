@@ -50,7 +50,7 @@
 //! `album <dict + _status>` and `progress {scanned, total}` (every album below
 //! 200, else every `total // 100`), then `aborted {...}` (the sanity check), or
 //! `marked_missing {id, path}`* + `done {count, marked_missing_count,
-//! newly_missing_count, returned_count, scanned_at}`, or `error {detail}`.
+//! newly_missing_count, returned_count, scanned_at[, skipped_non_utf8_count]}`, or `error {detail}`.
 //! A cancel adds `cancelling {scanned, total}` when it is accepted (at any
 //! point, also before `start`) and ends the scan with `cancelled {reason,
 //! phase, scanned, total, detail}` (`phase`: `discovery` or `albums`)
@@ -188,6 +188,9 @@ pub struct ScanState {
     pub scanned: usize,
     pub cached_count: usize,
     pub removed_count: usize,
+    /// Folders and `.flac` files met during discovery whose names are not
+    /// valid UTF-8 and so cannot be stored; they are left out of the scan.
+    pub skipped_non_utf8: usize,
     pub started_at: Option<String>,
     pub completed_at: Option<String>,
     pub error: Option<String>,
@@ -205,6 +208,7 @@ impl ScanState {
             scanned: 0,
             cached_count: 0,
             removed_count: 0,
+            skipped_non_utf8: 0,
             started_at: None,
             completed_at: None,
             error: None,
@@ -225,8 +229,10 @@ impl ScanState {
     /// `GET /api/scan/status` body (key order of `to_dict`). The cancel is
     /// visible only through `status` (`cancelling`, then `cancelled`), so
     /// the body keeps the Python app's keys.
+    ///
+    /// `skipped_non_utf8_count` appears only when something was skipped, so the usual body is unchanged.
     pub fn to_json(&self) -> Json {
-        Json::obj([
+        let mut pairs = vec![
             ("status", Json::from(self.status_str())),
             ("library_dir", Json::from(self.library_dir.clone())),
             ("force", Json::from(self.force)),
@@ -237,7 +243,11 @@ impl ScanState {
             ("started_at", Json::from(self.started_at.clone())),
             ("completed_at", Json::from(self.completed_at.clone())),
             ("error", Json::from(self.error.clone())),
-        ])
+        ];
+        if self.skipped_non_utf8 > 0 {
+            pairs.push(("skipped_non_utf8_count", Json::from(self.skipped_non_utf8)));
+        }
+        Json::obj(pairs)
     }
 }
 
@@ -783,12 +793,45 @@ pub fn discover_album_dirs_until(
     list: &dyn Fn(&Path) -> Option<Vec<std::ffi::OsString>>,
     stop: &dyn Fn() -> bool,
 ) -> Option<Vec<String>> {
+    discover_album_dirs_reporting(root, list, stop).map(|d| d.dirs)
+}
+
+/// What a discovery walk found.
+#[doc(hidden)]
+pub struct Discovery {
+    pub dirs: Vec<String>,
+    /// Folders (not entered, so nothing beneath them is found) and `.flac`
+    /// files whose names are not valid UTF-8. The API and the `path` column
+    /// are UTF-8 text, so they are left out, each with one log line.
+    pub skipped_non_utf8: usize,
+}
+
+/// [`discover_album_dirs_until`] that also counts, and logs, the entries
+/// whose names cannot be stored. A lossy spelling of such a path cannot be
+/// opened again, so keeping it would only make the album vanish quietly.
+#[doc(hidden)]
+pub fn discover_album_dirs_reporting(
+    root: &Path,
+    list: &dyn Fn(&Path) -> Option<Vec<std::ffi::OsString>>,
+    stop: &dyn Fn() -> bool,
+) -> Option<Discovery> {
     struct Stopped;
+    fn skip(path: &Path, what: &str, skipped: &mut usize) {
+        *skipped += 1;
+        musaic_log::warning(
+            "musaic.scanner",
+            &format!(
+                "Skipped {what} whose name is not valid UTF-8: {}",
+                path.to_string_lossy()
+            ),
+        );
+    }
     fn walk(
         dir: &Path,
         list: &dyn Fn(&Path) -> Option<Vec<std::ffi::OsString>>,
         stop: &dyn Fn() -> bool,
         found: &mut Vec<String>,
+        skipped: &mut usize,
     ) -> Result<(), Stopped> {
         if stop() {
             return Err(Stopped);
@@ -805,33 +848,47 @@ pub fn discover_album_dirs_until(
                 continue;
             }
             let name = os_name.to_string_lossy().into_owned();
+            let utf8 = os_name.to_str().is_some();
             let path = dir.join(&os_name);
             if path.is_dir() {
-                dirs.push((name, path));
+                dirs.push((name, utf8, path));
             } else if name.to_lowercase().ends_with(".flac") && !name.starts_with("._") {
-                has_flac = true;
+                if utf8 {
+                    has_flac = true;
+                } else {
+                    skip(&path, "file", skipped);
+                }
             }
         }
         if has_flac {
             found.push(py_resolve(dir).to_string_lossy().into_owned());
         }
-        for (name, path) in dirs {
+        for (name, utf8, path) in dirs {
             if name.starts_with('.') {
                 continue;
             }
             let is_link =
                 std::fs::symlink_metadata(&path).is_ok_and(|m| m.file_type().is_symlink());
-            if !is_link {
-                walk(&path, list, stop, found)?;
+            if is_link {
+                continue;
+            }
+            if utf8 {
+                walk(&path, list, stop, found, skipped)?;
+            } else {
+                skip(&path, "folder", skipped);
             }
         }
         Ok(())
     }
     let mut found = Vec::new();
+    let mut skipped = 0;
     if root.exists() {
-        walk(root, list, stop, &mut found).ok()?;
+        walk(root, list, stop, &mut found, &mut skipped).ok()?;
     }
-    Some(found)
+    Some(Discovery {
+        dirs: found,
+        skipped_non_utf8: skipped,
+    })
 }
 
 fn list_dir(dir: &Path) -> Option<Vec<std::ffi::OsString>> {
@@ -956,15 +1013,18 @@ fn scan_body(
     let cached_count = cached_by_path.len();
 
     let stop = || shared.cancel_requested();
-    let Some(candidates) = discover_album_dirs_until(Path::new(library_dir), &list_dir, &stop)
+    let Some(discovery) = discover_album_dirs_reporting(Path::new(library_dir), &list_dir, &stop)
     else {
         return Ok(cancelled_payload(shared, "discovery"));
     };
+    let skipped_non_utf8 = discovery.skipped_non_utf8;
+    let candidates = discovery.dirs;
     let candidate_set: HashSet<&str> = candidates.iter().map(String::as_str).collect();
     let total = candidates.len();
     shared.update(|s| {
         s.total = total;
         s.cached_count = cached_count;
+        s.skipped_non_utf8 = skipped_non_utf8;
     });
     shared.push(
         "start",
@@ -1114,15 +1174,17 @@ fn scan_body(
             .map(|a| (a.id.as_str(), a.path.as_str())),
         &now,
     );
-    shared.push(
-        "done",
-        Json::obj([
-            ("count", Json::from(collected.len())),
-            ("marked_missing_count", Json::from(removed.len())),
-            ("newly_missing_count", Json::from(newly_missing.len())),
-            ("returned_count", Json::from(returned.len())),
-            ("scanned_at", Json::from(scanned_at)),
-        ]),
-    );
+    let mut done = vec![
+        ("count", Json::from(collected.len())),
+        ("marked_missing_count", Json::from(removed.len())),
+        ("newly_missing_count", Json::from(newly_missing.len())),
+        ("returned_count", Json::from(returned.len())),
+        ("scanned_at", Json::from(scanned_at)),
+    ];
+    // Only when something was skipped, so the usual payload is unchanged.
+    if skipped_non_utf8 > 0 {
+        done.push(("skipped_non_utf8_count", Json::from(skipped_non_utf8)));
+    }
+    shared.push("done", Json::obj(done));
     Ok(Outcome::Saved)
 }

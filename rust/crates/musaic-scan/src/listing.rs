@@ -8,7 +8,9 @@ use std::path::{Component, Path, PathBuf};
 /// with a `.flac` extension in any case, AppleDouble `._*` names skipped,
 /// sorted by name in code point order, and same-inode duplicates collapsed
 /// to the first occurrence (SMB shares can list one file under two names).
-/// An unreadable directory yields an empty list.
+/// An unreadable directory yields an empty list. A name that is not valid
+/// UTF-8 is not listed (its lossy spelling could not be opened); the library
+/// scan counts and logs those during discovery, where it sees every name once.
 pub fn list_flacs(album_dir: &Path) -> Vec<PathBuf> {
     let Ok(rd) = std::fs::read_dir(album_dir) else {
         return Vec::new();

@@ -290,9 +290,12 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
               canCancel: false,
               scannedAt: ev.scanned_at,
               message:
-                s.freshCount === 0 && s.markedMissingCount === 0
+                (s.freshCount === 0 && s.markedMissingCount === 0
                   ? "Library up to date"
-                  : `${s.freshCount} new/updated${s.markedMissingCount ? `, ${s.markedMissingCount} missing` : ""}`,
+                  : `${s.freshCount} new/updated${s.markedMissingCount ? `, ${s.markedMissingCount} missing` : ""}`) +
+                (ev.skipped_non_utf8_count
+                  ? `; ${ev.skipped_non_utf8_count} skipped (name is not valid UTF-8)`
+                  : ""),
             }));
             break;
 

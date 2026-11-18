@@ -196,7 +196,15 @@ export type ScanEvent =
   // the row. The old "removed" event name implied destruction it
   // never delivered.
   | { type: "marked_missing"; id: string; path: string }
-  | { type: "done"; count: number; marked_missing_count: number; scanned_at: string }
+  // `skipped_non_utf8_count` is present only when folders or files were left
+  // out because their names are not valid UTF-8.
+  | {
+      type: "done";
+      count: number;
+      marked_missing_count: number;
+      scanned_at: string;
+      skipped_non_utf8_count?: number;
+    }
   // A cancel was accepted (POST /api/scan/cancel); the scan ends with
   // `cancelled` at its next album.
   | { type: "cancelling"; scanned: number; total: number }
