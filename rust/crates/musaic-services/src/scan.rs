@@ -49,8 +49,13 @@
 //! Events: `start {library_dir, total, cached_count, force}`, then per album
 //! `album <dict + _status>` and `progress {scanned, total}` (every album below
 //! 200, else every `total // 100`), then `aborted {...}` (the sanity check), or
-//! `marked_missing {id, path}`* + `done {count, marked_missing_count,
-//! newly_missing_count, returned_count, scanned_at}`, or `error {detail}`.
+//! `marked_missing {id, path}`* + `adopted {old_id, id, old_path, path}`* +
+//! `done {count, marked_missing_count, newly_missing_count, returned_count,
+//! scanned_at}`, or `error {detail}`. `adopted` (pushed once the save has
+//! committed) says that the row of a vanished album moved to a folder found
+//! under another spelling ([`crate::scan_adopt`]): the album's `album`
+//! event carried the new id, the old id is gone, and it is not counted in
+//! `marked_missing_count`.
 //! A cancel adds `cancelling {scanned, total}` when it is accepted (at any
 //! point, also before `start`) and ends the scan with `cancelled {reason,
 //! phase, scanned, total, detail}` (`phase`: `discovery` or `albums`)
@@ -68,6 +73,10 @@
 //!
 //! # Bus events and hooks
 //!
+//! `AlbumRenamed(old, new)` for each adopted row, published with
+//! `in_bulk_run` set so the rename subscribers' per-album check reruns are
+//! skipped (the library-wide rerun on `LibraryScanCompleted` covers them;
+//! the resolver memo and thumbnail drops and the relay still run), then
 //! `AlbumMarkedMissing` / `AlbumTagsChanged(fields=["missing_since"])` for the
 //! save's Missing transitions (in the database's rowid order, the order the
 //! Python app's query returns), then, after the worker returns:
@@ -1031,11 +1040,33 @@ fn scan_body(
     // `cached_count` keep the Python app's meaning (every cached row).
     let was_present = |r: &&albums::AlbumRow| r.missing_since.as_deref().is_none_or(str::is_empty);
     let present_count = cached_rows.iter().filter(was_present).count();
-    let removed: Vec<(String, String)> = cached_rows
+    let vanished: Vec<(String, String)> = cached_rows
         .iter()
         .filter(was_present)
         .filter(|r| !candidate_set.contains(r.album.path.as_str()))
         .map(|r| (r.album.id.clone(), r.album.path.clone()))
+        .collect();
+    // A vanished row that is the same folder as one found under another
+    // spelling moves to it at the save (module `scan_adopt`): it is
+    // neither Missing nor new, so it does not count toward the sanity
+    // check either.
+    let adoptions = {
+        let read: HashMap<&str, &Album> = collected.iter().map(|(p, a)| (p.as_str(), a)).collect();
+        let found: Vec<crate::scan_adopt::Found<'_>> = candidates
+            .iter()
+            .map(|p| crate::scan_adopt::Found {
+                path: p,
+                album: read.get(p.as_str()).copied(),
+                has_row: cached_by_path.contains_key(p),
+            })
+            .collect();
+        crate::scan_adopt::plan(&conn, &vanished, &found)
+    };
+    let adopted_ids: HashSet<&str> = adoptions.iter().map(|a| a.old_id.as_str()).collect();
+    let removed: Vec<(String, String)> = vanished
+        .iter()
+        .filter(|(id, _)| !adopted_ids.contains(id.as_str()))
+        .cloned()
         .collect();
 
     // Refuse to write when a large part of the Present cache vanished
@@ -1079,13 +1110,51 @@ fn scan_body(
     let scanned_at = (deps.clock)();
     let now = (deps.clock)();
     let albums_in: Vec<Album> = collected.iter().map(|(_, a)| a.clone()).collect();
-    let transitions =
-        musaic_db::albums::save_snapshot(&mut conn, &resolved, &scanned_at, &now, &albums_in)
-            .map_err(|e| e.to_string())?;
+    let transitions = musaic_db::albums::save_snapshot_adopting(
+        &mut conn,
+        &resolved,
+        &scanned_at,
+        &now,
+        &albums_in,
+        &adoptions,
+    )
+    .map_err(|e| e.to_string())?;
     // The snapshot is committed: nothing after this point fails the scan,
     // so a saved scan always ends `done` and announces completion.
     let newly_missing = rowid_order(&conn, transitions.newly_missing, deps);
     let returned = rowid_order(&conn, transitions.returned, deps);
+    for ad in &adoptions {
+        musaic_log::warning(
+            crate::scan_run::SCAN_TARGET,
+            &format!(
+                "scan: {} is now listed as {}; the album keeps its data (id {} -> {})",
+                ad.old_path, ad.new_path, ad.old_id, ad.new_id
+            ),
+        );
+        shared.push(
+            "adopted",
+            Json::obj([
+                ("old_id", Json::from(ad.old_id.as_str())),
+                ("id", Json::from(ad.new_id.as_str())),
+                ("old_path", Json::from(ad.old_path.as_str())),
+                ("path", Json::from(ad.new_path.as_str())),
+            ]),
+        );
+    }
+    // The rename subscribers would rerun the checks for each adopted album
+    // on its own; the scan's `LibraryScanCompleted` reruns them for the
+    // whole library right after, and the check sweep checks the new ids
+    // (they have no recorded inputs). So the per-album reruns are
+    // suppressed as in a bulk loop; the cache drops and the relay still
+    // run.
+    musaic_events::context::with_bulk_run(|| {
+        for (old, new) in &transitions.adopted {
+            deps.bus.publish(&BusEvent::AlbumRenamed {
+                old_album_id: old.clone(),
+                new_album_id: new.clone(),
+            });
+        }
+    });
     // One event per transition, after the commit.
     for id in &newly_missing {
         deps.bus.publish(&BusEvent::AlbumMarkedMissing {

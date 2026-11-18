@@ -22,8 +22,10 @@ musaic-scan = { path = "../musaic-scan" }
 musaic-secrets = { path = "../musaic-secrets" }
 musaic-tags = { path = "../musaic-tags" }
 rusqlite.workspace = true
+same-file = "1"
 serde_json.workspace = true
 thiserror.workspace = true
+unicode-normalization = "0.1"
 # Cover thumbnails (thumbs.py): same version and features musaic-tags
 # already builds.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
@@ -34,7 +36,6 @@ musaic-testdata = { path = "../musaic-testdata" }
 base64 = "0.23"
 sha2 = "0.11"
 tempfile.workspace = true
-unicode-normalization = "0.1"
 
 [lints]
 workspace = true

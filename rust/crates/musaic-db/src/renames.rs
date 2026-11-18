@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 
-use rusqlite::{Connection, OptionalExtension};
+use rusqlite::{Connection, OptionalExtension, Transaction};
 
 use crate::Result;
 
@@ -26,15 +26,17 @@ pub struct DirMigration {
 /// that refers to the album by id, in one transaction with foreign keys
 /// deferred to COMMIT.
 ///
-/// Tables holding an album id (schema v16; v17 adds only a column):
+/// Tables holding an album id (schema v19):
 ///
 /// | table | FK to albums(id) | repointed |
 /// |---|---|---|
 /// | track_fingerprints | yes, ON DELETE CASCADE | yes |
 /// | track_tags | yes, ON DELETE CASCADE | yes |
 /// | album_blocked_mb_release_groups | yes, ON DELETE CASCADE | yes |
+/// | fingerprint_rejects (v18) | yes, ON UPDATE / DELETE CASCADE | by the cascade |
 /// | check_findings | no (plain column) | yes |
-/// | ai_jobs | no (plain column) | yes |
+/// | ai_jobs | no (plain column) | yes (`album_path` is a display copy and keeps the old text) |
+/// | check_inputs (v19) | no | no: the new id has no inputs, so the sweep checks it again, and prunes the old id's rows |
 /// | check_runs.scope | no (JSON text of ids) | no: a historical record of what a run covered |
 ///
 /// Deliberate change: the Python app did not repoint
@@ -50,6 +52,24 @@ pub fn rename_album_directory(
     new_dir_name: &str,
 ) -> Result<DirMigration> {
     let tx = crate::immediate(conn)?;
+    let out = move_album_rows(&tx, old_id, new_id, new_path, new_dir_name)?;
+    tx.commit()?;
+    Ok(out)
+}
+
+/// [`rename_album_directory`] on the caller's transaction, so the re-key
+/// commits (or rolls back) together with the caller's other writes: a
+/// library scan adopting a row does it inside its snapshot save
+/// (`albums::save_snapshot_adopting`). Foreign keys are deferred to that
+/// transaction's COMMIT; `fingerprint_rejects` follows through its
+/// `ON UPDATE CASCADE`.
+pub fn move_album_rows(
+    tx: &Transaction<'_>,
+    old_id: &str,
+    new_id: &str,
+    new_path: &str,
+    new_dir_name: &str,
+) -> Result<DirMigration> {
     tx.execute_batch("PRAGMA defer_foreign_keys = ON")?;
     let albums = tx.execute(
         "UPDATE albums SET id = ?1, path = ?2, dir_name = ?3 WHERE id = ?4",
@@ -61,16 +81,51 @@ pub fn rename_album_directory(
             [new_id, old_id],
         )
     };
-    let out = DirMigration {
+    Ok(DirMigration {
         albums,
         track_fingerprints: moved("track_fingerprints")?,
         track_tags: moved("track_tags")?,
         check_findings: moved("check_findings")?,
         ai_jobs: moved("ai_jobs")?,
         album_blocked_mb_release_groups: moved("album_blocked_mb_release_groups")?,
-    };
-    tx.commit()?;
-    Ok(out)
+    })
+}
+
+/// Every table besides `albums` that refers to an album by id. A row in one
+/// of them under an id no album has is left over from an album that was
+/// removed; moving another album onto that id would merge the two.
+const ALBUM_ID_HOLDERS: [&str; 7] = [
+    "track_fingerprints",
+    "track_tags",
+    "album_blocked_mb_release_groups",
+    "fingerprint_rejects",
+    "check_findings",
+    "ai_jobs",
+    "check_inputs",
+];
+
+/// Whether an album row already has `id` or `path`, or any table that
+/// refers to albums by id holds a row under `id`.
+pub fn album_key_in_use(conn: &Connection, id: &str, path: &str) -> Result<bool> {
+    let row: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM albums WHERE id = ?1 OR path = ?2)",
+        [id, path],
+        |r| r.get(0),
+    )?;
+    if row {
+        return Ok(true);
+    }
+    for table in ALBUM_ID_HOLDERS {
+        let held: bool = conn.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE album_id = ?1)"),
+            [id],
+            |r| r.get(0),
+        )?;
+        if held {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 /// Follow a file rename in `track_tags`: copy the old filename's

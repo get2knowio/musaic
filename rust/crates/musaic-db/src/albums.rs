@@ -57,6 +57,23 @@ pub struct SnapshotResult {
     /// updated), in the order of `albums`. Only these may import a
     /// track-tag sidecar.
     pub inserted: Vec<String>,
+    /// `(old id, new id)` of every row this save moved to a new id
+    /// ([`save_snapshot_adopting`]), in the order given.
+    pub adopted: Vec<(String, String)>,
+}
+
+/// A Present row of the library that the scan found again under another
+/// path spelling, the same folder on disk: the save moves the row, and
+/// everything that refers to it, to the new id and path instead of marking
+/// it Missing and inserting a new row. The caller decided it is the same
+/// folder; the save re-checks only what the database says.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Adoption {
+    pub old_id: String,
+    pub old_path: String,
+    pub new_id: String,
+    pub new_path: String,
+    pub new_dir_name: String,
 }
 
 /// `json.dumps(track_numbers)`: `[1, 2, null]`.
@@ -155,6 +172,28 @@ pub fn save_snapshot(
     now: &str,
     albums: &[Album],
 ) -> Result<SnapshotResult> {
+    save_snapshot_adopting(conn, library_dir, scanned_at, now, albums, &[])
+}
+
+/// [`save_snapshot`] that first moves each [`Adoption`]'s row to its new
+/// id and path (`renames::move_album_rows`), in the same transaction, so
+/// an adopted row is updated by the upsert rather than inserted, and is
+/// neither marked Missing nor counted as `inserted`.
+///
+/// Before moving a row it checks again that the row is still this
+/// library's, Present, at `old_path`, that the new id and path are free
+/// (`renames::album_key_in_use`) and that the new id is among `albums`.
+/// If any of that no longer holds, nothing is written and
+/// [`crate::Error::AdoptionStale`] is returned: a row is never merged into
+/// one that appeared after the scan decided.
+pub fn save_snapshot_adopting(
+    conn: &mut Connection,
+    library_dir: &str,
+    scanned_at: &str,
+    now: &str,
+    albums: &[Album],
+    adoptions: &[Adoption],
+) -> Result<SnapshotResult> {
     let tx = crate::immediate(conn)?;
     tx.execute(
         "INSERT INTO libraries(path, scanned_at) VALUES (?1, ?2)
@@ -166,6 +205,43 @@ pub fn save_snapshot(
         .iter()
         .filter(|a| !a.id.is_empty() && !a.path.is_empty())
         .collect();
+    let mut adopted = Vec::with_capacity(adoptions.len());
+    for ad in adoptions {
+        let stale = || crate::Error::AdoptionStale {
+            old_id: ad.old_id.clone(),
+            new_id: ad.new_id.clone(),
+        };
+        let row: Option<(String, String, Option<String>)> = tx
+            .query_row(
+                "SELECT path, library_path, missing_since FROM albums WHERE id = ?1",
+                [&ad.old_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            )
+            .optional()?;
+        let present_here = row.is_some_and(|(path, lib, missing)| {
+            path == ad.old_path
+                && lib == library_dir
+                && missing.as_deref().is_none_or(str::is_empty)
+        });
+        let listed = rows
+            .iter()
+            .any(|a| a.id == ad.new_id && a.path == ad.new_path);
+        if ad.old_id == ad.new_id
+            || !present_here
+            || !listed
+            || crate::renames::album_key_in_use(&tx, &ad.new_id, &ad.new_path)?
+        {
+            return Err(stale());
+        }
+        crate::renames::move_album_rows(
+            &tx,
+            &ad.old_id,
+            &ad.new_id,
+            &ad.new_path,
+            &ad.new_dir_name,
+        )?;
+        adopted.push((ad.old_id.clone(), ad.new_id.clone()));
+    }
     let mut inserted = Vec::new();
     for a in &rows {
         let existed: bool = tx.query_row(
@@ -190,6 +266,7 @@ pub fn save_snapshot(
     let mut result = SnapshotResult {
         upserted_count: rows.len(),
         inserted,
+        adopted,
         ..Default::default()
     };
     for (id, was_missing) in cached {

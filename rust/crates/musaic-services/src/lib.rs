@@ -77,6 +77,7 @@ pub mod library_ops;
 pub mod production;
 pub mod recording_canonical;
 pub mod scan;
+pub mod scan_adopt;
 pub mod scan_run;
 pub mod settings_patch;
 pub mod sidecar_import;
