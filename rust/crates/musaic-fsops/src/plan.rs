@@ -189,11 +189,6 @@ pub fn check_album(
             opt(&row.album_artist).to_string()
         };
         let mut values = Values::new();
-        // The disc part of a "2-05" track number is rendered by `{disc}`
-        // alone; left in, it would show twice.
-        let track_part =
-            flacmeta::split_disc_track(&tracknumber).map_or(tracknumber.as_str(), |t| t.1);
-        values.insert("tracknumber", Value::from(track_part));
         values.insert("title", Value::from(title.as_str()));
         values.insert("artist", Value::from(artist_value.as_str()));
         values.insert("albumartist", Value::from(albumartist_value));
@@ -205,6 +200,19 @@ pub fn check_album(
         } else {
             None
         };
+        // The disc part of a "2-05" track number is left out only where
+        // `{disc}` renders it, or it would show twice. Under a pattern
+        // without `{disc}` the tag passes through whole, as it always has:
+        // dropping the disc from such names without renumbering the tracks
+        // would leave two files numbered 05 in one folder.
+        let disc_renders =
+            disc.is_some() && (template.contains("{disc}") || template.contains("{disc:"));
+        let track_part = if disc_renders {
+            flacmeta::split_disc_track(&tracknumber).map_or(tracknumber.as_str(), |t| t.1)
+        } else {
+            tracknumber.as_str()
+        };
+        values.insert("tracknumber", Value::from(track_part));
         values.insert("disc", Value::from(disc));
         let rendered = render(template, &values)?;
         if rendered.is_empty() {

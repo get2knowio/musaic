@@ -294,6 +294,22 @@ fn a_disc_prefixed_track_number_names_the_disc_without_a_disc_tag() {
     );
 }
 
+// Under a pattern without `{disc}` a "2-05" track number is not cut down
+// to "05": files already named by it match, and the check does not propose
+// dropping the disc from their names while the tracks still restart.
+#[test]
+fn a_disc_prefixed_track_number_passes_through_a_track_only_pattern() {
+    let w = world(
+        "Test Artist - Box [FLAC]",
+        &[
+            ("1-05 - Song.flac", None, "1-05"),
+            ("2-05 - Song.flac", None, "2-05"),
+        ],
+        &[],
+    );
+    assert!(w.plan().is_empty());
+}
+
 #[test]
 fn per_disc_folders_without_disc_tags_plan_the_folders_disc() {
     let w = world(
