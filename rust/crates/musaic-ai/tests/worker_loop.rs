@@ -93,15 +93,55 @@ fn status(env: &StubEnv, id: &str) -> String {
         .status
 }
 
-fn wait_for(what: &str, mut f: impl FnMut() -> bool) {
-    let end = Instant::now() + Duration::from_secs(10);
-    while Instant::now() < end {
+/// Everything a job's progress changes: each job's status and timestamps,
+/// the queue's paused flag and the number of work guards held.
+type Progress = (
+    Vec<(String, String, Option<String>, Option<String>)>,
+    bool,
+    u64,
+);
+
+fn progress(env: &StubEnv) -> Progress {
+    let c = env.open_db().unwrap();
+    let mut jobs: Vec<_> = ai_jobs::list_jobs(&c, None, 1000)
+        .unwrap()
+        .into_iter()
+        .map(|j| (j.id, j.status, j.started_at, j.completed_at))
+        .collect();
+    jobs.sort();
+    let paused = musaic_ai::jobs::queue_paused(&c).unwrap();
+    (jobs, paused, env.guards.load(Ordering::SeqCst))
+}
+
+/// Waits until `f` holds, failing only when nothing the worker records has
+/// changed for `STALL` (a hang) or after a backstop. Each job state is a
+/// commit, and a runner whose disk stalls makes any one of them slow, so a
+/// fixed deadline per wait failed for the disk rather than the worker. The
+/// waits here are mostly for a single transition, so the signal is coarse:
+/// it helps a wait that covers several jobs, and for a single transition
+/// `STALL` is the whole allowance, which is why it is generous.
+fn wait_for(env: &StubEnv, what: &str, mut f: impl FnMut() -> bool) {
+    const STALL: Duration = Duration::from_secs(30);
+    const CAP: Duration = Duration::from_secs(600);
+    let begun = Instant::now();
+    let mut last = progress(env);
+    let mut since = Instant::now();
+    loop {
         if f() {
             return;
         }
+        let now = progress(env);
+        if now != last {
+            last = now;
+            since = Instant::now();
+        }
+        assert!(
+            since.elapsed() < STALL,
+            "no progress for {STALL:?} waiting for {what}: {last:?}"
+        );
+        assert!(begun.elapsed() < CAP, "never reached {what}: {last:?}");
         std::thread::sleep(Duration::from_millis(5));
     }
-    panic!("timed out waiting for {what}");
 }
 
 struct Running {
@@ -235,7 +275,7 @@ fn startup_requeues_running_jobs_then_runs_them() {
     let p = replay();
     p.push(ok_script());
     let _r = start(&env, p, Duration::from_secs(10));
-    wait_for("completed", || status(&env, &id) == "completed");
+    wait_for(&env, "completed", || status(&env, &id) == "completed");
     let row = ai_jobs::get_job(&c, &id).unwrap().unwrap();
     assert_ne!(row.started_at.as_deref(), Some("2001-01-01T00:00:00Z"));
 }
@@ -251,7 +291,7 @@ fn dispatches_oldest_first_one_at_a_time() {
     let p = replay();
     p.push(hang());
     let r = start(&env, p.clone(), Duration::from_secs(10));
-    wait_for("first running", || status(&env, &ids[0]) == "running");
+    wait_for(&env, "first running", || status(&env, &ids[0]) == "running");
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!(status(&env, &ids[1]), "queued", "max_parallel 1");
     assert_eq!(status(&env, &ids[2]), "queued");
@@ -272,7 +312,7 @@ fn max_parallel_bounds_concurrent_jobs() {
         p.push(hang());
     }
     let r = start(&env, p.clone(), Duration::from_secs(10));
-    wait_for("two running", || {
+    wait_for(&env, "two running", || {
         ids.iter().filter(|i| status(&env, i) == "running").count() == 2
     });
     std::thread::sleep(Duration::from_millis(150));
@@ -292,9 +332,9 @@ fn a_failure_pauses_the_queue_until_resumed() {
     p.push(fail());
     p.push(ok_script());
     let r = start(&env, p.clone(), Duration::from_secs(10));
-    wait_for("failed", || status(&env, &a) == "failed");
+    wait_for(&env, "failed", || status(&env, &a) == "failed");
     // The pause is written just after the failed status.
-    wait_for("paused", || paused(&env));
+    wait_for(&env, "paused", || paused(&env));
     assert_eq!(
         musaic_db::settings::get_raw(&env.open_db().unwrap(), "ai_queue_paused").unwrap(),
         Some("1".into())
@@ -303,7 +343,7 @@ fn a_failure_pauses_the_queue_until_resumed() {
     assert_eq!(status(&env, &b), "queued", "paused: not dispatched");
     musaic_ai::jobs::set_queue_paused(&env.open_db().unwrap(), false).unwrap();
     r.signal.notify();
-    wait_for("second completed", || status(&env, &b) == "completed");
+    wait_for(&env, "second completed", || status(&env, &b) == "completed");
     drop(r);
 }
 
@@ -325,7 +365,7 @@ fn no_backend_fails_the_job_without_pausing() {
     assert_eq!(msg, musaic_ai::provider::NOT_AVAILABLE);
     assert!(!msg.contains("AI") && !msg.contains("Claude"), "{msg}");
     let (worker, _signal) = start_with(&env, p);
-    wait_for("both failed", || {
+    wait_for(&env, "both failed", || {
         status(&env, &a) == "failed" && status(&env, &b) == "failed"
     });
     worker.stop();
@@ -354,9 +394,9 @@ fn a_configured_backend_not_ready_still_pauses() {
         }),
     });
     let r = start(&env, p.clone(), Duration::from_secs(10));
-    wait_for("failed", || status(&env, &a) == "failed");
+    wait_for(&env, "failed", || status(&env, &a) == "failed");
     // The pause is written just after the failed status.
-    wait_for("paused", || paused(&env));
+    wait_for(&env, "paused", || paused(&env));
     std::thread::sleep(Duration::from_millis(300));
     assert_eq!(status(&env, &b), "queued", "paused: not dispatched");
     drop(r);
@@ -371,7 +411,7 @@ fn the_wall_clock_cap_fails_and_pauses() {
     let p = replay();
     p.push(hang());
     let r = start(&env, p.clone(), Duration::from_millis(200));
-    wait_for("failed", || status(&env, &a) == "failed");
+    wait_for(&env, "failed", || status(&env, &a) == "failed");
     let row = ai_jobs::get_job(&env.open_db().unwrap(), &a)
         .unwrap()
         .unwrap();
@@ -380,7 +420,7 @@ fn the_wall_clock_cap_fails_and_pauses() {
         Some(musaic_ai::worker::timeout_message().as_str())
     );
     // The pause is written just after the failed status.
-    wait_for("paused", || paused(&env));
+    wait_for(&env, "paused", || paused(&env));
     drop(r);
 }
 
@@ -416,15 +456,17 @@ fn jobs_take_the_restore_gate() {
         "restore running: not dispatched"
     );
     env.gate_closed.store(false, Ordering::SeqCst);
-    wait_for("running", || status(&env, &a) == "running");
+    wait_for(&env, "running", || status(&env, &a) == "running");
     assert_eq!(
         env.guards.load(Ordering::SeqCst),
         1,
         "guard held while running"
     );
     p.release();
-    wait_for("ended", || status(&env, &a) == "failed");
-    wait_for("guard released", || env.guards.load(Ordering::SeqCst) == 0);
+    wait_for(&env, "ended", || status(&env, &a) == "failed");
+    wait_for(&env, "guard released", || {
+        env.guards.load(Ordering::SeqCst) == 0
+    });
     drop(r);
 }
 
@@ -491,7 +533,7 @@ fn ai_names_a_release_group(
         ending: Ending::Done,
     });
     let _r = start(&env, p, Duration::from_secs(10));
-    wait_for("completed", || status(&env, &id) == "completed");
+    wait_for(&env, "completed", || status(&env, &id) == "completed");
     (tmp, env)
 }
 

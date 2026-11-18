@@ -229,11 +229,26 @@ async fn every_check_runs_on_its_own_and_the_library_is_never_written() {
         .unwrap();
     let mut body = resp.into_body();
     let mut text = String::new();
-    let deadline = Instant::now() + Duration::from_secs(10);
-    while !text.contains("event: sweep") && Instant::now() < deadline {
-        if let Some(Ok(f)) = body.frame().await
-            && let Ok(d) = f.into_data()
-        {
+    // The sweep frame comes once the stream has the sweep's state, which it
+    // reads from the database. Frames arriving are the progress: only a
+    // stream that goes quiet for `STALL` (or ends) fails, not one that is
+    // slow because the runner's disk is.
+    const STALL: Duration = Duration::from_secs(30);
+    // A backstop for a stream that keeps sending and never gets there.
+    const CAP: Duration = Duration::from_secs(600);
+    let begun = Instant::now();
+    while !text.contains("event: sweep") {
+        assert!(
+            begun.elapsed() < CAP,
+            "no sweep frame on the checks stream: {text}"
+        );
+        let next = tokio::time::timeout(STALL, body.frame())
+            .await
+            .unwrap_or_else(|_| panic!("the checks stream was silent for {STALL:?}: {text}"));
+        let Some(Ok(f)) = next else {
+            panic!("the checks stream ended without a sweep frame: {text}");
+        };
+        if let Ok(d) = f.into_data() {
             text.push_str(&String::from_utf8_lossy(&d));
         }
     }
