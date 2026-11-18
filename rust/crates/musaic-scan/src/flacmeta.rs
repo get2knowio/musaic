@@ -66,13 +66,82 @@ pub fn file_disc<'a>(
         return from_tag;
     }
     let raw = tracknumber.map(strip).find(|v| !v.is_empty())?;
-    let head = strip(raw.split('/').next().unwrap_or(""));
+    split_disc_track(raw).map(|(disc, _)| disc)
+}
+
+/// A disc-prefixed `TRACKNUMBER` ("2-05", "2.05/12") as (disc, track part).
+pub fn split_disc_track(raw: &str) -> Option<(i64, &str)> {
+    use musaic_core::pycompat::{int, strip};
+    let head = strip(strip(raw).split('/').next().unwrap_or(""));
     ['-', '.'].into_iter().find_map(|sep| {
         let (disc, track) = head.rsplit_once(sep)?;
         let digits = |t: &str| !t.is_empty() && t.chars().all(|c| c.is_ascii_digit());
         let (disc, track) = (strip(disc), strip(track));
-        (digits(disc) && digits(track)).then(|| int(disc)).flatten()
+        (digits(disc) && digits(track))
+            .then(|| int(disc))
+            .flatten()
+            .map(|d| (d, track))
     })
+}
+
+/// What a folder's files say about how many discs the set has. Collected
+/// from every readable file, so the filename check and the renumber reach
+/// the same answer from the same files.
+#[derive(Debug, Clone, Default)]
+pub struct DiscEvidence {
+    discs: std::collections::BTreeSet<i64>,
+    total_above_one: bool,
+}
+
+impl DiscEvidence {
+    pub fn add(&mut self, meta: &FlacMeta) {
+        if let Some(d) = file_disc(meta.values("discnumber"), meta.values("tracknumber")) {
+            self.discs.insert(d);
+        }
+        let total_of = |key: &str| meta.values(key).find_map(musaic_core::pycompat::int);
+        let slash_total = meta.values("discnumber").find_map(|v| {
+            v.split_once('/')
+                .and_then(|(_, t)| musaic_core::pycompat::int(t))
+        });
+        let totals = [total_of("disctotal"), total_of("totaldiscs"), slash_total];
+        if totals.into_iter().flatten().any(|t| t > 1) {
+            self.total_above_one = true;
+        }
+    }
+
+    /// Read every FLAC of a folder (unreadable files are left out).
+    pub fn of_folder(dir: &Path) -> Self {
+        let mut ev = Self::default();
+        for path in crate::list_flacs(dir) {
+            if let Ok(meta) = read(&path) {
+                ev.add(&meta);
+            }
+        }
+        ev
+    }
+
+    /// Two different disc numbers among the files, or a total above one in
+    /// `DISCTOTAL` / `TOTALDISCS` / the part after the slash of `DISCNUMBER`.
+    pub fn spans_discs(&self) -> bool {
+        self.total_above_one || self.discs.len() > 1
+    }
+}
+
+/// Whether a folder's set has more than one disc: the one rule for whether
+/// `{disc}` appears in a file name. The folder name says so with a total
+/// above one, or with a disc number and no total (`... (disc 2)`: a disc 2
+/// implies a set); failing that the files say so. The evidence is read only
+/// when the name leaves the question open.
+pub fn set_spans_discs(
+    folder_disc_number: Option<i64>,
+    folder_disc_total: Option<i64>,
+    evidence: impl FnOnce() -> DiscEvidence,
+) -> bool {
+    match (folder_disc_number, folder_disc_total) {
+        (_, Some(t)) if t > 1 => true,
+        (Some(_), None) => true,
+        _ => evidence().spans_discs(),
+    }
 }
 
 fn invalid(msg: &str) -> io::Error {

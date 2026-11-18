@@ -148,10 +148,12 @@ pub fn check_album(
     // Every FLAC in the folder; the ones left out of the plan keep their
     // names (see below).
     let mut all_names: Vec<String> = Vec::new();
+    // Read once: the disc rule needs every file before any name is rendered.
+    let mut files: Vec<(std::path::PathBuf, flacmeta::FlacMeta)> = Vec::new();
     for flac in list_flacs(album_path) {
         all_names.push(file_name(&flac));
-        let meta = match flacmeta::read(&flac) {
-            Ok(m) => m,
+        match flacmeta::read(&flac) {
+            Ok(m) => files.push((flac, m)),
             Err(e) => {
                 // filename_mismatch.py:213; the reason is this build's
                 // reader error, not mutagen's.
@@ -159,13 +161,20 @@ pub fn check_album(
                     TARGET,
                     &format!("filename-mismatch: couldn't open {}: {e}", flac.display()),
                 );
-                continue;
             }
-        };
-        let tracknumber = first_tag(&meta, "tracknumber");
-        let title = first_tag(&meta, "title");
-        let artist = first_tag(&meta, "artist");
-        let albumartist = first_tag(&meta, "albumartist");
+        }
+    }
+    // The rule a renumber uses, so the two agree on every file's prefix.
+    let multi_disc = flacmeta::set_spans_discs(row.disc_number, row.disc_total, || {
+        let mut ev = flacmeta::DiscEvidence::default();
+        files.iter().for_each(|(_, m)| ev.add(m));
+        ev
+    });
+    for (flac, meta) in &files {
+        let tracknumber = first_tag(meta, "tracknumber");
+        let title = first_tag(meta, "title");
+        let artist = first_tag(meta, "artist");
+        let albumartist = first_tag(meta, "albumartist");
         if title.is_empty() || tracknumber.is_empty() {
             continue;
         }
@@ -180,19 +189,37 @@ pub fn check_album(
             opt(&row.album_artist).to_string()
         };
         let mut values = Values::new();
-        values.insert("tracknumber", Value::from(tracknumber.as_str()));
         values.insert("title", Value::from(title.as_str()));
         values.insert("artist", Value::from(artist_value.as_str()));
         values.insert("albumartist", Value::from(albumartist_value));
         values.insert("album", Value::from(opt(&row.title)));
         values.insert("year", Value::from(opt(&row.year)));
-        values.insert("disc", Value::from(row.disc_number));
+        let disc = if multi_disc {
+            flacmeta::file_disc(meta.values("discnumber"), meta.values("tracknumber"))
+                .or(row.disc_number)
+        } else {
+            None
+        };
+        // The disc part of a "2-05" track number is left out only where
+        // `{disc}` renders it, or it would show twice. Under a pattern
+        // without `{disc}` the tag passes through whole, as it always has:
+        // dropping the disc from such names without renumbering the tracks
+        // would leave two files numbered 05 in one folder.
+        let disc_renders =
+            disc.is_some() && (template.contains("{disc}") || template.contains("{disc:"));
+        let track_part = if disc_renders {
+            flacmeta::split_disc_track(&tracknumber).map_or(tracknumber.as_str(), |t| t.1)
+        } else {
+            tracknumber.as_str()
+        };
+        values.insert("tracknumber", Value::from(track_part));
+        values.insert("disc", Value::from(disc));
         let rendered = render(template, &values)?;
         if rendered.is_empty() {
             continue;
         }
         let expected = format!("{rendered}.flac");
-        let name = file_name(&flac);
+        let name = file_name(flac);
         // A normalisation-only difference is not a mismatch.
         if same_nfc(&expected, &name) {
             continue;
