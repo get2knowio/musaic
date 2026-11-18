@@ -110,6 +110,118 @@ pub fn unignore_owned<E: From<musaic_db::Error> + From<HttpError>>(
     Ok(runner::unignore_finding(conn, env, id)?)
 }
 
+/// The multi-disc-layout finding `id`'s conversion preview, re-derived
+/// from the current database and disk (`musaic_fsops::multi_disc`; the
+/// stored detail fills only the headline). 404 unless it is a finding of
+/// that check, 400 without an album. Read-only: nothing is converted.
+pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>>(
+    conn: &Connection,
+    id: i64,
+) -> Result<Value, E> {
+    use musaic_fsops::multi_disc::{self, PreviewState};
+    let finding = match get_finding(conn, id)? {
+        Some(f) if f.check_id == musaic_checks::checks::multi_disc_layout::META.id => f,
+        _ => return Err(E::from(not_found())),
+    };
+    let Some(album_id) = finding.album_id.clone().filter(|a| !a.is_empty()) else {
+        return Err(E::from(HttpError {
+            status: 400,
+            detail: "Finding has no album".into(),
+        }));
+    };
+    let detail: Value = finding
+        .detail_json
+        .as_deref()
+        .and_then(|d| serde_json::from_str(d).ok())
+        .unwrap_or(Value::Null);
+    let headline = detail
+        .get("headline")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty())
+        .map_or_else(|| finding.summary.clone(), str::to_string);
+    let Some(p) = multi_disc::derive_conversion(conn, &album_id)? else {
+        return Ok(json!({
+            "finding_id": id,
+            "album_id": album_id,
+            "state": PreviewState::NotASet.as_str(),
+            "convertible": false,
+            "conversion_available": false,
+            "headline": headline,
+            "reason": "This album is no longer in the library.",
+            "members": [],
+            "tracks": [],
+            "folders": [],
+            "blockers": [],
+        }));
+    };
+    let plan = &p.plan;
+    let tracks: Vec<Value> = plan
+        .tracks
+        .iter()
+        .map(|t| {
+            json!({
+                "album_id": t.album_id,
+                "disc": t.disc,
+                "filename": t.filename,
+                "title": t.title,
+                "tracknumber": t.tracknumber,
+                "track": t.track,
+                "new_track": t.new_track,
+                "new_filename": t.new_filename,
+                "has_disc_tags": t.has_disc_tags,
+            })
+        })
+        .collect();
+    let folders: Vec<Value> = plan
+        .folders
+        .iter()
+        .map(|f| {
+            json!({
+                "album_id": f.album_id,
+                "dir_name": f.dir_name,
+                "disc": f.disc,
+                "destination": f.destination,
+                "covers": f.covers.iter().map(|c| json!({"name": c.name, "action": c.action.as_str()})).collect::<Vec<_>>(),
+                "sidecar": f.sidecar,
+                "other_files": f.other_files,
+            })
+        })
+        .collect();
+    let converts = matches!(p.state, PreviewState::OneFolder | PreviewState::Folders);
+    Ok(json!({
+        "finding_id": id,
+        "album_id": p.album_id,
+        "state": p.state.as_str(),
+        "convertible": p.convertible(),
+        // No conversion is built yet: the dialog only shows the plan.
+        "conversion_available": false,
+        "headline": headline,
+        "reason": p.reason,
+        "numbering": p.numbering.map(|n| n.as_str()),
+        "disc_total": p.disc_total,
+        "present_discs": p.present_discs,
+        "absent_discs": p.absent_discs,
+        "members": p.members.iter().map(|m| json!({
+            "album_id": m.album_id,
+            "dir_name": m.dir_name,
+            "disc": m.disc,
+            "missing": m.missing,
+        })).collect::<Vec<_>>(),
+        "is_compilation": p.is_compilation,
+        "template": p.template,
+        "dir_template": p.dir_template,
+        "tracks": tracks,
+        "track_total": converts.then_some(plan.track_total),
+        "target_folder": converts.then(|| json!({
+            "current": p.target_current,
+            "new": plan.target_name,
+        })),
+        "removes_disc_tags": converts,
+        "folders": folders,
+        "blockers": plan.blockers.iter().map(|b| json!({"code": b.code, "message": b.message})).collect::<Vec<_>>(),
+    }))
+}
+
 /// The filename-mismatch finding `id`'s rename plan, re-derived
 /// against the current database (404 unless it is a filename-mismatch
 /// finding, 400 without an album). When the album is gone, the stored

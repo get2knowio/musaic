@@ -207,14 +207,15 @@ fn deltas() -> Vec<Delta> {
         ),
         set(
             "checks after runs",
-            "/json/checks/6/open_count",
+            // filename-mismatch, after multi-disc-layout
+            "/json/checks/7/open_count",
             json!(3),
             json!(2),
             NFD_WHY,
         ),
         set(
             "checks after runs",
-            "/json/checks/6/last_run/issue_count",
+            "/json/checks/7/last_run/issue_count",
             json!(3),
             json!(2),
             NFD_WHY,

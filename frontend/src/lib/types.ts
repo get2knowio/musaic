@@ -578,6 +578,74 @@ export interface DuplicateClusterPreview {
   removed_filenames: string[];
 }
 
+/** Response from GET /api/checks/multi-disc-layout/findings/{id}/conversion-preview.
+ *  What converting a multi-disc set to one folder would do, re-derived
+ *  from current disk + DB state. Read-only: nothing converts it yet. */
+export type MultiDiscPreviewState = "one_folder" | "folders" | "incomplete" | "not_a_set";
+
+export interface MultiDiscMember {
+  album_id: string;
+  dir_name: string | null;
+  disc: number;
+  missing: boolean;
+}
+
+export interface MultiDiscTrack {
+  album_id: string;
+  disc: number | null;
+  filename: string;
+  title: string;
+  tracknumber: string;
+  track: number | null;
+  new_track: number | null;
+  new_filename: string | null;
+  has_disc_tags: boolean;
+}
+
+export type MultiDiscCoverAction = "kept" | "moved" | "identical" | "different";
+
+export interface MultiDiscFolder {
+  album_id: string;
+  dir_name: string;
+  disc: number | null;
+  destination: boolean;
+  covers: { name: string; action: MultiDiscCoverAction }[];
+  sidecar: boolean;
+  other_files: string[];
+}
+
+export interface MultiDiscBlocker {
+  code: string;
+  message: string;
+}
+
+export interface MultiDiscConversionPreview {
+  finding_id: number;
+  album_id: string;
+  state: MultiDiscPreviewState;
+  /** No blocker: the plan could run as it stands. */
+  convertible: boolean;
+  /** Whether converting can be started from the dialog (not yet). */
+  conversion_available: boolean;
+  headline: string;
+  /** Why no conversion is offered (an incomplete set, or no set). */
+  reason: string | null;
+  numbering?: "per_disc" | "continuous" | "irregular" | null;
+  disc_total?: number | null;
+  present_discs?: number[];
+  absent_discs?: number[];
+  members: MultiDiscMember[];
+  is_compilation?: boolean;
+  template?: string;
+  dir_template?: string;
+  tracks: MultiDiscTrack[];
+  track_total?: number | null;
+  target_folder?: { current: string | null; new: string | null } | null;
+  removes_disc_tags?: boolean;
+  folders: MultiDiscFolder[];
+  blockers: MultiDiscBlocker[];
+}
+
 /** A plan entry the rename left alone. */
 export interface SkippedRename {
   old: string;

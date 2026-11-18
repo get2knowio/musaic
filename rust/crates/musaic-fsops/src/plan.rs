@@ -65,7 +65,7 @@ impl Templates {
         })
     }
 
-    fn for_row(&self, row: &RenamePlanRow) -> (&str, &str) {
+    pub fn for_row(&self, row: &RenamePlanRow) -> (&str, &str) {
         if row.is_compilation {
             (&self.filename_compilation, &self.dir_compilation)
         } else {
@@ -116,7 +116,7 @@ impl Plan {
     }
 }
 
-fn same_nfc(a: &str, b: &str) -> bool {
+pub(crate) fn same_nfc(a: &str, b: &str) -> bool {
     a == b || a.nfc().eq(b.nfc())
 }
 
@@ -132,6 +132,47 @@ fn first_tag(meta: &flacmeta::FlacMeta, key: &str) -> String {
 
 fn opt(s: &Option<String>) -> &str {
     s.as_deref().unwrap_or("")
+}
+
+/// The tags of one file a filename template reads.
+#[derive(Debug, Clone, Copy)]
+pub struct TrackTags<'a> {
+    pub title: &'a str,
+    pub artist: &'a str,
+    pub albumartist: &'a str,
+}
+
+/// One file's name under `template`, without the extension: the file's own
+/// title and artists (ARTIST falling back to ALBUMARTIST, ALBUMARTIST to
+/// the row's), the row's album and year, and the given track number and
+/// disc. The filename check and the multi-disc conversion preview both
+/// render through this, so they propose the same names.
+pub fn render_track_stem(
+    template: &str,
+    tags: &TrackTags<'_>,
+    row: &RenamePlanRow,
+    tracknumber: &str,
+    disc: Option<i64>,
+) -> Result<String, RenderError> {
+    let artist_value = if !tags.artist.is_empty() {
+        tags.artist
+    } else {
+        tags.albumartist
+    };
+    let albumartist_value = if !tags.albumartist.is_empty() {
+        tags.albumartist
+    } else {
+        opt(&row.album_artist)
+    };
+    let mut values = Values::new();
+    values.insert("title", Value::from(tags.title));
+    values.insert("artist", Value::from(artist_value));
+    values.insert("albumartist", Value::from(albumartist_value));
+    values.insert("album", Value::from(opt(&row.title)));
+    values.insert("year", Value::from(opt(&row.year)));
+    values.insert("tracknumber", Value::from(tracknumber));
+    values.insert("disc", Value::from(disc));
+    render(template, &values)
 }
 
 /// `_check_album`: render the expected filename of every FLAC (shared listing:
@@ -185,17 +226,6 @@ pub fn check_album(
         } else {
             albumartist.clone()
         };
-        let albumartist_value = if !albumartist.is_empty() {
-            albumartist.clone()
-        } else {
-            opt(&row.album_artist).to_string()
-        };
-        let mut values = Values::new();
-        values.insert("title", Value::from(title.as_str()));
-        values.insert("artist", Value::from(artist_value.as_str()));
-        values.insert("albumartist", Value::from(albumartist_value));
-        values.insert("album", Value::from(opt(&row.title)));
-        values.insert("year", Value::from(opt(&row.year)));
         let disc = if multi_disc {
             flacmeta::file_disc(meta.values("discnumber"), meta.values("tracknumber"))
                 .or(row.disc_number)
@@ -214,9 +244,12 @@ pub fn check_album(
         } else {
             tracknumber.as_str()
         };
-        values.insert("tracknumber", Value::from(track_part));
-        values.insert("disc", Value::from(disc));
-        let rendered = render(template, &values)?;
+        let tags = TrackTags {
+            title: &title,
+            artist: &artist,
+            albumartist: &albumartist,
+        };
+        let rendered = render_track_stem(template, &tags, row, track_part, disc)?;
         if rendered.is_empty() {
             continue;
         }
@@ -297,6 +330,23 @@ pub fn check_dir(
     row: &RenamePlanRow,
 ) -> Result<Option<DirRename>, RenderError> {
     let current = file_name(album_path);
+    let Some(rendered) = render_dir_name(template, row)? else {
+        return Ok(None);
+    };
+    // A normalisation-only difference is not a mismatch.
+    if same_nfc(&rendered, &current) {
+        return Ok(None);
+    }
+    Ok(Some(DirRename {
+        old: current,
+        new: rendered,
+    }))
+}
+
+/// The album folder's name under the directory `template`, with the
+/// `(disc n of total)` suffix when the row names a disc of a larger set.
+/// `None` when the row has no title or the template renders nothing.
+pub fn render_dir_name(template: &str, row: &RenamePlanRow) -> Result<Option<String>, RenderError> {
     let title = opt(&row.title);
     if strip(title).is_empty() {
         return Ok(None);
@@ -328,14 +378,7 @@ pub fn check_dir(
         };
         rendered = sanitize_for_filename(&rendered);
     }
-    // A normalisation-only difference is not a mismatch.
-    if same_nfc(&rendered, &current) {
-        return Ok(None);
-    }
-    Ok(Some(DirRename {
-        old: current,
-        new: rendered,
-    }))
+    Ok(Some(rendered))
 }
 
 /// `derive_plan(album_id)`: re-derive the plan against current disk + DB +

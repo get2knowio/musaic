@@ -37,13 +37,13 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |
-| `musaic-fsops` | File moves that are not tag writes: filename/directory templates, rename plans and their execution, trash |
+| `musaic-fsops` | File moves that are not tag writes: filename/directory templates, rename plans and their execution, trash, multi-disc set detection and the conversion plan (`multi_disc.rs`) |
 | `musaic-dsp` | Chromaprint fingerprints, duplicate-track clustering, ReplayGain (BS.1770) |
 | `musaic-bpm` | Tempo (BPM) detection |
 | `musaic-net` | Outbound HTTP: MusicBrainz, AcoustID and Cover Art Archive clients, pacing and retry, the public-HTTPS rule for cover downloads, replay transport for tests |
 | `musaic-resolve` | The metadata resolver rules as pure functions: AcoustID vote, name search acceptance, tracklist alignment, similarity |
 | `musaic-events` | In-process event bus, the post-scan / bulk-run guard flags, the subscriber catalog, the SSE relay core |
-| `musaic-checks` | Health-check framework: `Check` trait, registry of the seven checks, findings runner, post-scan reruns, the inputs digest each completed run records (`inputs.rs`) |
+| `musaic-checks` | Health-check framework: `Check` trait, registry of the eight checks, findings runner, post-scan reruns, the inputs digest each completed run records (`inputs.rs`) |
 | `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, the background check sweep, analysis (BPM / ReplayGain), check fixes, library operations |
 | `musaic-ai` | The job queue: persistence, worker loop, the resolver synthesizer; a provider trait with no network provider in this build |
 | `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log |
@@ -224,6 +224,9 @@ never shows ghost rows.
   `musaic-fsops/src/plan.rs` (`derive_plan`).
 - `GET /api/checks/duplicate-tracks/findings/{id}/cluster-preview` →
   `musaic-checks/src/checks/duplicate_tracks.rs` (`derive_cluster`, `cluster_preview`).
+- `GET /api/checks/multi-disc-layout/findings/{id}/conversion-preview` →
+  `musaic-fsops/src/multi_disc.rs` (`derive_conversion`; the plan itself is the pure
+  `plan_conversion`). Read-only: no conversion is built yet.
 - Routes: `musaic-api/src/routes/checks.rs`.
 
 Use stored `detail` for labels only, never as the source of what to apply.

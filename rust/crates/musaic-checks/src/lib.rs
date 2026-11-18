@@ -1,9 +1,11 @@
 //! Health-check framework: port of the Python app's `musaic/checks/` (base,
-//! runner, registry, the seven checks) and `musaic/services/post_scan.py`.
+//! runner, registry, the seven checks) and `musaic/services/post_scan.py`,
+//! plus one check the Python app did not have (multi-disc-layout).
 //!
 //! * [`base`] — `Check`, `CheckMeta`, `CheckScope`, `Finding`, the clock and
 //!   the environment a run needs.
-//! * [`registry`] — the seven checks in the Python app's order.
+//! * [`registry`] — the eight checks: the Python app's seven in its order,
+//!   with multi-disc-layout before filename-mismatch.
 //! * [`runner`] — `run_check`: findings upsert keyed
 //!   `(check_id, album_id, summary)`, scope-aware auto-resolve, Missing albums
 //!   out of scope, `check_runs` bookkeeping, change notification. The SQL for
@@ -14,7 +16,7 @@
 //!   the staleness rule the background check sweep plans from.
 //! * [`post_scan`] — the guarded post-scan sweep and the check-runner side of
 //!   musaic-events' `SideEffects` (bus-driven reruns really run).
-//! * [`checks`] — detection for all seven checks, plus the pure parts of the
+//! * [`checks`] — detection for all eight checks, plus the pure parts of the
 //!   fixes that need nothing unported (duplicate cluster preview + trash,
 //!   artist-sort bulk plan, track-gaps renumber plans).
 //! * [`resolution`] — the narrow view of a resolver result the checks read,

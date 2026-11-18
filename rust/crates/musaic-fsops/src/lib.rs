@@ -7,7 +7,9 @@
 //! - [`trash`]: soft delete into `<config>/trash`;
 //! - [`cover`]: the on-disk cover path and MIME (discovery order
 //!   is in `musaic-scan`);
-//! - [`sidecar`]: the track-tag sidecar rewrite after renames.
+//! - [`sidecar`]: the track-tag sidecar rewrite after renames;
+//! - [`multi_disc`]: multi-disc sets not in the one-folder layout, and the
+//!   read-only plan for converting one.
 //!
 //! The tracknumber-driven filename prefix rewrite belongs to the
 //! tag apply path and lives in `musaic-tags`.
@@ -17,6 +19,7 @@
 
 pub mod cover;
 mod fsutil;
+pub mod multi_disc;
 pub mod plan;
 mod pyrepr;
 pub mod rename;

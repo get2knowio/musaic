@@ -9,7 +9,8 @@ use crate::dirparse::parse_album_dir;
 use crate::flacmeta::{self, FlacMeta};
 use crate::listing::{list_flacs, py_resolve};
 
-const COVER_FILENAMES: [&str; 9] = [
+/// The cover file names a folder is probed for, in discovery order.
+pub const COVER_FILENAMES: [&str; 9] = [
     "cover.jpg",
     "cover.jpeg",
     "cover.png",
