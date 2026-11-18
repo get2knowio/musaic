@@ -317,11 +317,15 @@ pub fn check_dir(
     if rendered.is_empty() {
         return Ok(None);
     }
-    if let (Some(n), Some(total)) = (row.disc_number, row.disc_total)
-        && total > 1
-        && n != 0
-    {
-        let suffix = format!("(disc {n} of {total})");
+    // A disc number with no total is still a disc: leaving it out would
+    // propose one folder name for every disc of the set. A total of one is a
+    // single disc and needs no suffix.
+    let suffix = match (row.disc_number, row.disc_total) {
+        (Some(n), Some(total)) if total > 1 && n != 0 => Some(format!("(disc {n} of {total})")),
+        (Some(n), None) if n != 0 => Some(format!("(disc {n})")),
+        _ => None,
+    };
+    if let Some(suffix) = suffix {
         rendered = match trailing_tag_start(&rendered) {
             Some(i) => format!("{} {suffix}{}", &rendered[..i], &rendered[i..]),
             None => format!("{rendered} {suffix}"),

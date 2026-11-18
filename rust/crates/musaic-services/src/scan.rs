@@ -923,7 +923,24 @@ pub fn effective_mtime(album_dir: &Path) -> f64 {
 
 /// `scanner._cached_row_is_complete`.
 fn cached_row_is_complete(a: &Album) -> bool {
-    (!a.track_artists.is_empty() || !a.is_compilation) && !needs_disc_backfill(a)
+    (!a.track_artists.is_empty() || !a.is_compilation)
+        && !needs_disc_backfill(a)
+        && !folder_parse_is_stale(a)
+}
+
+/// The fields a folder name supplies, as a fresh parse of the stored folder
+/// name gives them, differ from the stored ones: the parser learned a form
+/// (`Album CD2`) after the row was written. Parsing a name costs microseconds
+/// and reads no file; only the rows that differ are read again, and a row
+/// that agrees with its name never is. The folder name is not a tag, so a
+/// mismatch means the parse changed, not that the album did.
+fn folder_parse_is_stale(a: &Album) -> bool {
+    let p = musaic_scan::parse_album_dir(&a.dir_name);
+    p.dir_artist != a.dir_artist
+        || p.dir_album != a.dir_album
+        || p.is_compilation != a.is_compilation
+        || p.disc_number != a.disc_number
+        || p.disc_total != a.disc_total
 }
 
 /// A row written before schema v20 has no per-file disc numbers. Reading
