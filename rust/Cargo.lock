@@ -2770,6 +2770,7 @@ dependencies = [
  "musaic-tags",
  "musaic-testdata",
  "rusqlite",
+ "same-file",
  "serde_json",
  "sha2 0.11.1",
  "tempfile",

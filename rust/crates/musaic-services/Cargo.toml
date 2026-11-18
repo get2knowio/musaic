@@ -11,6 +11,7 @@ musaic-bpm = { path = "../musaic-bpm" }
 musaic-checks = { path = "../musaic-checks" }
 musaic-core = { path = "../musaic-core" }
 musaic-db = { path = "../musaic-db" }
+same-file = "1"
 musaic-dsp = { path = "../musaic-dsp" }
 musaic-events = { path = "../musaic-events" }
 musaic-fsops = { path = "../musaic-fsops" }
