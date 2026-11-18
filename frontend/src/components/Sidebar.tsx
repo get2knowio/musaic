@@ -158,6 +158,7 @@ export default function Sidebar() {
 
       <NavLink
         to="/settings"
+        aria-keyshortcuts=","
         className={({ isActive }) =>
           [
             "flex items-center gap-2.5 h-7 px-2.5 rounded text-fg-2 transition",
@@ -169,6 +170,7 @@ export default function Sidebar() {
       >
         <SettingsIcon className="w-3.5 h-3.5" />
         <span>Settings</span>
+        <kbd className="ml-auto mono text-xs text-fg-4">,</kbd>
       </NavLink>
     </nav>
   );

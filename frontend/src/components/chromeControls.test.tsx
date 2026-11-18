@@ -1,7 +1,7 @@
 /**
  * Titlebar and sidebar controls (#197): nothing that does nothing, nothing
  * shown twice. Search and the view toggle belong to Library only; the key
- * hints that had no handler are gone; the sidebar lists only real
+ * hints show the keys that are wired (useGlobalShortcuts); the sidebar lists only real
  * destinations and lights one entry at a time; the theme choice is stored.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -72,11 +72,11 @@ describe("titlebar", () => {
     }
   });
 
-  it("promises only what the search does, and shows no unhandled key hint", () => {
+  it("promises only what the search does, and shows the wired key hint", () => {
     titlebarAt("/library");
     const box = screen.getByRole("searchbox");
     expect(box).toHaveAttribute("placeholder", "Filter albums and artists…");
-    expect(screen.queryByText("/")).toBeNull();
+    expect(box.parentElement?.querySelector("kbd")).toHaveTextContent("/");
   });
 
   it("does not repeat the library folder (the Library filter bar shows it)", () => {
@@ -108,12 +108,14 @@ describe("titlebar", () => {
 });
 
 describe("sidebar", () => {
-  it("lists no unreleased destinations and no key hints", () => {
+  it("lists no unreleased destinations and hints the Settings key", () => {
     sidebarAt("/library");
     for (const gone of ["Coming soon", "Playlists", "Plex sync", "Scan history"]) {
       expect(screen.queryByText(gone)).toBeNull();
     }
-    expect(screen.queryByText(",")).toBeNull();
+    const settings = screen.getByRole("link", { name: /Settings/ });
+    expect(settings).toHaveAttribute("aria-keyshortcuts", ",");
+    expect(settings.querySelector("kbd")).toHaveTextContent(",");
   });
 
   it("lights one entry: Library without a filter, the filter when one is set", () => {

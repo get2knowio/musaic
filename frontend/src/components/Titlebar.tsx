@@ -137,8 +137,10 @@ export default function Titlebar() {
           value={query}
           onChange={(e) => onSearchChange(e.target.value)}
           placeholder="Filter albums and artists…"
+          aria-keyshortcuts="/"
           className="bg-transparent border-0 outline-0 flex-1 min-w-0 text-sm placeholder:text-fg-4"
         />
+        <kbd className="mono text-xs text-fg-3 border border-line bg-bg-2 px-1.5 py-0.5 rounded-sm shrink-0">/</kbd>
       </div>
       )}
 
