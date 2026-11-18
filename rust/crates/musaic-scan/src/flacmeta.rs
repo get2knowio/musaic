@@ -85,17 +85,19 @@ pub fn split_disc_track(raw: &str) -> Option<(i64, &str)> {
 }
 
 /// What a folder's files say about how many discs the set has. Collected
-/// from every readable file, so the filename check and the renumber reach
-/// the same answer from the same files.
+/// from every readable file, so the filename check, the renumber and the
+/// scanner reach the same answer from the same files.
 #[derive(Debug, Clone, Default)]
 pub struct DiscEvidence {
     discs: std::collections::BTreeSet<i64>,
-    total_above_one: bool,
+    max_total: Option<i64>,
 }
 
 impl DiscEvidence {
-    pub fn add(&mut self, meta: &FlacMeta) {
-        if let Some(d) = file_disc(meta.values("discnumber"), meta.values("tracknumber")) {
+    /// Adds one file and returns its disc number ([`file_disc`]).
+    pub fn add(&mut self, meta: &FlacMeta) -> Option<i64> {
+        let disc = file_disc(meta.values("discnumber"), meta.values("tracknumber"));
+        if let Some(d) = disc {
             self.discs.insert(d);
         }
         let total_of = |key: &str| meta.values(key).find_map(musaic_core::pycompat::int);
@@ -104,9 +106,16 @@ impl DiscEvidence {
                 .and_then(|(_, t)| musaic_core::pycompat::int(t))
         });
         let totals = [total_of("disctotal"), total_of("totaldiscs"), slash_total];
-        if totals.into_iter().flatten().any(|t| t > 1) {
-            self.total_above_one = true;
+        if let Some(t) = totals.into_iter().flatten().max() {
+            self.max_total = Some(self.max_total.map_or(t, |m| m.max(t)));
         }
+        disc
+    }
+
+    /// The highest total in `DISCTOTAL` / `TOTALDISCS` / the part after the
+    /// slash of `DISCNUMBER` among the files added; `None` when none names one.
+    pub fn max_total(&self) -> Option<i64> {
+        self.max_total
     }
 
     /// Read every FLAC of a folder (unreadable files are left out).
@@ -123,7 +132,7 @@ impl DiscEvidence {
     /// Two different disc numbers among the files, or a total above one in
     /// `DISCTOTAL` / `TOTALDISCS` / the part after the slash of `DISCNUMBER`.
     pub fn spans_discs(&self) -> bool {
-        self.total_above_one || self.discs.len() > 1
+        self.max_total.is_some_and(|t| t > 1) || self.discs.len() > 1
     }
 }
 

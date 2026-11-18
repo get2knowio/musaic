@@ -256,7 +256,7 @@ impl Used {
     }
 }
 
-/// The Python app's `after` plus this build's v16 -> v19 steps, enumerated:
+/// The Python app's `after` plus this build's v16 -> v20 steps, enumerated:
 ///
 /// * D1: `schema_version` 16 -> [`SCHEMA_VERSION`];
 /// * D2: `track_fingerprints` gains
@@ -265,11 +265,14 @@ impl Used {
 ///   `acoustid_lookup_failures` (0), `acoustid_retry_after` (NULL), in that
 ///   order after the Python app's columns; its `sqlite_master.sql` is
 ///   the Python app's with those column definitions spliced in (checked separately,
-///   [`track_fingerprints_sql_is_the_python_apps_plus_the_v17_v18_columns`]);
+///   [`track_fingerprints_and_albums_sql_is_the_python_apps_plus_the_added_columns`]);
 /// * D3: table `fingerprint_rejects` (empty) and its primary-key
 ///   index appended to `sqlite_master`;
 /// * D6 (v19): table `check_inputs` (empty), its primary-key index and the
 ///   index `idx_track_fingerprints_inputs` appended after D3's;
+/// * D7 (v20): `albums` gains `track_discs_json` and `tag_disc_total`, NULL
+///   on every existing row, after the Python app's columns; its SQL is the
+///   Python app's with them spliced in (checked separately, as D2's);
 /// * D4: `journal_mode` is `wal` on both sides (no delta; listed
 ///   so a change shows up here);
 /// * D5: the v14 step leaves an ignored
@@ -300,6 +303,11 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         if t[1] == "track_fingerprints" && t[0] == "table" {
             assert_eq!(o.as_array().unwrap()[..3], t.as_array().unwrap()[..3]);
             used.hit("D2-sql");
+            continue;
+        }
+        if t[1] == "albums" && t[0] == "table" {
+            assert_eq!(o.as_array().unwrap()[..3], t.as_array().unwrap()[..3]);
+            used.hit("D7-sql");
             continue;
         }
         assert_eq!(o, t, "v{v} sqlite_master row");
@@ -374,6 +382,30 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
             assert_eq!(o, &want, "v{v} table {name}");
             continue;
         }
+        if name == "albums" {
+            // D7
+            let tcols = t["columns"].as_array().unwrap();
+            let ocols = o["columns"].as_array().unwrap();
+            assert_eq!(ocols[..tcols.len()], tcols[..], "v{v} albums");
+            let added: Vec<&str> = ocols[tcols.len()..]
+                .iter()
+                .map(|c| c[1].as_str().unwrap())
+                .collect();
+            assert_eq!(added, ["track_discs_json", "tag_disc_total"], "v{v}");
+            let trows = t["rows"].as_array().unwrap();
+            let orows = o["rows"].as_array().unwrap();
+            assert_eq!(orows.len(), trows.len(), "v{v} albums rows");
+            for (or, tr) in orows.iter().zip(trows) {
+                let mut want = tr.as_array().unwrap().clone();
+                want.push(json!("NULL"));
+                want.push(json!("NULL"));
+                assert_eq!(or.as_array().unwrap(), &want, "v{v} albums row");
+            }
+            if !trows.is_empty() {
+                used.hit("D7-rows");
+            }
+            continue;
+        }
         if name != "track_fingerprints" {
             assert_eq!(o, t, "v{v} table {name}");
             continue;
@@ -423,9 +455,9 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
 
 /// Every schema version the Python app could have left on
 /// disk (v1..v16) opens and ends exactly where the Python app's chain ends, plus
-/// the enumerated v17 / v18 / v19 deltas.
+/// the enumerated v17 / v18 / v19 / v20 deltas.
 #[test]
-fn every_old_version_ends_where_the_python_ends_plus_the_v17_v18_v19_deltas() {
+fn every_old_version_ends_where_the_python_ends_plus_this_builds_deltas() {
     let mut used = Used::default();
     let mut seen_v14_stamp = false;
     for v in OLDEST_SCHEMA_VERSION..=16 {
@@ -441,7 +473,9 @@ fn every_old_version_ends_where_the_python_ends_plus_the_v17_v18_v19_deltas() {
         compare_with_python(v, &ours, &mut used);
         seen_v14_stamp |= ours.to_string().contains(PLACEHOLDER);
     }
-    for k in ["D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6"] {
+    for k in [
+        "D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6", "D7-sql", "D7-rows",
+    ] {
         assert!(used.0.contains_key(k), "delta {k} never exercised");
     }
     assert!(seen_v14_stamp, "the v14 step was never exercised");
@@ -476,51 +510,50 @@ fn fixtures_carry_user_data() {
 /// typing the text: the Python app's statement replayed in a scratch database,
 /// then the ADD COLUMNs that reproduce this build's columns (from
 /// `PRAGMA table_info` of our result), must give our text exactly.
+/// D7's SQL text likewise, for `albums` and the v20 columns.
 #[test]
-fn track_fingerprints_sql_is_the_python_apps_plus_the_v17_v18_columns() {
+fn track_fingerprints_and_albums_sql_is_the_python_apps_plus_the_added_columns() {
     for v in OLDEST_SCHEMA_VERSION..=16 {
         let (_d, _p, _o, ours) = migrate(v);
         let theirs = &golden(v)["python_app"]["after"];
-        let sql = |d: &Value| -> String {
-            d["sqlite_master"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|r| r[0] == "table" && r[1] == "track_fingerprints")
-                .unwrap()[3]
-                .as_str()
-                .unwrap()
-                .to_string()
-        };
-        let scratch = Connection::open_in_memory().unwrap();
-        scratch.execute_batch(&sql(theirs)).unwrap();
-        let n = theirs["tables"]["track_fingerprints"]["columns"]
-            .as_array()
-            .unwrap()
-            .len();
-        for c in &ours["tables"]["track_fingerprints"]["columns"]
-            .as_array()
-            .unwrap()[n..]
-        {
-            let mut def = format!("{} {}", c[1].as_str().unwrap(), c[2].as_str().unwrap());
-            if c[3] == 1 {
-                def.push_str(" NOT NULL");
+        for table in ["track_fingerprints", "albums"] {
+            let sql = |d: &Value| -> String {
+                d["sqlite_master"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|r| r[0] == "table" && r[1] == table)
+                    .unwrap()[3]
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            };
+            let scratch = Connection::open_in_memory().unwrap();
+            // `albums` refers to `libraries`; a foreign key needs no target
+            // table to be created.
+            scratch.execute_batch(&sql(theirs)).unwrap();
+            let n = theirs["tables"][table]["columns"].as_array().unwrap().len();
+            for c in &ours["tables"][table]["columns"].as_array().unwrap()[n..] {
+                let mut def = format!("{} {}", c[1].as_str().unwrap(), c[2].as_str().unwrap());
+                if c[3] == 1 {
+                    def.push_str(" NOT NULL");
+                }
+                if let Some(d) = c[4].as_str() {
+                    def.push_str(&format!(" DEFAULT {d}"));
+                }
+                scratch
+                    .execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {def}"))
+                    .unwrap();
             }
-            if let Some(d) = c[4].as_str() {
-                def.push_str(&format!(" DEFAULT {d}"));
-            }
-            scratch
-                .execute_batch(&format!("ALTER TABLE track_fingerprints ADD COLUMN {def}"))
+            let replayed: String = scratch
+                .query_row(
+                    "SELECT sql FROM sqlite_master WHERE name = ?1",
+                    [table],
+                    |r| r.get(0),
+                )
                 .unwrap();
+            assert_eq!(sql(&ours), replayed, "v{v} {table}");
         }
-        let replayed: String = scratch
-            .query_row(
-                "SELECT sql FROM sqlite_master WHERE name = 'track_fingerprints'",
-                [],
-                |r| r.get(0),
-            )
-            .unwrap();
-        assert_eq!(sql(&ours), replayed, "v{v}");
     }
 }
 
@@ -579,7 +612,7 @@ fn remove_injection(p: &Path) {
 fn an_interrupted_migration_is_resumable_and_never_takes_a_second_backup() {
     for v in [3, 12, 15] {
         let (_d, _p, _o, clean) = migrate(v);
-        for at in [16, 17, 18, SCHEMA_VERSION] {
+        for at in [16, 17, 18, 19, SCHEMA_VERSION] {
             let (dir, p) = fixture_copy(v);
             inject_failure_at(&p, at);
             let before = {

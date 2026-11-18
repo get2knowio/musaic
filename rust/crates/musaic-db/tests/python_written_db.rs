@@ -389,12 +389,12 @@ const V18_AS_SHIPPED: &str = "
     UPDATE schema_version SET version = 18;
 ";
 
-/// A v18 database (this build's, before v19) is migrated in place to v19
-/// with no backup file (the v18 -> v19 step only adds an empty table and an
-/// index, in one transaction): every table keeps its rows, `check_inputs`
-/// is added empty, and reopening changes nothing.
+/// A v18 database (this build's, before v19) is migrated in place to the
+/// current version with no backup file (the v18 -> v19 step only adds an
+/// empty table and an index, in one transaction): every table keeps its
+/// rows, `check_inputs` is added empty, and reopening changes nothing.
 #[test]
-fn v18_is_migrated_to_v19_without_a_backup() {
+fn v18_is_migrated_without_a_backup() {
     let (dir, path) = fixture_copy();
     {
         let c = Connection::open(&path).unwrap();
@@ -418,8 +418,7 @@ fn v18_is_migrated_to_v19_without_a_backup() {
             backup: None
         }
     );
-    assert_eq!(SCHEMA_VERSION, 19);
-    assert_eq!(db.schema_version().unwrap(), 19);
+    assert_eq!(db.schema_version().unwrap(), SCHEMA_VERSION);
     assert!(
         musaic_db::existing_backup(dir.path()).is_none(),
         "no backup for a v18 file"
@@ -464,6 +463,128 @@ fn v18_is_migrated_to_v19_without_a_backup() {
     drop(db);
     let (_, opened) = Db::open(&path).unwrap();
     assert_eq!(opened, Opened::Current);
+}
+
+/// The v19 statements as the previous build ran them (its
+/// `migrate::V19_STATEMENTS`), on top of [`V18_AS_SHIPPED`].
+const V19_AS_SHIPPED: &str = "
+    CREATE TABLE check_inputs (
+        check_id      TEXT NOT NULL,
+        library_path  TEXT NOT NULL,
+        album_id      TEXT NOT NULL,
+        digest        TEXT NOT NULL,
+        checked_at    TEXT NOT NULL,
+        PRIMARY KEY (check_id, library_path, album_id)
+    );
+    CREATE INDEX idx_track_fingerprints_inputs ON track_fingerprints(
+        album_id, filename, fingerprint_impl, last_computed_at,
+        acoustid_recording_mbid, acoustid_score);
+    UPDATE schema_version SET version = 19;
+";
+
+/// Every row of a table, every column, in rowid order, as debug text.
+fn rows_of(c: &Connection, sql: &str) -> Vec<Vec<String>> {
+    let mut st = c.prepare(sql).unwrap();
+    let n = st.column_count();
+    st.query_map([], |r| {
+        Ok((0..n)
+            .map(|i| format!("{:?}", r.get_ref(i).unwrap()))
+            .collect())
+    })
+    .unwrap()
+    .map(Result::unwrap)
+    .collect()
+}
+
+/// A v19 database (the previous release's) is migrated in place to v20 with
+/// no backup file: every table keeps its rows, every album row keeps every
+/// value it had, the two new albums columns are NULL on every row ("not
+/// read yet"), and reopening changes nothing. A fresh database has the
+/// same two columns.
+#[test]
+fn v19_is_migrated_to_v20_without_a_backup() {
+    let (dir, path) = fixture_copy();
+    let old_cols: String;
+    let albums_before;
+    {
+        let c = Connection::open(&path).unwrap();
+        c.execute_batch(V18_AS_SHIPPED).unwrap();
+        c.execute_batch(V19_AS_SHIPPED).unwrap();
+        c.execute(
+            "INSERT INTO check_inputs VALUES ('track-gaps', '/lib', \
+             (SELECT id FROM albums ORDER BY id LIMIT 1), 'd1', '2001-01-01T00:00:00Z')",
+            [],
+        )
+        .unwrap();
+        old_cols = c
+            .prepare("SELECT name FROM pragma_table_info('albums') ORDER BY cid")
+            .unwrap()
+            .query_map([], |r| r.get::<_, String>(0))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect::<Vec<_>>()
+            .join(", ");
+        albums_before = rows_of(&c, &format!("SELECT {old_cols} FROM albums ORDER BY rowid"));
+    }
+    assert!(!old_cols.contains("track_discs_json"));
+    let before = table_counts(&Connection::open(&path).unwrap());
+    let (db, opened) = Db::open(&path).unwrap();
+    assert_eq!(
+        opened,
+        Opened::Migrated {
+            from: 19,
+            backup: None
+        }
+    );
+    assert_eq!(SCHEMA_VERSION, 20);
+    assert_eq!(db.schema_version().unwrap(), 20);
+    assert!(musaic_db::existing_backup(dir.path()).is_none());
+    let c = db.connection();
+    assert_eq!(table_counts(c), before, "no table added or emptied");
+    assert_eq!(
+        rows_of(c, &format!("SELECT {old_cols} FROM albums ORDER BY rowid")),
+        albums_before,
+        "every album row keeps every value"
+    );
+    assert!(!albums_before.is_empty());
+    let (rows, filled): (i64, i64) = c
+        .query_row(
+            "SELECT COUNT(*), SUM(track_discs_json IS NOT NULL OR tag_disc_total IS NOT NULL) \
+             FROM albums",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!((rows as usize, filled), (albums_before.len(), 0));
+    let cols = |c: &Connection| -> Vec<(String, String)> {
+        c.prepare("SELECT name, type FROM pragma_table_info('albums') ORDER BY cid")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    };
+    let migrated_cols = cols(c);
+    assert_eq!(
+        migrated_cols[migrated_cols.len() - 2..],
+        [
+            ("track_discs_json".to_string(), "TEXT".to_string()),
+            ("tag_disc_total".to_string(), "INTEGER".to_string())
+        ]
+    );
+    let dump = rows_of(c, "SELECT * FROM albums ORDER BY rowid");
+    drop(db);
+    let (db, opened) = Db::open(&path).unwrap();
+    assert_eq!(opened, Opened::Current);
+    assert_eq!(
+        rows_of(db.connection(), "SELECT * FROM albums ORDER BY rowid"),
+        dump
+    );
+
+    let fresh_dir = tempfile::tempdir().unwrap();
+    let (fresh, _) = Db::open_or_create(fresh_dir.path().join("library.db")).unwrap();
+    assert_eq!(fresh.schema_version().unwrap(), 20);
+    assert_eq!(cols(fresh.connection()), migrated_cols);
 }
 
 /// Remembered rejects follow an album's directory rename (the id

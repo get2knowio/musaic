@@ -167,7 +167,9 @@ pub fn check_album(
     // The rule a renumber uses, so the two agree on every file's prefix.
     let multi_disc = flacmeta::set_spans_discs(row.disc_number, row.disc_total, || {
         let mut ev = flacmeta::DiscEvidence::default();
-        files.iter().for_each(|(_, m)| ev.add(m));
+        for (_, m) in &files {
+            ev.add(m);
+        }
         ev
     });
     for (flac, meta) in &files {

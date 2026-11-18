@@ -64,7 +64,7 @@ fn migrated_python_empty() -> (tempfile::TempDir, Vec<MasterRow>) {
 }
 
 /// A fresh database has exactly the schema of the Python app's
-/// empty v16 database after the v17, v18 and v19 migrations, row for row in
+/// empty v16 database after the v17 to v20 migrations, row for row in
 /// sqlite_master.
 #[test]
 fn fresh_schema_equals_the_migrated_python_database() {
@@ -80,7 +80,8 @@ fn fresh_schema_equals_the_migrated_python_database() {
 /// Compared with what `db.bootstrap()` itself writes. The only
 /// differences are the migrations' (v17: `fingerprint_impl`; v18: AcoustID
 /// lookup outcome columns and `fingerprint_rejects`; v19: `check_inputs`
-/// and the fingerprint inputs index), enumerated here; an unlisted difference or an
+/// and the fingerprint inputs index; v20: two albums columns), enumerated
+/// here; an unlisted difference or an
 /// unused delta fails.
 #[test]
 fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
@@ -93,7 +94,8 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
     // sqlite_master: the Python app's rows in the same order, then the rows v18
     // and v19 add. Changed: the track_fingerprints table's SQL (ALTER TABLE ADD
     // COLUMN fingerprint_impl (v17); acoustid_lookup_state,
-    // acoustid_lookup_failures, acoustid_retry_after (v18)). Added: the
+    // acoustid_lookup_failures, acoustid_retry_after (v18)) and the albums
+    // table's (track_discs_json, tag_disc_total (v20)). Added: the
     // fingerprint_rejects table and its primary-key index (v18); the
     // check_inputs table, its primary-key index and the fingerprint inputs
     // index (v19). Every new
@@ -102,17 +104,25 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
     let theirs = golden_master(&g);
     let (_d, migrated) = migrated_python_empty();
     // (type, name, words the new SQL must contain, decision)
-    let changed: &[(&str, &str, &[&str], &str)] = &[(
-        "table",
-        "track_fingerprints",
-        &[
-            "fingerprint_impl",
-            "acoustid_lookup_state",
-            "acoustid_lookup_failures",
-            "acoustid_retry_after",
-        ],
-        "fingerprint implementation, AcoustID lookup outcome",
-    )];
+    let changed: &[(&str, &str, &[&str], &str)] = &[
+        (
+            "table",
+            "albums",
+            &["track_discs_json", "tag_disc_total"],
+            "per-file disc numbers, tag disc total (v20)",
+        ),
+        (
+            "table",
+            "track_fingerprints",
+            &[
+                "fingerprint_impl",
+                "acoustid_lookup_state",
+                "acoustid_lookup_failures",
+                "acoustid_retry_after",
+            ],
+            "fingerprint implementation, AcoustID lookup outcome",
+        ),
+    ];
     // (type, name, table)
     let added: &[(&str, &str, &str)] = &[
         ("table", "fingerprint_rejects", "fingerprint_rejects"),
@@ -162,7 +172,7 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
         assert_eq!(o, m, "added row must be the migration's own");
     }
 
-    // schema_version: [16] -> [19] (v17, v18, then v19).
+    // schema_version: [16] -> [20] (v17, v18, v19, then v20).
     let versions: Vec<i64> = conn
         .prepare("SELECT version FROM schema_version")
         .unwrap()

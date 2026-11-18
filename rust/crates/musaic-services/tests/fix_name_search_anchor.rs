@@ -118,6 +118,8 @@ fn album_row(id: &str) -> Album {
         artist_sort: None,
         album_sort: None,
         track_artists: vec![],
+        track_discs: None,
+        tag_disc_total: None,
     }
 }
 

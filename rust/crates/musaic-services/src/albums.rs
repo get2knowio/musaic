@@ -20,8 +20,10 @@ use rusqlite::{Connection, OptionalExtension, Row};
 
 use crate::json::Json;
 
-/// `db.ALBUM_COLUMNS` (schema v16; v17 adds nothing to `albums`).
-pub const ALBUM_COLUMNS: [&str; 34] = [
+/// `db.ALBUM_COLUMNS` (schema v16; v17 to v19 add nothing to `albums`),
+/// then the two v20 columns, which are read into [`Album`] only: the album
+/// dict keeps the shape the API has always served.
+pub const ALBUM_COLUMNS: [&str; 36] = [
     "id",
     "library_path",
     "path",
@@ -56,6 +58,8 @@ pub const ALBUM_COLUMNS: [&str; 34] = [
     "track_artists_json",
     "metadata_ai_acted_on_at",
     "missing_since",
+    "track_discs_json",
+    "tag_disc_total",
 ];
 
 /// One `albums` row: the Python app's dict and the scanner-owned columns.
@@ -173,6 +177,15 @@ fn parse_track_numbers(raw: Option<&str>) -> Vec<Option<i64>> {
             _ => None,
         })
         .collect()
+}
+
+/// `track_discs_json`: SQL NULL (or anything that is not a JSON list) is
+/// "not read yet", so a scan reads the files again rather than trust it.
+fn parse_track_discs(raw: Option<&str>) -> Option<Vec<Option<i64>>> {
+    let serde_json::Value::Array(items) = serde_json::from_str(raw?).ok()? else {
+        return None;
+    };
+    Some(items.iter().map(serde_json::Value::as_i64).collect())
 }
 
 /// `str(item.get(key) or "")`.
@@ -347,6 +360,8 @@ fn row_to_album(r: &Row<'_>) -> rusqlite::Result<AlbumRow> {
         artist_sort: text("artist_sort")?,
         album_sort: text("album_sort")?,
         track_artists,
+        track_discs: parse_track_discs(text("track_discs_json")?.as_deref()),
+        tag_disc_total: as_opt_i64(&col("tag_disc_total")?),
     };
     Ok(AlbumRow {
         json,

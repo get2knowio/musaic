@@ -33,7 +33,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 |---|---|
 | `musaic-core` | Shared primitives: album ids (first 16 hex chars of the SHA-1 of the album's resolved path), config (`config.json`, config dir), the album-field accessors, Python-compatible string helpers the stored data depends on |
 | `musaic-log` | Small logging facade for the lower crates; `musaic-app` installs the sink that writes `server.log` |
-| `musaic-db` | Opens, creates and migrates the SQLite database (schema v19; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots |
+| `musaic-db` | Opens, creates and migrates the SQLite database (schema v20; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots |
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |

@@ -273,6 +273,8 @@ fn musicbrainz_synthetic_album_searches_replay() {
             artist_sort: None,
             album_sort: None,
             track_artists: vec![],
+            track_discs: None,
+            tag_disc_total: None,
         };
         let (artist, title) =
             name_search_terms(&album).unwrap_or_else(|| panic!("no terms for {}", album.dir_name));

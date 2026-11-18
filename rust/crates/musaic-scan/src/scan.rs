@@ -189,11 +189,15 @@ pub fn scan_album(album_dir: &Path, order: TrackOrder) -> Option<Album> {
     let mut total_seconds = 0.0f64;
     let mut track_numbers = Vec::with_capacity(tracks.len());
     let mut track_artists = Vec::new();
+    let mut discs = flacmeta::DiscEvidence::default();
+    let mut track_discs = Vec::with_capacity(tracks.len());
     for (path, meta) in &tracks {
         let Some(meta) = meta else {
             track_numbers.push(None);
+            track_discs.push(None);
             continue;
         };
+        track_discs.push(discs.add(meta));
         total_seconds += meta.info.length();
         track_numbers.push(parse_tracknum(first_tag(meta, &["tracknumber"]).as_deref()));
         for raw in meta.values("genre") {
@@ -249,6 +253,8 @@ pub fn scan_album(album_dir: &Path, order: TrackOrder) -> Option<Album> {
         artist_sort: first_tag(sample, &["artistsort"]),
         album_sort: first_tag(sample, &["albumsort"]),
         track_artists,
+        track_discs: Some(track_discs),
+        tag_disc_total: discs.max_total(),
     })
 }
 

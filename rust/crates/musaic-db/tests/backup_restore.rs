@@ -711,8 +711,18 @@ fn the_newest_pre_upgrade_copy_is_not_pruned_until_superseded() {
     let v = SCHEMA_VERSION;
     // v16 is the Python app's: not a pre-upgrade copy of this build.
     snapshot_at(&dir, "library-20260101-000000Z-v16.db", 16, 1_000);
-    snapshot_at(&dir, "library-20260102-000000Z-v17.db", v - 2, 2_000);
-    snapshot_at(&dir, "library-20260103-000000Z-v18.db", v - 1, 3_000);
+    snapshot_at(
+        &dir,
+        &format!("library-20260102-000000Z-v{}.db", v - 2),
+        v - 2,
+        2_000,
+    );
+    snapshot_at(
+        &dir,
+        &format!("library-20260103-000000Z-v{}.db", v - 1),
+        v - 1,
+        3_000,
+    );
     snapshot_at(&dir, &format!("library-20260104-000000Z-v{v}.db"), v, 4_000);
     snapshot_at(
         &dir,
