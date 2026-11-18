@@ -52,6 +52,12 @@ pub enum Error {
     TooOld { found: i64, oldest: i64 },
     #[error("{0} has no schema_version row; not a Musaic library database")]
     NotALibrary(PathBuf),
+    /// A row a scan planned to move to a new id changed (or the new id was
+    /// taken) between the plan and the save; nothing was written.
+    #[error(
+        "album {old_id} changed while the scan ran, so it cannot move to {new_id}; nothing was saved"
+    )]
+    AdoptionStale { old_id: String, new_id: String },
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
     #[error(transparent)]

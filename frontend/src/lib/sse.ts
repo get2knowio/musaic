@@ -35,6 +35,10 @@ export function openScanStream(
     const data = JSON.parse((ev as MessageEvent).data);
     onEvent({ type: "marked_missing", ...data });
   });
+  es.addEventListener("adopted", (ev) => {
+    const data = JSON.parse((ev as MessageEvent).data);
+    onEvent({ type: "adopted", ...data });
+  });
   es.addEventListener("done", (ev) => {
     const data = JSON.parse((ev as MessageEvent).data);
     onEvent({ type: "done", ...data });
