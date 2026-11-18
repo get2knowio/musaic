@@ -1257,7 +1257,9 @@ async fn a_file_held_open_fails_cleanly_and_resumes() {
     let id = w.only_finding().await;
     let held = std::fs::OpenOptions::new()
         .read(true)
-        .share_mode(0)
+        // Others may read it (as a player allows), not rename or write it;
+        // with no sharing at all the preview cannot read it and refuses.
+        .share_mode(1)
         .open(dir.join("01 - B1.flac"))
         .unwrap();
     let p = w.preview(id).await;
