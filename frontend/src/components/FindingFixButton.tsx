@@ -36,7 +36,7 @@
  */
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, Clock, FileEdit, Files, Loader2, Users, Zap } from "lucide-react";
+import { CheckCircle2, Clock, FileEdit, Files, Layers, Loader2, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { useActiveJobForAlbum, usePriorCoverAttempts } from "@/hooks/useJobs";
@@ -49,6 +49,7 @@ import type { CheckFixKind, Finding, JobType } from "@/lib/types";
 import ArtistSortResolveDialog from "./ArtistSortResolveDialog";
 import DuplicateResolveDialog from "./DuplicateResolveDialog";
 import FilenameMismatchResolveDialog from "./FilenameMismatchResolveDialog";
+import MultiDiscResolveDialog from "./MultiDiscResolveDialog";
 import HintDialog from "./DetailSheet/HintDialog";
 
 
@@ -103,6 +104,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   const [artistSortOpen, setArtistSortOpen] = useState(false);
   const [filenameOpen, setFilenameOpen] = useState(false);
+  const [multiDiscOpen, setMultiDiscOpen] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
   // Without a model backend an ai-job fix runs its MusicBrainz part only;
   // where it would need a model the server answers ok:false with the
@@ -139,6 +141,28 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   // For ai-job checks we have a hint mode; otherwise the click goes
   // straight through to the mutation with no hint.
   const hintMode = offersHintEntry(ai) ? HINT_MODE_FOR_CHECK[finding.check_id] ?? null : null;
+
+  // Multi-disc-layout has no fix yet, but its read-only Resolve dialog
+  // shows what a conversion would do (and what would stop it).
+  if (finding.check_id === "multi-disc-layout" && finding.album_id != null && !finding.ignored_at) {
+    return (
+      <>
+        <button
+          onClick={(e) => { e.stopPropagation(); setMultiDiscOpen(true); }}
+          className="h-7 px-2 rounded border border-line text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1"
+          title="See what putting this set in one folder would do"
+        >
+          <Layers className="w-3 h-3" />
+          Preview…
+        </button>
+        <MultiDiscResolveDialog
+          finding={finding}
+          open={multiDiscOpen}
+          onClose={() => setMultiDiscOpen(false)}
+        />
+      </>
+    );
+  }
 
   // Library-level findings (no album_id) and findings on un-fixable checks
   // get no button at all.

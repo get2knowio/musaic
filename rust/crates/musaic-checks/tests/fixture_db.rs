@@ -38,13 +38,21 @@ const ALLOWED: &[(&str, &str, &str)] = &[
 ];
 
 /// (check_id, album_id, summary, why): rows the Rust checks add.
-const ADDED: &[(&str, &str, &str, &str)] = &[(
-    "inconsistent-artist-sort",
-    "0c97baca60f74928", // Mono Harbor - Gaps [FLAC]
-    "4 album-level + 1 track-level (4 tracks) for 'Mono Harbor'",
-    "deliberate change: an ARTIST-only album is an album-level member \
-     (was '3 album-level + 1 track-level (4 tracks)')",
-)];
+const ADDED: &[(&str, &str, &str, &str)] = &[
+    (
+        "inconsistent-artist-sort",
+        "0c97baca60f74928", // Mono Harbor - Gaps [FLAC]
+        "4 album-level + 1 track-level (4 tracks) for 'Mono Harbor'",
+        "deliberate change: an ARTIST-only album is an album-level member \
+         (was '3 album-level + 1 track-level (4 tracks)')",
+    ),
+    (
+        "multi-disc-layout",
+        "20b0b3ad8877d2df", // Aurora Fields - Twin (disc 1 of 2) [FLAC]
+        "'Aurora Fields - Twin (disc 1 of 2) [FLAC]' is disc 1 of a set kept in 2 folders",
+        "a check the Python app did not have: the two Twin disc folders are one set",
+    ),
+];
 
 fn copy_dir(src: &Path, dst: &Path) {
     std::fs::create_dir_all(dst).unwrap();

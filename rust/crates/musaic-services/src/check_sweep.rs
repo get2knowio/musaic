@@ -92,7 +92,7 @@ pub fn checks_for_setting(key: &str) -> &'static [&'static str] {
         "filename_template_single_artist"
         | "filename_template_compilation"
         | "dir_template_single_artist"
-        | "dir_template_compilation" => &["filename-mismatch"],
+        | "dir_template_compilation" => &["multi-disc-layout", "filename-mismatch"],
         _ => &[],
     }
 }

@@ -603,6 +603,18 @@ export function fetchDuplicateClusterPreview(
   );
 }
 
+/** Re-derive what converting a multi-disc set would do, against current
+ *  disk + DB state. Read-only. */
+import type { MultiDiscConversionPreview } from "./types";
+
+export function fetchMultiDiscConversionPreview(
+  findingId: number,
+): Promise<MultiDiscConversionPreview> {
+  return request(
+    `/api/checks/multi-disc-layout/findings/${findingId}/conversion-preview`,
+  );
+}
+
 // --- User-defined track tags (v9) ---
 
 import type { AlbumTagsResponse, TagListResponse } from "./types";

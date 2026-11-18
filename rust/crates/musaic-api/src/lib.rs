@@ -86,6 +86,11 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
     ),
     (
         "GET",
+        MULTI_DISC_PREVIEW_ROUTE,
+        "read-only preview of converting a multi-disc set to one folder, re-derived from disk (issue #296; the multi-disc-layout check is not a check of the Python app); not a route of the Python app",
+    ),
+    (
+        "GET",
         ACOUSTID_PROMPT_ROUTE,
         "whether the one-time \"add an AcoustID key\" prompt was dismissed; kept on the server because the desktop window's address changes on every launch, so browser storage would forget it; not a route of the Python app",
     ),
@@ -114,6 +119,11 @@ pub const ACOUSTID_PROMPT_ROUTE: &str = "/api/prompts/acoustid";
 
 /// `POST /api/prompts/acoustid/dismiss` ([`EXTRA_ROUTES`]).
 pub const ACOUSTID_PROMPT_DISMISS_ROUTE: &str = "/api/prompts/acoustid/dismiss";
+
+/// `GET /api/checks/multi-disc-layout/findings/{finding_id}/conversion-preview`
+/// ([`EXTRA_ROUTES`]).
+pub const MULTI_DISC_PREVIEW_ROUTE: &str =
+    "/api/checks/multi-disc-layout/findings/{finding_id}/conversion-preview";
 
 /// `GET /api/checks/sweep` ([`EXTRA_ROUTES`]).
 pub const CHECK_SWEEP_ROUTE: &str = "/api/checks/sweep";
@@ -290,6 +300,8 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             "/api/checks/duplicate-tracks/findings/{finding_id}/cluster-preview",
             get(checks::cluster_preview),
         )
+        // Not a Python app route: the multi-disc conversion preview ([`EXTRA_ROUTES`]).
+        .route(MULTI_DISC_PREVIEW_ROUTE, get(checks::conversion_preview))
         .route(
             "/api/checks/duplicate-tracks/findings/{finding_id}/canonical",
             get(checks::duplicate_canonical),

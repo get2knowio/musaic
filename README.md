@@ -14,8 +14,9 @@ album. From there you can:
   art (from the Cover Art Archive, a URL, or a file you upload);
 - run health checks across the library — unidentified albums, tags out of step with
   MusicBrainz, missing cover art, track-number gaps, inconsistent artist sort names,
-  duplicate tracks, filenames that do not match your templates — and fix them one at a
-  time or in bulk;
+  duplicate tracks, filenames that do not match your templates, multi-disc sets not kept
+  in one folder — and fix them one at a time or in bulk (the multi-disc check only shows
+  what a conversion would do, for now);
 - compute BPM and ReplayGain.
 
 Everything runs on your machine. Fingerprinting, ReplayGain and BPM are computed

@@ -257,6 +257,23 @@ pub async fn plan_preview(
     .await?
 }
 
+/// `GET /api/checks/multi-disc-layout/findings/{id}/conversion-preview`
+/// (not a route of the Python app): what converting the set would do,
+/// re-derived from disk. A read: no restore gate.
+pub async fn conversion_preview(
+    State(st): State<AppState>,
+    UrlPath(raw_id): UrlPath<String>,
+) -> ApiResult {
+    let id = finding_id(&raw_id)?;
+    blocking(move || {
+        let conn = st.conn()?;
+        ok_value(check_ops::multi_disc_conversion_preview::<ApiError>(
+            &conn, id,
+        )?)
+    })
+    .await?
+}
+
 pub async fn cluster_preview(
     State(st): State<AppState>,
     UrlPath(raw_id): UrlPath<String>,

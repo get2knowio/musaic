@@ -5,12 +5,12 @@ use std::sync::Arc;
 
 use crate::base::{Check, CheckMeta};
 use crate::checks::{
-    DuplicateTracks, FilenameMismatch, InconsistentArtistSort, NoCoverArt, TagsOutOfSync,
-    TrackGaps, UnidentifiedAlbum,
+    DuplicateTracks, FilenameMismatch, InconsistentArtistSort, MultiDiscLayout, NoCoverArt,
+    TagsOutOfSync, TrackGaps, UnidentifiedAlbum,
 };
 
-/// An ordered list of checks. [`Registry::default`] is the Python app's; tests
-/// and hosts may build their own.
+/// An ordered list of checks. [`Registry::default`] is the Python app's plus
+/// multi-disc-layout; tests and hosts may build their own.
 #[derive(Clone)]
 pub struct Registry {
     checks: Vec<Arc<dyn Check>>,
@@ -18,7 +18,9 @@ pub struct Registry {
 
 impl Default for Registry {
     /// Foundations first: identification, then tags, track numbers, sort
-    /// clusters, cover, duplicates, filenames.
+    /// clusters, cover, duplicates, the multi-disc layout, filenames. The
+    /// layout comes before the filenames because converting a set renames
+    /// its files and folder.
     fn default() -> Self {
         Registry::new(vec![
             Arc::new(UnidentifiedAlbum),
@@ -27,6 +29,7 @@ impl Default for Registry {
             Arc::new(InconsistentArtistSort),
             Arc::new(NoCoverArt),
             Arc::new(DuplicateTracks),
+            Arc::new(MultiDiscLayout),
             Arc::new(FilenameMismatch),
         ])
     }

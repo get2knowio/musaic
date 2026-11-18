@@ -179,6 +179,9 @@ fn the_extra_route_list_is_exactly_this() {
             // Deliberate addition: the background check sweep's progress
             // (issue #187).
             "GET /api/checks/sweep",
+            // Deliberate addition: the multi-disc conversion preview
+            // (issue #296).
+            "GET /api/checks/multi-disc-layout/findings/{finding_id}/conversion-preview",
             // Deliberate additions: the one-time AcoustID prompt's dismissal
             // (issue #194), kept on the server.
             "GET /api/prompts/acoustid",

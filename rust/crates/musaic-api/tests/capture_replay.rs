@@ -288,6 +288,10 @@ const DELTAS: &[(&str, &str)] = &[
         "deliberate addition (issue #187): a settings write publishes SettingsChanged (setting names only), which the library-events stream relays",
     ),
     (
+        "multi_disc_check",
+        "deliberate addition (issue #296): the multi-disc-layout check, which the Python app did not have, is listed with the checks (before filename-mismatch, never run in this capture)",
+    ),
+    (
         "checks_rerun_finished",
         "deliberate addition (issue #204): a batch of check runs that finished publishes ChecksRerunFinished (check and album ids only), which the library-events stream relays",
     ),
@@ -430,6 +434,23 @@ fn apply_deltas(
     }
     if common::artist_only::apply(want) > 0 {
         use_delta(used, "artist_only");
+    }
+    // The check the Python app did not have: listed, never run here.
+    if let (Some(w), Some(g)) = (
+        want.pointer_mut("/json/checks")
+            .and_then(Value::as_array_mut),
+        got.pointer("/json/checks").and_then(Value::as_array),
+    ) && let Some(i) = g
+        .iter()
+        .position(|c| c["meta"]["id"] == "multi-disc-layout")
+        && !w.iter().any(|c| c["meta"]["id"] == "multi-disc-layout")
+    {
+        let entry = &g[i];
+        assert_eq!(entry["last_run"], Value::Null, "{name}");
+        assert_eq!(entry["open_count"], 0, "{name}");
+        assert_eq!(g[i + 1]["meta"]["id"], "filename-mismatch", "{name}");
+        w.insert(i, entry.clone());
+        use_delta(used, "multi_disc_check");
     }
     if common::conflict_severity::apply(want) > 0 {
         use_delta(used, "conflict_severity");

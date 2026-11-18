@@ -4851,6 +4851,20 @@
               "meta": {
                 "bulk_action_label": null,
                 "category": "files",
+                "cost": "cheap",
+                "description": "Multi-disc sets kept as one folder per disc, or one folder whose tracks are numbered per disc (or still carry disc tags). The layout Musaic aims for is one folder per set, tracks numbered straight through all the discs, no disc number in the file names and no disc tags. Sets are found only from disc numbers in the files' tags or in folder names such as \"(disc 2 of 3)\", never guessed. Preview shows what a conversion would do; converting is not available yet.",
+                "fix_kind": "none",
+                "id": "multi-disc-layout",
+                "label": "Multi-disc set not in one folder",
+                "runs_during_scan": false
+              },
+              "open_count": 0
+            },
+            {
+              "last_run": null,
+              "meta": {
+                "bulk_action_label": null,
+                "category": "files",
                 "cost": "medium",
                 "description": "Albums where one or more FLAC filenames don't match your configured filename template (Settings → Filename templates). Filenames drift over time: different rippers use different conventions, metadata edits happen after the rip, you change your preferred format. The Resolve dialog shows current → expected for every track and renames in one safe two-pass operation.",
                 "fix_kind": "deterministic",

@@ -165,6 +165,7 @@ async fn every_check_runs_on_its_own_and_the_library_is_never_written() {
     let got = inputs(&st);
     let library_wide = [
         "inconsistent-artist-sort",
+        "multi-disc-layout",
         "no-cover-art",
         "unidentified-album",
     ];
@@ -196,8 +197,9 @@ async fn every_check_runs_on_its_own_and_the_library_is_never_written() {
     quiet(&st).await;
     assert_eq!(runs(&st).len(), n, "a pass with nothing stale ran checks");
 
-    // A template change: filename-mismatch reruns over every album, and
-    // nothing else does.
+    // A template change: filename-mismatch reruns over every album,
+    // multi-disc-layout (which lists the templates among its inputs) once
+    // over the library, and nothing else does.
     let r = call(
         &app,
         "PATCH",
@@ -210,11 +212,20 @@ async fn every_check_runs_on_its_own_and_the_library_is_never_written() {
     let new: Vec<_> = runs(&st).into_iter().skip(n).collect();
     assert!(!new.is_empty(), "no rerun after a template change");
     assert!(
-        new.iter().all(|(_, id, _, _)| id == "filename-mismatch"),
+        new.iter()
+            .all(|(_, id, _, _)| id == "filename-mismatch" || id == "multi-disc-layout"),
+        "{new:?}"
+    );
+    assert_eq!(
+        new.iter()
+            .filter(|(_, id, scope, _)| id == "multi-disc-layout" && scope == "all")
+            .count(),
+        1,
         "{new:?}"
     );
     let rerun: usize = new
         .iter()
+        .filter(|(_, id, _, _)| id == "filename-mismatch")
         .map(|(_, _, scope, _)| {
             serde_json::from_str::<Vec<String>>(scope)
                 .map(|v| v.len())
