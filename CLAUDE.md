@@ -296,6 +296,13 @@ nothing and nobody is marked Missing from a partial walk.
   open findings; SQL-only checks filter `missing_since IS NULL` themselves.
 - The only path that drops a row is the user's "Remove from library"
   (`DELETE /api/albums/{id}` → `musaic-services/src/library_ops.rs`).
+- A scan adopts instead of marking Missing when a vanished Present row's stored path
+  still opens and is the same file (rule 3) as exactly one folder found under another
+  spelling that has no row and no rows under its id: the row and everything on it move
+  to the new id inside the snapshot save (`musaic-services/src/scan_adopt.rs` plans it,
+  `musaic-db` `albums::save_snapshot_adopting` / `renames::move_album_rows` do it), and
+  `AlbumRenamed` is published after the commit under `in_bulk_run`. Any ambiguity refuses.
+  Adopted rows count neither as vanished nor as new for the sanity check.
 
 New operation that touches an album's files → skip Missing albums.
 
