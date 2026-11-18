@@ -310,6 +310,13 @@ pub fn upsert_album(
     Ok(())
 }
 
+/// Every library path the database knows, in stored spelling.
+pub fn library_paths(conn: &Connection) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare("SELECT path FROM libraries ORDER BY path")?;
+    let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
+    Ok(rows.collect::<std::result::Result<_, _>>()?)
+}
+
 /// `cache.drop_snapshot(library_dir)`: forget the cached snapshot WITHOUT
 /// deleting anything. The library's `scanned_at` becomes `''` and every album
 /// row of the library gets `dir_mtime = 0`, so the next scan re-reads every

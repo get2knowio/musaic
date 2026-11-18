@@ -94,17 +94,22 @@ pub async fn post_config(State(st): State<AppState>, body: Bytes) -> ApiResult {
     let guard = st.begin_work()?;
     blocking(move || {
         let _guard = guard;
-        let library_dir = library_ops::set_library_dir::<ApiError>(
+        let choice = library_ops::set_library_dir::<ApiError>(
             &st.0.config,
             st.0.home.as_deref(),
             &dir,
             || st.conn(),
             ApiError::internal,
         )?;
-        ok_ordered(&Json::obj([
-            ("library_dir", Json::from(library_dir)),
+        let mut body = vec![
+            ("library_dir", Json::from(choice.library_dir)),
             ("exists", Json::Bool(true)),
-        ]))
+        ];
+        // Present only when it happened, so the usual answer keeps its shape.
+        if choice.kept_stored_spelling {
+            body.push(("kept_stored_spelling", Json::Bool(true)));
+        }
+        ok_ordered(&Json::obj(body))
     })
     .await?
 }

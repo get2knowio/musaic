@@ -271,21 +271,55 @@ pub fn py_path_str(p: &Path) -> String {
     if s.is_empty() { ".".into() } else { s }
 }
 
+/// What [`set_library_dir`] stored.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LibraryChoice {
+    /// The stored `library_dir`.
+    pub library_dir: Option<String>,
+    /// The chosen folder is the one already known under another spelling
+    /// (another case or Unicode normalisation on a volume that treats them
+    /// as equal), so the known string was kept.
+    pub kept_stored_spelling: bool,
+}
+
+/// A library string already in use that names the same folder as `target`
+/// under a different spelling. Identity is the filesystem's (same device and
+/// inode), never a string comparison: case-insensitive and normalising
+/// volumes make one folder look like two. The configured folder wins over
+/// older `libraries` rows; a row whose path no longer opens cannot be the
+/// same file and is skipped.
+fn known_spelling(
+    current: Option<&str>,
+    conn: &Connection,
+    resolved: &str,
+    target: &Path,
+) -> Result<Option<String>, musaic_db::Error> {
+    let mut candidates: Vec<String> = current.map(str::to_owned).into_iter().collect();
+    candidates.extend(musaic_db::albums::library_paths(conn)?);
+    Ok(candidates.into_iter().find(|c| {
+        !c.is_empty()
+            && c != resolved
+            && same_file::is_same_file(Path::new(c), target).unwrap_or(false)
+    }))
+}
+
 /// `POST /api/config`: expand `~`, refuse a path that is not a directory
 /// or cannot be listed (400, nothing stored: the previous folder stays in
 /// effect), store the library directory, then drop its snapshot (the next
 /// scan re-reads it). Only a change is checked: a folder that is already
 /// configured and has since gone away (an unmounted drive) is never touched
-/// here. Returns the stored `library_dir`. `open` opens a
-/// database connection (only when a library is stored); `save_failed`
+/// here. A folder that is the same file as one already known, spelled
+/// differently, keeps the known string: every album id and `library_path`
+/// derives from it, so a new spelling would orphan the rows. Returns the
+/// stored `library_dir`. `open` opens a database connection; `save_failed`
 /// maps a failure to write the config.
 pub fn set_library_dir<E: From<HttpError> + From<musaic_db::Error>>(
     config: &musaic_core::config::ConfigDir,
     home: Option<&Path>,
     dir: &str,
     open: impl FnOnce() -> Result<Connection, E>,
-    save_failed: impl FnOnce(std::io::Error) -> E,
-) -> Result<Option<String>, E> {
+    save_failed: impl Fn(std::io::Error) -> E,
+) -> Result<LibraryChoice, E> {
     let target = musaic_core::config::expand_user(dir, home);
     if !target.is_dir() {
         return Err(refuse(400, format!("Not a directory: {}", py_path_str(&target))).into());
@@ -297,14 +331,35 @@ pub fn set_library_dir<E: From<HttpError> + From<musaic_db::Error>>(
         )
         .into());
     }
-    let cfg = config
-        .set_library_dir(&target.to_string_lossy(), home)
-        .map_err(save_failed)?;
-    if let Some(lib) = cfg.library_dir.as_deref() {
-        let mut conn = open()?;
+    let mut conn = open()?;
+    let current = config.load().library_dir;
+    let resolved = musaic_core::config::resolve_path(&target).map_err(&save_failed)?;
+    let kept = match resolved.to_str() {
+        Some(r) => known_spelling(current.as_deref(), &conn, r, &target)?,
+        None => None,
+    };
+    let (library_dir, kept_stored_spelling) = match kept {
+        Some(known) => {
+            if current.as_deref() != Some(known.as_str()) {
+                config.set_library_dir(&known, home).map_err(&save_failed)?;
+            }
+            (Some(known), true)
+        }
+        None => (
+            config
+                .set_library_dir(&target.to_string_lossy(), home)
+                .map_err(&save_failed)?
+                .library_dir,
+            false,
+        ),
+    };
+    if let Some(lib) = library_dir.as_deref() {
         drop_snapshot(&mut conn, lib)?;
     }
-    Ok(cfg.library_dir)
+    Ok(LibraryChoice {
+        library_dir,
+        kept_stored_spelling,
+    })
 }
 
 /// The configured library directory, which must exist: 409 without one
