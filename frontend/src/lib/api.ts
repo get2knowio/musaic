@@ -403,7 +403,7 @@ export function listFindings(opts?: {
 
 export function runCheck(
   checkId: string,
-  args: { scope: "all" | "incremental" | "albums"; albumIds?: string[] } = { scope: "all" },
+  args: { scope: "all" | "albums"; albumIds?: string[] } = { scope: "all" },
 ): Promise<CheckRun> {
   return request(`/api/checks/${encodeURIComponent(checkId)}/run`, {
     method: "POST",

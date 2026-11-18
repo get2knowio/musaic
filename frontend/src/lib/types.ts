@@ -350,7 +350,7 @@ export interface CheckRun {
   completed_at: string | null;
   status: CheckRunStatus;
   library_path: string;
-  scope: string;             // "all" | "incremental" | JSON list
+  scope: string;             // "all" | JSON list (older runs may read "incremental")
   issue_count: number;
   error: string | null;
   duration_ms: number | null;

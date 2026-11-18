@@ -125,8 +125,13 @@ pub async fn run_check(
     // away does not release it early, and a panic does release it).
     // Before the handler's own 400 / 409.
     let guard = st.begin_work_as(crate::gate::WorkKind::CheckRun)?;
-    let kind = ScopeKind::parse(&scope)
-        .ok_or_else(|| ApiError::new(400, "scope must be 'all'|'incremental'|'albums'"))?;
+    // `incremental` still parses (stored runs and the engine's own tests use
+    // it) but is not offered here: it ran every album, resolved nothing and
+    // recorded no inputs, so the background sweep does that work instead.
+    let kind = match ScopeKind::parse(&scope) {
+        Some(k @ (ScopeKind::All | ScopeKind::Albums)) => k,
+        _ => return Err(ApiError::new(400, "scope must be 'all' or 'albums'")),
+    };
     let lib = st
         .library_dir()
         .filter(|l| !l.is_empty())
