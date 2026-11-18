@@ -148,6 +148,24 @@ describe("useScanStream follows the albums snapshot", () => {
   });
 });
 
+describe("useScanStream: names that cannot be stored", () => {
+  it("says how many were skipped when the scan finishes", async () => {
+    const { hook } = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    act(() => MockEventSource.last!.emit("done", { count: 0, scanned_at: 2, skipped_non_utf8_count: 3 }));
+    await waitFor(() => expect(hook.result.current.scan.status).toBe("done"));
+    expect(hook.result.current.scan.message).toBe("Library up to date; 3 skipped (name is not valid UTF-8)");
+  });
+
+  it("adds nothing when the count is absent", async () => {
+    const { hook } = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    act(() => MockEventSource.last!.emit("done", { count: 0, scanned_at: 2 }));
+    await waitFor(() => expect(hook.result.current.scan.status).toBe("done"));
+    expect(hook.result.current.scan.message).toBe("Library up to date");
+  });
+});
+
 describe("useScanStream: an album the scan adopted under a new id", () => {
   it("drops the old id's row, keeps the new one, and counts nothing missing", async () => {
     server = [makeAlbum({ id: "old", path: "/music/Artist - A" })];

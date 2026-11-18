@@ -200,7 +200,15 @@ export type ScanEvent =
   // another spelling (the same folder on disk). Its `album` event carried
   // the new id; the old id no longer exists.
   | { type: "adopted"; old_id: string; id: string; old_path: string; path: string }
-  | { type: "done"; count: number; marked_missing_count: number; scanned_at: string }
+  // `skipped_non_utf8_count` is present only when folders or files were left
+  // out because their names are not valid UTF-8.
+  | {
+      type: "done";
+      count: number;
+      marked_missing_count: number;
+      scanned_at: string;
+      skipped_non_utf8_count?: number;
+    }
   // A cancel was accepted (POST /api/scan/cancel); the scan ends with
   // `cancelled` at its next album.
   | { type: "cancelling"; scanned: number; total: number }
