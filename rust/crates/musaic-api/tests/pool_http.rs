@@ -107,6 +107,40 @@ async fn eventually(what: &str, mut f: impl FnMut() -> bool) {
     panic!("timed out waiting for {what}");
 }
 
+/// Waits until `until` holds of the pool state, failing only when the pass
+/// stops making progress. A pass stores one row per file, each in its own
+/// fsync'd commit, so its length follows the disk: a fixed deadline for the
+/// whole pass failed on a Windows runner whose disk was slow for a while,
+/// where the same pass takes milliseconds elsewhere. A state that does not
+/// change for `STALL` is a hang; a state that keeps changing is only slow.
+async fn pool_until(
+    st: &AppState,
+    until: impl Fn(&musaic_services::fingerprint_pool::PoolState) -> bool,
+) {
+    const STALL: Duration = Duration::from_secs(30);
+    // A backstop for a pass that keeps changing and never ends.
+    const CAP: Duration = Duration::from_secs(600);
+    let begun = std::time::Instant::now();
+    let mut last = st.pool().state();
+    let mut since = std::time::Instant::now();
+    loop {
+        let now = st.pool().state();
+        if until(&now) {
+            return;
+        }
+        if now != last {
+            last = now;
+            since = std::time::Instant::now();
+        }
+        assert!(
+            since.elapsed() < STALL,
+            "the pool made no progress for {STALL:?}: {last:?}"
+        );
+        assert!(begun.elapsed() < CAP, "the pool pass never ended: {last:?}");
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+}
+
 /// An open SSE response, read frame by frame.
 struct Stream {
     body: Body,
@@ -302,7 +336,7 @@ async fn a_scan_starts_a_pool_pass() {
     configure(&app, &sb).await;
     assert_eq!(st.pool().state().status, PoolStatus::Idle);
     scan(&app).await;
-    eventually("pool done", || st.pool().state().status == PoolStatus::Done).await;
+    pool_until(&st, |s| s.status == PoolStatus::Done).await;
     let r = call(&app, "GET", "/api/fingerprint-pool/status", None)
         .await
         .json();
@@ -335,11 +369,7 @@ async fn a_scan_starts_a_pool_pass() {
     assert!(rows > 0);
     // Nothing left to do: a further scan starts a pass with no candidates.
     scan(&app).await;
-    eventually("second pass done", || {
-        let s = st.pool().state();
-        s.status == PoolStatus::Done && s.total == 0
-    })
-    .await;
+    pool_until(&st, |s| s.status == PoolStatus::Done && s.total == 0).await;
 }
 
 // scan.py:235-236: the pass in flight is stopped (cancelled, its thread
@@ -512,7 +542,9 @@ async fn shutdown_waits_for_a_stuck_pool_only_so_long() {
     let report = tokio::task::spawn_blocking(move || s2.shutdown())
         .await
         .unwrap();
-    assert!(t0.elapsed() < Duration::from_secs(5), "{:?}", t0.elapsed());
+    // Below the 15 s default wait, so a ignored override still fails here;
+    // above a slow disk's checkpoint.
+    assert!(t0.elapsed() < Duration::from_secs(10), "{:?}", t0.elapsed());
     assert!(!report.pool_stopped);
     assert!(report.checkpoint.is_ok(), "{report:?}");
     assert!(
@@ -611,7 +643,12 @@ async fn a_panicking_scan_ends_in_error_and_frees_everything() {
     assert!(text.contains("event: done"), "{text}");
     let s = call(&app, "GET", "/api/scan/status", None).await.json();
     assert_eq!(s["status"], "done");
-    eventually("pool done", || st.pool().state().status == PoolStatus::Done).await;
+    // The scan after the failure starts its pass and the pass stores a
+    // row. Not the whole pass: it commits once per file, so its length is
+    // the disk's (seconds on a slow runner), and the pass running to its end
+    // is what `a_scan_starts_a_pool_pass` proves.
+    pool_until(&st, |s| s.completed >= 1 || s.status == PoolStatus::Done).await;
+    st.pool().stop();
 }
 
 // The Python app's recorded first frame after its scans (golden_cases
@@ -643,7 +680,7 @@ async fn pass_after_scan(
     st: &AppState,
 ) -> musaic_services::fingerprint_pool::PoolState {
     scan(app).await;
-    eventually("pool done", || st.pool().state().status == PoolStatus::Done).await;
+    pool_until(st, |s| s.status == PoolStatus::Done).await;
     st.pool().state()
 }
 
