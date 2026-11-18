@@ -74,6 +74,7 @@ pub mod jpegdec;
 pub mod json;
 pub mod keyscrub;
 pub mod library_ops;
+pub mod multi_disc_convert;
 pub mod production;
 pub mod recording_canonical;
 pub mod scan;

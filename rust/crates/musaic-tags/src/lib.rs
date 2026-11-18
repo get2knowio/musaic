@@ -16,11 +16,11 @@ pub mod preserve;
 pub mod sidecar;
 
 pub use apply::{
-    CoverInput, Diff, Event, FileChange, Numbering, Removals, RenameFailure, Suggestions,
-    TRACK_FIELDS_NOT_REMOVABLE, TrackSuggestions, apply_album_files, apply_to_album_iter,
-    apply_to_album_iter_numbered, default_numbering, is_removable_album_field,
-    is_removable_track_field, proposed_filename, proposed_filename_with, removable_album_fields,
-    removable_track_fields,
+    ConvertedNumbers, CoverInput, DISC_CONVERSION_REMOVES, Diff, DiscConversion, Event, FileChange,
+    Numbering, Removals, RenameFailure, Suggestions, TRACK_FIELDS_NOT_REMOVABLE, TrackSuggestions,
+    apply_album_files, apply_disc_conversion, apply_to_album_iter, apply_to_album_iter_numbered,
+    default_numbering, is_removable_album_field, is_removable_track_field, proposed_filename,
+    proposed_filename_with, removable_album_fields, removable_track_fields,
 };
 pub use cover::{build_picture, normalize_to_jpeg};
 pub use flac::{FlacFile, Picture, SaveMode, SaveReport, VorbisComment};

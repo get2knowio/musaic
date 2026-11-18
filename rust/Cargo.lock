@@ -2515,6 +2515,7 @@ dependencies = [
  "musaic-scan",
  "musaic-secrets",
  "musaic-services",
+ "musaic-tags",
  "musaic-testdata",
  "regex",
  "rusqlite",

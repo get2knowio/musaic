@@ -453,6 +453,7 @@ impl AppBuilder {
                 let bus = bus.clone();
                 Arc::new(move |ev| bus.publish(&ev))
             },
+            conversion_logs: Some(musaic_services::multi_disc_convert::log_dir(config.dir())),
         };
         let thumbs_dir = config.dir().join("thumbs");
         let gate = WorkGate::new();

@@ -43,6 +43,8 @@ getrandom = "0.4"
 [dev-dependencies]
 unicode-normalization = "0.1"
 musaic-testdata = { path = "../musaic-testdata" }
+# tests/multi_disc_convert_http.rs edits a tag by hand between attempts.
+musaic-tags = { path = "../musaic-tags" }
 # tests/thumbs_golden.rs decodes thumbnails (the thumbnailer itself lives in
 # musaic-services).
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }

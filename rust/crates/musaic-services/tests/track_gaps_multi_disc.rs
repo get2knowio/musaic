@@ -108,6 +108,7 @@ impl World {
             clock: Arc::new(SystemClock),
             notify: Arc::new(|| {}),
             publish: Arc::new(|_| {}),
+            conversion_logs: None,
         };
         let run = run_check(
             &self.conn,

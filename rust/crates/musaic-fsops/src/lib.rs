@@ -17,6 +17,7 @@
 //! Nothing here publishes events: operations return what happened (e.g.
 //! [`rename::AlbumRenamed`]) and the caller publishes.
 
+pub mod conversion_log;
 pub mod cover;
 mod fsutil;
 pub mod multi_disc;

@@ -210,6 +210,7 @@ jobs:
         run: |
           cargo test -p musaic-fsops --locked --test listed_spelling -- --ignored --nocapture
           cargo test -p musaic-services --locked --test scan_adopt -- --ignored --nocapture
+          cargo test -p musaic-api --locked --test multi_disc_convert_http -- --ignored --nocapture
 
       - name: Result
         id: result

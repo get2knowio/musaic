@@ -580,7 +580,7 @@ export interface DuplicateClusterPreview {
 
 /** Response from GET /api/checks/multi-disc-layout/findings/{id}/conversion-preview.
  *  What converting a multi-disc set to one folder would do, re-derived
- *  from current disk + DB state. Read-only: nothing converts it yet. */
+ *  from current disk + DB state. Only a set in one folder converts. */
 export type MultiDiscPreviewState = "one_folder" | "folders" | "incomplete" | "not_a_set";
 
 export interface MultiDiscMember {
@@ -600,6 +600,9 @@ export interface MultiDiscTrack {
   new_track: number | null;
   new_filename: string | null;
   has_disc_tags: boolean;
+  /** An interrupted conversion already wrote this file's new numbering;
+   *  `disc` and `track` are then the values its record kept. */
+  tags_done?: boolean;
 }
 
 export type MultiDiscCoverAction = "kept" | "moved" | "identical" | "different";
@@ -625,8 +628,14 @@ export interface MultiDiscConversionPreview {
   state: MultiDiscPreviewState;
   /** No blocker: the plan could run as it stands. */
   convertible: boolean;
-  /** Whether converting can be started from the dialog (not yet). */
+  /** Whether converting can be started from the dialog: a convertible set
+   *  kept in one folder (sets in several folders cannot convert yet). */
   conversion_available: boolean;
+  /** What the conversion must be sent back, so a plan that changed since
+   *  the user looked is never carried out. */
+  digest?: string;
+  /** An interrupted conversion of this album, which converting finishes. */
+  resume?: { record: string; started_at: string; attempts: number } | null;
   headline: string;
   /** Why no conversion is offered (an incomplete set, or no set). */
   reason: string | null;
@@ -644,6 +653,40 @@ export interface MultiDiscConversionPreview {
   removes_disc_tags?: boolean;
   folders: MultiDiscFolder[];
   blockers: MultiDiscBlocker[];
+}
+
+/** One file of a multi-disc conversion's result. */
+export interface MultiDiscConvertFile {
+  filename: string;
+  new_filename: string;
+  rename: "renamed" | "already" | "failed" | "not_reached";
+  tags: "written" | "already" | "failed" | "not_reached";
+  reason_code?: string;
+  user_message?: string;
+}
+
+/** Response from POST /api/checks/multi-disc-layout/findings/{id}/convert,
+ *  or a refusal (409) turned into one by the api helper (`refused`). */
+export interface MultiDiscConvertResult {
+  ok: boolean;
+  /** Nothing was changed: the server refused before writing. */
+  refused?: boolean;
+  album_id?: string;
+  /** A plain sentence for the user. */
+  user_message: string;
+  reason_code?: string;
+  files?: MultiDiscConvertFile[];
+  folder?: {
+    old: string;
+    new: string;
+    outcome: "renamed" | "unchanged" | "failed" | "not_reached";
+    reason_code?: string;
+    user_message?: string;
+  };
+  /** Where the record of the conversion is kept. */
+  record?: string;
+  attempts?: number;
+  blockers?: MultiDiscBlocker[];
 }
 
 /** A plan entry the rename left alone. */

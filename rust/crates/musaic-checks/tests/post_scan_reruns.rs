@@ -89,6 +89,7 @@ fn world(registry: Registry, case: serde_json::Value) -> World {
         clock: Arc::new(SystemClock),
         notify: Arc::new(|| {}),
         publish: Arc::new(move |ev| publisher.publish(&ev)),
+        conversion_logs: None,
     };
     let db_path = sb.db_path.clone();
     let lib = sb.lib_s.clone();

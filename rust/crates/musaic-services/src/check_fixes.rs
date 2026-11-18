@@ -452,6 +452,7 @@ fn done(ok: bool, message: impl Into<String>) -> FixOutcome {
 const DUPLICATES_STUB: &str = "Duplicate-tracks findings are resolved per-file via the Resolve\u{2026} dialog on the album page; this check has no single-click fix because the user has to choose which copy to keep.";
 const FILENAME_STUB: &str = "Filename-mismatch findings are resolved via the Resolve\u{2026} dialog; this check has no single-click fix because the user has to review the rename plan first.";
 const ARTIST_SORT_STUB: &str = "Inconsistent-artist-sort findings are resolved per-cluster via the Resolve\u{2026} dialog; this check has no single-click fix because the user has to confirm which canonical sort value to bulk-apply.";
+const MULTI_DISC_STUB: &str = "Multi-disc-layout findings are converted via the Resolve\u{2026} dialog; this check has no single-click fix because the user has to review the conversion plan first.";
 
 /// `POST /api/checks/{check_id}/findings/{finding_id}/fix`: 404 for an
 /// unknown finding or one of another check; 400 when the check is not
@@ -494,6 +495,7 @@ fn fix_one(env: &mut FixEnv<'_>, f: &FindingRow, hint: &str) -> Result<FixOutcom
         "duplicate-tracks" => Ok(done(false, DUPLICATES_STUB)),
         "filename-mismatch" => Ok(done(false, FILENAME_STUB)),
         "inconsistent-artist-sort" => Ok(done(false, ARTIST_SORT_STUB)),
+        "multi-disc-layout" => Ok(done(false, MULTI_DISC_STUB)),
         "tags-out-of-sync" => tags_fix(env, album_id, hint),
         "unidentified-album" => unidentified_fix(env, album_id, hint),
         "no-cover-art" => cover_fix(env, album_id, hint),

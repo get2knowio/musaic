@@ -1,8 +1,11 @@
 /**
- * The multi-disc-layout Resolve dialog is read-only: it shows the
- * conversion preview the server re-derives, the blockers in plain words,
- * an incomplete set's reason, and loading / error states. It never sends
- * anything but the preview GET, and offers no Convert button.
+ * The multi-disc-layout Resolve dialog shows the conversion preview the
+ * server re-derives, the blockers in plain words, an incomplete set's
+ * reason, and loading / error states. A set kept in several folders stays
+ * read-only (no Convert button, nothing but the preview GET); a
+ * convertible set in one folder converts behind a confirmation, sends the
+ * preview's digest back, and on a partial failure or a refusal stays open
+ * with the reasons.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
@@ -108,7 +111,7 @@ describe("MultiDiscResolveDialog", () => {
     expect(screen.getByText("Track 2")).toBeTruthy();
     expect(screen.getByText(/different picture/)).toBeTruthy();
     expect(screen.getByText("notes.txt")).toBeTruthy();
-    expect(screen.getByText(/Converting is not available yet/)).toBeTruthy();
+    expect(screen.getByText(/several folders is not available yet/)).toBeTruthy();
     // Read-only: no Convert button, nothing but the preview GET.
     expect(screen.queryByRole("button", { name: /convert/i })).toBeNull();
     expect(calls.every((c) => c.method === "GET" && c.url === URL)).toBe(true);
@@ -165,13 +168,13 @@ describe("MultiDiscResolveDialog", () => {
 });
 
 describe("FindingFixButton for multi-disc-layout", () => {
-  it("offers a Preview button though the check has no fix", () => {
-    wrap(<FindingFixButton finding={finding} fixKind="none" />);
-    expect(screen.getByRole("button", { name: /Preview/ })).toBeTruthy();
+  it("offers a Resolve button", () => {
+    wrap(<FindingFixButton finding={finding} fixKind="deterministic" />);
+    expect(screen.getByRole("button", { name: /Resolve/ })).toBeTruthy();
   });
 
   it("offers nothing on an ignored finding", () => {
-    wrap(<FindingFixButton finding={{ ...finding, ignored_at: "2026-11-14T00:00:00Z" }} fixKind="none" />);
-    expect(screen.queryByRole("button", { name: /Preview/ })).toBeNull();
+    wrap(<FindingFixButton finding={{ ...finding, ignored_at: "2026-11-14T00:00:00Z" }} fixKind="deterministic" />);
+    expect(screen.queryByRole("button", { name: /Resolve/ })).toBeNull();
   });
 });

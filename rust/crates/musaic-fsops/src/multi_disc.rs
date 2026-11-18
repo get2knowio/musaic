@@ -22,6 +22,7 @@ use musaic_db::renames::{RenamePlanRow, rename_plan_row};
 use musaic_scan::{COVER_FILENAMES, flacmeta, list_flacs, parse_tracknum};
 use rusqlite::{Connection, params};
 
+use crate::conversion_log::{self, NumberingTags, Record, numbering_of, values_of};
 use crate::fsutil::fold;
 use crate::plan::{Templates, TrackTags, render_dir_name, render_track_stem, same_nfc};
 use crate::sidecar::SIDECAR_FILENAME;
@@ -450,6 +451,16 @@ pub mod blocker {
     pub const TARGET_TAKEN: &str = "target_taken";
     pub const JOB_ACTIVE: &str = "job_active";
     pub const RENDER_ERROR: &str = "render_error";
+    /// A file left under a rename's temporary name.
+    pub const STRANDED_TEMP: &str = "stranded_temp";
+    /// The folder no longer matches the record of an interrupted
+    /// conversion (a file added, gone or changed).
+    pub const RESUME_MISMATCH: &str = "resume_mismatch";
+    /// The plan made now differs from the one the interrupted conversion
+    /// recorded (a template or a title changed since).
+    pub const RESUME_CHANGED: &str = "resume_changed";
+    /// More than one unfinished conversion names this album.
+    pub const RESUME_AMBIGUOUS: &str = "resume_ambiguous";
 }
 
 /// One FLAC of a member as read now.
@@ -467,6 +478,8 @@ pub struct FileFacts {
     pub disc: Option<i64>,
     /// The file carries DISCNUMBER, DISCTOTAL or TOTALDISCS.
     pub has_disc_tags: bool,
+    /// Every value of the numbering tags a conversion reads and writes.
+    pub numbering: NumberingTags,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -501,6 +514,9 @@ pub struct MemberFacts {
     pub entries: Vec<EntryFacts>,
     /// `Some(blocker)` when the folder could not be looked at.
     pub problem: Option<Blocker>,
+    /// Entries named as a rename's temporary file (`.<name>.renaming.tmp`):
+    /// a rename stopped half-way and a file may be under such a name.
+    pub stranded: Vec<String>,
 }
 
 /// What [`plan_conversion`] plans from.
@@ -529,6 +545,12 @@ pub struct PlannedTrack {
     pub new_track: Option<i64>,
     pub new_filename: Option<String>,
     pub has_disc_tags: bool,
+    /// The numbering tags on disk now.
+    pub numbering: NumberingTags,
+    /// The file already has its new numbering and no disc tags (an
+    /// interrupted conversion wrote it); `disc`, `tracknumber` and
+    /// `track` are then the values its record kept from before.
+    pub tags_done: bool,
 }
 
 /// What happens to one cover file.
@@ -636,6 +658,16 @@ pub fn plan_conversion(input: &PlanInput<'_>) -> Planned {
     for m in input.members {
         if let Some(p) = &m.problem {
             out.blockers.push(p.clone());
+        }
+        for name in &m.stranded {
+            out.blockers.push(Blocker {
+                code: blocker::STRANDED_TEMP,
+                message: format!(
+                    "{name} in {} is a file left under a temporary name by a rename that did not \
+finish. Give it back its own name (without the leading dot and the .renaming ending), then try again.",
+                    m.dir_name
+                ),
+            });
         }
     }
     let (template, dir_template) = input.templates.for_row(input.target_row);
@@ -769,7 +801,17 @@ pub fn plan_conversion(input: &PlanInput<'_>) -> Planned {
                     match render_track_stem(template, &tags, input.target_row, &t.to_string(), None)
                     {
                         Ok(stem) if !stem.is_empty() => Some(format!("{stem}.flac")),
-                        Ok(_) => None,
+                        // A conversion never renames a file to nothing.
+                        Ok(_) => {
+                            out.blockers.push(Blocker {
+                                code: blocker::RENDER_ERROR,
+                                message: format!(
+                                    "The filename template gives no name for {}.",
+                                    f.name
+                                ),
+                            });
+                            None
+                        }
                         Err(e) => {
                             out.blockers.push(Blocker {
                                 code: blocker::RENDER_ERROR,
@@ -806,6 +848,8 @@ pub fn plan_conversion(input: &PlanInput<'_>) -> Planned {
                 new_track,
                 new_filename,
                 has_disc_tags: f.has_disc_tags,
+                numbering: f.numbering.clone(),
+                tags_done: false,
             });
         }
         offset += n;
@@ -992,12 +1036,16 @@ pub fn gather_member(album_id: &str, folder: &Path, folder_disc: Option<i64>) ->
             f.has_disc_tags = ["discnumber", "disctotal", "totaldiscs"]
                 .iter()
                 .any(|k| meta.values(k).next().is_some());
+            f.numbering = numbering_of(|k| meta.values(k).collect());
         }
         facts.files.push(f);
     }
     for name in names {
         if flac_names.contains(&name) {
             continue;
+        }
+        if is_rename_temp(&name) {
+            facts.stranded.push(name.clone());
         }
         let kind = match entry_kind_of(&name) {
             Some(k) => k,
@@ -1011,6 +1059,30 @@ pub fn gather_member(album_id: &str, folder: &Path, folder_disc: Option<i64>) ->
         facts.entries.push(EntryFacts { name, kind });
     }
     facts
+}
+
+/// A name the rename code gives a file while it moves it
+/// (`fsutil::temp_name`): `.<name>.renaming.tmp`, `.<name>.renaming.<n>.tmp`
+/// or `.musaic-<n>.tmp`.
+fn is_rename_temp(name: &str) -> bool {
+    let Some(rest) = name.strip_prefix('.') else {
+        return false;
+    };
+    let digits = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit());
+    if let Some(n) = rest
+        .strip_prefix("musaic-")
+        .and_then(|r| r.strip_suffix(".tmp"))
+    {
+        return digits(n);
+    }
+    let Some(stem) = rest.strip_suffix(".tmp") else {
+        return false;
+    };
+    if stem.ends_with(".renaming") {
+        return true;
+    }
+    stem.rsplit_once(".renaming.")
+        .is_some_and(|(_, n)| digits(n))
 }
 
 fn unreadable(dir_name: &str, e: &std::io::Error) -> Blocker {
@@ -1058,14 +1130,69 @@ pub struct ConversionPreview {
     pub dir_template: String,
     /// The destination folder's name now.
     pub target_current: Option<String>,
+    /// The destination folder's path now (as the album row stores it).
+    pub target_path: Option<String>,
+    /// The library the destination's row belongs to.
+    pub library_path: String,
     pub plan: Planned,
+    /// The record of an interrupted conversion of this album, when one is
+    /// what the plan was re-derived from.
+    pub resume: Option<Record>,
 }
 
 impl ConversionPreview {
-    /// A conversion could run as planned (none is offered yet).
+    /// A conversion could run as planned.
     pub fn convertible(&self) -> bool {
         matches!(self.state, PreviewState::OneFolder | PreviewState::Folders)
             && self.plan.blockers.is_empty()
+    }
+
+    /// A conversion can be started from the preview: a convertible set in
+    /// one folder (sets in several folders cannot be converted yet).
+    pub fn conversion_available(&self) -> bool {
+        self.state == PreviewState::OneFolder && self.convertible()
+    }
+
+    /// A digest of exactly what a conversion would do now: every file's
+    /// name, numbering tags and planned result, and the folder's old and
+    /// new name. The conversion is refused unless the client sends back
+    /// the digest of the preview the user saw, so a plan that changed in
+    /// between is never carried out.
+    pub fn digest(&self) -> String {
+        use sha2::{Digest, Sha256};
+        let tracks: Vec<serde_json::Value> = self
+            .plan
+            .tracks
+            .iter()
+            .map(|t| {
+                serde_json::json!([
+                    t.album_id,
+                    t.filename,
+                    t.disc,
+                    t.track,
+                    t.new_track,
+                    t.new_filename,
+                    t.tags_done,
+                    t.numbering
+                        .iter()
+                        .map(|(k, v)| serde_json::json!([k, v]))
+                        .collect::<Vec<_>>(),
+                ])
+            })
+            .collect();
+        let doc = serde_json::json!({
+            "album_id": self.album_id,
+            "state": self.state.as_str(),
+            "target_path": self.target_path,
+            "target_current": self.target_current,
+            "target_new": self.plan.target_name,
+            "track_total": self.plan.track_total,
+            "tracks": tracks,
+            "blockers": self.plan.blockers.iter().map(|b| b.code).collect::<Vec<_>>(),
+            "resume": self.resume.as_ref().map(|r| r.path.to_string_lossy().into_owned()),
+        });
+        let hash = Sha256::digest(doc.to_string().as_bytes());
+        hash.iter().map(|b| format!("{b:02x}")).collect()
     }
 }
 
@@ -1169,10 +1296,27 @@ disc missing: the track numbers would be wrong once the missing disc is added.",
 /// The conversion preview for the finding stored on `album_id`,
 /// re-derived from the current database and disk. `None` when the album
 /// row is gone.
+///
+/// `logs` is the folder of conversion records ([`conversion_log`]). When it
+/// holds an unfinished conversion of this album, the plan is re-derived
+/// with the record's help ([`derive_resumed`]): the files it already wrote
+/// no longer carry their disc, so the disk alone cannot say where they
+/// belong.
 pub fn derive_conversion(
     conn: &Connection,
     album_id: &str,
+    logs: Option<&Path>,
 ) -> musaic_db::Result<Option<ConversionPreview>> {
+    if let Some(dir) = logs {
+        let records = conversion_log::unfinished_of(dir, album_id);
+        if !records.is_empty() {
+            return derive_resumed(conn, album_id, records);
+        }
+    }
+    derive_fresh(conn, album_id)
+}
+
+fn derive_fresh(conn: &Connection, album_id: &str) -> musaic_db::Result<Option<ConversionPreview>> {
     let library: Option<String> = conn
         .query_row(
             "SELECT library_path FROM albums WHERE id = ?1",
@@ -1214,7 +1358,10 @@ pub fn derive_conversion(
         template: String::new(),
         dir_template: String::new(),
         target_current: None,
+        target_path: None,
+        library_path: library.clone(),
         plan: Planned::default(),
+        resume: None,
     };
     let Some(set) = set else {
         preview.reason = Some(
@@ -1291,6 +1438,7 @@ clears the next time the check runs."
         },
     };
     preview.target_current = facts.first().map(|f| f.dir_name.clone());
+    preview.target_path = row_of(&set.anchor).map(|r| r.path.clone());
     if facts.iter().all(|f| f.problem.is_none()) {
         let target = plan
             .target_name
@@ -1305,6 +1453,255 @@ clears the next time the check runs."
             message: format!("A job is queued or running on {name}. Wait for it to finish."),
         });
     }
+    preview.plan = plan;
+    Ok(Some(preview))
+}
+
+/// The preview of an album that has an unfinished conversion record.
+///
+/// Every FLAC in the folder must be one of the record's files, under its
+/// old or its new name, with either its old numbering tags (not written
+/// yet) or exactly its new ones (written). For planning only, a file
+/// already written gets back the disc and number the record kept, so the
+/// plan is made as for the untouched set; it must then come out as the
+/// record says. Any difference (a file added, gone or retagged, a template
+/// or a title changed) is a blocker, never a guess.
+fn derive_resumed(
+    conn: &Connection,
+    album_id: &str,
+    records: Vec<Record>,
+) -> musaic_db::Result<Option<ConversionPreview>> {
+    let library: Option<String> = conn
+        .query_row(
+            "SELECT library_path FROM albums WHERE id = ?1",
+            [album_id],
+            |r| r.get(0),
+        )
+        .map(Some)
+        .or_else(|e| match e {
+            rusqlite::Error::QueryReturnedNoRows => Ok(None),
+            e => Err(e),
+        })?;
+    let Some(library) = library else {
+        return Ok(None);
+    };
+    let rows = load_rows(conn, &library)?;
+    let Some(row) = rows.iter().find(|r| r.id == album_id) else {
+        return Ok(None);
+    };
+    let templates = Templates::from_settings(conn)?;
+    let record = records.last().cloned().expect("at least one record");
+    let discs: Vec<i64> = record
+        .files
+        .iter()
+        .map(|f| f.disc)
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut preview = ConversionPreview {
+        album_id: album_id.to_string(),
+        state: PreviewState::OneFolder,
+        reason: None,
+        numbering: None,
+        disc_total: None,
+        present_discs: discs.clone(),
+        absent_discs: Vec::new(),
+        members: discs
+            .iter()
+            .map(|d| SetMember {
+                album_id: album_id.to_string(),
+                dir_name: row.dir_name.clone(),
+                disc: *d,
+                missing: row.missing,
+            })
+            .collect(),
+        is_compilation: row.is_compilation,
+        template: String::new(),
+        dir_template: String::new(),
+        target_current: None,
+        target_path: Some(row.path.clone()),
+        library_path: library.clone(),
+        plan: Planned::default(),
+        resume: Some(record.clone()),
+    };
+    if records.len() > 1 {
+        preview.plan.blockers.push(Blocker {
+            code: blocker::RESUME_AMBIGUOUS,
+            message: format!(
+                "{} unfinished conversions name this album, so Musaic cannot tell which one to \
+finish. The records are in {}.",
+                records.len(),
+                record
+                    .path
+                    .parent()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default()
+            ),
+        });
+        return Ok(Some(preview));
+    }
+    let path = PathBuf::from(&row.path);
+    let mut facts = gather_member(album_id, &path, None);
+    if row.missing {
+        facts.problem = Some(Blocker {
+            code: blocker::MEMBER_MISSING,
+            message: format!(
+                "{} is marked Missing: its folder was not found by the last scan.",
+                row.dir_name.clone().unwrap_or_else(|| row.id.clone())
+            ),
+        });
+    }
+    preview.target_current = Some(facts.dir_name.clone());
+
+    let mut mismatch: Vec<Blocker> = Vec::new();
+    let mut used = vec![false; record.files.len()];
+    // File name -> (record entry, already written).
+    let mut matched: HashMap<String, (usize, bool)> = HashMap::new();
+    for f in facts.files.iter_mut() {
+        let find = |exact: bool| {
+            record.files.iter().enumerate().position(|(i, e)| {
+                !used[i]
+                    && if exact {
+                        e.new_name == f.name || e.old_name == f.name
+                    } else {
+                        same_nfc(&e.new_name, &f.name) || same_nfc(&e.old_name, &f.name)
+                    }
+            })
+        };
+        let Some(i) = find(true).or_else(|| find(false)) else {
+            mismatch.push(Blocker {
+                code: blocker::RESUME_MISMATCH,
+                message: format!(
+                    "{} is in the folder but not in the record of the interrupted conversion.",
+                    f.name
+                ),
+            });
+            continue;
+        };
+        used[i] = true;
+        let e = &record.files[i];
+        if !f.readable {
+            // plan_conversion reports it.
+            matched.insert(f.name.clone(), (i, false));
+            continue;
+        }
+        if f.numbering == e.old_tags {
+            matched.insert(f.name.clone(), (i, false));
+        } else if f.numbering == e.new_tags {
+            let old = |k: &str| values_of(&e.old_tags, k).to_vec();
+            f.tracknumber = old("TRACKNUMBER").first().cloned().unwrap_or_default();
+            f.disc = flacmeta::file_disc(
+                old("DISCNUMBER").iter().map(String::as_str),
+                old("TRACKNUMBER").iter().map(String::as_str),
+            );
+            f.has_disc_tags = ["DISCNUMBER", "DISCTOTAL", "TOTALDISCS"]
+                .iter()
+                .any(|k| !values_of(&e.old_tags, k).is_empty());
+            matched.insert(f.name.clone(), (i, true));
+        } else {
+            mismatch.push(Blocker {
+                code: blocker::RESUME_MISMATCH,
+                message: format!(
+                    "The track number or disc tags of {} changed since the interrupted conversion.",
+                    f.name
+                ),
+            });
+        }
+    }
+    for (i, e) in record.files.iter().enumerate() {
+        if !used[i] {
+            mismatch.push(Blocker {
+                code: blocker::RESUME_MISMATCH,
+                message: format!(
+                    "{} (before the conversion: {}) is no longer in the folder.",
+                    e.new_name, e.old_name
+                ),
+            });
+        }
+    }
+
+    let target_row = rename_plan_row(conn, album_id)?;
+    let mut plan = match &target_row {
+        Some(r) => {
+            let (t, d) = templates.for_row(r);
+            preview.template = t.to_string();
+            preview.dir_template = d.to_string();
+            plan_conversion(&PlanInput {
+                members: std::slice::from_ref(&facts),
+                target_row: r,
+                templates: &templates,
+            })
+        }
+        None => Planned {
+            blockers: facts.problem.iter().cloned().collect(),
+            ..Default::default()
+        },
+    };
+    let mut changed = Vec::new();
+    for t in plan.tracks.iter_mut() {
+        let Some((i, done)) = matched.get(&t.filename).copied() else {
+            continue;
+        };
+        t.tags_done = done;
+        let e = &record.files[i];
+        let same = t.disc == Some(e.disc)
+            && t.track == Some(e.track)
+            && t.new_track == Some(e.new_track)
+            && t.new_filename
+                .as_deref()
+                .is_some_and(|n| same_nfc(n, &e.new_name));
+        if !same {
+            changed.push(t.filename.clone());
+        }
+    }
+    if !changed.is_empty() || (mismatch.is_empty() && plan.track_total != record.track_total) {
+        plan.blockers.push(Blocker {
+            code: blocker::RESUME_CHANGED,
+            message: format!(
+                "The plan made now is not the one the interrupted conversion recorded{}: a \
+template, a title or a track number changed since. Musaic will not finish it with other numbers or \
+names. The record is {}.",
+                if changed.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (for {})", changed.join(", "))
+                },
+                record.path.display()
+            ),
+        });
+    }
+    if let Some(t) = &plan.target_name
+        && !same_nfc(t, &record.folder_name_after)
+    {
+        plan.blockers.push(Blocker {
+            code: blocker::RESUME_CHANGED,
+            message: format!(
+                "The folder name made now ({t}) is not the one the interrupted conversion \
+recorded ({}). The record is {}.",
+                record.folder_name_after,
+                record.path.display()
+            ),
+        });
+    }
+    plan.blockers.extend(mismatch);
+    if facts.problem.is_none() {
+        let target = plan
+            .target_name
+            .as_deref()
+            .filter(|t| preview.target_current.as_deref() != Some(*t));
+        plan.blockers
+            .extend(disk_blockers(&[(facts.dir_name.clone(), path)], target));
+    }
+    for id in active_jobs(conn, &[album_id])? {
+        let name = row.dir_name.clone().unwrap_or(id);
+        plan.blockers.push(Blocker {
+            code: blocker::JOB_ACTIVE,
+            message: format!("A job is queued or running on {name}. Wait for it to finish."),
+        });
+    }
+    let pairs: Vec<(Option<i64>, Option<i64>)> =
+        plan.tracks.iter().map(|t| (t.disc, t.track)).collect();
+    preview.numbering = Some(classify_numbering(&pairs));
     preview.plan = plan;
     Ok(Some(preview))
 }
@@ -1541,6 +1938,7 @@ mod tests {
             albumartist: "Band".into(),
             disc,
             has_disc_tags: disc.is_some(),
+            numbering: Vec::new(),
         }
     }
 
@@ -1784,6 +2182,41 @@ mod tests {
         // Disc 3 continues after disc 1's two tracks.
         assert_eq!(p.tracks[2].new_track, Some(3));
         assert_eq!(p.target_name.as_deref(), Some("Band - Record [FLAC]"));
+    }
+
+    #[test]
+    fn rename_temporaries_are_recognised_and_block() {
+        for n in [
+            ".01 - A.flac.renaming.tmp",
+            ".01 - A.flac.renaming.12.tmp",
+            ".musaic-3.tmp",
+        ] {
+            assert!(is_rename_temp(n), "{n}");
+        }
+        for n in [
+            "01 - A.flac",
+            ".DS_Store",
+            ".media-manager-tags.json",
+            ".x.renaming.y.tmp",
+            ".musaic-.tmp",
+            "a.renaming.tmp",
+        ] {
+            assert!(!is_rename_temp(n), "{n}");
+        }
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join(".01 - A.flac.renaming.tmp"), b"x").unwrap();
+        let m = gather_member("a", tmp.path(), None);
+        assert_eq!(m.stranded, vec![".01 - A.flac.renaming.tmp".to_string()]);
+        let p = plan_conversion(&PlanInput {
+            members: &[m],
+            target_row: &target_row(),
+            templates: &templates(),
+        });
+        assert!(
+            codes(&p).contains(&blocker::STRANDED_TEMP),
+            "{:?}",
+            codes(&p)
+        );
     }
 
     #[test]

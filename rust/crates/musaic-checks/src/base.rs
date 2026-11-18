@@ -233,6 +233,10 @@ pub struct CheckEnv {
     /// Publishes an event on the app's bus: the callers that run a batch of
     /// checks publish `ChecksRerunFinished` through it ([`crate::rerun`]).
     pub publish: Arc<dyn Fn(musaic_events::Event) + Send + Sync>,
+    /// Where multi-disc conversions keep their records
+    /// (`musaic_fsops::conversion_log`): the multi-disc-layout check reports
+    /// a conversion that did not finish. `None`: no records are looked for.
+    pub conversion_logs: Option<std::path::PathBuf>,
 }
 
 impl CheckEnv {
@@ -244,6 +248,7 @@ impl CheckEnv {
             clock: Arc::new(SystemClock),
             notify: Arc::new(|| {}),
             publish: Arc::new(|_| {}),
+            conversion_logs: None,
         }
     }
 }
