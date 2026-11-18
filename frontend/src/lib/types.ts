@@ -196,6 +196,10 @@ export type ScanEvent =
   // the row. The old "removed" event name implied destruction it
   // never delivered.
   | { type: "marked_missing"; id: string; path: string }
+  // Saved: the row of a vanished album moved to the folder found under
+  // another spelling (the same folder on disk). Its `album` event carried
+  // the new id; the old id no longer exists.
+  | { type: "adopted"; old_id: string; id: string; old_path: string; path: string }
   // `skipped_non_utf8_count` is present only when folders or files were left
   // out because their names are not valid UTF-8.
   | {

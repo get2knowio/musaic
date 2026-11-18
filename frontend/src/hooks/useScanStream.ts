@@ -261,6 +261,19 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
             setScan((s) => ({ ...s, markedMissingCount: s.markedMissingCount + 1 }));
             break;
 
+          case "adopted":
+            // The album is listed under its new id already (its `album`
+            // event); without this the old id's tile would show twice until
+            // the next snapshot sync.
+            rowStamps.current.delete(ev.old_id);
+            setAlbumsById((prev) => {
+              if (!prev.has(ev.old_id)) return prev;
+              const next = new Map(prev);
+              next.delete(ev.old_id);
+              return next;
+            });
+            break;
+
           case "progress":
             setScan((s) => ({ ...s, scanned: ev.scanned, total: ev.total }));
             break;

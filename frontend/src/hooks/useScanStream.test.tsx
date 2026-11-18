@@ -166,6 +166,30 @@ describe("useScanStream: names that cannot be stored", () => {
   });
 });
 
+describe("useScanStream: an album the scan adopted under a new id", () => {
+  it("drops the old id's row, keeps the new one, and counts nothing missing", async () => {
+    server = [makeAlbum({ id: "old", path: "/music/Artist - A" })];
+    const { hook } = setup();
+    await waitFor(() => expect(MockEventSource.last?.url).toContain("/api/scan/stream"));
+    await waitFor(() => expect(hook.result.current.albums).toHaveLength(1));
+    act(() => MockEventSource.last!.emit("start", { library_dir: "/music", total: 1, cached_count: 1, force: false }));
+    act(() => MockEventSource.last!.emit("album", makeAlbum({ id: "new", path: "/music/artist - a", _status: "fresh" })));
+    expect(hook.result.current.albums.map((a) => a.id).sort()).toEqual(["new", "old"]);
+    act(() =>
+      MockEventSource.last!.emit("adopted", {
+        old_id: "old",
+        id: "new",
+        old_path: "/music/Artist - A",
+        path: "/music/artist - a",
+      }),
+    );
+    act(() => MockEventSource.last!.emit("done", { count: 1, marked_missing_count: 0, scanned_at: 2 }));
+    await waitFor(() => expect(hook.result.current.scan.status).toBe("done"));
+    expect(hook.result.current.albums.map((a) => a.id)).toEqual(["new"]);
+    expect(hook.result.current.scan.markedMissingCount).toBe(0);
+  });
+});
+
 describe("useScanStream: a change made during a scan", () => {
   it("shows an album changed mid-scan at once, keeps streamed rows the database lacks", async () => {
     server = [
