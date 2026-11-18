@@ -31,6 +31,16 @@ Security.
   gain the line when the check reruns once in the background, which needs the app to be
   online. Part of [#259](https://github.com/get2knowio/musaic/issues/259).
 
+- The database is upgraded to schema v20 on first start: each album row records the disc
+  number of every file (from its DISCNUMBER tag, or from a disc-prefixed track number such
+  as `2-05`) and the highest disc total its tags name, so a later check can find multi-disc
+  sets without reading every file. Existing rows start empty; the first scan after the
+  upgrade reads again only the albums whose track numbers repeat or whose folder name
+  names a disc, and every other album is filled when it is next read. Nothing is shown in
+  the app yet. A copy of the v19 database is saved as a snapshot first; the previous
+  release cannot open a v20 database, so going back means restoring that snapshot. Part
+  of [#296](https://github.com/get2knowio/musaic/issues/296).
+
 ### Changed
 
 - A "Tags don't match canonical" finding whose only blank core tag is the genre is now

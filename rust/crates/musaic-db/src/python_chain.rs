@@ -1,6 +1,6 @@
 //! Databases older than v16: brought to v16
 //! exactly as the Python app's `db.bootstrap()` at 6902c23 brings them
-//! (musaic/db.py:580-622), then on through this build's v17 / v18 / v19 steps.
+//! (musaic/db.py:580-622), then on through this build's v17 / v18 / v19 / v20 steps.
 //!
 //! The Python app's behaviour, ported as it is (not each historical version's
 //! own code: what the Python app a user would last have run does to an old

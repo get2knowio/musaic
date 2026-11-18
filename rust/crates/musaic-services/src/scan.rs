@@ -923,7 +923,26 @@ pub fn effective_mtime(album_dir: &Path) -> f64 {
 
 /// `scanner._cached_row_is_complete`.
 fn cached_row_is_complete(a: &Album) -> bool {
-    !a.track_artists.is_empty() || !a.is_compilation
+    (!a.track_artists.is_empty() || !a.is_compilation) && !needs_disc_backfill(a)
+}
+
+/// A row written before schema v20 has no per-file disc numbers. Reading
+/// every album again at the first scan after the upgrade would be slow on a
+/// network share, so only rows where the disc numbers can matter are read
+/// again now: the stored track numbers repeat (one folder holding several
+/// discs), or the folder name names a disc (one disc of a set). Every other
+/// row is filled the next time it is read for another reason. The stored
+/// track numbers cannot show a disc-prefixed TRACKNUMBER: "2-05" is stored
+/// as 5.
+fn needs_disc_backfill(a: &Album) -> bool {
+    if a.track_discs.is_some() {
+        return false;
+    }
+    if a.disc_number.is_some() || a.disc_total.is_some() {
+        return true;
+    }
+    let mut seen = HashSet::new();
+    a.track_numbers.iter().flatten().any(|n| !seen.insert(*n))
 }
 
 /// `ids` in rowid order. Runs after the save committed, so a failed lookup

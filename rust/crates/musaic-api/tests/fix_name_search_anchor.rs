@@ -176,6 +176,8 @@ async fn world(case: &Value) -> World {
         artist_sort: None,
         album_sort: None,
         track_artists: vec![],
+        track_discs: None,
+        tag_disc_total: None,
     };
     let mut conn = rusqlite::Connection::open(st.db_path()).unwrap();
     musaic_db::albums::upsert_album(&mut conn, &lib_s, "2001-01-01T00:00:00Z", &album).unwrap();

@@ -9,20 +9,33 @@ use std::sync::Arc;
 use musaic_api::{AppState, Network};
 use rusqlite::Connection;
 
-/// A v18 database as the previous build left it, with a key row the OS
+/// A v19 database as the previous build left it, with a key row the OS
 /// keyring has not taken yet.
-fn make_v18(cfg: &Path) {
+fn make_v19(cfg: &Path) {
     std::fs::create_dir_all(cfg).unwrap();
     let p = cfg.join("library.db");
     drop(musaic_db::Db::open_or_create(&p).unwrap());
     let c = Connection::open(&p).unwrap();
     c.execute_batch(
-        "DROP INDEX idx_track_fingerprints_inputs; DROP TABLE check_inputs; \
-         UPDATE schema_version SET version = 18; \
+        "ALTER TABLE albums DROP COLUMN tag_disc_total; \
+         ALTER TABLE albums DROP COLUMN track_discs_json; \
+         UPDATE schema_version SET version = 19; \
          INSERT INTO settings(key, value) VALUES ('acoustid_api_key', 'SECRET-KEY-VALUE'); \
          INSERT INTO settings(key, value) VALUES ('snapshot_retention_count', '10');",
     )
     .unwrap();
+}
+
+/// A v18 database: [`make_v19`] without the v19 step.
+fn make_v18(cfg: &Path) {
+    make_v19(cfg);
+    Connection::open(cfg.join("library.db"))
+        .unwrap()
+        .execute_batch(
+            "DROP INDEX idx_track_fingerprints_inputs; DROP TABLE check_inputs; \
+             UPDATE schema_version SET version = 18;",
+        )
+        .unwrap();
 }
 
 fn version(p: &Path) -> i64 {
@@ -79,6 +92,38 @@ fn a_copy_is_taken_before_the_upgrade() {
             .len(),
         1
     );
+}
+
+/// The v19 -> v20 step (the albums table's disc columns) is covered too: a
+/// v19 file is copied first, and the copy still opens at v19 for a build
+/// that knows only v19.
+#[test]
+fn a_v19_database_is_copied_before_the_upgrade() {
+    let d = tempfile::tempdir().unwrap();
+    let cfg = d.path().join("config");
+    make_v19(&cfg);
+    drop(build(&cfg).unwrap());
+    assert_eq!(version(&cfg.join("library.db")), musaic_db::SCHEMA_VERSION);
+    let snaps = musaic_db::backup::list_snapshots(&snap_dir(&cfg)).unwrap();
+    assert_eq!(snaps.len(), 1, "{snaps:?}");
+    assert!(
+        snaps[0].filename.ends_with("-v19.db"),
+        "{}",
+        snaps[0].filename
+    );
+    assert!(snaps[0].valid);
+    let copy = snap_dir(&cfg).join(&snaps[0].filename);
+    assert_eq!(version(&copy), 19);
+    let has_v20_columns: i64 = Connection::open(&copy)
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('albums') \
+             WHERE name IN ('track_discs_json', 'tag_disc_total')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(has_v20_columns, 0, "the copy is the v19 file as it was");
 }
 
 #[test]

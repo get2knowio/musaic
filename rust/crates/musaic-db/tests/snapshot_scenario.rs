@@ -78,10 +78,28 @@ impl Norm {
     }
 }
 
-/// The Python app's dump has no `fingerprint_impl`-style v17 additions on the
-/// albums table, so the two dumps compare directly.
+/// The Python app's dump has none of the v20 columns on the albums table
+/// (`track_discs_json`, `tag_disc_total`): those are checked here for shape
+/// (every scanned row has a disc list as long as its track list) and then
+/// left out, so the rest compares directly.
 fn assert_db(norm: &Norm, conn: &Connection, step: &Value) {
-    let have = norm.dump(conn);
+    let mut have = norm.dump(conn);
+    for a in have["albums"].as_array_mut().unwrap() {
+        let o = a.as_object_mut().unwrap();
+        let discs = o.remove("track_discs_json").expect("v20 column");
+        o.remove("tag_disc_total").expect("v20 column");
+        let discs: Value = serde_json::from_str(discs.as_str().expect("scanned rows are filled"))
+            .expect("a JSON list");
+        let numbers: Value =
+            serde_json::from_str(o["track_numbers_json"].as_str().unwrap()).unwrap();
+        assert_eq!(
+            discs.as_array().unwrap().len(),
+            numbers.as_array().unwrap().len(),
+            "{} / {}",
+            step["step"],
+            o["dir_name"]
+        );
+    }
     let want = &step["db"];
     // Rows come `ORDER BY` album id, and an id hashes the library's absolute
     // location: compare them in the order of their normalised form, which

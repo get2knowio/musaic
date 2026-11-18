@@ -1,8 +1,9 @@
 //! One-way migrations: v16 -> v17 (`fingerprint_impl`),
 //! v17 -> v18 (AcoustID lookup outcome per fingerprint row; files the
 //! fingerprinter rejected), v18 -> v19 (`check_inputs`: what each health
-//! check last ran against, for the background check sweep), and the backup
-//! taken before the first.
+//! check last ran against, for the background check sweep), v19 -> v20
+//! (each album's per-file disc numbers and the highest disc total its tags
+//! name), and the backup taken before the first.
 //!
 //! Backup rule: a database the Python app wrote (v16, or any older version
 //! [`crate::python_chain`] brings to v16 first) is copied, to
@@ -13,8 +14,9 @@
 //! is already there ([`existing_backup`]), an earlier interrupted attempt took
 //! it from the untouched file, and no second one is written (an attempt
 //! interrupted after the `v<N> -> v16` step finds a v16 file next time).
-//! A v17 or v18 database was written by this build: the v17 -> v18 and
-//! v18 -> v19 steps are additive and each runs in one transaction (an
+//! A v17, v18 or v19 database was written by this build: the v17 -> v18,
+//! v18 -> v19 and v19 -> v20 steps are additive and each runs in one
+//! transaction (an
 //! interruption leaves the file at the version it had), and no further
 //! backup file is written, so no new copy of plaintext settings rows
 //! appears beside the database.
@@ -113,6 +115,20 @@ pub(crate) const V19_STATEMENTS: &[&str] = &[
         acoustid_recording_mbid, acoustid_score)",
 ];
 
+/// The v19 -> v20 statements, in order (also the text a fresh database gets).
+/// Both columns are written by the scanner. They start NULL on every
+/// existing row, meaning "not read yet": nothing is guessed from the folder
+/// name, and a scan fills a row when it next reads its files.
+pub(crate) const V20_STATEMENTS: &[&str] = &[
+    // A JSON list parallel to `track_numbers_json` (same order, same
+    // length): each file's disc number from its DISCNUMBER, or from a
+    // disc-prefixed TRACKNUMBER ("2-05"), or null.
+    "ALTER TABLE albums ADD COLUMN track_discs_json TEXT",
+    // The highest DISCTOTAL / TOTALDISCS / DISCNUMBER "n/M" value among the
+    // album's files; NULL when none names one (or not read yet).
+    "ALTER TABLE albums ADD COLUMN tag_disc_total INTEGER",
+];
+
 pub(crate) fn backup_before_migration(
     conn: &Connection,
     db_path: &Path,
@@ -172,7 +188,7 @@ pub(crate) fn create_fresh(conn: &mut Connection) -> Result<()> {
 /// transaction (each re-checks the version, so a step another process
 /// already ran is skipped): the Python app's own chain to v16 for an older file
 /// ([`crate::python_chain`], one transaction as in the Python app), then v17,
-/// v18, v19.
+/// v18, v19, v20.
 pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     if found < PYTHON_SCHEMA_VERSION {
         crate::python_chain::to_python_version(conn)?;
@@ -185,6 +201,9 @@ pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     }
     if found <= 18 {
         v18_to_v19(conn)?;
+    }
+    if found <= 19 {
+        v19_to_v20(conn)?;
     }
     Ok(())
 }
@@ -231,6 +250,22 @@ pub(crate) fn v18_to_v19(conn: &mut Connection) -> Result<()> {
     })?;
     if current == 18 {
         for stmt in V19_STATEMENTS {
+            tx.execute(stmt, [])?;
+        }
+        tx.execute("UPDATE schema_version SET version = 19", [])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// See [`V20_STATEMENTS`].
+pub(crate) fn v19_to_v20(conn: &mut Connection) -> Result<()> {
+    let tx = crate::immediate(conn)?;
+    let current: i64 = tx.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get(0)
+    })?;
+    if current == 19 {
+        for stmt in V20_STATEMENTS {
             tx.execute(stmt, [])?;
         }
         tx.execute("UPDATE schema_version SET version = ?1", [SCHEMA_VERSION])?;

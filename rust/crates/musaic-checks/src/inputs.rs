@@ -4,7 +4,8 @@
 //! **The digest.** Every Present album gets a *base digest* of everything
 //! about it a check can read from the database: its whole `albums` row
 //! (every column, so a column added later is covered without a change
-//! here), its fingerprint rows (implementation, time computed, AcoustID
+//! here; the v20 disc columns only once they hold a value,
+//! `SKIPPED_WHEN_NULL`), its fingerprint rows (implementation, time computed, AcoustID
 //! recording and score; read from `idx_track_fingerprints_inputs`, not the
 //! fingerprint text), its blocked MusicBrainz release groups and its AI jobs
 //! (type, status and times: no-cover-art reads recent cover jobs). Files are
@@ -76,11 +77,22 @@ impl Hasher {
     }
 }
 
+/// Columns added after rows already had recorded inputs, hashed only once
+/// they hold a value: a NULL there digests as if the column did not exist,
+/// so the upgrade that adds them leaves every album's digest as it was
+/// (otherwise every check, the network ones included, would rerun over the
+/// whole library once). Filling one in changes that album's digest.
+const SKIPPED_WHEN_NULL: [&str; 2] = ["track_discs_json", "tag_disc_total"];
+
 /// Fold every column of `row` (from `stmt`'s column `start` on) into `h`.
 fn fold_row(h: &mut Hasher, names: &[String], row: &rusqlite::Row<'_>, start: usize) {
     for (i, name) in names.iter().enumerate().skip(start) {
+        let value = row.get_ref(i).unwrap_or(ValueRef::Null);
+        if matches!(value, ValueRef::Null) && SKIPPED_WHEN_NULL.contains(&name.as_str()) {
+            continue;
+        }
         h.str(name);
-        h.value(row.get_ref(i).unwrap_or(ValueRef::Null));
+        h.value(value);
     }
 }
 

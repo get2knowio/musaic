@@ -26,7 +26,7 @@ pub struct DirMigration {
 /// that refers to the album by id, in one transaction with foreign keys
 /// deferred to COMMIT.
 ///
-/// Tables holding an album id (schema v19):
+/// Tables holding an album id (schema v20):
 ///
 /// | table | FK to albums(id) | repointed |
 /// |---|---|---|

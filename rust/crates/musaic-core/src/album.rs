@@ -38,4 +38,13 @@ pub struct Album {
     pub artist_sort: Option<String>,
     pub album_sort: Option<String>,
     pub track_artists: Vec<TrackArtist>,
+    /// Each file's disc number from its tags, parallel to `track_numbers`;
+    /// `None` when the files have not been read for it yet (a row written
+    /// before schema v20). Not part of the album dict the API serves.
+    #[serde(skip_serializing)]
+    pub track_discs: Option<Vec<Option<i64>>>,
+    /// The highest disc total the files' tags name (DISCTOTAL, TOTALDISCS,
+    /// DISCNUMBER "n/M"); `None` when none does, or not read yet.
+    #[serde(skip_serializing)]
+    pub tag_disc_total: Option<i64>,
 }

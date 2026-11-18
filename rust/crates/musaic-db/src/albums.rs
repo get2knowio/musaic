@@ -16,7 +16,7 @@ use crate::Result;
 /// Columns a scan may overwrite on an existing row. Everything else on the
 /// row (MusicBrainz anchor, AI review stamp, `missing_since`) belongs to
 /// another subsystem and survives a rescan.
-const SCANNER_OWNED_COLUMNS: [&str; 27] = [
+const SCANNER_OWNED_COLUMNS: [&str; 29] = [
     "library_path",
     "path",
     "dir_name",
@@ -44,6 +44,8 @@ const SCANNER_OWNED_COLUMNS: [&str; 27] = [
     "artist_sort",
     "album_sort",
     "track_artists_json",
+    "track_discs_json",
+    "tag_disc_total",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -78,12 +80,22 @@ pub struct Adoption {
 
 /// `json.dumps(track_numbers)`: `[1, 2, null]`.
 fn track_numbers_json(a: &Album) -> String {
-    let items: Vec<String> = a
-        .track_numbers
+    int_list_json(&a.track_numbers)
+}
+
+fn int_list_json(list: &[Option<i64>]) -> String {
+    let items: Vec<String> = list
         .iter()
         .map(|n| n.map_or_else(|| "null".to_string(), |n| n.to_string()))
         .collect();
     format!("[{}]", items.join(", "))
+}
+
+/// The per-file disc list in the shape of `track_numbers_json`; NULL while
+/// the files have not been read for it, so a pre-v20 row that a scan reuses
+/// unchanged keeps saying "not read yet".
+fn track_discs_json(a: &Album) -> Option<String> {
+    a.track_discs.as_deref().map(int_list_json)
 }
 
 /// `json.dumps(track_artists)`, or NULL when there are none.
@@ -154,6 +166,8 @@ fn upsert_row(conn: &Connection, sql: &str, library_dir: &str, a: &Album) -> Res
             a.artist_sort,
             a.album_sort,
             track_artists_json(a),
+            track_discs_json(a),
+            a.tag_disc_total,
         ],
     )?;
     Ok(())
