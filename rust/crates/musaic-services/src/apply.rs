@@ -119,6 +119,94 @@ impl ApplyItem {
     }
 }
 
+/// How a renumbered file's prefix is written: by the number part of the
+/// filename pattern the album's row is named by, so a renumber re-applies
+/// the pattern the user has defined.
+enum Numbering {
+    /// The settings could not be read: the track alone, two digits.
+    Default,
+    /// The pattern's leading number part; `None` when the pattern does not
+    /// start with the track number, and then no file is renamed.
+    Pattern {
+        number: Option<musaic_fsops::template::NumberTemplate>,
+        /// The set has more than one disc, so `{disc}` is rendered.
+        multi_disc: bool,
+        /// The folder's disc number, for a file that names none itself.
+        folder_disc: Option<i64>,
+    },
+}
+
+impl Numbering {
+    fn for_album(conn: &Connection, album_id: &str, album_dir: &Path) -> Numbering {
+        let Ok(templates) = musaic_fsops::plan::Templates::from_settings(conn) else {
+            return Numbering::Default;
+        };
+        let Ok(row) = musaic_db::renames::rename_plan_row(conn, album_id) else {
+            return Numbering::Default;
+        };
+        let (template, disc_number, disc_total) = match &row {
+            Some(r) if r.is_compilation => {
+                (&templates.filename_compilation, r.disc_number, r.disc_total)
+            }
+            Some(r) => (&templates.filename_single, r.disc_number, r.disc_total),
+            None => (&templates.filename_single, None, None),
+        };
+        let number = musaic_fsops::template::NumberTemplate::parse(template);
+        let multi_disc = number.as_ref().is_some_and(|n| n.has_disc())
+            && (disc_total.is_some_and(|t| t > 1) || files_span_discs(album_dir));
+        Numbering::Pattern {
+            number,
+            multi_disc,
+            folder_disc: disc_number,
+        }
+    }
+
+    fn number(&self, track: i64, file_disc: Option<i64>) -> Option<String> {
+        match self {
+            Numbering::Default => musaic_tags::default_numbering(track, file_disc),
+            Numbering::Pattern {
+                number,
+                multi_disc,
+                folder_disc,
+            } => {
+                let disc = if *multi_disc {
+                    file_disc.or(*folder_disc)
+                } else {
+                    None
+                };
+                number.as_ref()?.render(track, disc)
+            }
+        }
+    }
+}
+
+/// Whether the folder's files say the set has more than one disc: two
+/// different disc numbers among them, or a total above one in
+/// `DISCTOTAL` / `TOTALDISCS` / the part after the slash of `DISCNUMBER`.
+fn files_span_discs(album_dir: &Path) -> bool {
+    let mut discs = std::collections::BTreeSet::new();
+    for path in musaic_scan::list_flacs(album_dir) {
+        let Ok(meta) = musaic_scan::flacmeta::read(&path) else {
+            continue;
+        };
+        if let Some(d) =
+            musaic_scan::flacmeta::file_disc(meta.values("discnumber"), meta.values("tracknumber"))
+        {
+            discs.insert(d);
+        }
+        let total_of = |key: &str| meta.values(key).find_map(musaic_core::pycompat::int);
+        let slash_total = meta.values("discnumber").find_map(|v| {
+            v.split_once('/')
+                .and_then(|(_, t)| musaic_core::pycompat::int(t))
+        });
+        let total = [total_of("disctotal"), total_of("totaldiscs"), slash_total];
+        if total.into_iter().flatten().any(|t| t > 1) {
+            return true;
+        }
+    }
+    discs.len() > 1
+}
+
 /// What to apply (`apply_album_changes_iter`'s keyword arguments).
 #[derive(Debug, Clone, Default)]
 pub struct ApplyRequest {
@@ -544,6 +632,7 @@ fn run(
         .as_deref()
         .filter(|b| !b.is_empty())
         .map(|b| (b, "image/jpeg"));
+    let numbering = Numbering::for_album(env.conn, &req.album_id, album_dir);
     let mut callback = |ev: TagEvent| {
         match &ev {
             TagEvent::FileDone(c) if c.art_changed => had_art_change = true,
@@ -583,7 +672,7 @@ fn run(
         // takes effect at the next step boundary.)
         let _ = emit(ev.name(), tag_event_json(&ev));
     };
-    musaic_tags::apply_to_album_iter(
+    musaic_tags::apply_to_album_iter_numbered(
         album_dir,
         &req.suggestions,
         &req.track_suggestions,
@@ -591,6 +680,7 @@ fn run(
         picture,
         dry_run,
         &mut callback,
+        &|track, disc| numbering.number(track, disc),
     )
     .map_err(|e| Halt::Failed(e.to_string()))?;
     if dry_run {
