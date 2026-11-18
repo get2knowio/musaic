@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::Path;
 
-use musaic_core::pycompat::{int, is_py_space, strip};
+use musaic_core::pycompat::{is_py_space, strip};
 use musaic_scan::{flacmeta, list_flacs, parse_tracknum};
 
 use crate::base::{
@@ -119,29 +119,9 @@ fn findings_on_disc(
     out
 }
 
-/// Disc number of a file from its `DISCNUMBER` tag ("2", "2/3"), else from a
-/// disc-prefixed `TRACKNUMBER` ("2-05", "2.05"), as `parse_tracknum` reads
-/// those.
+/// Disc number of a file (see [`musaic_scan::flacmeta::file_disc`]).
 fn disc_of(meta: &flacmeta::FlacMeta) -> Option<i64> {
-    let from_tag = meta
-        .values("discnumber")
-        .map(strip)
-        .find(|v| !v.is_empty())
-        .and_then(|v| int(v.split('/').next().unwrap_or("")));
-    if from_tag.is_some() {
-        return from_tag;
-    }
-    let raw = meta
-        .values("tracknumber")
-        .map(strip)
-        .find(|v| !v.is_empty())?;
-    let head = strip(raw.split('/').next().unwrap_or(""));
-    ['-', '.'].into_iter().find_map(|sep| {
-        let (disc, track) = head.rsplit_once(sep)?;
-        let digits = |t: &str| !t.is_empty() && t.chars().all(|c| c.is_ascii_digit());
-        let (disc, track) = (strip(disc), strip(track));
-        (digits(disc) && digits(track)).then(|| int(disc)).flatten()
-    })
+    flacmeta::file_disc(meta.values("discnumber"), meta.values("tracknumber"))
 }
 
 /// Track numbers by disc number.

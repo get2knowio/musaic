@@ -87,6 +87,107 @@ pub fn render(template: &str, values: &Values<'_>) -> Result<String, RenderError
     Ok(sanitize_for_filename(&out))
 }
 
+/// The leading number part of a filename template: the run at its start that
+/// holds only `{tracknumber[:spec]}`, `{disc[:spec]}` and literal separators,
+/// up to (not including) the separator before the next placeholder or the end.
+/// What a renumber re-applies to a file's numeric prefix, leaving the rest of
+/// the name alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NumberTemplate {
+    tokens: Vec<NumberToken>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NumberToken {
+    Literal(String),
+    /// A `{tracknumber}` or `{disc}` placeholder, in full.
+    Field {
+        name: String,
+        text: String,
+    },
+}
+
+impl NumberTemplate {
+    /// `None` when the template does not start with its track number (it
+    /// opens with other text or another placeholder, or has no
+    /// `{tracknumber}` in that leading run).
+    pub fn parse(template: &str) -> Option<NumberTemplate> {
+        let mut tokens: Vec<NumberToken> = Vec::new();
+        let mut last = 0;
+        for caps in PLACEHOLDER.captures_iter(template) {
+            let m = caps.get(0).unwrap();
+            let name = caps.name("name").unwrap().as_str();
+            if !INT_FIELDS.contains(&name) {
+                break;
+            }
+            if m.start() > last {
+                tokens.push(NumberToken::Literal(template[last..m.start()].to_string()));
+            }
+            tokens.push(NumberToken::Field {
+                name: name.to_string(),
+                text: m.as_str().to_string(),
+            });
+            last = m.end();
+        }
+        // The separator before the next placeholder (or the end) belongs to
+        // the rest of the name.
+        while matches!(tokens.last(), Some(NumberToken::Literal(_))) {
+            tokens.pop();
+        }
+        // The number has to come first: no text before the first field.
+        if !matches!(tokens.first(), Some(NumberToken::Field { .. })) {
+            return None;
+        }
+        tokens
+            .iter()
+            .any(|t| matches!(t, NumberToken::Field { name, .. } if name == "tracknumber"))
+            .then_some(NumberTemplate { tokens })
+    }
+
+    /// Whether the template has a `{disc}` part.
+    pub fn has_disc(&self) -> bool {
+        self.tokens
+            .iter()
+            .any(|t| matches!(t, NumberToken::Field { name, .. } if name == "disc"))
+    }
+
+    /// The number part for a track and, when the set has more than one disc,
+    /// the file's disc. Without a disc value `{disc}` is dropped together with
+    /// the literal text up to the next field, so `{disc}.{tracknumber:02}`
+    /// never leaves `.05` behind.
+    pub fn render(&self, track: i64, disc: Option<i64>) -> Option<String> {
+        let mut keep = vec![true; self.tokens.len()];
+        if disc.is_none() {
+            for (i, t) in self.tokens.iter().enumerate() {
+                if !matches!(t, NumberToken::Field { name, .. } if name == "disc") {
+                    continue;
+                }
+                keep[i] = false;
+                let lit = |j: usize| matches!(self.tokens.get(j), Some(NumberToken::Literal(_)));
+                if lit(i + 1) && i + 2 < self.tokens.len() {
+                    keep[i + 1] = false;
+                } else if i > 0 && lit(i - 1) {
+                    keep[i - 1] = false;
+                }
+            }
+        }
+        let text: String = self
+            .tokens
+            .iter()
+            .zip(&keep)
+            .filter(|(_, k)| **k)
+            .map(|(t, _)| match t {
+                NumberToken::Literal(l) => l.as_str(),
+                NumberToken::Field { text, .. } => text.as_str(),
+            })
+            .collect();
+        let mut values = Values::new();
+        values.insert("tracknumber", Value::Int(track));
+        values.insert("disc", disc.into());
+        render(&text, &values).ok()
+    }
+}
+
 fn format_value(name: &str, raw: &Value, spec: &str) -> Result<String, RenderError> {
     if *raw == Value::None {
         return Ok(String::new());
@@ -670,4 +771,55 @@ pub fn sanitize_for_filename(name: &str) -> String {
     let s = SEP_LEAD.replace_all(&s, "");
     let s = SEP_TRAIL.replace_all(&s, "");
     TRAILING_BAD.replace_all(&s, "").into_owned()
+}
+
+#[cfg(test)]
+mod number_template_tests {
+    use super::NumberTemplate;
+
+    fn nt(t: &str) -> Option<NumberTemplate> {
+        NumberTemplate::parse(t)
+    }
+
+    #[test]
+    fn the_leading_number_run_stops_before_the_next_placeholder() {
+        assert_eq!(
+            nt("{tracknumber:02} - {title}")
+                .unwrap()
+                .render(5, None)
+                .as_deref(),
+            Some("05")
+        );
+        let t = nt("{disc}-{tracknumber:02} {title}").unwrap();
+        assert_eq!(t.render(5, Some(2)).as_deref(), Some("2-05"));
+        assert_eq!(t.render(5, None).as_deref(), Some("05"));
+        assert!(t.has_disc());
+    }
+
+    #[test]
+    fn a_missing_disc_never_leaves_a_stray_separator() {
+        let t = nt("{disc}.{tracknumber:02} - {title}").unwrap();
+        assert_eq!(t.render(5, None).as_deref(), Some("05"));
+        assert_eq!(t.render(5, Some(1)).as_deref(), Some("1.05"));
+        let t = nt("{tracknumber:02}-{disc} {title}").unwrap();
+        assert_eq!(t.render(5, None).as_deref(), Some("05"));
+        assert_eq!(t.render(5, Some(2)).as_deref(), Some("05-2"));
+    }
+
+    #[test]
+    fn a_template_whose_number_does_not_come_first_has_no_number_part() {
+        assert_eq!(nt("{artist} - {tracknumber:02}"), None);
+        assert_eq!(nt("Track {tracknumber:02}"), None);
+        assert_eq!(nt("{disc} - {title}"), None);
+        assert_eq!(nt("{title}"), None);
+        assert_eq!(nt(""), None);
+    }
+
+    #[test]
+    fn a_template_of_only_the_number_is_all_number() {
+        assert_eq!(
+            nt("{tracknumber}").unwrap().render(7, None).as_deref(),
+            Some("7")
+        );
+    }
 }

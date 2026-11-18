@@ -351,9 +351,36 @@ fn album_field_of(vk: &str) -> &str {
 /// `_proposed_filename`: replace a leading numeric prefix matched by
 /// `^(?P<prefix>\d+(?:[-.]\d+)?)(?P<sep>[\s\-_.]+)` with `f"{int(n):02d}"`.
 pub fn proposed_filename(current_name: &str, new_tracknumber: &str) -> Option<String> {
+    proposed_filename_with(current_name, new_tracknumber, None, &default_numbering)
+}
+
+/// How a renumbered file's numeric prefix is written: `(track, disc)` to the
+/// new prefix, or `None` when the naming pattern has no number part to
+/// re-apply (the file is then left under its name). `disc` is the file's disc
+/// only when the caller found the set to have more than one.
+pub type Numbering<'a> = &'a dyn Fn(i64, Option<i64>) -> Option<String>;
+
+/// The numbering that has always applied: the track alone, two digits.
+pub fn default_numbering(track: i64, _disc: Option<i64>) -> Option<String> {
+    Some(format!("{track:02}"))
+}
+
+/// [`proposed_filename`] with the prefix written by `numbering`. Only the
+/// numeric prefix is replaced; rendering the whole name is the
+/// filename-mismatch check's job.
+pub fn proposed_filename_with(
+    current_name: &str,
+    new_tracknumber: &str,
+    disc: Option<i64>,
+    numbering: Numbering,
+) -> Option<String> {
     let prefix_end = filename_prefix_end(current_name)?;
     let n = pycompat::int(new_tracknumber)?;
-    Some(format!("{n:02}{}", &current_name[prefix_end..]))
+    Some(format!(
+        "{}{}",
+        numbering(n, disc)?,
+        &current_name[prefix_end..]
+    ))
 }
 
 fn filename_prefix_end(name: &str) -> Option<usize> {
@@ -396,6 +423,31 @@ pub fn apply_to_album_iter(
     dry_run: bool,
     emit: &mut dyn FnMut(Event),
 ) -> io::Result<()> {
+    apply_to_album_iter_numbered(
+        album_dir,
+        suggestions,
+        track_suggestions,
+        removals,
+        cover,
+        dry_run,
+        emit,
+        &default_numbering,
+    )
+}
+
+/// [`apply_to_album_iter`] with the renumbered files' prefixes written by
+/// `numbering` (the configured filename pattern's number part).
+#[allow(clippy::too_many_arguments)]
+pub fn apply_to_album_iter_numbered(
+    album_dir: &Path,
+    suggestions: &Suggestions,
+    track_suggestions: &TrackSuggestions,
+    removals: &Removals,
+    cover: Option<(&[u8], &str)>,
+    dry_run: bool,
+    emit: &mut dyn FnMut(Event),
+    numbering: Numbering,
+) -> io::Result<()> {
     apply_to_album_iter_with(
         album_dir,
         suggestions,
@@ -404,6 +456,7 @@ pub fn apply_to_album_iter(
         cover,
         dry_run,
         emit,
+        numbering,
         &|dir, _| musaic_scan::dir_names(dir),
     )
 }
@@ -461,6 +514,7 @@ fn apply_to_album_iter_with(
     cover: Option<(&[u8], &str)>,
     dry_run: bool,
     emit: &mut dyn FnMut(Event),
+    numbering: Numbering,
     read_back: ReadBack,
 ) -> io::Result<()> {
     if !album_dir.is_dir() {
@@ -576,6 +630,11 @@ fn apply_to_album_iter_with(
             .unwrap_or(&[]);
         let result = (|| -> io::Result<()> {
             let mut audio = FlacFile::open(flac_path)?;
+            // Read before the write: a `2-05` TRACKNUMBER is about to be
+            // replaced by the new number and still names the disc.
+            let file_disc = audio.tags().and_then(|t| {
+                musaic_scan::flacmeta::file_disc(t.values("discnumber"), t.values("tracknumber"))
+            });
             let mut combined = album_applied.clone();
             for (k, v) in file_specific {
                 dict_set(&mut combined, k, v.clone());
@@ -646,7 +705,7 @@ fn apply_to_album_iter_with(
                 }
             }
             if let Some((_, Edit::Set(n))) = file_specific.iter().find(|(k, _)| k == "tracknumber")
-                && let Some(proposed) = proposed_filename(&filename, n)
+                && let Some(proposed) = proposed_filename_with(&filename, n, file_disc, numbering)
                 && proposed != filename
             {
                 pending_renames.push((flac_path.clone(), proposed.clone()));
@@ -948,6 +1007,7 @@ mod tests {
                     renamed.push((new_path, old_filename, new_filename));
                 }
             },
+            &default_numbering,
             STORES_NFD,
         )
         .unwrap();
