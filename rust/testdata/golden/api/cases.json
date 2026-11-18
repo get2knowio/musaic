@@ -2880,7 +2880,7 @@
           "content-type": "application/json"
         },
         "json": {
-          "detail": "scope must be 'all'|'incremental'|'albums'"
+          "detail": "scope must be 'all' or 'albums'"
         },
         "status": 400
       }
