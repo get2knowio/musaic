@@ -672,10 +672,17 @@ fn refresh_windows_fire_without_events() {
         ..Opts::default()
     });
     settle(&r);
-    assert_eq!(count(&r, "whole-library"), 1);
+    // The window is one second and `checked_at` is truncated to whole
+    // seconds, so a result can be past its window by the time the sweep has
+    // settled, on a slow runner or a fast one. How many runs have happened
+    // by now is therefore not asserted, only that there was one.
+    assert!(count(&r, "whole-library") >= 1);
     // checked_at has a one-second resolution: this takes a few seconds.
     wait_for("the refresh", || count(&r, "whole-library") >= 2);
+    // Nothing else had a window, so nothing else is rerun, however late
+    // the refresh was.
     assert_eq!(count(&r, "filename-mismatch"), 1);
+    assert_eq!(count(&r, "tags-out-of-sync"), 1);
     // The refresh run is likely still going: the stop waits for it.
     stop(&r);
 }

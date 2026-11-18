@@ -744,3 +744,23 @@ fn the_newest_pre_upgrade_copy_is_not_pruned_until_superseded() {
         backup::delete_snapshot(&dir, &format!("library-20260103-000000Z-v{}.db", v - 1)).unwrap()
     );
 }
+
+/// A connection another thread still has open when a restore starts (a read
+/// in flight) delays the swap; it does not fail it. Windows refuses to move
+/// a file that has any handle open, so this is where it matters; elsewhere
+/// it passes without waiting.
+#[test]
+fn restore_waits_for_a_reader_that_is_still_open() {
+    let (_t, cfg, db) = live("v16-empty.db");
+    let upload = cfg.join("upload.db");
+    std::fs::copy(musaic_testdata::public("db").join("v16-empty.db"), &upload).unwrap();
+    let reader = musaic_db::open_connection(db.path()).unwrap();
+    let closer = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(400));
+        drop(reader);
+    });
+    backup::restore_from(db, &upload, "20260106-000000Z", SystemTime::now())
+        .map_err(|f| f.error.to_string())
+        .expect("restore");
+    closer.join().unwrap();
+}

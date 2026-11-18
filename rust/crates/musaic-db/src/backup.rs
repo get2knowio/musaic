@@ -439,7 +439,7 @@ pub fn restore_from(
             let src = PathBuf::from(format!("{}{ext}", live.display()));
             if src.exists() {
                 let dst = PathBuf::from(format!("{}.bak-{tag}", src.display()));
-                std::fs::rename(&src, &dst)?;
+                rename_when_free(&src, &dst)?;
                 moved.push((src, dst));
             }
         }
@@ -473,6 +473,109 @@ pub fn restore_from(
                 db: Db::open(&live).ok().map(|(d, _)| d),
             }))
         }
+    }
+}
+
+/// How long a rename waits for another handle on the file to close.
+const SWAP_BUSY_BUDGET: Duration = Duration::from_secs(10);
+const SWAP_BUSY_STEP: Duration = Duration::from_millis(50);
+
+/// Windows refuses to rename a file while any handle to it is open, and the
+/// restore only holds back writers: a read that began before the restore
+/// (an HTTP GET, the job worker's poll) or a scanner holding the file can
+/// still have a connection on it for a moment. Its end is what is waited
+/// for, so the rename is retried for a bounded time rather than failing a
+/// restore the user can do nothing about. Elsewhere a rename never fails
+/// that way and is tried once.
+fn rename_when_free(from: &Path, to: &Path) -> std::io::Result<()> {
+    retry_while_busy(
+        is_sharing_violation,
+        SWAP_BUSY_BUDGET,
+        SWAP_BUSY_STEP,
+        || std::fs::rename(from, to),
+    )
+}
+
+#[cfg(windows)]
+fn is_sharing_violation(e: &std::io::Error) -> bool {
+    // ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION.
+    matches!(e.raw_os_error(), Some(5 | 32 | 33))
+}
+
+#[cfg(not(windows))]
+fn is_sharing_violation(_: &std::io::Error) -> bool {
+    false
+}
+
+fn retry_while_busy<T>(
+    busy: impl Fn(&std::io::Error) -> bool,
+    budget: Duration,
+    step: Duration,
+    mut op: impl FnMut() -> std::io::Result<T>,
+) -> std::io::Result<T> {
+    let deadline = std::time::Instant::now() + budget;
+    loop {
+        match op() {
+            Err(e) if busy(&e) && std::time::Instant::now() < deadline => {
+                std::thread::sleep(step);
+            }
+            r => return r,
+        }
+    }
+}
+
+#[cfg(test)]
+mod swap_retry_tests {
+    use super::*;
+
+    fn busy() -> std::io::Error {
+        std::io::Error::other("busy")
+    }
+
+    #[test]
+    fn waits_until_the_file_is_free() {
+        let mut left = 3;
+        let r = retry_while_busy(
+            |e| e.to_string() == "busy",
+            Duration::from_secs(5),
+            Duration::from_millis(1),
+            || {
+                if left > 0 {
+                    left -= 1;
+                    Err(busy())
+                } else {
+                    Ok(7)
+                }
+            },
+        );
+        assert_eq!(r.unwrap(), 7);
+    }
+
+    #[test]
+    fn gives_up_after_the_budget() {
+        let r: std::io::Result<()> = retry_while_busy(
+            |_| true,
+            Duration::from_millis(20),
+            Duration::from_millis(1),
+            || Err(busy()),
+        );
+        assert!(r.is_err());
+    }
+
+    #[test]
+    fn other_errors_are_not_retried() {
+        let mut calls = 0;
+        let r: std::io::Result<()> = retry_while_busy(
+            |_| false,
+            Duration::from_secs(5),
+            Duration::from_millis(1),
+            || {
+                calls += 1;
+                Err(busy())
+            },
+        );
+        assert!(r.is_err());
+        assert_eq!(calls, 1);
     }
 }
 
