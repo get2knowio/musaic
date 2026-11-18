@@ -114,9 +114,13 @@ pub fn unignore_owned<E: From<musaic_db::Error> + From<HttpError>>(
 /// from the current database and disk (`musaic_fsops::multi_disc`; the
 /// stored detail fills only the headline). 404 unless it is a finding of
 /// that check, 400 without an album. Read-only: nothing is converted.
+/// `logs` is the folder of conversion records: an interrupted conversion
+/// of the album is re-derived with its record's help. `digest` is what the
+/// conversion must be sent back ([`crate::multi_disc_convert`]).
 pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>>(
     conn: &Connection,
     id: i64,
+    logs: Option<&Path>,
 ) -> Result<Value, E> {
     use musaic_fsops::multi_disc::{self, PreviewState};
     let finding = match get_finding(conn, id)? {
@@ -139,7 +143,7 @@ pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())
         .map_or_else(|| finding.summary.clone(), str::to_string);
-    let Some(p) = multi_disc::derive_conversion(conn, &album_id)? else {
+    let Some(p) = multi_disc::derive_conversion(conn, &album_id, logs)? else {
         return Ok(json!({
             "finding_id": id,
             "album_id": album_id,
@@ -169,6 +173,7 @@ pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>
                 "new_track": t.new_track,
                 "new_filename": t.new_filename,
                 "has_disc_tags": t.has_disc_tags,
+                "tags_done": t.tags_done,
             })
         })
         .collect();
@@ -188,13 +193,22 @@ pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>
         })
         .collect();
     let converts = matches!(p.state, PreviewState::OneFolder | PreviewState::Folders);
+    let resume = p.resume.as_ref().map(|r| {
+        json!({
+            "record": r.path.to_string_lossy(),
+            "started_at": r.started_at,
+            "attempts": r.attempts.len(),
+        })
+    });
     Ok(json!({
         "finding_id": id,
         "album_id": p.album_id,
         "state": p.state.as_str(),
         "convertible": p.convertible(),
-        // No conversion is built yet: the dialog only shows the plan.
-        "conversion_available": false,
+        // Only a set in one folder converts yet.
+        "conversion_available": p.conversion_available(),
+        "digest": p.digest(),
+        "resume": resume,
         "headline": headline,
         "reason": p.reason,
         "numbering": p.numbering.map(|n| n.as_str()),

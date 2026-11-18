@@ -83,6 +83,54 @@ pub fn is_removable_album_field(field: &str) -> bool {
     FIELD_TO_VORBIS.iter().any(|(f, _)| *f == field)
 }
 
+/// The tags a multi-disc conversion removes from every file it renumbers
+/// (any spelling of the key): the disc number and the disc count.
+pub const DISC_CONVERSION_REMOVES: [&str; 3] = ["discnumber", "disctotal", "totaldiscs"];
+
+/// The new numbering of one file of a multi-disc conversion
+/// ([`apply_disc_conversion`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConvertedNumbers {
+    /// The new TRACKNUMBER, a plain number (no `/total`).
+    pub tracknumber: String,
+    /// The new TRACKTOTAL; also written to TOTALTRACKS where the file
+    /// already has that key, so the two never disagree.
+    pub tracktotal: String,
+}
+
+/// The tag writes of a multi-disc conversion, by file name. Deliberately a
+/// type of its own and not suggestions or [`Removals`]: TRACKTOTAL,
+/// TOTALTRACKS and the disc tags are not fields of [`TRACK_FIELD_TO_VORBIS`]
+/// or [`FIELD_TO_VORBIS`], so the general apply (the tag editor, the
+/// fixes, the suggestion sources) can neither set nor remove them. Only a
+/// conversion that has planned and logged these values builds one.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct DiscConversion {
+    pub files: Vec<(String, ConvertedNumbers)>,
+}
+
+impl DiscConversion {
+    /// The edits for one file (none when the file is not part of it).
+    fn edits_for(&self, filename: &str, has_totaltracks: bool) -> Vec<(String, Edit)> {
+        let Some((_, n)) = self.files.iter().find(|(f, _)| f == filename) else {
+            return Vec::new();
+        };
+        let mut out = vec![
+            ("tracknumber".to_string(), Edit::Set(n.tracknumber.clone())),
+            ("tracktotal".to_string(), Edit::Set(n.tracktotal.clone())),
+        ];
+        if has_totaltracks {
+            out.push(("totaltracks".to_string(), Edit::Set(n.tracktotal.clone())));
+        }
+        out.extend(
+            DISC_CONVERSION_REMOVES
+                .iter()
+                .map(|k| (k.to_string(), Edit::Remove)),
+        );
+        out
+    }
+}
+
 /// The album-level field names a [`Removals`] can remove, in table order.
 pub fn removable_album_fields() -> Vec<&'static str> {
     FIELD_TO_VORBIS.iter().map(|(f, _)| *f).collect()
@@ -458,6 +506,33 @@ pub fn apply_to_album_iter_numbered(
         emit,
         numbering,
         &|dir, _| musaic_scan::dir_names(dir),
+        None,
+    )
+}
+
+/// The tag writes of a multi-disc conversion: for each file of
+/// `conversion`, TRACKNUMBER and TRACKTOTAL set (TOTALTRACKS too where the
+/// file has it) and DISCNUMBER, DISCTOTAL, TOTALDISCS removed, in one save
+/// per file. No file is renamed (the conversion renames through the rename
+/// code, which checks every target first) and nothing else is written. The
+/// events are those of [`apply_to_album_iter`]; a file that fails is a
+/// `FileDone` with its error and the others are still written.
+pub fn apply_disc_conversion(
+    album_dir: &Path,
+    conversion: &DiscConversion,
+    emit: &mut dyn FnMut(Event),
+) -> io::Result<()> {
+    apply_to_album_iter_with(
+        album_dir,
+        &Vec::new(),
+        &Vec::new(),
+        &Removals::default(),
+        None,
+        false,
+        emit,
+        &|_, _| None,
+        &|dir, _| musaic_scan::dir_names(dir),
+        Some(conversion),
     )
 }
 
@@ -516,6 +591,7 @@ fn apply_to_album_iter_with(
     emit: &mut dyn FnMut(Event),
     numbering: Numbering,
     read_back: ReadBack,
+    conversion: Option<&DiscConversion>,
 ) -> io::Result<()> {
     if !album_dir.is_dir() {
         return Err(io::Error::new(
@@ -582,7 +658,7 @@ fn apply_to_album_iter_with(
         suggestions_applied: user_friendly.clone(),
         cleared: cleared.clone(),
         has_cover_change: pic.is_some(),
-        track_change_count: per_file.len(),
+        track_change_count: per_file.len() + conversion.map_or(0, |c| c.files.len()),
     });
     let done =
         |saved_count, art_changed_count, renamed_count, errors, rename_failures| Event::Done {
@@ -638,6 +714,14 @@ fn apply_to_album_iter_with(
             let mut combined = album_applied.clone();
             for (k, v) in file_specific {
                 dict_set(&mut combined, k, v.clone());
+            }
+            if let Some(c) = conversion {
+                let has_totaltracks = audio
+                    .tags()
+                    .is_some_and(|t| t.values("totaltracks").next().is_some());
+                for (k, v) in c.edits_for(&filename, has_totaltracks) {
+                    dict_set(&mut combined, &k, v);
+                }
             }
             for (vkey, edit) in &combined {
                 match edit {
@@ -1009,6 +1093,7 @@ mod tests {
             },
             &default_numbering,
             STORES_NFD,
+            None,
         )
         .unwrap();
         let listed: Vec<OsString> = musaic_scan::dir_names(&album).unwrap();

@@ -90,6 +90,11 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         "read-only preview of converting a multi-disc set to one folder, re-derived from disk (issue #296; the multi-disc-layout check is not a check of the Python app); not a route of the Python app",
     ),
     (
+        "POST",
+        MULTI_DISC_CONVERT_ROUTE,
+        "convert a multi-disc set kept in one folder exactly as its preview shows, re-derived from disk, with a record kept under the config dir (issue #296); not a route of the Python app",
+    ),
+    (
         "GET",
         ACOUSTID_PROMPT_ROUTE,
         "whether the one-time \"add an AcoustID key\" prompt was dismissed; kept on the server because the desktop window's address changes on every launch, so browser storage would forget it; not a route of the Python app",
@@ -124,6 +129,11 @@ pub const ACOUSTID_PROMPT_DISMISS_ROUTE: &str = "/api/prompts/acoustid/dismiss";
 /// ([`EXTRA_ROUTES`]).
 pub const MULTI_DISC_PREVIEW_ROUTE: &str =
     "/api/checks/multi-disc-layout/findings/{finding_id}/conversion-preview";
+
+/// `POST /api/checks/multi-disc-layout/findings/{finding_id}/convert`
+/// ([`EXTRA_ROUTES`]).
+pub const MULTI_DISC_CONVERT_ROUTE: &str =
+    "/api/checks/multi-disc-layout/findings/{finding_id}/convert";
 
 /// `GET /api/checks/sweep` ([`EXTRA_ROUTES`]).
 pub const CHECK_SWEEP_ROUTE: &str = "/api/checks/sweep";
@@ -381,6 +391,8 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             "/api/checks/inconsistent-artist-sort/findings/{finding_id}/apply-sort",
             post(fixes::apply_cluster_sort),
         )
+        // Not a Python app route: the multi-disc conversion ([`EXTRA_ROUTES`]).
+        .route(MULTI_DISC_CONVERT_ROUTE, post(fixes::convert_multi_disc))
         .route(
             "/api/ai/jobs",
             get(jobs::list_jobs)

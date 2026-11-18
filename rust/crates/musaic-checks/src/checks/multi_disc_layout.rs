@@ -10,8 +10,14 @@
 //! changes, and a set that changes shape is a new finding (an ignore follows
 //! it, see `findings::inherit_ignore`). Member ids in the detail are labels
 //! (rule 2).
+//!
+//! A conversion that stopped half-way (its record under the config dir,
+//! `musaic_fsops::conversion_log`, is not finished) may have left no disc
+//! tag to detect the set by; its album keeps a finding of its own until a
+//! Convert finishes it, so the dialog that resumes it stays reachable.
 
-use musaic_fsops::multi_disc::{DiscSet, Numbering, SetKind, detect, load_rows};
+use musaic_fsops::conversion_log::{self, Record};
+use musaic_fsops::multi_disc::{DiscRow, DiscSet, Numbering, SetKind, detect, load_rows};
 use musaic_fsops::plan::Templates;
 use musaic_fsops::py_repr;
 
@@ -29,11 +35,14 @@ pub static META: CheckMeta = CheckMeta {
 per disc (or still carry disc tags). The layout Musaic aims for is one folder per set, tracks numbered \
 straight through all the discs, no disc number in the file names and no disc tags. Sets are found only \
 from disc numbers in the files' tags or in folder names such as \"(disc 2 of 3)\", never guessed. \
-Preview shows what a conversion would do; converting is not available yet.",
+Resolve shows what a conversion does and converts a set kept in one folder; converting a set kept in \
+several folders is not available yet.",
     category: "files",
     cost: Cost::Cheap,
     runs_during_scan: false,
-    fix_kind: FixKind::None,
+    // A dialog fix, as for filename-mismatch: offered where the preview
+    // finds the set convertible.
+    fix_kind: FixKind::Deterministic,
     bulk_action_label: None,
 };
 
@@ -131,6 +140,35 @@ pub fn finding_for(set: &DiscSet) -> Finding {
     }
 }
 
+/// The finding of an album whose conversion did not finish.
+pub fn interrupted_finding(row: &DiscRow, record: &Record) -> Finding {
+    let label = py_repr(
+        row.dir_name
+            .as_deref()
+            .filter(|d| !d.is_empty())
+            .unwrap_or(&row.id),
+    );
+    Finding {
+        album_id: Some(row.id.clone()),
+        summary: format!("{label}: converting it to one folder did not finish"),
+        severity: Severity::Info,
+        detail: Some(dict([
+            ("kind", "interrupted".into()),
+            ("headline", label.into()),
+            ("record", record.path.to_string_lossy().into_owned().into()),
+            ("members", PyJson::List(Vec::new())),
+        ])),
+    }
+}
+
+fn unfinished(ctx: &CheckCtx<'_>) -> Vec<Record> {
+    ctx.env
+        .conversion_logs
+        .as_deref()
+        .map(conversion_log::unfinished)
+        .unwrap_or_default()
+}
+
 impl Check for MultiDiscLayout {
     fn meta(&self) -> &CheckMeta {
         &META
@@ -148,11 +186,18 @@ impl Check for MultiDiscLayout {
     /// when they change, without anyone having to remember this list.
     fn input_extras(&self, ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
         let t = Templates::from_settings(ctx.conn)?;
+        // An interrupted conversion that appears or finishes changes the
+        // findings without changing any row.
+        let records: Vec<String> = unfinished(ctx)
+            .iter()
+            .map(|r| r.path.to_string_lossy().into_owned())
+            .collect();
         Ok(serde_json::json!([
             t.filename_single,
             t.filename_compilation,
             t.dir_single,
-            t.dir_compilation
+            t.dir_compilation,
+            records
         ])
         .to_string())
     }
@@ -165,12 +210,29 @@ impl Check for MultiDiscLayout {
     ) -> Result<(), CheckError> {
         let rows = load_rows(ctx.conn, &scope.library_path)?;
         let detection = detect(&rows);
+        // Albums with an unfinished conversion: what the files say about
+        // their discs is half the old layout and half the new, so the
+        // record, not detection, decides their finding.
+        let mut interrupted: Vec<(&DiscRow, Record)> = Vec::new();
+        for record in unfinished(ctx) {
+            if let Some(row) = rows.iter().find(|r| record.is_of(&r.id))
+                && !interrupted.iter().any(|(r, _)| r.id == row.id)
+            {
+                interrupted.push((row, record));
+            }
+        }
+        let resumed = |id: &str| interrupted.iter().any(|(r, _)| r.id == id);
         // Not read yet (a row from before the per-file disc numbers were
         // stored): keep whatever it had until a scan reads it.
         for id in &detection.unknown {
-            ctx.could_not_evaluate(id);
+            if !resumed(id) {
+                ctx.could_not_evaluate(id);
+            }
         }
         for set in &detection.sets {
+            if set.album_ids().iter().any(|id| resumed(id)) {
+                continue;
+            }
             // A set with a Missing disc cannot be judged now: its findings
             // stay as they are until the folder returns or is removed.
             if set.has_missing() {
@@ -180,6 +242,13 @@ impl Check for MultiDiscLayout {
                 continue;
             }
             emit(finding_for(set))?;
+        }
+        for (row, record) in &interrupted {
+            if row.missing {
+                ctx.could_not_evaluate(&row.id);
+            } else {
+                emit(interrupted_finding(row, record))?;
+            }
         }
         Ok(())
     }

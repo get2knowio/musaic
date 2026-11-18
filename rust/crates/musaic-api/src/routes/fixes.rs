@@ -8,6 +8,7 @@
 //! | `POST .../filename-mismatch/findings/{id}/apply` | [`apply_filename_rename`] |
 //! | `POST .../duplicate-tracks/findings/{id}/delete-file` | [`delete_duplicate_file`] |
 //! | `POST .../inconsistent-artist-sort/findings/{id}/apply-sort` | [`apply_cluster_sort`] |
+//! | `POST .../multi-disc-layout/findings/{id}/convert` | [`convert_multi_disc`] (not a route of the Python app) |
 //!
 //! Every one of them writes, so each takes the restore gate's
 //! [`crate::WorkGuard`] after request validation and before any
@@ -40,7 +41,7 @@ use musaic_services::fix_flow::{self, FixFindingError};
 use musaic_services::{HttpError, Json};
 use serde_json::{Map, Value, json};
 
-use crate::http::{ApiError, ApiResult, blocking, json_ordered, ok_ordered};
+use crate::http::{ApiError, ApiResult, blocking, json_ordered, json_value, ok_ordered, ok_value};
 use crate::lax::{Fields, Params, err, parse_json_body, unprocessable};
 use crate::routes::tags::svc;
 use crate::sse;
@@ -332,4 +333,38 @@ pub async fn apply_cluster_sort(
     })
     .await?;
     json_ok(r)
+}
+
+// ------------------------------------------------------------- multi-disc-layout
+
+/// `POST /api/checks/multi-disc-layout/findings/{finding_id}/convert` with
+/// `{"digest": str}` (the preview's): convert a set kept in one folder
+/// ([`musaic_services::multi_disc_convert::convert`]). The plan is
+/// re-derived from disk; a refusal changed nothing and answers its status
+/// with `detail`, `reason_code`, `user_message` (and `blockers` or the fresh
+/// `digest`). A conversion that ran answers 200, also when a step failed
+/// (`ok: false`, a reason per file).
+pub async fn convert_multi_disc(
+    State(st): State<AppState>,
+    UrlPath(raw_id): UrlPath<String>,
+    body: Bytes,
+) -> ApiResult {
+    let id = finding_id(&raw_id)?;
+    let mut f = Fields::required(parse_json_body(&body)?)?;
+    let digest = f.req_str("digest");
+    f.finish()?;
+    let digest = digest.unwrap_or_default();
+    let guard = st.begin_work_as(crate::gate::WorkKind::Apply)?;
+    blocking(move || {
+        let _guard = guard;
+        let mut conn = st.conn()?;
+        let r = st.with_convert_env(&mut conn, |env| {
+            musaic_services::multi_disc_convert::convert(env, id, &digest)
+        });
+        match r {
+            Ok(v) => ok_value(v),
+            Err(e) => Ok(json_value(e.status, &e.body())),
+        }
+    })
+    .await?
 }

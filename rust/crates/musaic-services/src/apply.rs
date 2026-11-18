@@ -511,6 +511,44 @@ pub fn apply_album_changes(
     req: &ApplyRequest,
     sink: &mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
 ) -> ApplyOutcome {
+    apply_with(env, req, None, sink)
+}
+
+/// The fields a multi-disc conversion's `AlbumTagsChanged` names.
+pub const DISC_CONVERSION_FIELDS: [&str; 4] =
+    ["tracknumber", "tracktotal", "discnumber", "disctotal"];
+
+/// The tag writes of a multi-disc conversion
+/// (`musaic_services::multi_disc_convert`), through this pipeline: the
+/// same items, the same Missing refusal, the same rescan, upsert and
+/// `AlbumTagsChanged` (naming [`DISC_CONVERSION_FIELDS`]). The writes are
+/// exactly `conversion`'s ([`musaic_tags::apply_disc_conversion`]); no file
+/// is renamed and nothing else is written. Not reachable from
+/// [`ApplyRequest`]: the general apply can neither set nor remove these
+/// tags.
+pub fn apply_disc_conversion(
+    env: &mut ApplyEnv<'_>,
+    album_id: &str,
+    album_path: &str,
+    library_dir: Option<&str>,
+    conversion: &musaic_tags::DiscConversion,
+    sink: &mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+) -> ApplyOutcome {
+    let req = ApplyRequest {
+        album_id: album_id.to_string(),
+        album_path: album_path.to_string(),
+        library_dir: library_dir.map(str::to_string),
+        ..ApplyRequest::default()
+    };
+    apply_with(env, &req, Some(conversion), sink)
+}
+
+fn apply_with(
+    env: &mut ApplyEnv<'_>,
+    req: &ApplyRequest,
+    conversion: Option<&musaic_tags::DiscConversion>,
+    sink: &mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+) -> ApplyOutcome {
     let mut fwd = Forward {
         sink,
         gone: false,
@@ -527,7 +565,7 @@ pub fn apply_album_changes(
         return fwd.outcome();
     }
     let mut emit = |event: &'static str, data: Json| fwd.emit(event, data);
-    let result = run(env, req, cover_url, &mut emit);
+    let result = run(env, req, cover_url, conversion, &mut emit);
     match result {
         Err(Halt::Failed(detail)) => {
             // apply.py:257 `_log.exception("apply_album_changes_iter failed
@@ -554,6 +592,7 @@ fn run(
     env: &mut ApplyEnv<'_>,
     req: &ApplyRequest,
     cover_url: Option<&str>,
+    conversion: Option<&musaic_tags::DiscConversion>,
     emit: &mut dyn FnMut(&'static str, Json) -> Result<(), Halt>,
 ) -> Result<(), Halt> {
     let album_dir = Path::new(&req.album_path);
@@ -647,16 +686,19 @@ fn run(
         // takes effect at the next step boundary.)
         let _ = emit(ev.name(), tag_event_json(&ev));
     };
-    musaic_tags::apply_to_album_iter_numbered(
-        album_dir,
-        &req.suggestions,
-        &req.track_suggestions,
-        &req.removals,
-        picture,
-        dry_run,
-        &mut callback,
-        &|track, disc| numbering.number(track, disc),
-    )
+    match conversion {
+        Some(c) => musaic_tags::apply_disc_conversion(album_dir, c, &mut callback),
+        None => musaic_tags::apply_to_album_iter_numbered(
+            album_dir,
+            &req.suggestions,
+            &req.track_suggestions,
+            &req.removals,
+            picture,
+            dry_run,
+            &mut callback,
+            &|track, disc| numbering.number(track, disc),
+        ),
+    }
     .map_err(|e| Halt::Failed(e.to_string()))?;
     if dry_run {
         return Ok(());
@@ -725,7 +767,13 @@ fn run(
     // Publish before the final yield.
     env.bus.publish(&BusEvent::AlbumTagsChanged {
         album_id: req.album_id.clone(),
-        fields: changed_fields(&req.suggestions, &req.removals),
+        fields: match conversion {
+            Some(_) => DISC_CONVERSION_FIELDS
+                .iter()
+                .map(|f| f.to_string())
+                .collect(),
+            None => changed_fields(&req.suggestions, &req.removals),
+        },
     });
     if had_art_change {
         env.bus.publish(&BusEvent::AlbumCoverChanged {

@@ -310,6 +310,7 @@ fn rig_with(o: Opts) -> Rig {
             let finished = finished.clone();
             Arc::new(move |ev| finished.lock().unwrap().push(ev))
         },
+        conversion_logs: None,
     };
     let busy = Arc::new(AtomicBool::new(false));
     let b2 = busy.clone();
@@ -766,6 +767,7 @@ fn still_stale_drops_what_another_run_refreshed() {
         clock: Arc::new(SystemClock),
         notify: Arc::new(|| {}),
         publish: Arc::new(|_| {}),
+        conversion_logs: None,
     };
     let c = conn(&r.db);
     let now = SystemTime::now();

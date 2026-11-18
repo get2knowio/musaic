@@ -142,18 +142,20 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   // straight through to the mutation with no hint.
   const hintMode = offersHintEntry(ai) ? HINT_MODE_FOR_CHECK[finding.check_id] ?? null : null;
 
-  // Multi-disc-layout has no fix yet, but its read-only Resolve dialog
-  // shows what a conversion would do (and what would stop it).
+  // Multi-disc-layout: one Resolve button for every finding, as for the
+  // other dialog checks. Whether this set can convert (one folder, nothing
+  // in the way) is the dialog's re-derived answer, not the finding's, so
+  // the button does not guess it; the dialog says plainly when it cannot.
   if (finding.check_id === "multi-disc-layout" && finding.album_id != null && !finding.ignored_at) {
     return (
       <>
         <button
           onClick={(e) => { e.stopPropagation(); setMultiDiscOpen(true); }}
           className="h-7 px-2 rounded border border-line text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1"
-          title="See what putting this set in one folder would do"
+          title="See what putting this set in one folder does, and convert it"
         >
           <Layers className="w-3 h-3" />
-          Preview…
+          Resolve…
         </button>
         <MultiDiscResolveDialog
           finding={finding}

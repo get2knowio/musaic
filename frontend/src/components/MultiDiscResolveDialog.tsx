@@ -1,22 +1,32 @@
 /**
  * Resolve dialog for the multi-disc-layout check: what converting the set
  * to one folder (tracks numbered straight through, no disc numbers in the
- * names, no disc tags) would do. Read-only: there is no Convert button,
- * as for every check without a fix; the dialog says so.
+ * names, no disc tags) does, and, for a set already kept in one folder, a
+ * Convert button behind a confirmation. A set kept in several folders is
+ * shown read-only: converting it is not available yet, and the dialog says
+ * so.
  *
  * The plan comes fresh from the server on every open (the finding's
  * detail is a label snapshot from check time): members, the old → new
  * table, what happens to covers and other files, and anything that would
- * stop a conversion, in plain words.
+ * stop a conversion, in plain words. Convert sends back the preview's
+ * digest; the server re-derives the plan and refuses if it changed. A
+ * conversion that stops part-way keeps the dialog open with a reason per
+ * file and a fresh preview of what is left. Caches refresh from the
+ * library events the conversion publishes (no invalidation here).
  */
+import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, FolderInput, Info, Layers, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
 
-import { fetchMultiDiscConversionPreview } from "@/lib/api";
+import { convertMultiDisc, fetchMultiDiscConversionPreview } from "@/lib/api";
+import { confirmationText } from "@/lib/multiDisc";
 import type {
   Finding,
   MultiDiscConversionPreview,
+  MultiDiscConvertResult,
   MultiDiscCoverAction,
   MultiDiscFolder,
   MultiDiscMember,
@@ -52,6 +62,17 @@ function describe(p: MultiDiscConversionPreview): string | null {
   return null;
 }
 
+/** The lines that say what went wrong, per file and for the folder. */
+function problemLines(r: MultiDiscConvertResult): string[] {
+  const lines: string[] = [];
+  for (const f of r.files ?? []) {
+    if (f.user_message && (f.rename === "failed" || f.tags === "failed")) lines.push(f.user_message);
+  }
+  if (r.folder?.outcome === "failed" && r.folder.user_message) lines.push(r.folder.user_message);
+  for (const b of r.blockers ?? []) lines.push(b.message);
+  return lines;
+}
+
 export default function MultiDiscResolveDialog({ finding, open, onClose }: Props) {
   const preview = useQuery<MultiDiscConversionPreview>({
     queryKey: ["multi-disc-conversion-preview", finding.id],
@@ -68,9 +89,39 @@ export default function MultiDiscResolveDialog({ finding, open, onClose }: Props
     p?.headline || (finding.detail?.headline as string | undefined) || finding.summary;
   const outcome = p ? describe(p) : null;
   const converts = p?.state === "one_folder" || p?.state === "folders";
+  const [confirming, setConfirming] = useState(false);
+  const [result, setResult] = useState<MultiDiscConvertResult | null>(null);
+  // The next open starts from the plan again, not from this one's answer.
+  const close = () => {
+    setConfirming(false);
+    setResult(null);
+    onClose();
+  };
+
+  const mutation = useMutation({
+    mutationFn: () => convertMultiDisc(finding.id, p?.digest ?? ""),
+    onSuccess: (r) => {
+      setConfirming(false);
+      if (r.ok) {
+        toast.success(r.user_message || "Converted");
+        close();
+        return;
+      }
+      // Partly done or refused: stay open, say why, and show what is left
+      // (the plan is the dialog's own, re-derived on every fetch).
+      toast.warning(r.user_message || "The set was not fully converted");
+      setResult(r);
+      void preview.refetch();
+    },
+    onError: (e) => {
+      setConfirming(false);
+      toast.error((e as Error).message || "Couldn't convert the set");
+    },
+  });
+  const canConvert = !!p?.conversion_available && !!p.digest && !mutation.isPending;
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) close(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/45 backdrop-blur-[1px]" />
         <Dialog.Content
@@ -137,6 +188,53 @@ export default function MultiDiscResolveDialog({ finding, open, onClose }: Props
 
             {outcome && <p className="text-sm text-fg-2">{outcome}</p>}
 
+            {result && !result.ok && (
+              <div
+                role="alert"
+                data-testid="convert-result"
+                className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="font-medium text-fg">
+                    {result.refused ? "Nothing was converted" : "The set was not fully converted"}
+                  </div>
+                  <div className="mt-0.5 text-fg-3 break-words">{result.user_message}</div>
+                  <ul className="mt-0.5 text-fg-3 space-y-0.5">
+                    {problemLines(result).map((l, i) => (
+                      <li key={i} className="break-words">{l}</li>
+                    ))}
+                  </ul>
+                  {!result.refused && (
+                    <div className="mt-0.5 text-fg-3">
+                      What was done stays done. Fix the cause, then convert again to finish.
+                    </div>
+                  )}
+                  {result.record && (
+                    <div className="mt-0.5 text-fg-4 break-all">
+                      Record of the conversion: <span className="mono">{result.record}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {p?.resume && (
+              <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-panel-2 border border-line rounded px-3 py-2">
+                <Info className="w-3.5 h-3.5 text-fg-3 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <div className="font-medium text-fg">A conversion of this set did not finish</div>
+                  <div className="mt-0.5 text-fg-3">
+                    Files marked “done” already have their new numbers. Converting
+                    finishes the rest, from the record kept of the first attempt.
+                  </div>
+                  <div className="mt-0.5 text-fg-4 break-all">
+                    Record: <span className="mono">{p.resume.record}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {p && p.reason && (
               <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-panel-2 border border-line rounded px-3 py-2">
                 <Info className="w-3.5 h-3.5 text-fg-3 shrink-0 mt-0.5" />
@@ -186,22 +284,67 @@ export default function MultiDiscResolveDialog({ finding, open, onClose }: Props
 
             {converts && (
               <p className="text-xs text-fg-4 leading-relaxed">
-                The disc tags (DISCNUMBER, DISCTOTAL) would be removed in the same write that
+                The disc tags (DISCNUMBER, DISCTOTAL) are removed in the same write that
                 renumbers the tracks, so the tags and the file names agree. The audio is not
-                touched.
+                touched, and tags you added in Musaic stay with the files.
               </p>
+            )}
+
+            {confirming && p && (
+              <div
+                role="alertdialog"
+                aria-label="Confirm the conversion"
+                className="border border-accent/40 rounded-md bg-accent/5 px-3 py-2.5 text-sm text-fg-2"
+              >
+                <div className="font-medium text-fg">Convert this set?</div>
+                <p className="mt-1 text-xs text-fg-2 leading-relaxed">{confirmationText(p)}</p>
+              </div>
             )}
           </div>
 
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
             <p className="text-xs text-fg-3">
-              Converting is not available yet. This shows what it would do; nothing is changed.
+              {p?.state === "folders"
+                ? "Converting a set kept in several folders is not available yet. This shows what it would do; nothing is changed."
+                : p?.conversion_available
+                  ? "Nothing changes until you confirm."
+                  : "Nothing can be converted as it stands; nothing is changed."}
             </p>
-            <Dialog.Close asChild>
-              <button className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition shrink-0">
-                Close
-              </button>
-            </Dialog.Close>
+            <div className="flex items-center gap-2 shrink-0">
+              <Dialog.Close asChild>
+                <button
+                  className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
+                  disabled={mutation.isPending}
+                >
+                  {confirming ? "Cancel" : "Close"}
+                </button>
+              </Dialog.Close>
+              {p?.conversion_available && !confirming && (
+                <button
+                  onClick={() => { setResult(null); setConfirming(true); }}
+                  disabled={!canConvert}
+                  className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
+                >
+                  {p.resume ? "Finish converting…" : "Convert…"}
+                </button>
+              )}
+              {confirming && (
+                <button
+                  onClick={() => mutation.mutate()}
+                  disabled={!canConvert}
+                  className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5"
+                >
+                  {mutation.isPending ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 spin" />
+                      Converting…
+                    </>
+                  ) : (
+                    "Convert now"
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </Dialog.Content>
       </Dialog.Portal>

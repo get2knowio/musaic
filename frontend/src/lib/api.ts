@@ -605,7 +605,7 @@ export function fetchDuplicateClusterPreview(
 
 /** Re-derive what converting a multi-disc set would do, against current
  *  disk + DB state. Read-only. */
-import type { MultiDiscConversionPreview } from "./types";
+import type { MultiDiscBlocker, MultiDiscConversionPreview, MultiDiscConvertResult } from "./types";
 
 export function fetchMultiDiscConversionPreview(
   findingId: number,
@@ -613,6 +613,41 @@ export function fetchMultiDiscConversionPreview(
   return request(
     `/api/checks/multi-disc-layout/findings/${findingId}/conversion-preview`,
   );
+}
+
+/** Convert a multi-disc set kept in one folder exactly as the preview with
+ *  `digest` showed it. The server re-derives the plan and refuses (409)
+ *  when it changed, when something stops it, or while a scan runs; such a
+ *  refusal comes back as a result (`refused`), so the dialog says why and
+ *  stays open. */
+export async function convertMultiDisc(
+  findingId: number,
+  digest: string,
+): Promise<MultiDiscConvertResult> {
+  try {
+    return await request<MultiDiscConvertResult>(
+      `/api/checks/multi-disc-layout/findings/${findingId}/convert`,
+      { method: "POST", body: JSON.stringify({ digest }) },
+    );
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 409) {
+      const b = e.body as {
+        user_message?: unknown;
+        reason_code?: unknown;
+        blockers?: unknown;
+      } | null;
+      if (b && typeof b.user_message === "string") {
+        return {
+          ok: false,
+          refused: true,
+          user_message: b.user_message,
+          reason_code: typeof b.reason_code === "string" ? b.reason_code : undefined,
+          blockers: Array.isArray(b.blockers) ? (b.blockers as MultiDiscBlocker[]) : undefined,
+        };
+      }
+    }
+    throw e;
+  }
 }
 
 // --- User-defined track tags (v9) ---

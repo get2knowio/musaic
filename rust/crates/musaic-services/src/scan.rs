@@ -282,6 +282,9 @@ struct Inner {
     /// The worker passed the commit point (it is saving the snapshot): a
     /// cancel can no longer stop it.
     saving: bool,
+    /// A [`LayoutHold`] is held: a scan that starts waits before reading
+    /// the library.
+    layout_held: bool,
 }
 
 impl Inner {
@@ -424,6 +427,7 @@ impl ScanService {
                     events: VecDeque::new(),
                     next_seq: 0,
                     saving: false,
+                    layout_held: false,
                 }),
                 changed: Condvar::new(),
             }),
@@ -539,12 +543,42 @@ impl ScanService {
         true
     }
 
+    /// Keep scans away while folders are renamed and their files moved (a
+    /// multi-disc conversion): `None` while a scan runs (or another hold
+    /// is kept); while the hold is kept, a scan that starts waits (it shows as
+    /// running) and reads nothing until the hold is dropped, so no scan
+    /// sees a folder half converted or saves rows from before it. One hold
+    /// at a time.
+    pub fn hold_layout(&self) -> Option<LayoutHold> {
+        let mut g = self.shared.lock();
+        if g.state.status == ScanStatus::Running || g.layout_held {
+            return None;
+        }
+        g.layout_held = true;
+        Some(LayoutHold {
+            shared: Arc::clone(&self.shared),
+        })
+    }
+
     /// `subscribe(from_seq)`.
     pub fn subscribe(&self, from_seq: u64) -> ScanSubscription {
         ScanSubscription {
             shared: Arc::clone(&self.shared),
             last_yielded: from_seq as i64 - 1,
         }
+    }
+}
+
+/// [`ScanService::hold_layout`]'s guard: scans wait while it lives.
+#[must_use = "scans wait only while the hold is kept"]
+pub struct LayoutHold {
+    shared: Arc<Shared>,
+}
+
+impl Drop for LayoutHold {
+    fn drop(&mut self) {
+        self.shared.lock().layout_held = false;
+        self.shared.changed.notify_all();
     }
 }
 
@@ -629,6 +663,12 @@ impl ScanJob {
             shared: Arc::clone(&shared),
             clock: deps.clock.clone(),
         };
+        {
+            let mut g = shared.lock();
+            while g.layout_held {
+                g = shared.changed.wait(g).unwrap_or_else(|e| e.into_inner());
+            }
+        }
         let result = scan_worker(&shared, &library_dir, force, &deps);
         // services/scan.py:402-404: the worker's `finally` drains the
         // thumbnail pool before `_run_scan` sees the result, so on every

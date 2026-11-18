@@ -168,8 +168,9 @@ pub struct TrackRowsMoved {
 
 /// Follow a file rename with every per-file row, in one transaction:
 /// `track_tags` exactly as [`rename_track_filename`] does (union, old rows
-/// deleted), and `track_fingerprints` (deliberate change;
-/// the Python app left the row under the old name).
+/// deleted), `track_fingerprints` (deliberate change;
+/// the Python app left the row under the old name) and `fingerprint_rejects`
+/// the same way as the fingerprint.
 ///
 /// A fingerprint describes the audio of the file that now carries the new
 /// name, so when the old name has a row it replaces any row already stored
@@ -203,6 +204,18 @@ pub fn rename_track_files(
     )?;
     let track_fingerprints = tx.execute(
         "UPDATE track_fingerprints SET filename = ?1 WHERE album_id = ?2 AND filename = ?3",
+        [new_filename, album_id, old_filename],
+    )?;
+    // A reject records that this file's audio could not be decoded; it
+    // follows the file like its fingerprint (a row under the new name
+    // described a file that is no longer there).
+    tx.execute(
+        "DELETE FROM fingerprint_rejects WHERE album_id = ?1 AND filename = ?2 \
+         AND EXISTS (SELECT 1 FROM fingerprint_rejects WHERE album_id = ?1 AND filename = ?3)",
+        [album_id, new_filename, old_filename],
+    )?;
+    tx.execute(
+        "UPDATE fingerprint_rejects SET filename = ?1 WHERE album_id = ?2 AND filename = ?3",
         [new_filename, album_id, old_filename],
     )?;
     tx.commit()?;

@@ -10,6 +10,7 @@ use musaic_services::ApplyEnv;
 use musaic_services::analyze::AnalyzeEnv;
 use musaic_services::check_fixes::{FixEnv, FixSources};
 use musaic_services::fix_flow::{self, FixHost};
+use musaic_services::multi_disc_convert::ConvertEnv;
 use musaic_services::production::NetCovers;
 use musaic_services::track_tags::TagEnv;
 use rusqlite::Connection;
@@ -53,6 +54,31 @@ impl App {
             analyzer: self.0.analyzer.as_ref(),
             now: &now,
             track_order: self.0.track_order,
+        };
+        f(&mut env)
+    }
+
+    /// The multi-disc conversion's environment over `conn`: the bus, the
+    /// library as configured now, the app clock, the track order, the
+    /// conversion records under the config dir, the scan service (scans
+    /// wait while a conversion runs).
+    pub fn with_convert_env<R>(
+        &self,
+        conn: &mut Connection,
+        f: impl FnOnce(&mut ConvertEnv<'_>) -> R,
+    ) -> R {
+        let lib = self.library_dir();
+        let now = || self.now_iso();
+        let logs = musaic_services::multi_disc_convert::log_dir(self.config_dir());
+        let mut env = ConvertEnv {
+            conn,
+            bus: &self.0.bus,
+            library_dir: lib.as_deref(),
+            now: &now,
+            track_order: self.0.track_order,
+            logs: &logs,
+            scan: self.scan(),
+            stop_at: None,
         };
         f(&mut env)
     }

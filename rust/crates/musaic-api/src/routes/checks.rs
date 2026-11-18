@@ -267,8 +267,11 @@ pub async fn conversion_preview(
     let id = finding_id(&raw_id)?;
     blocking(move || {
         let conn = st.conn()?;
+        let logs = musaic_services::multi_disc_convert::log_dir(st.config_dir());
         ok_value(check_ops::multi_disc_conversion_preview::<ApiError>(
-            &conn, id,
+            &conn,
+            id,
+            Some(&logs),
         )?)
     })
     .await?
