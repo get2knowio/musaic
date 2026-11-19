@@ -33,7 +33,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 |---|---|
 | `musaic-core` | Shared primitives: album ids (first 16 hex chars of the SHA-1 of the album's resolved path), config (`config.json`, config dir), the album-field accessors, Python-compatible string helpers the stored data depends on |
 | `musaic-log` | Small logging facade for the lower crates; `musaic-app` installs the sink that writes `server.log` |
-| `musaic-db` | Opens, creates and migrates the SQLite database (schema v20; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots |
+| `musaic-db` | Opens, creates and migrates the SQLite database (schema v20; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots, and for folding the rows of a multi-disc set into one (`merge.rs`) |
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |
@@ -211,6 +211,9 @@ the SSE relay). Callers never call those directly.
 - Producers, for example: `musaic-services/src/apply.rs` (end of the apply pipeline),
   `scan.rs`, `fingerprint.rs`, `analyze.rs`, `library_ops.rs`, `check_fixes.rs`.
 
+A merge of several album rows into one (rule 6) has no event of its own: it is
+`AlbumRenamed(old, survivor)` per merged row, under `in_bulk_run`.
+
 New mutation → publish the right event. A direct call to the post-scan rerun outside the
 subscriber wiring is a smell.
 
@@ -297,8 +300,19 @@ nothing and nobody is marked Missing from a partial walk.
   `POST /api/scan/cancel`: `musaic-api/src/routes/library.rs`.
 - Checks: `musaic-checks/src/runner.rs` drops Missing albums from scope and keeps their
   open findings; SQL-only checks filter `missing_since IS NULL` themselves.
-- The only path that drops a row is the user's "Remove from library"
-  (`DELETE /api/albums/{id}` → `musaic-services/src/library_ops.rs`).
+- Two paths drop a row, and nothing else may: the user's "Remove from library"
+  (`DELETE /api/albums/{id}` → `musaic-services/src/library_ops.rs`), and a
+  user-confirmed merge of the discs of one set into one album
+  (`musaic-db/src/merge.rs` `merge_album_rows`), which deletes the merged rows only
+  after moving everything on them to the surviving row in the same transaction, and
+  refuses (changing nothing) while any per-file row, active AI job or conflicting
+  anchor is left on them. Each file's rows move first, one file per transaction
+  (`merge::move_track_rows`). The merged rows' findings stay under their old ids as
+  resolved history. After the commit the caller publishes `AlbumRenamed(merged id →
+  surviving id)` for each merged row, under `in_bulk_run` (its subscribers handle
+  several old ids naming one new id: `musaic-events/tests/merged_renames.rs`).
+  A merged row may be Missing only when the caller vouches that this merge emptied
+  its folder (`MergeRequest::emptied`); the survivor never.
 - A scan adopts instead of marking Missing when a vanished Present row's stored path
   still opens and is the same file (rule 3) as exactly one folder found under another
   spelling that has no row and no rows under its id: the row and everything on it move

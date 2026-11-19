@@ -200,9 +200,10 @@ fn tracks_json(album_dir: &str, with_album: bool) -> Json {
     Json::Arr(out)
 }
 
-/// `DELETE /api/albums/{id}` (the only path that drops an album row): 404
-/// unless the album is cached for `library_dir`; the connection is closed
-/// before `AlbumDeleted` is published. The caller holds a work guard.
+/// `DELETE /api/albums/{id}` (one of the two paths that drop an album row;
+/// the other is a user-confirmed merge, `musaic_db::merge::merge_album_rows`):
+/// 404 unless the album is cached for `library_dir`; the connection is
+/// closed before `AlbumDeleted` is published. The caller holds a work guard.
 pub fn delete_album<E: From<musaic_db::Error> + From<rusqlite::Error> + From<HttpError>>(
     conn: Connection,
     bus: &Bus,
