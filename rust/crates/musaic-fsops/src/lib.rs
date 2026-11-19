@@ -29,3 +29,12 @@ pub mod template;
 pub mod trash;
 
 pub use pyrepr::py_repr;
+
+/// Move a regular file to another folder of the same volume without ever
+/// replacing anything at `dst` (a hard link to the new name, then the old
+/// name removed; where the volume has no hard links, a rename after
+/// checking the name is free). Never a copy: across volumes it fails, and
+/// the file stays where it was.
+pub fn move_file_noclobber(src: &std::path::Path, dst: &std::path::Path) -> std::io::Result<()> {
+    fsutil::rename_noclobber(src, dst)
+}

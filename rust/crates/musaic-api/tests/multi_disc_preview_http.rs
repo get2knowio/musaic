@@ -216,7 +216,8 @@ async fn three_disc_folders_preview_and_refusals() {
     let p = w.preview(id).await;
     assert_eq!(p["state"], "folders");
     assert_eq!(p["convertible"], true, "{p}");
-    assert_eq!(p["conversion_available"], false);
+    // A set in several folders converts too (multi_disc_gather_http.rs).
+    assert_eq!(p["conversion_available"], true);
     assert_eq!(p["blockers"], json!([]));
     let members: Vec<(Value, Value)> = p["members"]
         .as_array()
@@ -272,9 +273,9 @@ async fn three_disc_folders_preview_and_refusals() {
     assert_eq!(
         covers,
         vec![
-            json!([{"name": "cover.jpg", "action": "kept"}]),
-            json!([{"name": "cover.jpg", "action": "identical"}]),
-            json!([{"name": "cover.jpg", "action": "different"}]),
+            json!([{"name": "cover.jpg", "action": "kept", "done": false}]),
+            json!([{"name": "cover.jpg", "action": "identical", "done": false}]),
+            json!([{"name": "cover.jpg", "action": "different", "done": false}]),
         ]
     );
     assert_eq!(p["folders"][2]["other_files"], json!(["booklet.pdf"]));

@@ -301,7 +301,32 @@ impl Inner {
 struct Shared {
     inner: Mutex<Inner>,
     changed: Condvar,
+    held: Mutex<Option<HeldHook>>,
 }
+
+/// Albums and folders a scan leaves exactly as they are: those of a
+/// multi-disc conversion that did not finish (its record under the config
+/// dir). A scan neither refreshes their rows, nor marks them Missing, nor
+/// adds a row for a folder among them: half of such a set's files may be
+/// in another folder, or the destination folder may already have its new
+/// name while its row still has the old one, and only the conversion's
+/// own resume, which reads its record, puts that together without losing
+/// anything. Abandoning the conversion (or finishing it) ends the hold.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct HeldAlbums {
+    pub ids: HashSet<String>,
+    /// Folder paths as album rows store them.
+    pub paths: HashSet<String>,
+}
+
+impl HeldAlbums {
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty() && self.paths.is_empty()
+    }
+}
+
+/// What [`ScanService::set_held`] asks before each scan.
+pub type HeldHook = Arc<dyn Fn() -> HeldAlbums + Send + Sync>;
 
 impl Shared {
     fn lock(&self) -> MutexGuard<'_, Inner> {
@@ -430,8 +455,15 @@ impl ScanService {
                     layout_held: false,
                 }),
                 changed: Condvar::new(),
+                held: Mutex::new(None),
             }),
         }
+    }
+
+    /// Where every scan learns which albums to leave as they are
+    /// ([`HeldAlbums`]); asked once per scan, before it reads anything.
+    pub fn set_held(&self, hook: HeldHook) {
+        *self.shared.held.lock().unwrap_or_else(|e| e.into_inner()) = Some(hook);
     }
 
     /// `get_state()`.
@@ -1096,6 +1128,30 @@ fn scan_body(
         cached_by_path.insert(row.album.path.clone(), i);
     }
     let cached_count = cached_by_path.len();
+    let held = shared
+        .held
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
+        .map(|h| h())
+        .unwrap_or_default();
+    // Read even for a forced scan, which keeps no cache: a held row is
+    // kept as it is either way.
+    let held_rows: Vec<albums::AlbumRow> = if held.is_empty() {
+        Vec::new()
+    } else {
+        albums::load_snapshot(&conn, &resolved)
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .filter(|r| held.ids.contains(&r.album.id) || held.paths.contains(&r.album.path))
+            .collect()
+    };
+    let is_held = |path: &str| {
+        held.paths.contains(path)
+            || cached_by_path
+                .get(path)
+                .is_some_and(|&i| held.ids.contains(&cached_rows[i].album.id))
+    };
 
     let stop = || shared.cancel_requested();
     let Some(discovery) = discover_album_dirs_reporting(Path::new(library_dir), &list_dir, &stop)
@@ -1128,6 +1184,23 @@ fn scan_body(
         // The album boundary: an album being read is finished first.
         if shared.cancel_requested() {
             return Ok(cancelled_payload(shared, "albums"));
+        }
+        if is_held(path) {
+            // Kept as stored, Present or Missing; a held folder without a
+            // row gets none.
+            if let Some(row) = held_rows.iter().find(|r| {
+                r.album.path == *path && r.missing_since.as_deref().is_none_or(str::is_empty)
+            }) {
+                let mut dict = row.json.clone();
+                dict.set("_status", Json::from("cached"));
+                if !collected.iter().any(|(p, _)| p == path) {
+                    collected.push((path.clone(), row.album.clone()));
+                }
+                scanned += 1;
+                shared.update(|s| s.scanned = scanned);
+                shared.push("album", dict);
+            }
+            continue;
         }
         let cached = cached_by_path.get(path).map(|&i| &cached_rows[i]);
         let current = effective_mtime(Path::new(path));
@@ -1175,10 +1248,18 @@ fn scan_body(
     // albums on every scan. `start.cached_count` and the state's
     // `cached_count` keep the Python app's meaning (every cached row).
     let was_present = |r: &&albums::AlbumRow| r.missing_since.as_deref().is_none_or(str::is_empty);
+    // A held Present row whose folder the walk did not find (renamed by
+    // the conversion, or emptied) stays Present, as it is.
+    for r in held_rows.iter().filter(was_present) {
+        if !collected.iter().any(|(p, _)| *p == r.album.path) {
+            collected.push((r.album.path.clone(), r.album.clone()));
+        }
+    }
     let present_count = cached_rows.iter().filter(was_present).count();
     let vanished: Vec<(String, String)> = cached_rows
         .iter()
         .filter(was_present)
+        .filter(|r| !held.ids.contains(&r.album.id) && !held.paths.contains(&r.album.path))
         .filter(|r| !candidate_set.contains(r.album.path.as_str()))
         .map(|r| (r.album.id.clone(), r.album.path.clone()))
         .collect();

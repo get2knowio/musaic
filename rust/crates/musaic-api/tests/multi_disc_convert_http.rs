@@ -1122,37 +1122,6 @@ async fn refusals_change_nothing() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_set_in_several_folders_is_not_converted_yet() {
-    let w = World::new();
-    for d in 1..=2 {
-        let dir = w.lib.join(format!("Band - Record (disc {d} of 2) [FLAC]"));
-        write_album(
-            &dir,
-            &[track(
-                &format!("01 - T{d}.flac"),
-                &format!("T{d}"),
-                "1",
-                Some(d),
-            )],
-        );
-    }
-    w.scan().await;
-    let id = w.only_finding().await;
-    let p = w.preview(id).await;
-    assert_eq!(p["state"], json!("folders"));
-    assert_eq!(p["conversion_available"], json!(false));
-    let before = snapshot(&w.lib.join("Band - Record (disc 2 of 2) [FLAC]"));
-    let (status, body) = w.post(id, p["digest"].as_str().unwrap()).await;
-    assert_eq!(status, 409, "{body}");
-    assert_eq!(body["reason_code"], json!("not_available"));
-    assert_eq!(
-        snapshot(&w.lib.join("Band - Record (disc 2 of 2) [FLAC]")),
-        before
-    );
-    assert!(w.records().is_empty());
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_incomplete_set_never_converts() {
     let w = World::new();
     let dir = w.lib.join("Band - Record [FLAC]");

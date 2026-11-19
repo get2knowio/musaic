@@ -44,7 +44,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 | `musaic-resolve` | The metadata resolver rules as pure functions: AcoustID vote, name search acceptance, tracklist alignment, similarity |
 | `musaic-events` | In-process event bus, the post-scan / bulk-run guard flags, the subscriber catalog, the SSE relay core |
 | `musaic-checks` | Health-check framework: `Check` trait, registry of the eight checks, findings runner, post-scan reruns, the inputs digest each completed run records (`inputs.rs`) |
-| `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, the background check sweep, analysis (BPM / ReplayGain), check fixes, library operations, the one-folder multi-disc conversion (`multi_disc_convert.rs`) |
+| `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, the background check sweep, analysis (BPM / ReplayGain), check fixes, library operations, the multi-disc conversion (`multi_disc_convert.rs`; a set kept in several folders: `multi_disc_gather.rs`) |
 | `musaic-ai` | The job queue: persistence, worker loop, the resolver synthesizer; a provider trait with no network provider in this build |
 | `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log |
 | `musaic-api` | The HTTP face on axum: every `/api` route, SSE streams, Host/Origin check, launch-cookie gate; also a standalone server binary (`musaic-api`) used for UI development |
@@ -320,6 +320,12 @@ nothing and nobody is marked Missing from a partial walk.
   `musaic-db` `albums::save_snapshot_adopting` / `renames::move_album_rows` do it), and
   `AlbumRenamed` is published after the commit under `in_bulk_run`. Any ambiguity refuses.
   Adopted rows count neither as vanished nor as new for the sanity check.
+- A scan leaves the albums and folders of an unfinished multi-disc conversion exactly
+  as they are (no refresh, no Missing, no new row for its folders): its record under
+  `<config dir>/conversions/` names them (`multi_disc_convert::held_albums`, handed to
+  `ScanService::set_held`), and only the conversion's resume, which reads the record,
+  puts a half-gathered set together. Finishing or abandoning the conversion
+  (`multi_disc_gather::abandon`) ends the hold.
 
 New operation that touches an album's files → skip Missing albums.
 

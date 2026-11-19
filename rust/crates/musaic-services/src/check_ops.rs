@@ -174,6 +174,8 @@ pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>
                 "new_filename": t.new_filename,
                 "has_disc_tags": t.has_disc_tags,
                 "tags_done": t.tags_done,
+                "state": t.state.as_str(),
+                "folder": t.folder,
             })
         })
         .collect();
@@ -186,9 +188,12 @@ pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>
                 "dir_name": f.dir_name,
                 "disc": f.disc,
                 "destination": f.destination,
-                "covers": f.covers.iter().map(|c| json!({"name": c.name, "action": c.action.as_str()})).collect::<Vec<_>>(),
+                "covers": f.covers.iter().map(|c| json!({"name": c.name, "action": c.action.as_str(), "done": c.done})).collect::<Vec<_>>(),
                 "sidecar": f.sidecar,
+                "sidecar_done": f.sidecar_done,
                 "other_files": f.other_files,
+                "junk": f.junk.iter().map(|(n, d)| json!({"name": n, "done": d})).collect::<Vec<_>>(),
+                "exists": f.exists,
             })
         })
         .collect();
@@ -200,13 +205,24 @@ pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>
             "attempts": r.attempts.len(),
         })
     });
+    let gather = p.gather.as_ref().map(|g| {
+        json!({
+            "folded": g.folded,
+            "folder_renamed": g.folder_renamed,
+            "merges": g.members.iter().skip(1).filter(|m| m.has_row).count(),
+            "orphan_rows": g.orphan_rows.len(),
+        })
+    });
     Ok(json!({
         "finding_id": id,
         "album_id": p.album_id,
         "state": p.state.as_str(),
         "convertible": p.convertible(),
-        // Only a set in one folder converts yet.
         "conversion_available": p.conversion_available(),
+        "gather": gather,
+        // Where the conversion keeps its record, and where what it no
+        // longer needs goes: the confirmation names both.
+        "records_dir": logs.map(|l| l.to_string_lossy().into_owned()),
         "digest": p.digest(),
         "resume": resume,
         "headline": headline,

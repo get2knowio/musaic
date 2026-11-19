@@ -603,7 +603,14 @@ export interface MultiDiscTrack {
   /** An interrupted conversion already wrote this file's new numbering;
    *  `disc` and `track` are then the values its record kept. */
   tags_done?: boolean;
+  /** How far an interrupted conversion got with this file: renamed and
+   *  retagged in its own folder, or moved into the set's folder. */
+  state?: MultiDiscTrackState;
+  /** The folder the file is in now. */
+  folder?: string;
 }
+
+export type MultiDiscTrackState = "untouched" | "renamed" | "tagged" | "moved";
 
 export type MultiDiscCoverAction = "kept" | "moved" | "identical" | "different";
 
@@ -612,9 +619,23 @@ export interface MultiDiscFolder {
   dir_name: string;
   disc: number | null;
   destination: boolean;
-  covers: { name: string; action: MultiDiscCoverAction }[];
+  /** `done`: an interrupted conversion already did it. */
+  covers: { name: string; action: MultiDiscCoverAction; done?: boolean }[];
   sidecar: boolean;
+  sidecar_done?: boolean;
   other_files: string[];
+  /** System clutter (.DS_Store and the like) that goes to Musaic's trash
+   *  so the emptied folder can be removed. */
+  junk?: { name: string; done: boolean }[];
+  /** The folder is still on disk. */
+  exists?: boolean;
+}
+
+/** One step of a conversion streaming its progress. */
+export interface MultiDiscProgress {
+  step: string;
+  done: number;
+  total: number;
 }
 
 export interface MultiDiscBlocker {
@@ -636,6 +657,10 @@ export interface MultiDiscConversionPreview {
   digest?: string;
   /** An interrupted conversion of this album, which converting finishes. */
   resume?: { record: string; started_at: string; attempts: number } | null;
+  /** A set kept in several folders: how far the database side got. */
+  gather?: { folded: boolean; folder_renamed: boolean; merges: number; orphan_rows: number } | null;
+  /** Where the records of conversions are kept. */
+  records_dir?: string | null;
   headline: string;
   /** Why no conversion is offered (an incomplete set, or no set). */
   reason: string | null;
@@ -661,8 +686,21 @@ export interface MultiDiscConvertFile {
   new_filename: string;
   rename: "renamed" | "already" | "failed" | "not_reached";
   tags: "written" | "already" | "failed" | "not_reached";
+  /** A set kept in several folders: the move into the set's folder. */
+  move?: "moved" | "already" | "stays" | "failed" | "not_reached";
+  /** The folder it was in before. */
+  folder?: string;
   reason_code?: string;
   user_message?: string;
+}
+
+/** One folder of a set gathered from several folders, after the run. */
+export interface MultiDiscConvertFolder {
+  dir_name: string;
+  destination: boolean;
+  /** `removed` when it was emptied, `kept` with `left` when files stay. */
+  outcome: "destination" | "removed" | "kept" | "not_reached";
+  left: string[];
 }
 
 /** Response from POST /api/checks/multi-disc-layout/findings/{id}/convert,
@@ -687,6 +725,9 @@ export interface MultiDiscConvertResult {
   record?: string;
   attempts?: number;
   blockers?: MultiDiscBlocker[];
+  /** A set gathered from several folders. */
+  folders?: MultiDiscConvertFolder[];
+  merged?: string[];
 }
 
 /** A plan entry the rename left alone. */

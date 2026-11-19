@@ -4,13 +4,18 @@
 //! template with no disc part, no DISCNUMBER / DISCTOTAL / TOTALDISCS tags,
 //! the folder named by the directory template with no disc marker.
 //!
+//! This module makes every check and holds what keeps other work away for
+//! both shapes of set; the steps below are those of a set kept in one
+//! folder. A set kept in one folder per disc is gathered by
+//! [`crate::multi_disc_gather`].
+//!
 //! # What it carries out
 //!
 //! Exactly the plan the preview shows, re-derived from the disk and the
 //! database at this moment (rule 2; nothing the client sends is used but
-//! the preview's digest, which must match the fresh plan's). A set kept in
-//! several folders, an incomplete set and any plan with a blocker are
-//! refused before anything is written.
+//! the preview's digest, which must match the fresh plan's). An incomplete
+//! set and any plan with a blocker are refused before anything is
+//! written.
 //!
 //! # Order
 //!
@@ -79,6 +84,19 @@ use crate::scan::ScanService;
 
 /// `<config dir>/conversions`, where the records are kept.
 pub use musaic_fsops::conversion_log::log_dir;
+/// `<config dir>/trash`, where a conversion puts what it no longer needs.
+pub use musaic_fsops::trash::trash_dir;
+
+/// The albums and folders of every unfinished conversion recorded in
+/// `logs`: what a scan leaves as it is ([`crate::scan::HeldAlbums`]).
+pub fn held_albums(logs: &Path) -> crate::scan::HeldAlbums {
+    let mut held = crate::scan::HeldAlbums::default();
+    for r in musaic_fsops::conversion_log::unfinished(logs) {
+        held.ids.extend(r.album_ids());
+        held.paths.extend(r.folder_paths());
+    }
+    held
+}
 
 /// The check whose findings this converts.
 pub const CHECK_ID: &str = "multi-disc-layout";
@@ -93,6 +111,24 @@ pub enum StopAt {
     TaggedFiles(usize),
     /// After the tags, before the folder rename.
     BeforeFolderRename,
+    /// A set in several folders: right after the record is written.
+    AfterRecord,
+    /// A set in several folders: after moving `n` files into the
+    /// destination; `rows` says whether the last one's database rows moved
+    /// too (a crash between a file's move and its rows' commit is `false`).
+    MovedFiles { n: usize, rows: bool },
+    /// A set in several folders: after the covers and the clutter.
+    AfterCovers,
+    /// A set in several folders: after the destination's sidecar is
+    /// written, before the old ones go.
+    AfterSidecar,
+    /// A set in several folders: after the fold of the rows.
+    AfterFold,
+    /// A set in several folders: after removing `n` emptied folders.
+    RemovedFolders(usize),
+    /// A set in several folders: after the folder rename, before the last
+    /// rescan and the record's close.
+    AfterFolderRename,
 }
 
 /// What the conversion needs from its host.
@@ -109,6 +145,24 @@ pub struct ConvertEnv<'a> {
     pub scan: &'a ScanService,
     /// Test seam ([`StopAt`]); `None` in the app.
     pub stop_at: Option<StopAt>,
+    /// `<config dir>/trash`: where the covers and the clutter a set in
+    /// several folders no longer needs go.
+    pub trash: &'a Path,
+    /// Paused for the whole conversion: a pass would write fingerprint rows
+    /// under albums that the conversion re-keys or folds away.
+    pub pool: Option<&'a crate::fingerprint_pool::FingerprintPool>,
+    /// Suspended for the whole conversion, for the same reason (findings
+    /// and inputs under a member id).
+    pub sweeper: Option<&'a crate::check_sweep::CheckSweeper>,
+    /// Told what a long conversion is doing (`{step, done, total}`).
+    pub progress: Option<std::sync::Arc<dyn Fn(Value) + Send + Sync>>,
+}
+
+/// Tell the host what the conversion is doing.
+pub(crate) fn report(env: &ConvertEnv<'_>, step: &str, done: usize, total: usize) {
+    if let Some(p) = &env.progress {
+        p(json!({"step": step, "done": done, "total": total}));
+    }
 }
 
 /// A conversion refused before anything was written (or a request that is
@@ -122,7 +176,7 @@ pub struct Refusal {
 }
 
 impl Refusal {
-    fn new(status: u16, code: &str, detail: impl Into<String>) -> Refusal {
+    pub(crate) fn new(status: u16, code: &str, detail: impl Into<String>) -> Refusal {
         let detail = detail.into();
         let mut extra = serde_json::Map::new();
         extra.insert("reason_code".into(), json!(code));
@@ -134,7 +188,7 @@ impl Refusal {
         }
     }
 
-    fn with(mut self, k: &str, v: Value) -> Refusal {
+    pub(crate) fn with(mut self, k: &str, v: Value) -> Refusal {
         self.extra.insert(k.to_string(), v);
         self
     }
@@ -147,7 +201,7 @@ impl Refusal {
     }
 }
 
-fn db(e: impl std::fmt::Display) -> Refusal {
+pub(crate) fn db(e: impl std::fmt::Display) -> Refusal {
     Refusal::new(500, "other", format!("Database error: {e}"))
 }
 
@@ -201,6 +255,11 @@ pub fn convert(env: &mut ConvertEnv<'_>, finding_id: i64, digest: &str) -> Resul
             "A library scan is running, so nothing was converted. Try again when it finishes.",
         )
     })?;
+    // No fingerprint pass and no background check batch writes rows under
+    // an album id the conversion re-keys or folds away; both start again
+    // when it ends.
+    let _pool = env.pool.map(|p| p.pause());
+    let _sweep = env.sweeper.map(|s| s.suspend());
     let Some(preview) =
         multi_disc::derive_conversion(env.conn, &album_id, Some(env.logs)).map_err(db)?
     else {
@@ -211,14 +270,7 @@ pub fn convert(env: &mut ConvertEnv<'_>, finding_id: i64, digest: &str) -> Resul
         ));
     };
     match preview.state {
-        PreviewState::OneFolder => {}
-        PreviewState::Folders => {
-            return Err(Refusal::new(
-                409,
-                "not_available",
-                "Converting a set kept in several folders is not available yet; nothing was changed.",
-            ));
-        }
+        PreviewState::OneFolder | PreviewState::Folders => {}
         PreviewState::Incomplete | PreviewState::NotASet => {
             let reason = preview
                 .reason
@@ -277,6 +329,9 @@ pub fn convert(env: &mut ConvertEnv<'_>, finding_id: i64, digest: &str) -> Resul
             "This album is no longer in the library, so nothing was converted.",
         ));
     };
+    if preview.state == PreviewState::Folders {
+        return crate::multi_disc_gather::convert_folders(env, &preview, &dir);
+    }
 
     // ---- the record, before anything changes ----
     let now = (env.now)();
@@ -348,7 +403,7 @@ fn new_record(env: &ConvertEnv<'_>, p: &ConversionPreview, dir: &Path, now: &str
     };
     Record {
         path: env.logs.join(Record::file_name(&p.album_id, now)),
-        kind: "one_folder".into(),
+        kind: musaic_fsops::conversion_log::KIND_ONE_FOLDER.into(),
         started_at: now.to_string(),
         finished_at: None,
         library_path: p.library_path.clone(),
@@ -366,6 +421,7 @@ fn new_record(env: &ConvertEnv<'_>, p: &ConversionPreview, dir: &Path, now: &str
             .tracks
             .iter()
             .map(|t| LoggedFile {
+                album_id: String::new(),
                 disc: t.disc.unwrap_or_default(),
                 track: t.track.unwrap_or_default(),
                 new_track: t.new_track.unwrap_or_default(),
@@ -376,6 +432,10 @@ fn new_record(env: &ConvertEnv<'_>, p: &ConversionPreview, dir: &Path, now: &str
             })
             .collect(),
         attempts: Vec::new(),
+        members: Vec::new(),
+        folders: Vec::new(),
+        orphan_rows: Vec::new(),
+        abandoned_at: None,
     }
 }
 
@@ -447,13 +507,13 @@ impl Outcome {
     }
 }
 
-fn nfc(s: &str) -> String {
+pub(crate) fn nfc(s: &str) -> String {
     s.nfc().collect()
 }
 
 /// The name `dir` lists for `name` (equal after NFC normalisation: a
 /// volume that stores names decomposed lists the NFD form).
-fn listed_as(dir: &Path, name: &str) -> Option<String> {
+pub(crate) fn listed_as(dir: &Path, name: &str) -> Option<String> {
     let want = nfc(name);
     musaic_scan::dir_names(dir).ok()?.into_iter().find_map(|n| {
         let n = n.to_string_lossy().into_owned();
@@ -463,14 +523,21 @@ fn listed_as(dir: &Path, name: &str) -> Option<String> {
 
 /// Why `path` cannot be written, as far as opening it for writing says
 /// (nothing is written).
-fn write_probe(path: &Path) -> Reason {
+pub(crate) fn write_probe(path: &Path) -> Reason {
     match std::fs::OpenOptions::new().write(true).open(path) {
         Ok(_) => Reason::Other,
         Err(e) => Reason::from_io(&e),
     }
 }
 
-fn step(record: &mut Record, name: &str, ok: bool, message: &str, results: Vec<Value>, at: String) {
+pub(crate) fn step(
+    record: &mut Record,
+    name: &str,
+    ok: bool,
+    message: &str,
+    results: Vec<Value>,
+    at: String,
+) {
     if let Some(a) = record.attempts.last_mut() {
         a.steps.push(json!({
             "step": name,
@@ -843,7 +910,7 @@ fn rename_failure_message(r: &RenameOutcome, failed: usize) -> String {
 }
 
 /// The numbering tags of the FLAC at `path`; `None` when it cannot be read.
-fn read_numbering(path: &Path) -> Option<NumberingTags> {
+pub(crate) fn read_numbering(path: &Path) -> Option<NumberingTags> {
     let meta = musaic_scan::flacmeta::read(path).ok()?;
     Some(numbering_of(|k| meta.values(k).collect()))
 }

@@ -70,6 +70,7 @@ impl App {
         let lib = self.library_dir();
         let now = || self.now_iso();
         let logs = musaic_services::multi_disc_convert::log_dir(self.config_dir());
+        let trash = musaic_services::multi_disc_convert::trash_dir(self.config_dir());
         let mut env = ConvertEnv {
             conn,
             bus: &self.0.bus,
@@ -79,6 +80,10 @@ impl App {
             logs: &logs,
             scan: self.scan(),
             stop_at: None,
+            trash: &trash,
+            pool: Some(&self.0.pool),
+            sweeper: Some(&self.0.sweeper),
+            progress: None,
         };
         f(&mut env)
     }

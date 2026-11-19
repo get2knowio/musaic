@@ -338,15 +338,23 @@ pub async fn apply_cluster_sort(
 // ------------------------------------------------------------- multi-disc-layout
 
 /// `POST /api/checks/multi-disc-layout/findings/{finding_id}/convert` with
-/// `{"digest": str}` (the preview's): convert a set kept in one folder
-/// ([`musaic_services::multi_disc_convert::convert`]). The plan is
-/// re-derived from disk; a refusal changed nothing and answers its status
-/// with `detail`, `reason_code`, `user_message` (and `blockers` or the fresh
-/// `digest`). A conversion that ran answers 200, also when a step failed
-/// (`ok: false`, a reason per file).
+/// `{"digest": str}` (the preview's): convert a set kept in one folder or
+/// in one folder per disc ([`musaic_services::multi_disc_convert::convert`]).
+/// The plan is re-derived from disk; a refusal changed nothing and answers
+/// its status with `detail`, `reason_code`, `user_message` (and `blockers`
+/// or the fresh `digest`). A conversion that ran answers 200, also when a
+/// step failed (`ok: false`, a reason per file).
+///
+/// With `Accept: text/event-stream` the answer is a stream instead, as for
+/// the apply and the bulk fix (a set of many discs on a network share takes
+/// minutes): `progress {step, done, total}` while it runs, then exactly one
+/// `result` (the JSON body above) or `refused` (`status` plus that body). A
+/// client that goes away stops only the forwarding; the conversion runs to
+/// its end.
 pub async fn convert_multi_disc(
     State(st): State<AppState>,
     UrlPath(raw_id): UrlPath<String>,
+    headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> ApiResult {
     let id = finding_id(&raw_id)?;
@@ -355,11 +363,76 @@ pub async fn convert_multi_disc(
     f.finish()?;
     let digest = digest.unwrap_or_default();
     let guard = st.begin_work_as(crate::gate::WorkKind::Apply)?;
+    let streams = headers
+        .get(axum::http::header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|a| a.contains("text/event-stream"));
+    if streams {
+        let (tx, resp) = sse::channel(&st, 64);
+        let ctx = musaic_events::context::current();
+        tokio::task::spawn_blocking(move || {
+            let _guard = guard;
+            musaic_events::context::run_in(ctx, || {
+                let mut conn = match st.conn() {
+                    Ok(c) => c,
+                    Err(_) => {
+                        let _ = tx.send_blocking(sse::frame(
+                            "refused",
+                            &json!({"status": 500, "detail": "database unavailable", "user_message": "The library database could not be opened, so nothing was converted."}).to_string(),
+                        ));
+                        return;
+                    }
+                };
+                let progress_tx = tx.clone();
+                let progress = move |v: Value| {
+                    let _ = progress_tx.try_send_frame(sse::frame("progress", &v.to_string()));
+                };
+                let r = st.with_convert_env(&mut conn, |env| {
+                    env.progress = Some(std::sync::Arc::new(progress));
+                    musaic_services::multi_disc_convert::convert(env, id, &digest)
+                });
+                let frame = match r {
+                    Ok(v) => sse::frame("result", &v.to_string()),
+                    Err(e) => {
+                        let mut b = e.body();
+                        b["status"] = json!(e.status);
+                        sse::frame("refused", &b.to_string())
+                    }
+                };
+                let _ = tx.send_blocking(frame);
+            })
+        });
+        return Ok(resp);
+    }
     blocking(move || {
         let _guard = guard;
         let mut conn = st.conn()?;
         let r = st.with_convert_env(&mut conn, |env| {
             musaic_services::multi_disc_convert::convert(env, id, &digest)
+        });
+        match r {
+            Ok(v) => ok_value(v),
+            Err(e) => Ok(json_value(e.status, &e.body())),
+        }
+    })
+    .await?
+}
+
+/// `POST /api/checks/multi-disc-layout/findings/{finding_id}/abandon-conversion`:
+/// stop treating the album's unfinished conversion as one
+/// ([`musaic_services::multi_disc_gather::abandon`]). Nothing on disk
+/// moves; the record is closed as abandoned and says where every file is.
+pub async fn abandon_multi_disc_conversion(
+    State(st): State<AppState>,
+    UrlPath(raw_id): UrlPath<String>,
+) -> ApiResult {
+    let id = finding_id(&raw_id)?;
+    let guard = st.begin_work_as(crate::gate::WorkKind::Apply)?;
+    blocking(move || {
+        let _guard = guard;
+        let mut conn = st.conn()?;
+        let r = st.with_convert_env(&mut conn, |env| {
+            musaic_services::multi_disc_gather::abandon(env, id)
         });
         match r {
             Ok(v) => ok_value(v),

@@ -92,7 +92,12 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
     (
         "POST",
         MULTI_DISC_CONVERT_ROUTE,
-        "convert a multi-disc set kept in one folder exactly as its preview shows, re-derived from disk, with a record kept under the config dir (issue #296); not a route of the Python app",
+        "convert a multi-disc set, kept in one folder or in one folder per disc, exactly as its preview shows, re-derived from disk, with a record kept under the config dir (issue #296); answers JSON, or an SSE stream of its progress when asked for one; not a route of the Python app",
+    ),
+    (
+        "POST",
+        MULTI_DISC_ABANDON_ROUTE,
+        "stop treating an unfinished multi-disc conversion as one: its record is closed as abandoned and every file stays where it is (issue #296); not a route of the Python app",
     ),
     (
         "GET",
@@ -134,6 +139,11 @@ pub const MULTI_DISC_PREVIEW_ROUTE: &str =
 /// ([`EXTRA_ROUTES`]).
 pub const MULTI_DISC_CONVERT_ROUTE: &str =
     "/api/checks/multi-disc-layout/findings/{finding_id}/convert";
+
+/// `POST /api/checks/multi-disc-layout/findings/{finding_id}/abandon-conversion`
+/// ([`EXTRA_ROUTES`]).
+pub const MULTI_DISC_ABANDON_ROUTE: &str =
+    "/api/checks/multi-disc-layout/findings/{finding_id}/abandon-conversion";
 
 /// `GET /api/checks/sweep` ([`EXTRA_ROUTES`]).
 pub const CHECK_SWEEP_ROUTE: &str = "/api/checks/sweep";
@@ -393,6 +403,10 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         )
         // Not a Python app route: the multi-disc conversion ([`EXTRA_ROUTES`]).
         .route(MULTI_DISC_CONVERT_ROUTE, post(fixes::convert_multi_disc))
+        .route(
+            MULTI_DISC_ABANDON_ROUTE,
+            post(fixes::abandon_multi_disc_conversion),
+        )
         .route(
             "/api/ai/jobs",
             get(jobs::list_jobs)
