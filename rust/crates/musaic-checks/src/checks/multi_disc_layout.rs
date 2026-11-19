@@ -31,12 +31,11 @@ pub struct MultiDiscLayout;
 pub static META: CheckMeta = CheckMeta {
     id: "multi-disc-layout",
     label: "Multi-disc set not in one folder",
-    description: "Multi-disc sets kept as one folder per disc, or one folder whose tracks are numbered \
-per disc (or still carry disc tags). The layout Musaic aims for is one folder per set, tracks numbered \
-straight through all the discs, no disc number in the file names and no disc tags. Sets are found only \
-from disc numbers in the files' tags or in folder names such as \"(disc 2 of 3)\", never guessed. \
-Resolve shows what a conversion does and converts the set, gathering a set kept in several folders \
-into one, with a record of every change.",
+    description: "Multi-disc sets kept as one folder per disc, or in one folder with track numbers that restart on \
+each disc or with disc tags. Musaic aims for one folder per set, tracks numbered straight through, \
+and no disc numbers in file names or tags. A set is found only from disc numbers in the files' tags \
+or in folder names such as \"(disc 2 of 3)\", never guessed. Resolve shows every change first, then \
+converts the set and keeps a record of what it did.",
     category: "files",
     cost: Cost::Cheap,
     runs_during_scan: false,

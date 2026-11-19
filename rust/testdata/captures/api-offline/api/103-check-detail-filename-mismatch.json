@@ -117,7 +117,7 @@
         "bulk_action_label": null,
         "category": "files",
         "cost": "medium",
-        "description": "Albums where one or more FLAC filenames don't match your configured filename template (Settings → Filename templates). Filenames drift over time: different rippers use different conventions, metadata edits happen after the rip, you change your preferred format. The Resolve dialog shows current → expected for every track and renames in one safe two-pass operation.",
+        "description": "Albums with files not named the way your file name pattern says (Settings, Filename templates). Names drift: rippers use different conventions, tags get edited after the rip, or you change the pattern. Resolve shows the current and the new name of every track, then renames them together.",
         "fix_kind": "deterministic",
         "id": "filename-mismatch",
         "label": "Filename doesn't match template",

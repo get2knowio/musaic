@@ -30,10 +30,9 @@ pub struct InconsistentArtistSort;
 pub static META: CheckMeta = CheckMeta {
     id: "inconsistent-artist-sort",
     label: "Inconsistent artist sort",
-    description: "Clusters of albums whose album_artist values are credit permutations of the same primary \
-artist (\"Ray Conniff\" / \"Ray Conniff & His Orchestra\" / \"Ray Conniff, his Orchestra and Chorus\") but \
-whose sort tags don't agree. Setting the same album_artist_sort across the cluster groups them under one \
-entry in Plex / Roon sidebars.",
+    description: "Albums by the same artist credited in different ways (\"Ray Conniff\", \"Ray Conniff & His \
+Orchestra\", \"Ray Conniff, his Orchestra and Chorus\") whose sort names disagree. Giving them all \
+the same album artist sort name lists them together in players such as Plex and Roon.",
     category: "metadata",
     cost: Cost::Cheap,
     runs_during_scan: true,

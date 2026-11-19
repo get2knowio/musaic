@@ -17,9 +17,10 @@ pub const RECENT_ATTEMPT_DAYS: u32 = 30;
 pub static META: CheckMeta = CheckMeta {
     id: "no-cover-art",
     label: "No cover art",
-    description: "Albums missing both embedded cover art and a sidecar cover.jpg / folder.jpg / front.jpg. \
-Fix tries MusicBrainz / Cover Art Archive first (free) and falls back to AI only when MB doesn't have a \
-cover. Albums with a recent failed lookup are skipped so bulk passes don't keep retrying dead-ends.",
+    description: "Albums with no cover: none embedded in the files and no cover.jpg, folder.jpg or front.jpg in the \
+folder. Fix looks for one on MusicBrainz and the Cover Art Archive first, and asks AI only when they \
+have none. An album whose lookup failed recently is skipped for a while, so a bulk run does not keep \
+retrying it.",
     category: "cover",
     cost: Cost::Cheap,
     runs_during_scan: true,

@@ -25,9 +25,9 @@ pub struct DuplicateTracks;
 pub static META: CheckMeta = CheckMeta {
     id: "duplicate-tracks",
     label: "Duplicate audio files",
-    description: "Albums with multiple files AcoustID identified as the same canonical recording — i.e. \
-literal copies of the same audio. Requires fingerprints first (run \"Albums not yet fingerprinted\" or click \
-Fix on a track-gaps finding). The Resolve dialog lets you pick which copy to keep.",
+    description: "Albums that hold the same recording more than once: files whose audio fingerprints match, whatever \
+their names or tags say. This needs fingerprints, which Musaic computes in the background after a \
+scan. Resolve lets you choose which copy to keep.",
     category: "duplicates",
     cost: Cost::Cheap,
     runs_during_scan: true,
