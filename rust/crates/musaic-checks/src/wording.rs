@@ -24,23 +24,23 @@ use crate::checks::tags_out_of_sync::{NO_ANCHOR_SUFFIX, NO_ANCHOR_SUFFIX_NEUTRAL
 pub const NEUTRAL_DESCRIPTIONS: [(&str, &str); 3] = [
     (
         "no-cover-art",
-        "Albums missing both embedded cover art and a sidecar cover.jpg / folder.jpg / front.jpg. \
-Fix tries MusicBrainz / Cover Art Archive (free). Albums with a recent failed lookup are skipped so bulk \
-passes don't keep retrying dead-ends.",
+        "Albums with no cover: none embedded in the files and no cover.jpg, folder.jpg or front.jpg in the \
+folder. Fix looks for one on MusicBrainz and the Cover Art Archive. An album whose lookup failed \
+recently is skipped for a while, so a bulk run does not keep retrying it.",
     ),
     (
         "track-gaps",
-        "Albums whose track-number sequence has gaps (1, 2, 4) or repeats (1, 2, 2). Detected \
-from tag inspection — fingerprints not required to detect, but Fix uses them when available. Cascade: MB \
-title match → AcoustID fingerprint match. Note: this is about the TAG; the duplicate-tracks check \
-catches duplicate AUDIO regardless of tag.",
+        "Albums whose track numbers skip (1, 2, 4) or repeat (1, 2, 2). This looks only at the track number \
+tags; the same audio stored twice is found by \"Duplicate audio files\". Fix works out the right \
+numbers by matching titles against MusicBrainz, then by looking up each track's audio fingerprint on \
+AcoustID.",
     ),
     (
         "tags-out-of-sync",
-        "Albums where Vorbis tags drift from MusicBrainz's canonical values, are missing a \
-required field (title / artist / year / genre), or are missing the *_SORT variants used by Plex and Roon \
-for sidebar alphabetization. Fix applies all MusicBrainz-derivable corrections in one click; fields the \
-resolver can't fill (genre, or anything on an unanchored album) are left as they are.",
+        "Albums whose tags differ from what MusicBrainz has for the release, lack a title, artist, year or \
+genre, or lack the sort names players such as Plex and Roon use to alphabetise. Fix applies \
+everything MusicBrainz can supply in one step; what it cannot supply (genre, or any field on an \
+album not yet matched to MusicBrainz) is left as it is.",
     ),
 ];
 

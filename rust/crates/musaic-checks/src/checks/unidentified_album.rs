@@ -17,10 +17,10 @@ pub struct UnidentifiedAlbum;
 pub static META: CheckMeta = CheckMeta {
     id: "unidentified-album",
     label: "Album not yet identified",
-    description: "Albums that haven't been fully identified yet — either no AcoustID fingerprints have \
-been computed for the tracks or no MusicBrainz release-group has been matched. Both are prerequisites: \
-fingerprints power per-track recognition + duplicate detection, and the MBID anchor unlocks cover lookups, \
-canonical tags, and tracklist matching. Run \"Identify all\" to fingerprint + match the whole library in one pass.",
+    description: "Albums not yet matched to a release on MusicBrainz, or whose tracks have no audio fingerprints yet. \
+Most other fixes need both: fingerprints find duplicate and misnumbered tracks, and the MusicBrainz \
+match is where covers, tags and track lists are looked up. \"Identify all\" fingerprints and matches \
+the whole library in one go.",
     category: "external",
     cost: Cost::Cheap,
     runs_during_scan: true,

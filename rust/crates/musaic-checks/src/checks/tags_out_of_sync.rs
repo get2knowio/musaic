@@ -20,10 +20,10 @@ pub struct TagsOutOfSync;
 pub static META: CheckMeta = CheckMeta {
     id: "tags-out-of-sync",
     label: "Tags don't match canonical",
-    description: "Albums where Vorbis tags drift from MusicBrainz's canonical values, are missing a \
-required field (title / artist / year / genre), or are missing the *_SORT variants used by Plex and Roon \
-for sidebar alphabetization. Fix applies all MusicBrainz-derivable corrections in one click and falls back \
-to AI only for fields the resolver can't fill (genre, or anything on an unanchored album).",
+    description: "Albums whose tags differ from what MusicBrainz has for the release, lack a title, artist, year or \
+genre, or lack the sort names players such as Plex and Roon use to alphabetise. Fix applies \
+everything MusicBrainz can supply in one step and asks AI only for what it cannot: genre, or any \
+field on an album not yet matched to MusicBrainz.",
     category: "metadata",
     cost: Cost::Medium,
     runs_during_scan: false,

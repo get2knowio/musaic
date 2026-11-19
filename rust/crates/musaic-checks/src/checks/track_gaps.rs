@@ -19,10 +19,10 @@ pub struct TrackGaps;
 pub static META: CheckMeta = CheckMeta {
     id: "track-gaps",
     label: "Track-number gaps & duplicates",
-    description: "Albums whose track-number sequence has gaps (1, 2, 4) or repeats (1, 2, 2). Detected \
-from tag inspection — fingerprints not required to detect, but Fix uses them when available. Cascade: MB \
-title match → AcoustID fingerprint match → AI. Note: this is about the TAG; the duplicate-tracks check \
-catches duplicate AUDIO regardless of tag.",
+    description: "Albums whose track numbers skip (1, 2, 4) or repeat (1, 2, 2). This looks only at the track number \
+tags; the same audio stored twice is found by \"Duplicate audio files\". Fix works out the right \
+numbers by matching titles against MusicBrainz, then by looking up each track's audio fingerprint on \
+AcoustID, and asks AI last.",
     category: "metadata",
     cost: Cost::Cheap,
     runs_during_scan: true,
