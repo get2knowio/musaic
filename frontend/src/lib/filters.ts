@@ -18,8 +18,11 @@ export interface FilterDef {
 
 export const FILTERS: FilterDef[] = [
   {
+    // Albums with a job whose result is waiting (proposed changes, or a
+    // failure). Named for the jobs so it is not read as the album count of
+    // "Needs attention", which counts findings too.
     key: "needs-review",
-    label: "Needs review",
+    label: "Jobs to review",
     dotColor: "var(--warn)",
     matches: (album, needsAttention) => needsAttention.has(album.id),
   },
@@ -58,7 +61,7 @@ export function isValidFilterKey(s: string | null): s is FilterKey {
 
 /**
  * Build the set of album ids that have a completed-or-failed job awaiting
- * action — these are the albums that "Needs review" highlights.
+ * action — these are the albums that "Jobs to review" lists.
  */
 export function buildNeedsAttentionSet(jobs: Job[]): Set<string> {
   const out = new Set<string>();
