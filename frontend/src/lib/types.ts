@@ -614,6 +614,14 @@ export type MultiDiscTrackState = "untouched" | "renamed" | "tagged" | "moved";
 
 export type MultiDiscCoverAction = "kept" | "moved" | "identical" | "different";
 
+export interface MultiDiscStray {
+  name: string;
+  action: "moved" | "identical";
+  new_name: string | null;
+  /** An interrupted conversion already did it. */
+  done?: boolean;
+}
+
 export interface MultiDiscFolder {
   album_id: string;
   dir_name: string;
@@ -623,7 +631,15 @@ export interface MultiDiscFolder {
   covers: { name: string; action: MultiDiscCoverAction; done?: boolean }[];
   sidecar: boolean;
   sidecar_done?: boolean;
+  /** What stays where it is: in the set's folder its own other files; in
+   *  another folder only what is never moved (a subfolder), which keeps
+   *  that folder from being removed. */
   other_files: string[];
+  /** The other files of a folder that is emptied (a rip log, a cue sheet,
+   *  a booklet): each moves into the set's folder, under `new_name` when
+   *  its own name is taken there by a different file, or goes to Musaic's
+   *  trash when the set's folder already has the same file. */
+  strays?: MultiDiscStray[];
   /** System clutter (.DS_Store and the like) that goes to Musaic's trash
    *  so the emptied folder can be removed. */
   junk?: { name: string; done: boolean }[];

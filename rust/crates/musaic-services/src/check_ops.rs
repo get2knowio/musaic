@@ -192,6 +192,12 @@ pub fn multi_disc_conversion_preview<E: From<musaic_db::Error> + From<HttpError>
                 "sidecar": f.sidecar,
                 "sidecar_done": f.sidecar_done,
                 "other_files": f.other_files,
+                "strays": f.strays.iter().map(|s| json!({
+                    "name": s.name,
+                    "action": s.action.as_str(),
+                    "new_name": s.new_name,
+                    "done": s.done,
+                })).collect::<Vec<_>>(),
                 "junk": f.junk.iter().map(|(n, d)| json!({"name": n, "done": d})).collect::<Vec<_>>(),
                 "exists": f.exists,
             })

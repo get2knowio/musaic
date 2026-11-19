@@ -31,10 +31,12 @@
 //!    track-tag sidecar follow under the name the folder lists.
 //! 3. The tag writes, through the apply pipeline
 //!    ([`crate::apply::apply_disc_conversion`]): per file, in one save,
-//!    TRACKNUMBER = the new number, TRACKTOTAL = the track count
-//!    (TOTALTRACKS too where the file has it), DISCNUMBER, DISCTOTAL and
-//!    TOTALDISCS removed. Each file is read back afterwards and must carry
-//!    exactly the recorded new values.
+//!    TRACKNUMBER = the new number, TRACKTOTAL and TOTALTRACKS = the track
+//!    count, each only where the file already has that key (a file with no
+//!    track total gets none; a `5/12` TRACKNUMBER keeps that form),
+//!    DISCNUMBER, DISCTOTAL and TOTALDISCS removed. The values written are
+//!    the record's (`conversion_log::converted_numbering`). Each file is
+//!    read back afterwards and must carry exactly the recorded new values.
 //! 4. The folder rename, if its name changes, through the same rename code,
 //!    which re-keys the album (`AlbumRenamed`).
 //!
@@ -117,6 +119,9 @@ pub enum StopAt {
     /// destination; `rows` says whether the last one's database rows moved
     /// too (a crash between a file's move and its rows' commit is `false`).
     MovedFiles { n: usize, rows: bool },
+    /// A set in several folders: after moving `n` of the other files (a
+    /// rip log, a cue sheet) of the emptied folders into the destination.
+    MovedStrays(usize),
     /// A set in several folders: after the covers and the clutter.
     AfterCovers,
     /// A set in several folders: after the destination's sidecar is
@@ -156,6 +161,29 @@ pub struct ConvertEnv<'a> {
     pub sweeper: Option<&'a crate::check_sweep::CheckSweeper>,
     /// Told what a long conversion is doing (`{step, done, total}`).
     pub progress: Option<std::sync::Arc<dyn Fn(Value) + Send + Sync>>,
+}
+
+/// The numbers to write to the file the record calls `new_name`: exactly
+/// the record's new values, so a file is given a track total only where
+/// the record says it had one. (A file the record does not know gets its
+/// number and nothing else; the read-back then refuses it.)
+pub(crate) fn recorded_numbers(
+    record: &Record,
+    new_name: &str,
+    new_track: i64,
+) -> musaic_tags::ConvertedNumbers {
+    use musaic_fsops::conversion_log::values_of;
+    let tags = record
+        .files
+        .iter()
+        .find(|e| nfc(&e.new_name) == nfc(new_name))
+        .map(|e| &e.new_tags);
+    let first = |key: &str| tags.and_then(|t| values_of(t, key).first().cloned());
+    musaic_tags::ConvertedNumbers {
+        tracknumber: first("TRACKNUMBER").unwrap_or_else(|| new_track.to_string()),
+        tracktotal: first("TRACKTOTAL"),
+        totaltracks: first("TOTALTRACKS"),
+    }
 }
 
 /// Tell the host what the conversion is doing.
@@ -684,7 +712,6 @@ fn run_steps(
     }
 
     // ---- 2. tags ----
-    let total = p.plan.track_total.to_string();
     let mut conversion = musaic_tags::DiscConversion::default();
     let mut tagged: Vec<(usize, String)> = Vec::new();
     for (i, t) in p.plan.tracks.iter().enumerate() {
@@ -706,10 +733,7 @@ fn run_steps(
         tagged.push((i, on_disk.clone()));
         conversion.files.push((
             on_disk,
-            musaic_tags::ConvertedNumbers {
-                tracknumber: t.new_track.unwrap_or_default().to_string(),
-                tracktotal: total.clone(),
-            },
+            recorded_numbers(record, &want, t.new_track.unwrap_or_default()),
         ));
     }
     let mut stop_after_tags = false;

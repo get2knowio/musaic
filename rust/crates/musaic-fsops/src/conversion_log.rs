@@ -80,16 +80,24 @@ pub fn values_of<'a>(tags: &'a NumberingTags, key: &str) -> &'a [String] {
 }
 
 /// What a file's numbering tags are after the conversion wrote `track` of
-/// `total`: TOTALTRACKS only where the file had it.
+/// `total`. A total is written only where the file already had one, in the
+/// form it had: TRACKTOTAL and TOTALTRACKS each only where the file has
+/// that key, and a TRACKNUMBER written `5/12` becomes `17/26`. A file with
+/// no total gets none. This is the one place that rule lives: the record
+/// keeps the result and the tag writer writes what the record says.
 pub fn converted_numbering(old: &NumberingTags, track: i64, total: usize) -> NumberingTags {
-    let had_totaltracks = !values_of(old, "TOTALTRACKS").is_empty();
+    let had = |key: &str| !values_of(old, key).is_empty();
+    let in_number = values_of(old, "TRACKNUMBER")
+        .first()
+        .and_then(|v| v.split_once('/'))
+        .is_some_and(|(_, t)| !t.trim().is_empty());
     NUMBERING_KEYS
         .iter()
         .map(|k| {
             let v = match *k {
+                "TRACKNUMBER" if in_number => vec![format!("{track}/{total}")],
                 "TRACKNUMBER" => vec![track.to_string()],
-                "TRACKTOTAL" => vec![total.to_string()],
-                "TOTALTRACKS" if had_totaltracks => vec![total.to_string()],
+                "TRACKTOTAL" | "TOTALTRACKS" if had(k) => vec![total.to_string()],
                 _ => Vec::new(),
             };
             (k.to_string(), v)
@@ -137,8 +145,27 @@ pub struct LoggedFolder {
     pub junk: Vec<String>,
     /// The folder had a track-tag sidecar (merged, then put in the trash).
     pub sidecar: bool,
-    /// Files that stay where they are.
+    /// Entries that stay where they are: everything else the destination
+    /// holds, and in another folder its subfolders.
     pub other_files: Vec<String>,
+    /// The other files of a folder that is emptied, each with what happens
+    /// to it. A record written before these moved has none: its files are
+    /// in `other_files` and stay.
+    pub strays: Vec<LoggedStray>,
+}
+
+/// One file of a member folder that is not a FLAC, a cover, the sidecar or
+/// clutter, and where it goes.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LoggedStray {
+    /// Its name in its own folder.
+    pub name: String,
+    /// `moved` (into the destination) or `identical` (the destination has
+    /// the same file under this name: this copy goes to the app trash).
+    pub action: String,
+    /// The name it gets in the destination when its own is taken there by
+    /// a file with other content; `None` when it keeps its name.
+    pub new_name: Option<String>,
 }
 
 /// One attempt at running the conversion (a second Convert after an
@@ -330,6 +357,11 @@ impl Record {
                 "junk": f.junk,
                 "sidecar": f.sidecar,
                 "other_files": f.other_files,
+                "strays": f.strays.iter().map(|s| json!({
+                    "name": s.name,
+                    "action": s.action,
+                    "new_name": s.new_name,
+                })).collect::<Vec<_>>(),
             })).collect::<Vec<_>>());
             v["orphan_rows"] = json!(
                 self.orphan_rows
@@ -447,6 +479,24 @@ impl Record {
                         junk: strs(f.get("junk")),
                         sidecar: f.get("sidecar").and_then(Value::as_bool).unwrap_or(false),
                         other_files: strs(f.get("other_files")),
+                        strays: f
+                            .get("strays")
+                            .and_then(Value::as_array)
+                            .map(|a| {
+                                a.iter()
+                                    .filter_map(|s| {
+                                        Some(LoggedStray {
+                                            name: s.get("name")?.as_str()?.to_string(),
+                                            action: s.get("action")?.as_str()?.to_string(),
+                                            new_name: s
+                                                .get("new_name")
+                                                .and_then(Value::as_str)
+                                                .map(str::to_string),
+                                        })
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
                     })
                 })
                 .collect::<Option<Vec<_>>>()?,
@@ -648,17 +698,78 @@ mod tests {
     }
 
     #[test]
-    fn converted_numbering_keeps_totaltracks_only_where_present() {
+    fn a_folders_record_keeps_where_each_stray_file_goes() {
+        let v = json!({
+            "format": FORMAT, "version": VERSION_FOLDERS, "kind": KIND_FOLDERS,
+            "started_at": "2026-01-02T03:04:05Z", "library_path": "/lib",
+            "album_id_before": "a1", "album_id_expected": "a9",
+            "folder_before": "/lib/A CD1", "folder_name_before": "A CD1",
+            "folder_name_after": "A", "track_total": 0, "files": [],
+            "members": [
+                {"album_id": "a1", "folder": "/lib/A CD1", "folder_name": "A CD1", "disc": 1, "destination": true},
+                {"album_id": "a2", "folder": "/lib/A CD2", "folder_name": "A CD2", "disc": 2, "destination": false},
+            ],
+            "folders": [
+                {"album_id": "a1", "folder_name": "A CD1", "other_files": ["rip.log"]},
+                {"album_id": "a2", "folder_name": "A CD2", "other_files": ["Scans"], "strays": [
+                    {"name": "rip.log", "action": "moved", "new_name": "rip (disc 2).log"},
+                    {"name": "set.cue", "action": "moved", "new_name": null},
+                    {"name": "info.txt", "action": "identical"},
+                ]},
+            ],
+        });
+        let r = Record::from_json(Path::new("/x/r.json"), &v).unwrap();
+        // A record from before strays moved has none: its files stay.
+        assert!(r.folders[0].strays.is_empty());
+        assert_eq!(r.folders[0].other_files, ["rip.log"]);
+        assert_eq!(
+            r.folders[1].strays,
+            [
+                LoggedStray {
+                    name: "rip.log".into(),
+                    action: "moved".into(),
+                    new_name: Some("rip (disc 2).log".into()),
+                },
+                LoggedStray {
+                    name: "set.cue".into(),
+                    action: "moved".into(),
+                    new_name: None,
+                },
+                LoggedStray {
+                    name: "info.txt".into(),
+                    action: "identical".into(),
+                    new_name: None,
+                },
+            ]
+        );
+        let back = Record::from_json(Path::new("/x/r.json"), &r.to_json()).unwrap();
+        assert_eq!(back, r);
+    }
+
+    #[test]
+    fn converted_numbering_writes_a_total_only_where_one_was() {
+        // No total anywhere: none afterwards.
         let mut old = tags("2-05", "2");
         let new = converted_numbering(&old, 17, 26);
         assert_eq!(values_of(&new, "TRACKNUMBER"), ["17"]);
-        assert_eq!(values_of(&new, "TRACKTOTAL"), ["26"]);
+        assert!(values_of(&new, "TRACKTOTAL").is_empty());
         assert!(values_of(&new, "TOTALTRACKS").is_empty());
         assert!(values_of(&new, "DISCNUMBER").is_empty());
+        // Each key follows the file: only the one it has.
         old[2].1 = vec!["12".into()];
-        assert_eq!(
-            values_of(&converted_numbering(&old, 17, 26), "TOTALTRACKS"),
-            ["26"]
-        );
+        let new = converted_numbering(&old, 17, 26);
+        assert!(values_of(&new, "TRACKTOTAL").is_empty());
+        assert_eq!(values_of(&new, "TOTALTRACKS"), ["26"]);
+        old[1].1 = vec!["12".into()];
+        old[2].1 = Vec::new();
+        let new = converted_numbering(&old, 17, 26);
+        assert_eq!(values_of(&new, "TRACKTOTAL"), ["26"]);
+        assert!(values_of(&new, "TOTALTRACKS").is_empty());
+        // A total kept inside the track number keeps that form.
+        let new = converted_numbering(&tags("5/12", "2"), 17, 26);
+        assert_eq!(values_of(&new, "TRACKNUMBER"), ["17/26"]);
+        assert!(values_of(&new, "TRACKTOTAL").is_empty());
+        let new = converted_numbering(&tags("5/", "2"), 17, 26);
+        assert_eq!(values_of(&new, "TRACKNUMBER"), ["17"]);
     }
 }

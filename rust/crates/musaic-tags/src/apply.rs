@@ -88,14 +88,17 @@ pub fn is_removable_album_field(field: &str) -> bool {
 pub const DISC_CONVERSION_REMOVES: [&str; 3] = ["discnumber", "disctotal", "totaldiscs"];
 
 /// The new numbering of one file of a multi-disc conversion
-/// ([`apply_disc_conversion`]).
+/// ([`apply_disc_conversion`]), as the conversion planned and recorded it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConvertedNumbers {
-    /// The new TRACKNUMBER, a plain number (no `/total`).
+    /// The new TRACKNUMBER (`17`, or `17/26` for a file that kept its
+    /// total inside the track number).
     pub tracknumber: String,
-    /// The new TRACKTOTAL; also written to TOTALTRACKS where the file
-    /// already has that key, so the two never disagree.
-    pub tracktotal: String,
+    /// The new TRACKTOTAL; `None` leaves the file without one (a
+    /// conversion gives a total only to a file that already had it).
+    pub tracktotal: Option<String>,
+    /// The new TOTALTRACKS, under the same rule.
+    pub totaltracks: Option<String>,
 }
 
 /// The tag writes of a multi-disc conversion, by file name. Deliberately a
@@ -111,16 +114,21 @@ pub struct DiscConversion {
 
 impl DiscConversion {
     /// The edits for one file (none when the file is not part of it).
-    fn edits_for(&self, filename: &str, has_totaltracks: bool) -> Vec<(String, Edit)> {
+    fn edits_for(&self, filename: &str) -> Vec<(String, Edit)> {
         let Some((_, n)) = self.files.iter().find(|(f, _)| f == filename) else {
             return Vec::new();
         };
-        let mut out = vec![
-            ("tracknumber".to_string(), Edit::Set(n.tracknumber.clone())),
-            ("tracktotal".to_string(), Edit::Set(n.tracktotal.clone())),
-        ];
-        if has_totaltracks {
-            out.push(("totaltracks".to_string(), Edit::Set(n.tracktotal.clone())));
+        let mut out = vec![(
+            "tracknumber".to_string(),
+            Edit::Rewrite(n.tracknumber.clone()),
+        )];
+        for (key, total) in [
+            ("tracktotal", &n.tracktotal),
+            ("totaltracks", &n.totaltracks),
+        ] {
+            if let Some(total) = total {
+                out.push((key.to_string(), Edit::Rewrite(total.clone())));
+            }
         }
         out.extend(
             DISC_CONVERSION_REMOVES
@@ -185,6 +193,10 @@ pub struct Diff {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Edit {
     Set(String),
+    /// A conversion's write: the comment keeps its place and the file's
+    /// own spelling of the key (`TRACKNUMBER` stays `TRACKNUMBER`); a key
+    /// the file lacks is appended as [`Edit::Set`] does.
+    Rewrite(String),
     Remove,
 }
 
@@ -511,9 +523,11 @@ pub fn apply_to_album_iter_numbered(
 }
 
 /// The tag writes of a multi-disc conversion: for each file of
-/// `conversion`, TRACKNUMBER and TRACKTOTAL set (TOTALTRACKS too where the
-/// file has it) and DISCNUMBER, DISCTOTAL, TOTALDISCS removed, in one save
-/// per file. No file is renamed (the conversion renames through the rename
+/// `conversion`, TRACKNUMBER rewritten, TRACKTOTAL and TOTALTRACKS
+/// rewritten where the conversion names a value for them (it does only for
+/// a file that already had the key) and DISCNUMBER, DISCTOTAL, TOTALDISCS
+/// removed, in one save per file. A rewritten comment keeps its place and
+/// the file's spelling of its key. No file is renamed (the conversion renames through the rename
 /// code, which checks every target first) and nothing else is written. The
 /// events are those of [`apply_to_album_iter`]; a file that fails is a
 /// `FileDone` with its error and the others are still written.
@@ -609,7 +623,7 @@ fn apply_to_album_iter_with(
     let user_friendly: Vec<(String, String)> = album_applied
         .iter()
         .filter_map(|(vk, e)| match e {
-            Edit::Set(v) => Some((album_field_of(vk).to_string(), v.clone())),
+            Edit::Set(v) | Edit::Rewrite(v) => Some((album_field_of(vk).to_string(), v.clone())),
             Edit::Remove => None,
         })
         .collect();
@@ -716,10 +730,7 @@ fn apply_to_album_iter_with(
                 dict_set(&mut combined, k, v.clone());
             }
             if let Some(c) = conversion {
-                let has_totaltracks = audio
-                    .tags()
-                    .is_some_and(|t| t.values("totaltracks").next().is_some());
-                for (k, v) in c.edits_for(&filename, has_totaltracks) {
+                for (k, v) in c.edits_for(&filename) {
                     dict_set(&mut combined, &k, v);
                 }
             }
@@ -740,6 +751,24 @@ fn apply_to_album_iter_with(
                                 },
                             ));
                             if !dry_run {
+                                audio.tags_mut().set(vkey, new_val);
+                            }
+                        }
+                    }
+                    Edit::Rewrite(new_val) => {
+                        let old: Vec<String> = audio
+                            .tags()
+                            .map(|t| t.values(vkey).map(str::to_string).collect())
+                            .unwrap_or_default();
+                        if old.len() != 1 || old[0] != *new_val {
+                            change.diffs.push((
+                                vkey.clone(),
+                                Diff {
+                                    old: old.first().cloned().unwrap_or_default(),
+                                    new: Some(new_val.clone()),
+                                },
+                            ));
+                            if !dry_run && !audio.tags_mut().replace(vkey, new_val) {
                                 audio.tags_mut().set(vkey, new_val);
                             }
                         }

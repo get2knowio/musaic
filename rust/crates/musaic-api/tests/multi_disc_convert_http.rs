@@ -557,12 +557,10 @@ async fn a_disc_track_template_and_disc_track_numbers_without_discnumber() {
         names(&dir),
         ["01 A.flac", "02 B.flac", "03 C.flac", "04 D.flac"]
     );
+    // The files had no track total, so they get none.
     assert_eq!(
         numbering(&dir.join("03 C.flac")),
-        BTreeMap::from([
-            ("TRACKNUMBER".to_string(), vec!["3".to_string()]),
-            ("TRACKTOTAL".to_string(), vec!["4".to_string()]),
-        ])
+        BTreeMap::from([("TRACKNUMBER".to_string(), vec!["3".to_string()])])
     );
     w.run(CHECK).await;
     assert!(w.open_findings().await.is_empty());
@@ -656,12 +654,10 @@ async fn already_continuous_numbering_only_loses_its_disc_tags() {
         "{body}"
     );
     assert_eq!(names(&dir), ["01 - A.flac", "02 - B.flac", "03 - C.flac"]);
+    // The files had no track total, so they get none.
     assert_eq!(
         numbering(&dir.join("03 - C.flac")),
-        BTreeMap::from([
-            ("TRACKNUMBER".to_string(), vec!["3".to_string()]),
-            ("TRACKTOTAL".to_string(), vec!["3".to_string()]),
-        ])
+        BTreeMap::from([("TRACKNUMBER".to_string(), vec!["3".to_string()])])
     );
     let ev = w.events();
     assert_eq!(count(&ev, "AlbumRenamed(files)"), 0, "{ev:?}");
@@ -689,6 +685,193 @@ async fn totaltracks_is_kept_in_step_where_a_file_has_it() {
     );
     // Not added where it was not.
     assert!(!numbering(&dir.join("05 - B2.flac")).contains_key("TOTALTRACKS"));
+}
+
+/// Every comment of a file as it is written: keys in their own spelling,
+/// in file order.
+fn raw_comments(path: &Path) -> Vec<(String, String)> {
+    musaic_tags::FlacFile::open(path)
+        .unwrap()
+        .tags()
+        .unwrap()
+        .comments
+        .clone()
+}
+
+/// A conversion writes a track total only where the file already had one,
+/// under the key and in the form it had: TRACKTOTAL, TOTALTRACKS, or the
+/// `/total` of a TRACKNUMBER. A file with none gets none. The keys it
+/// rewrites keep the file's spelling and their place among the comments.
+/// The record keeps every old value, so the old numbering can be put back.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_track_total_is_written_only_where_a_file_had_one() {
+    let w = World::new();
+    let dir = w.lib.join("Band - Record [FLAC]");
+    let disc = |d: i64| {
+        vec![
+            ("DISCNUMBER", d.to_string()),
+            ("DISCTOTAL", "2".to_string()),
+        ]
+    };
+    let file = |name: &str, tags: Vec<(&'static str, String)>, d: i64| Track {
+        name: name.to_string(),
+        tags: tags.into_iter().chain(disc(d)).collect(),
+    };
+    let s = |v: &str| v.to_string();
+    let tracks = vec![
+        // TRACKTOTAL only, written before the title.
+        file(
+            "01 - A1.flac",
+            vec![
+                ("TRACKTOTAL", s("2")),
+                ("TRACKNUMBER", s("1")),
+                ("TITLE", s("A1")),
+            ],
+            1,
+        ),
+        // No total at all, and a lower-case key.
+        file(
+            "02 - A2.flac",
+            vec![("tracknumber", s("2")), ("TITLE", s("A2"))],
+            1,
+        ),
+        // TOTALTRACKS only.
+        file(
+            "01 - B1.flac",
+            vec![
+                ("TITLE", s("B1")),
+                ("TrackNumber", s("1")),
+                ("totaltracks", s("3")),
+            ],
+            2,
+        ),
+        // The total inside the track number.
+        file(
+            "02 - B2.flac",
+            vec![("TITLE", s("B2")), ("TRACKNUMBER", s("2/3"))],
+            2,
+        ),
+        // Both keys.
+        file(
+            "03 - B3.flac",
+            vec![
+                ("TITLE", s("B3")),
+                ("TRACKNUMBER", s("3")),
+                ("TRACKTOTAL", s("3")),
+                ("TOTALTRACKS", s("3")),
+            ],
+            2,
+        ),
+    ];
+    write_album(&dir, &tracks);
+    w.scan().await;
+    let id = w.only_finding().await;
+    w.convert_ok(id).await;
+    let album = |rest: &[(&str, &str)]| -> Vec<(String, String)> {
+        [
+            ("ARTIST", "Band"),
+            ("ALBUMARTIST", "Band"),
+            ("ALBUM", "Record"),
+            ("DATE", "1999"),
+        ]
+        .iter()
+        .chain(rest)
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
+    };
+    assert_eq!(
+        raw_comments(&dir.join("01 - A1.flac")),
+        album(&[("TRACKTOTAL", "5"), ("TRACKNUMBER", "1"), ("TITLE", "A1")])
+    );
+    assert_eq!(
+        raw_comments(&dir.join("02 - A2.flac")),
+        album(&[("tracknumber", "2"), ("TITLE", "A2")])
+    );
+    assert_eq!(
+        raw_comments(&dir.join("03 - B1.flac")),
+        album(&[("TITLE", "B1"), ("TrackNumber", "3"), ("totaltracks", "5")])
+    );
+    assert_eq!(
+        raw_comments(&dir.join("04 - B2.flac")),
+        album(&[("TITLE", "B2"), ("TRACKNUMBER", "4/5")])
+    );
+    assert_eq!(
+        raw_comments(&dir.join("05 - B3.flac")),
+        album(&[
+            ("TITLE", "B3"),
+            ("TRACKNUMBER", "5"),
+            ("TRACKTOTAL", "5"),
+            ("TOTALTRACKS", "5")
+        ])
+    );
+    // The record has each file's values from before and after.
+    let rec = &w.records()[0];
+    let of = |new: &str| -> Value {
+        rec["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|f| f["new_name"] == json!(new))
+            .unwrap()
+            .clone()
+    };
+    let a2 = of("02 - A2.flac");
+    assert_eq!(a2["old_tags"]["TRACKTOTAL"], json!([]));
+    assert_eq!(a2["new_tags"]["TRACKTOTAL"], json!([]));
+    assert_eq!(a2["new_tags"]["TOTALTRACKS"], json!([]));
+    let b1 = of("03 - B1.flac");
+    assert_eq!(b1["old_tags"]["TOTALTRACKS"], json!(["3"]));
+    assert_eq!(b1["new_tags"]["TOTALTRACKS"], json!(["5"]));
+    assert_eq!(b1["new_tags"]["TRACKTOTAL"], json!([]));
+    let b2 = of("04 - B2.flac");
+    assert_eq!(b2["old_tags"]["TRACKNUMBER"], json!(["2/3"]));
+    assert_eq!(b2["new_tags"]["TRACKNUMBER"], json!(["4/5"]));
+    assert_eq!(b2["old_tags"]["DISCNUMBER"], json!(["2"]));
+    w.run(CHECK).await;
+    assert!(w.open_findings().await.is_empty());
+}
+
+/// A conversion started by an earlier build recorded a TRACKTOTAL for
+/// every file. Finishing it writes what that record says, so the read-back
+/// against the record still holds.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_older_records_track_totals_are_written_as_recorded() {
+    let w = World::new();
+    let dir = w.lib.join("Band - Record [FLAC]");
+    let tracks = vec![
+        track("01 - A.flac", "A", "1", Some(1)),
+        track("01 - B.flac", "B", "1", Some(2)),
+    ];
+    write_album(&dir, &tracks);
+    w.scan().await;
+    let id = w.only_finding().await;
+    let p = w.preview(id).await;
+    let out = w.convert_stopping(id, p["digest"].as_str().unwrap(), StopAt::TaggedFiles(0));
+    assert_eq!(out["interrupted"], json!(true), "{out}");
+    // Make the record what the earlier build wrote.
+    let path = std::fs::read_dir(w.cfg.join("conversions"))
+        .unwrap()
+        .flatten()
+        .map(|e| e.path())
+        .find(|p| p.extension().is_some_and(|x| x == "json"))
+        .unwrap();
+    let mut rec: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    for f in rec["files"].as_array_mut().unwrap() {
+        assert_eq!(f["new_tags"]["TRACKTOTAL"], json!([]));
+        f["new_tags"]["TRACKTOTAL"] = json!(["2"]);
+    }
+    std::fs::write(&path, serde_json::to_string_pretty(&rec).unwrap()).unwrap();
+    w.run(CHECK).await;
+    let id = w.open_findings().await[0]["id"].as_i64().unwrap();
+    let body = w.convert_ok(id).await;
+    assert_eq!(body["ok"], json!(true), "{body}");
+    assert_eq!(
+        numbering(&dir.join("02 - B.flac")),
+        BTreeMap::from([
+            ("TRACKNUMBER".to_string(), vec!["2".to_string()]),
+            ("TRACKTOTAL".to_string(), vec!["2".to_string()]),
+        ])
+    );
 }
 
 // ---------------------------------------------------------------- collisions

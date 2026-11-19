@@ -16,9 +16,9 @@
 //! 1. **The record** (`kind: "folders"`), flushed to disk before anything
 //!    changes: every member, every file (member, old name and tags, new
 //!    number, name and tags), each folder's covers, clutter, sidecar and
-//!    leftovers with what happens to them, the rows of files no longer on
-//!    disk, the folder names and the ids before and after. *Disk and
-//!    database unchanged.*
+//!    other files with what happens to them (where each goes and under
+//!    which name), the rows of files no longer on disk, the folder names
+//!    and the ids before and after. *Disk and database unchanged.*
 //! 2. **Sidecar tags into the database**: each member folder's track-tag
 //!    sidecar is added to its rows (`INSERT OR IGNORE`, for the files the
 //!    folder holds), so nothing the sidecar has and the database lacks is
@@ -30,8 +30,9 @@
 //!    `05 - X.flac` is `17 - X.flac` in its own folder, so the names of all
 //!    discs are disjoint by construction. *N valid albums.*
 //! 4. **Tags in place**: per member, through the apply pipeline, one save
-//!    per file: TRACKNUMBER the new number, TRACKTOTAL the set's count, the
-//!    disc tags removed; read back. *N valid albums, each numbered
+//!    per file: TRACKNUMBER the new number, TRACKTOTAL and TOTALTRACKS the
+//!    set's count where the file already has that key (a file with no track
+//!    total gets none), the disc tags removed; read back. *N valid albums, each numbered
 //!    straight on from the discs before it, none with disc tags.* Tags come
 //!    before the move so that the destination never holds a file that
 //!    still says it is on another disc (a scan would read a half-moved
@@ -45,10 +46,16 @@
 //!    one name and its rows are under that folder's album, except for at
 //!    most the one file between its move and its rows' commit, which the
 //!    next run repairs.* Then the destination is rescanned.
-//! 6. **Covers and clutter** of the other folders: the covers the
-//!    destination takes (it had none) move in; copies of a kept cover and
-//!    other pictures go to the app trash, as does the clutter
-//!    (`.DS_Store`, AppleDouble files). *Nothing is deleted.*
+//! 6. **Covers, clutter and other files** of the other folders: the covers
+//!    the destination takes (it had none) move in; copies of a kept cover
+//!    and other pictures go to the app trash, as does the clutter
+//!    (`.DS_Store`, AppleDouble files). Every other file (a rip log, a cue
+//!    sheet, a booklet) moves into the destination with a no-clobber
+//!    rename, under its own name or, where a different file has that name
+//!    there, under the name the plan gave it (`rip (disc 2).log`); a copy
+//!    of a file the destination already has goes to the app trash. Each is
+//!    in exactly one folder at any moment, so the next run sees which are
+//!    done. *Nothing is deleted.*
 //! 7. **Sidecars**: the destination's is written from the database (every
 //!    member's rows are under it now); the old ones then go to the trash.
 //! 8. **Rows of files no longer on disk** move to the destination under
@@ -58,7 +65,9 @@
 //!    of theirs is in the destination). `AlbumRenamed(member → survivor)`
 //!    for each. *One album row with everything; the others gone.*
 //! 10. **Emptied folders** (nothing left at all) are removed with a
-//!     non-recursive remove; a folder with leftovers stays.
+//!     non-recursive remove. Only a folder that still holds something
+//!     stays: a subfolder (never moved), or a file that appeared since the
+//!     plan was made.
 //! 11. **The folder rename** through the rename code, which re-keys the
 //!     survivor (`AlbumRenamed(old → new)`).
 //! 12. **The last rescan** of the survivor (`AlbumTagsChanged`), the record
@@ -82,9 +91,10 @@ use musaic_core::rename_reason::{Reason, couldnt_rename, quoted};
 use musaic_db::merge::{MergeRequest, merge_album_rows, move_track_rows};
 use musaic_events::Event as BusEvent;
 use musaic_fsops::conversion_log::{
-    Attempt, KIND_FOLDERS, LoggedFile, LoggedFolder, LoggedMember, Record, converted_numbering,
+    Attempt, KIND_FOLDERS, LoggedFile, LoggedFolder, LoggedMember, LoggedStray, Record,
+    converted_numbering,
 };
-use musaic_fsops::multi_disc::{ConversionPreview, CoverAction, Gather, TrackState};
+use musaic_fsops::multi_disc::{ConversionPreview, CoverAction, Gather, StrayAction, TrackState};
 use musaic_fsops::rename::{PlanEntry, RenameEnv, execute_renames};
 use musaic_fsops::sidecar::SIDECAR_FILENAME;
 use musaic_scan::py_resolve;
@@ -92,7 +102,8 @@ use serde_json::{Value, json};
 
 use crate::apply::{ApplyEnv, DISC_CONVERSION_FIELDS, NoCovers};
 use crate::multi_disc_convert::{
-    ConvertEnv, Refusal, StopAt, TARGET, listed_as, nfc, read_numbering, report, step, write_probe,
+    ConvertEnv, Refusal, StopAt, TARGET, listed_as, nfc, read_numbering, recorded_numbers, report,
+    step, write_probe,
 };
 
 fn plural(n: usize, word: &str) -> String {
@@ -130,6 +141,9 @@ struct FolderOut {
     /// `{name, action, outcome}`.
     covers: Vec<Value>,
     junk: Vec<Value>,
+    /// `{name, action, new_name, outcome}`: the other files and where each
+    /// went.
+    strays: Vec<Value>,
     /// `merged` | `none` | `not_reached` | `failed`.
     sidecar: &'static str,
     /// What is left in the folder when it stays.
@@ -184,6 +198,7 @@ impl Out {
                     "destination": f.destination,
                     "covers": f.covers,
                     "junk": f.junk,
+                    "strays": f.strays,
                     "sidecar": f.sidecar,
                     "left": f.left,
                     "outcome": f.outcome,
@@ -296,6 +311,15 @@ fn new_record(
                 junk: f.junk.iter().map(|(n, _)| n.clone()).collect(),
                 sidecar: f.sidecar,
                 other_files: f.other_files.clone(),
+                strays: f
+                    .strays
+                    .iter()
+                    .map(|s| LoggedStray {
+                        name: s.name.clone(),
+                        action: s.action.as_str().to_string(),
+                        new_name: s.new_name.clone(),
+                    })
+                    .collect(),
             })
             .collect(),
         orphan_rows: g.orphan_rows.clone(),
@@ -683,7 +707,6 @@ library records to it ({e}). Nothing else was changed; convert again to finish."
     }
 
     // ---- 4. tags, each member in its own folder ----
-    let set_total = p.plan.track_total.to_string();
     let mut todo: Vec<(usize, String)> = Vec::new();
     let mut lost = 0;
     for (i, t) in tracks.iter().enumerate() {
@@ -727,10 +750,11 @@ library records to it ({e}). Nothing else was changed; convert again to finish."
         for (i, name) in &mine {
             conversion.files.push((
                 name.clone(),
-                musaic_tags::ConvertedNumbers {
-                    tracknumber: tracks[*i].new_track.unwrap_or_default().to_string(),
-                    tracktotal: set_total.clone(),
-                },
+                recorded_numbers(
+                    record,
+                    tracks[*i].new_filename.as_deref().unwrap_or(""),
+                    tracks[*i].new_track.unwrap_or_default(),
+                ),
             ));
         }
         {
@@ -993,10 +1017,12 @@ file says, then convert again to finish: what is done stays done.",
         rescan(env, &library, &dirs[0].clone());
     }
 
-    // ---- 6. covers and clutter of the other folders ----
+    // ---- 6. covers, clutter and other files of the other folders ----
     let stamp = trash_stamp(&now);
     let mut results = Vec::new();
     let mut cover_error: Option<String> = None;
+    let mut strays_moved = 0;
+    let mut stopped = false;
     'folders: for (fi, f) in p.plan.folders.iter().enumerate() {
         if f.destination || !f.exists {
             continue;
@@ -1070,6 +1096,65 @@ file says, then convert again to finish: what is done stays done.",
                 .push(json!({"name": name, "outcome": outcome}));
             results.push(json!({"folder": f.dir_name, "name": name, "action": "clutter", "outcome": outcome}));
         }
+        // The other files, after the covers: a cover the destination takes
+        // has its name there before a file is given one.
+        for s in &f.strays {
+            let mut to = s.target().to_string();
+            let outcome = if s.done {
+                "already"
+            } else {
+                let Some(name) = listed_as(&dirs[k], &s.name) else {
+                    cover_error = Some(format!("{} is no longer in {}", s.name, f.dir_name));
+                    break 'folders;
+                };
+                let src = dirs[k].join(&name);
+                let r = match s.action {
+                    StrayAction::Identical => musaic_fsops::trash::send_to_trash(
+                        env.trash,
+                        &src,
+                        Some(&f.dir_name),
+                        || stamp.clone(),
+                    )
+                    .map(|_| "trashed")
+                    .map_err(|e| e.to_string()),
+                    StrayAction::Moved => {
+                        // Its own name as its folder lists it, or the name
+                        // the plan gave it.
+                        let want = s.new_name.clone().unwrap_or_else(|| name.clone());
+                        move_stray(&src, &dirs[0], &want).map(|listed| {
+                            to = listed;
+                            "moved"
+                        })
+                    }
+                };
+                match r {
+                    Ok(o) => o,
+                    Err(e) => {
+                        cover_error = Some(format!("{} in {}: {e}", s.name, f.dir_name));
+                        out.folders[fi].strays.push(json!({"name": s.name, "action": s.action.as_str(), "new_name": s.new_name, "outcome": "failed"}));
+                        break 'folders;
+                    }
+                }
+            };
+            out.folders[fi].strays.push(json!({"name": s.name, "action": s.action.as_str(), "new_name": s.new_name, "outcome": outcome}));
+            results.push(json!({
+                "folder": f.dir_name,
+                "name": s.name,
+                "action": if s.action == StrayAction::Moved { "file_moved" } else { "file_identical" },
+                "to": (s.action == StrayAction::Moved).then_some(&to),
+                "outcome": outcome,
+            }));
+            if outcome == "moved" {
+                strays_moved += 1;
+                if env.stop_at == Some(StopAt::MovedStrays(strays_moved)) {
+                    stopped = true;
+                    break 'folders;
+                }
+            }
+        }
+    }
+    if stopped {
+        stop_here!();
     }
     step(
         record,
@@ -1420,6 +1505,32 @@ library ({e}). Convert again to finish.",
     out
 }
 
+/// Move one other file of an emptied folder into the destination as
+/// `want`, never replacing anything, and return the name the destination
+/// lists it under (the same file, read back: a volume may store another
+/// spelling than the one asked for).
+fn move_stray(src: &Path, dest: &Path, want: &str) -> Result<String, String> {
+    if listed_as(dest, want).is_some() || std::fs::symlink_metadata(dest.join(want)).is_ok() {
+        return Err(format!(
+            "a file named {} appeared in {} since the plan was made, so nothing was overwritten",
+            quoted(want),
+            name_of(dest)
+        ));
+    }
+    let handle = same_file::Handle::from_path(src).map_err(|e| e.to_string())?;
+    musaic_fsops::move_file_noclobber(src, &dest.join(want)).map_err(|e| e.to_string())?;
+    let names = musaic_scan::dir_names(dest).unwrap_or_default();
+    musaic_scan::listed_spelling(dest, want, &names, Some(&handle))
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|l| same_file::Handle::from_path(dest.join(l)).ok().as_ref() == Some(&handle))
+        .ok_or_else(|| {
+            format!(
+                "it was moved into {}, but the folder could not be read back to confirm it",
+                name_of(dest)
+            )
+        })
+}
+
 /// Stop treating the unfinished conversion of finding `finding_id`'s
 /// album as one: its record is closed as abandoned (kept, with every
 /// attempt), so scans read its folders again and the check judges them
@@ -1475,6 +1586,29 @@ pub fn abandon(env: &mut ConvertEnv<'_>, finding_id: i64) -> Result<Value, Refus
             where_now
                 .push(json!({"file": t.filename, "folder": t.folder, "state": t.state.as_str()}));
         }
+        // The other files too: one that already moved stays in the set's
+        // folder under the name recorded here, and the record says so.
+        let dest = p.plan.folders.iter().find(|f| f.destination);
+        for f in p.plan.folders.iter().filter(|f| !f.destination) {
+            for s in &f.strays {
+                let (folder, name, state) = match (s.done, s.action) {
+                    (false, _) => (f.dir_name.as_str(), s.name.as_str(), "untouched"),
+                    (true, StrayAction::Moved) => (
+                        dest.map_or("", |d| d.dir_name.as_str()),
+                        s.target(),
+                        "moved",
+                    ),
+                    (true, StrayAction::Identical) => ("", s.name.as_str(), "trashed"),
+                };
+                where_now.push(json!({
+                    "file": s.name,
+                    "from": f.dir_name,
+                    "folder": folder,
+                    "name": name,
+                    "state": state,
+                }));
+            }
+        }
     }
     let now = (env.now)();
     let mut paths = Vec::new();
@@ -1504,4 +1638,39 @@ pub fn abandon(env: &mut ConvertEnv<'_>, finding_id: i64) -> Result<Value, Refus
         "user_message": "Musaic no longer treats this as a conversion in progress. Every file \
     stays where it is now; the record keeps what was done.",
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_stray_moves_without_replacing_anything() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (disc, dest) = (tmp.path().join("disc 2"), tmp.path().join("set"));
+        std::fs::create_dir(&disc).unwrap();
+        std::fs::create_dir(&dest).unwrap();
+        std::fs::write(disc.join("rip.log"), b"two").unwrap();
+        std::fs::write(dest.join("rip.log"), b"one").unwrap();
+
+        // The name is taken: nothing moves and nothing is overwritten.
+        let e = move_stray(&disc.join("rip.log"), &dest, "rip.log").unwrap_err();
+        assert!(e.contains("nothing was overwritten"), "{e}");
+        assert_eq!(std::fs::read(disc.join("rip.log")).unwrap(), b"two");
+        assert_eq!(std::fs::read(dest.join("rip.log")).unwrap(), b"one");
+        // Taken under another spelling of the same name too (as a volume
+        // that ignores normalisation would see it).
+        std::fs::write(dest.join("caf\u{e9}.txt"), b"x").unwrap();
+        std::fs::write(disc.join("cafe\u{301}.txt"), b"y").unwrap();
+        assert!(move_stray(&disc.join("cafe\u{301}.txt"), &dest, "cafe\u{301}.txt").is_err());
+        assert_eq!(std::fs::read(dest.join("caf\u{e9}.txt")).unwrap(), b"x");
+
+        // A free name: it moves, and the name returned is the one the
+        // folder lists for that very file.
+        let listed = move_stray(&disc.join("rip.log"), &dest, "rip (disc 2).log").unwrap();
+        assert_eq!(listed, "rip (disc 2).log");
+        assert!(!disc.join("rip.log").exists());
+        assert_eq!(std::fs::read(dest.join(&listed)).unwrap(), b"two");
+        assert_eq!(std::fs::read(dest.join("rip.log")).unwrap(), b"one");
+    }
 }

@@ -231,8 +231,8 @@ const folders: MultiDiscConversionPreview = {
   target_folder: { current: D1, new: "Band - Record [FLAC]" },
   folders: [
     { album_id: ALBUM_ID, dir_name: D1, disc: 1, destination: true, covers: [{ name: "cover.jpg", action: "kept", done: false }], sidecar: false, other_files: [], junk: [], exists: true },
-    { album_id: "b2", dir_name: D2, disc: 2, destination: false, covers: [{ name: "cover.jpg", action: "identical", done: false }], sidecar: true, other_files: ["notes.txt"], junk: [], exists: true },
-    { album_id: "b3", dir_name: D3, disc: 3, destination: false, covers: [{ name: "cover.jpg", action: "different", done: false }], sidecar: false, other_files: [], junk: [{ name: ".DS_Store", done: false }], exists: true },
+    { album_id: "b2", dir_name: D2, disc: 2, destination: false, covers: [{ name: "cover.jpg", action: "identical", done: false }], sidecar: true, other_files: [], strays: [{ name: "notes.txt", action: "moved", new_name: null, done: false }, { name: "rip.log", action: "moved", new_name: "rip (disc 2).log", done: false }], junk: [], exists: true },
+    { album_id: "b3", dir_name: D3, disc: 3, destination: false, covers: [{ name: "cover.jpg", action: "different", done: false }], sidecar: false, other_files: [], strays: [{ name: "rip.log", action: "identical", new_name: null, done: false }], junk: [{ name: ".DS_Store", done: false }], exists: true },
   ],
   gather: { folded: false, folder_renamed: false, merges: 2, orphan_rows: 0 },
   records_dir: "/cfg/conversions",
@@ -264,10 +264,46 @@ describe("converting a set kept in several folders", () => {
       "3 files from 3 folders will be moved into one folder named Band - Record [FLAC], renumbered 1 to 3, and lose their disc tags (DISCNUMBER, DISCTOTAL). " +
         `The cover kept is cover.jpg from ${D1}. ` +
         `These covers go to Musaic's trash: cover.jpg from ${D2} and cover.jpg from ${D3}. ` +
-        `notes.txt stays in ${D2}, which is kept. ` +
+        `These other files move into the set's folder too: notes.txt from ${D2} and rip.log from ${D2} (as rip (disc 2).log). ` +
+        `This copy of a file the set's folder already has goes to Musaic's trash: rip.log from ${D3}. ` +
         "The 3 albums become one; findings you ignored on the other 2 discs do not carry over. " +
         "This cannot be undone from Musaic, but a record of every old name and tag value is kept in /cfg/conversions.",
     );
+  });
+
+  it("says where each other file of a disc's folder goes, and leaves no folder behind", async () => {
+    previewAnswer = async () => json(folders);
+    wrap(<MultiDiscResolveDialog finding={finding} open onClose={() => {}} />);
+    await screen.findByRole("button", { name: "Convert…" });
+    const moved = document.querySelectorAll('[data-stray-action="moved"]');
+    expect(Array.from(moved).map((e) => e.textContent)).toEqual([
+      "notes.txt moves into the set's folder.",
+      "rip.log moves into the set's folder as rip (disc 2).log: a different file named rip.log is already there.",
+    ]);
+    const copy = document.querySelector('[data-stray-action="identical"]');
+    expect(copy?.textContent).toBe(
+      "rip.log is the same file as the one in the set's folder, so this copy goes to Musaic's trash.",
+    );
+    // Both disc folders are emptied, and nothing is said to stay in one.
+    expect(screen.getAllByText("This folder is removed once it is empty.")).toHaveLength(2);
+    expect(screen.queryByText(/This folder stays/)).toBeNull();
+    expect(screen.queryByText(/Stays in this folder/)).toBeNull();
+    expect(screen.queryByText(/This folder is kept/)).toBeNull();
+  });
+
+  it("says so when a folder is kept because it holds a subfolder", async () => {
+    const withSub = {
+      ...folders,
+      folders: folders.folders.map((f) =>
+        f.dir_name === D2 ? { ...f, other_files: ["Scans"] } : f,
+      ),
+    };
+    previewAnswer = async () => json(withSub);
+    wrap(<MultiDiscResolveDialog finding={finding} open onClose={() => {}} />);
+    await screen.findByRole("button", { name: "Convert…" });
+    expect(screen.getByText("This folder is kept: not everything in it is moved.")).toBeTruthy();
+    expect(screen.getByText(/Not moved \(Musaic never moves a subfolder\):/)).toBeTruthy();
+    expect(confirmationText(withSub)).toContain(`Scans is not moved, so ${D2} is kept. `);
   });
 
   it("streams the progress, then closes on success", async () => {

@@ -444,7 +444,8 @@ const SET: &str = "Band - Record [FLAC]";
 /// a user tag (which writes the disc's sidecar), a tag kept only in a
 /// sidecar, fingerprints, a decode reject, an anchor on disc 2, a finding
 /// ignored on disc 2, the same cover in discs 1 and 2 and another in
-/// disc 3, a text file in disc 2 and a `.DS_Store` in disc 3.
+/// disc 3, a text file in disc 2, a rip log in every disc (disc 3's a copy
+/// of disc 1's, disc 2's another) and a `.DS_Store` in disc 3.
 async fn box_set(w: &World) {
     write_disc(&w.lib.join(D1), 1, 3, &["A1", "A2", "A3"]);
     write_disc(&w.lib.join(D2), 2, 3, &["B1", "B2"]);
@@ -453,6 +454,9 @@ async fn box_set(w: &World) {
     std::fs::write(w.lib.join(D2).join("cover.jpg"), b"picture one").unwrap();
     std::fs::write(w.lib.join(D3).join("cover.jpg"), b"picture three").unwrap();
     std::fs::write(w.lib.join(D2).join("notes.txt"), b"liner notes").unwrap();
+    std::fs::write(w.lib.join(D1).join("rip.log"), b"log of disc one").unwrap();
+    std::fs::write(w.lib.join(D2).join("rip.log"), b"log of disc two").unwrap();
+    std::fs::write(w.lib.join(D3).join("rip.log"), b"log of disc one").unwrap();
     std::fs::write(w.lib.join(D3).join(".DS_Store"), b"clutter").unwrap();
     w.scan().await;
     let (d1, d2, d3) = (w.id_of(D1), w.id_of(D2), w.id_of(D3));
@@ -558,7 +562,22 @@ async fn three_disc_folders_become_one_with_everything_they_had() {
     let folders = p["folders"].as_array().unwrap();
     assert_eq!(folders[1]["covers"][0]["action"], json!("identical"));
     assert_eq!(folders[2]["covers"][0]["action"], json!("different"));
-    assert_eq!(folders[1]["other_files"], json!(["notes.txt"]));
+    // Every other file of a disc's folder says where it goes: under its
+    // own name, under a new one where the set's folder has a different
+    // file of that name, or to the trash where it has the same one.
+    assert_eq!(folders[0]["other_files"], json!(["rip.log"]));
+    assert_eq!(folders[1]["other_files"], json!([]));
+    assert_eq!(
+        folders[1]["strays"],
+        json!([
+            {"name": "notes.txt", "action": "moved", "new_name": null, "done": false},
+            {"name": "rip.log", "action": "moved", "new_name": "rip (disc 2).log", "done": false},
+        ])
+    );
+    assert_eq!(
+        folders[2]["strays"],
+        json!([{"name": "rip.log", "action": "identical", "new_name": null, "done": false}])
+    );
     assert_eq!(folders[2]["junk"][0]["name"], json!(".DS_Store"));
     w.events();
 
@@ -568,7 +587,8 @@ async fn three_disc_folders_become_one_with_everything_they_had() {
 
     // One folder with every file, numbered straight through, no disc tags.
     let set = w.lib.join(SET);
-    assert_eq!(names(&w.lib), [D2, SET]);
+    // No disc folder is left behind: their other files came along.
+    assert_eq!(names(&w.lib), [SET]);
     assert_eq!(
         names(&set),
         [
@@ -580,9 +600,42 @@ async fn three_disc_folders_become_one_with_everything_they_had() {
             "05 - B2.flac",
             "06 - C1.flac",
             "07 - C2.flac",
-            "cover.jpg"
+            "cover.jpg",
+            "notes.txt",
+            "rip (disc 2).log",
+            "rip.log"
         ]
     );
+    let text = |name: &str| String::from_utf8(std::fs::read(set.join(name)).unwrap()).unwrap();
+    assert_eq!(text("notes.txt"), "liner notes");
+    assert_eq!(text("rip.log"), "log of disc one");
+    assert_eq!(text("rip (disc 2).log"), "log of disc two");
+    // The record says where each went.
+    let rec = &w.records()[0];
+    assert_eq!(
+        rec["folders"][1]["strays"],
+        json!([
+            {"name": "notes.txt", "action": "moved", "new_name": null},
+            {"name": "rip.log", "action": "moved", "new_name": "rip (disc 2).log"},
+        ])
+    );
+    let steps = rec["attempts"][0]["steps"].as_array().unwrap();
+    let covers = steps.iter().find(|s| s["step"] == json!("covers")).unwrap();
+    let moved: Vec<&Value> = covers["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["action"] == json!("file_moved"))
+        .collect();
+    assert_eq!(
+        moved,
+        [
+            &json!({"folder": D2, "name": "notes.txt", "action": "file_moved", "to": "notes.txt", "outcome": "moved"}),
+            &json!({"folder": D2, "name": "rip.log", "action": "file_moved", "to": "rip (disc 2).log", "outcome": "moved"}),
+        ]
+    );
+    assert_eq!(body["folders"][1]["outcome"], json!("removed"), "{body}");
+    assert_eq!(body["folders"][2]["outcome"], json!("removed"), "{body}");
     for (n, name) in names(&set)
         .iter()
         .filter(|n| n.ends_with(".flac"))
@@ -600,8 +653,7 @@ async fn three_disc_folders_become_one_with_everything_they_had() {
         std::fs::read(set.join("cover.jpg")).unwrap(),
         b"picture one"
     );
-    // The leftover stays with its folder; the emptied one is gone.
-    assert_eq!(names(&w.lib.join(D2)), ["notes.txt"]);
+    assert!(!w.lib.join(D2).exists());
     assert!(!w.lib.join(D3).exists());
     // The covers and the clutter that are no longer needed, and the old
     // sidecars, are in the app trash.
@@ -612,6 +664,8 @@ async fn three_disc_folders_become_one_with_everything_they_had() {
         format!("{D3}/cover.jpg"),
         format!("{D3}/.DS_Store"),
         format!("{D3}/.media-manager-tags.json"),
+        // The copy of a log the set's folder already has.
+        format!("{D3}/rip.log"),
     ] {
         assert!(trash.contains(&t), "{t} not in {trash:?}");
     }
@@ -898,6 +952,116 @@ async fn interrupted_after_the_last_move_before_its_rows() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn interrupted_after_moving_one_other_file() {
+    interrupted_then_finished(StopAt::MovedStrays(1)).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn interrupted_after_moving_every_other_file() {
+    interrupted_then_finished(StopAt::MovedStrays(2)).await;
+}
+
+/// Stopped right after a rip log moved under its new name: the preview of
+/// what is left says which files are done and which are not, from the
+/// record and the disk alone, and nothing is moved twice.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_conversion_stopped_between_two_other_files_knows_which_moved() {
+    let w = World::new();
+    box_set(&w).await;
+    let id = w.only_finding().await;
+    let p = w.preview(id).await;
+    let digest = p["digest"].as_str().unwrap();
+    let out = w.convert_with(id, digest, Some(StopAt::MovedStrays(2)), None);
+    assert_eq!(out["interrupted"], json!(true), "{out}");
+    // notes.txt and disc 2's log are in the set's folder; disc 3's copy
+    // of the log has not been looked at yet.
+    assert!(w.lib.join(D1).join("notes.txt").is_file());
+    assert_eq!(
+        std::fs::read(w.lib.join(D1).join("rip (disc 2).log")).unwrap(),
+        b"log of disc two"
+    );
+    assert_eq!(
+        std::fs::read(w.lib.join(D1).join("rip.log")).unwrap(),
+        b"log of disc one"
+    );
+    assert!(!w.lib.join(D2).join("rip.log").exists());
+    assert!(w.lib.join(D3).join("rip.log").is_file());
+    w.run(CHECK).await;
+    let id = w.open_findings().await[0]["id"].as_i64().unwrap();
+    let p2 = w.preview(id).await;
+    assert_eq!(p2["conversion_available"], json!(true), "{p2}");
+    assert_eq!(
+        p2["folders"][1]["strays"],
+        json!([
+            {"name": "notes.txt", "action": "moved", "new_name": null, "done": true},
+            {"name": "rip.log", "action": "moved", "new_name": "rip (disc 2).log", "done": true},
+        ])
+    );
+    assert_eq!(
+        p2["folders"][2]["strays"],
+        json!([{"name": "rip.log", "action": "identical", "new_name": null, "done": false}])
+    );
+    let body = w.convert_ok(id).await;
+    assert_eq!(
+        body["folders"][1]["strays"],
+        json!([
+            {"name": "notes.txt", "action": "moved", "new_name": null, "outcome": "already"},
+            {"name": "rip.log", "action": "moved", "new_name": "rip (disc 2).log", "outcome": "already"},
+        ])
+    );
+    assert_eq!(names(&w.lib), [SET]);
+}
+
+/// A moved file that is then in both folders, or in neither, is never
+/// guessed at: finishing is refused until it is sorted out.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_moved_file_found_twice_or_not_at_all_refuses_to_finish() {
+    for both in [true, false] {
+        let w = World::new();
+        box_set(&w).await;
+        let id = w.only_finding().await;
+        let p = w.preview(id).await;
+        let digest = p["digest"].as_str().unwrap();
+        w.convert_with(id, digest, Some(StopAt::MovedStrays(1)), None);
+        if both {
+            std::fs::write(w.lib.join(D2).join("notes.txt"), b"back again").unwrap();
+        } else {
+            std::fs::remove_file(w.lib.join(D1).join("notes.txt")).unwrap();
+        }
+        w.run(CHECK).await;
+        let id = w.open_findings().await[0]["id"].as_i64().unwrap();
+        let p2 = w.preview(id).await;
+        assert_eq!(p2["conversion_available"], json!(false), "{both}: {p2}");
+        let codes: Vec<&str> = p2["blockers"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|b| b["code"].as_str().unwrap())
+            .collect();
+        assert_eq!(codes, ["resume_mismatch"], "{both}: {p2}");
+    }
+}
+
+/// A subfolder of a disc's folder is never moved (Musaic does not look
+/// inside one), so that one folder stays, holding only it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_disc_folder_with_a_subfolder_stays() {
+    let w = World::new();
+    box_set(&w).await;
+    std::fs::create_dir(w.lib.join(D2).join("Scans")).unwrap();
+    std::fs::write(w.lib.join(D2).join("Scans").join("back.png"), b"scan").unwrap();
+    let id = w.only_finding().await;
+    let p = w.preview(id).await;
+    assert_eq!(p["folders"][1]["other_files"], json!(["Scans"]), "{p}");
+    let body = w.convert_ok(id).await;
+    assert_eq!(names(&w.lib), [D2, SET]);
+    assert_eq!(names(&w.lib.join(D2)), ["Scans"]);
+    assert_eq!(body["folders"][1]["outcome"], json!("kept"), "{body}");
+    assert_eq!(body["folders"][1]["left"], json!(["Scans"]), "{body}");
+    assert!(w.lib.join(SET).join("notes.txt").is_file());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn interrupted_after_the_covers() {
     interrupted_then_finished(StopAt::AfterCovers).await;
 }
@@ -1016,6 +1180,65 @@ async fn an_abandoned_conversion_leaves_every_file_where_it_is() {
     assert!(w.missing().is_empty());
 }
 
+/// Abandoned after one of the other files had moved: it stays in the
+/// set's folder (abandoning moves nothing back), and the closed record says
+/// where each of those files is and what it was called before.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_abandoned_conversion_records_where_the_other_files_are() {
+    let w = World::new();
+    box_set(&w).await;
+    let id = w.only_finding().await;
+    let p = w.preview(id).await;
+    w.convert_with(
+        id,
+        p["digest"].as_str().unwrap(),
+        Some(StopAt::MovedStrays(2)),
+        None,
+    );
+    w.run(CHECK).await;
+    let id = w.open_findings().await[0]["id"].as_i64().unwrap();
+    let disk = w.disk();
+    let r = call(
+        &w.app,
+        "POST",
+        &format!("/api/checks/{CHECK}/findings/{id}/abandon-conversion"),
+        None,
+    )
+    .await;
+    assert_eq!(r.status, 200, "{}", r.text());
+    assert_eq!(w.disk(), disk);
+    assert_eq!(
+        std::fs::read(w.lib.join(D1).join("rip (disc 2).log")).unwrap(),
+        b"log of disc two"
+    );
+    let rec = &w.records()[0];
+    assert!(rec["abandoned_at"].is_string() && rec["finished_at"].is_string());
+    // The plan it was following is still there to put a file back by hand.
+    assert_eq!(
+        rec["folders"][1]["strays"][1],
+        json!({"name": "rip.log", "action": "moved", "new_name": "rip (disc 2).log"})
+    );
+    let last = rec["attempts"].as_array().unwrap().last().unwrap();
+    let strays: Vec<&Value> = last["steps"][0]["results"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|x| x["from"].is_string())
+        .collect();
+    assert_eq!(
+        strays,
+        [
+            &json!({"file": "notes.txt", "from": D2, "folder": D1, "name": "notes.txt", "state": "moved"}),
+            &json!({"file": "rip.log", "from": D2, "folder": D1, "name": "rip (disc 2).log", "state": "moved"}),
+            &json!({"file": "rip.log", "from": D3, "folder": D3, "name": "rip.log", "state": "untouched"}),
+        ]
+    );
+    // Scans read the folders again; the discs whose files had all moved
+    // hold no album any more, and nothing is lost.
+    w.scan().await;
+    assert!(w.lib.join(D3).join("rip.log").is_file());
+}
+
 // ---------------------------------------------------------------- refusals
 
 /// Each preflight refusal: 409 with the blocker, nothing changed on disk
@@ -1101,6 +1324,17 @@ async fn an_anchor_blocked_on_a_disc_refuses() {
 async fn a_name_taken_in_a_discs_own_folder_refuses() {
     refused(
         |w| std::fs::create_dir(w.lib.join(D2).join("05 - B2.flac")).unwrap(),
+        "name_collision",
+    )
+    .await;
+}
+
+/// A different file under a disc's file's name in the set's folder, and
+/// the name it would get instead taken too: refused, never guessed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn another_file_with_no_free_name_in_the_destination_refuses() {
+    refused(
+        |w| std::fs::write(w.lib.join(D1).join("Rip (Disc 2).log"), b"taken").unwrap(),
         "name_collision",
     )
     .await;

@@ -62,6 +62,30 @@ fn album(dir: &Path) {
     .unwrap();
 }
 
+/// Every comment of `name` exactly as the file has it: keys in their own
+/// spelling, in file order.
+fn raw_comments(dir: &Path, name: &str) -> Vec<(String, String)> {
+    FlacFile::open(&dir.join(name))
+        .unwrap()
+        .tags()
+        .unwrap()
+        .comments
+        .clone()
+}
+
+fn pairs(v: &[(&str, &str)]) -> Vec<(String, String)> {
+    v.iter()
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect()
+}
+
+fn convert(dir: &Path, name: &str, numbers: ConvertedNumbers) {
+    let conversion = DiscConversion {
+        files: vec![(name.to_string(), numbers)],
+    };
+    apply_disc_conversion(dir, &conversion, &mut |_| {}).unwrap();
+}
+
 /// Every comment of the file, in order.
 fn comments(dir: &Path) -> Vec<(String, String)> {
     let f = FlacFile::open(&dir.join(FILE)).unwrap();
@@ -92,7 +116,8 @@ fn a_conversion_writes_exactly_its_numbers_and_removes_every_disc_tag() {
             FILE.to_string(),
             ConvertedNumbers {
                 tracknumber: "5".into(),
-                tracktotal: "8".into(),
+                tracktotal: Some("8".into()),
+                totaltracks: Some("8".into()),
             },
         )],
     };
@@ -117,6 +142,108 @@ fn a_conversion_writes_exactly_its_numbers_and_removes_every_disc_tag() {
             ("TRACKTOTAL".to_string(), "8".to_string()),
             ("TOTALTRACKS".to_string(), "8".to_string()),
         ]
+    );
+}
+
+/// A total is written only where the conversion names one: a file without
+/// TRACKTOTAL or TOTALTRACKS gets neither, and one with only one of them
+/// keeps only that one.
+#[test]
+fn a_file_without_a_track_total_gets_none() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(
+        dir.join("a.flac"),
+        flac_bytes(&[("TITLE", "A"), ("TRACKNUMBER", "1"), ("DISCNUMBER", "2")]),
+    )
+    .unwrap();
+    fs::write(
+        dir.join("b.flac"),
+        flac_bytes(&[("TOTALTRACKS", "4"), ("TRACKNUMBER", "2"), ("TITLE", "B")]),
+    )
+    .unwrap();
+    convert(
+        dir,
+        "a.flac",
+        ConvertedNumbers {
+            tracknumber: "5".into(),
+            tracktotal: None,
+            totaltracks: None,
+        },
+    );
+    convert(
+        dir,
+        "b.flac",
+        ConvertedNumbers {
+            tracknumber: "6".into(),
+            tracktotal: None,
+            totaltracks: Some("8".into()),
+        },
+    );
+    assert_eq!(
+        raw_comments(dir, "a.flac"),
+        pairs(&[("TITLE", "A"), ("TRACKNUMBER", "5")])
+    );
+    assert_eq!(
+        raw_comments(dir, "b.flac"),
+        pairs(&[("TOTALTRACKS", "8"), ("TRACKNUMBER", "6"), ("TITLE", "B")])
+    );
+}
+
+/// A rewritten comment keeps the file's spelling of its key and its place
+/// among the others; a key written twice is left once.
+#[test]
+fn a_rewritten_key_keeps_its_spelling_and_its_place() {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path();
+    fs::write(
+        dir.join("a.flac"),
+        flac_bytes(&[
+            ("TRACKNUMBER", "3"),
+            ("Title", "A"),
+            ("TrackTotal", "4"),
+            ("tracktotal", "4"),
+            ("totaltracks", "4"),
+            ("ALBUM", "Lanterns"),
+        ]),
+    )
+    .unwrap();
+    fs::write(
+        dir.join("b.flac"),
+        flac_bytes(&[("tracknumber", "2/4"), ("TITLE", "B")]),
+    )
+    .unwrap();
+    convert(
+        dir,
+        "a.flac",
+        ConvertedNumbers {
+            tracknumber: "7".into(),
+            tracktotal: Some("8".into()),
+            totaltracks: Some("8".into()),
+        },
+    );
+    convert(
+        dir,
+        "b.flac",
+        ConvertedNumbers {
+            tracknumber: "6/8".into(),
+            tracktotal: None,
+            totaltracks: None,
+        },
+    );
+    assert_eq!(
+        raw_comments(dir, "a.flac"),
+        pairs(&[
+            ("TRACKNUMBER", "7"),
+            ("Title", "A"),
+            ("TrackTotal", "8"),
+            ("totaltracks", "8"),
+            ("ALBUM", "Lanterns"),
+        ])
+    );
+    assert_eq!(
+        raw_comments(dir, "b.flac"),
+        pairs(&[("tracknumber", "6/8"), ("TITLE", "B")])
     );
 }
 

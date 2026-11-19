@@ -192,6 +192,29 @@ impl VorbisComment {
         self.comments.retain(|(k, _)| !k.eq_ignore_ascii_case(key));
         self.comments.push((key.to_string(), value.to_string()));
     }
+
+    /// Replace the value of `key` where the comment already is: the first
+    /// entry whose key matches case-insensitively keeps its place and its
+    /// spelling of the key and gets `value`; every other entry of the key
+    /// is deleted. Returns `false`, changing nothing, when the key is
+    /// absent.
+    pub fn replace(&mut self, key: &str, value: &str) -> bool {
+        let Some(at) = self
+            .comments
+            .iter()
+            .position(|(k, _)| k.eq_ignore_ascii_case(key))
+        else {
+            return false;
+        };
+        self.comments[at].1 = value.to_string();
+        let mut i = 0;
+        self.comments.retain(|(k, _)| {
+            let keep = i == at || !k.eq_ignore_ascii_case(key);
+            i += 1;
+            keep
+        });
+        true
+    }
 }
 
 #[derive(Debug, Clone)]

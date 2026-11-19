@@ -278,7 +278,12 @@ async fn three_disc_folders_preview_and_refusals() {
             json!([{"name": "cover.jpg", "action": "different", "done": false}]),
         ]
     );
-    assert_eq!(p["folders"][2]["other_files"], json!(["booklet.pdf"]));
+    // The booklet moves with the set, so disc 3's folder is not left.
+    assert_eq!(p["folders"][2]["other_files"], json!([]));
+    assert_eq!(
+        p["folders"][2]["strays"],
+        json!([{"name": "booklet.pdf", "action": "moved", "new_name": null, "done": false}])
+    );
     assert_eq!(p["folders"][0]["destination"], true);
 
     // Refusals: an unknown finding, and another check's finding.
