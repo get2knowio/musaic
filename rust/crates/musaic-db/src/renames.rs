@@ -26,18 +26,24 @@ pub struct DirMigration {
 /// that refers to the album by id, in one transaction with foreign keys
 /// deferred to COMMIT.
 ///
-/// Tables holding an album id (schema v20):
+/// Tables holding an album id (schema v20). This is the one inventory: a
+/// table added later that refers to albums by id belongs here, in
+/// [`ALBUM_ID_HOLDERS`], and in the merge column with a decision.
 ///
-/// | table | FK to albums(id) | repointed |
-/// |---|---|---|
-/// | track_fingerprints | yes, ON DELETE CASCADE | yes |
-/// | track_tags | yes, ON DELETE CASCADE | yes |
-/// | album_blocked_mb_release_groups | yes, ON DELETE CASCADE | yes |
-/// | fingerprint_rejects (v18) | yes, ON UPDATE / DELETE CASCADE | by the cascade |
-/// | check_findings | no (plain column) | yes |
-/// | ai_jobs | no (plain column) | yes (`album_path` is a display copy and keeps the old text) |
-/// | check_inputs (v19) | no | no: the new id has no inputs, so the sweep checks it again, and prunes the old id's rows |
-/// | check_runs.scope | no (JSON text of ids) | no: a historical record of what a run covered |
+/// | table | FK to albums(id) | repointed here | merge ([`crate::merge`]) |
+/// |---|---|---|---|
+/// | track_fingerprints | yes, ON DELETE CASCADE | yes | per file, [`crate::merge::move_track_rows`]; the fold refuses while a from-album has any |
+/// | track_tags | yes, ON DELETE CASCADE | yes | per file, as above (union with the target's tags) |
+/// | fingerprint_rejects (v18) | yes, ON UPDATE / DELETE CASCADE | by the cascade | per file, as above |
+/// | album_blocked_mb_release_groups | yes, ON DELETE CASCADE | yes | union onto the survivor |
+/// | check_findings | no (plain column) | yes | not moved: unresolved ones (open or ignored) resolved in place under the dead id, kept as history |
+/// | ai_jobs | no (plain column) | yes (`album_path` is a display copy and keeps the old text) | finished jobs repointed; an active one refuses the fold |
+/// | check_inputs (v19) | no | no: the new id has no inputs, so the sweep checks it again, and prunes the old id's rows | deleted for every member and the survivor |
+/// | check_runs.scope | no (JSON text of ids) | no: a historical record of what a run covered | no, for the same reason |
+///
+/// Per-album columns of `albums` that a scan does not own (the
+/// MusicBrainz anchor, `metadata_ai_acted_on_at`, `missing_since`) move
+/// with the row here; for a merge see [`crate::merge::merge_album_rows`].
 ///
 /// Deliberate change: the Python app did not repoint
 /// `album_blocked_mb_release_groups`, so an album with a blocklist row failed
@@ -94,7 +100,7 @@ pub fn move_album_rows(
 /// Every table besides `albums` that refers to an album by id. A row in one
 /// of them under an id no album has is left over from an album that was
 /// removed; moving another album onto that id would merge the two.
-const ALBUM_ID_HOLDERS: [&str; 7] = [
+pub const ALBUM_ID_HOLDERS: [&str; 7] = [
     "track_fingerprints",
     "track_tags",
     "album_blocked_mb_release_groups",
@@ -187,41 +193,93 @@ pub fn rename_track_files(
         return Ok(TrackRowsMoved::default());
     }
     let tx = crate::immediate(conn)?;
-    tx.execute(
-        "INSERT OR IGNORE INTO track_tags (album_id, filename, tag, created_at) \
-         SELECT album_id, ?1, tag, created_at FROM track_tags \
-         WHERE album_id = ?2 AND filename = ?3",
-        [new_filename, album_id, old_filename],
-    )?;
-    let track_tags = tx.execute(
-        "DELETE FROM track_tags WHERE album_id = ?1 AND filename = ?2",
-        [album_id, old_filename],
-    )?;
-    tx.execute(
-        "DELETE FROM track_fingerprints WHERE album_id = ?1 AND filename = ?2 \
-         AND EXISTS (SELECT 1 FROM track_fingerprints WHERE album_id = ?1 AND filename = ?3)",
-        [album_id, new_filename, old_filename],
-    )?;
-    let track_fingerprints = tx.execute(
-        "UPDATE track_fingerprints SET filename = ?1 WHERE album_id = ?2 AND filename = ?3",
-        [new_filename, album_id, old_filename],
-    )?;
-    // A reject records that this file's audio could not be decoded; it
-    // follows the file like its fingerprint (a row under the new name
-    // described a file that is no longer there).
-    tx.execute(
-        "DELETE FROM fingerprint_rejects WHERE album_id = ?1 AND filename = ?2 \
-         AND EXISTS (SELECT 1 FROM fingerprint_rejects WHERE album_id = ?1 AND filename = ?3)",
-        [album_id, new_filename, old_filename],
-    )?;
-    tx.execute(
-        "UPDATE fingerprint_rejects SET filename = ?1 WHERE album_id = ?2 AND filename = ?3",
-        [new_filename, album_id, old_filename],
-    )?;
+    let moved = move_file_rows(&tx, album_id, old_filename, album_id, new_filename)?;
     tx.commit()?;
     Ok(TrackRowsMoved {
+        track_tags: moved.track_tags,
+        track_fingerprints: moved.track_fingerprints,
+    })
+}
+
+/// The tables whose rows belong to one file of an album: keyed by
+/// `(album_id, filename)`.
+pub const FILE_ROW_TABLES: [&str; 3] = ["track_fingerprints", "track_tags", "fingerprint_rejects"];
+
+/// Rows moved per table by one file's move.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FileRowsMoved {
+    /// Source `track_tags` rows removed (moved, or merged into a tag the
+    /// target name already had).
+    pub track_tags: usize,
+    /// `track_fingerprints` rows moved (0 or 1).
+    pub track_fingerprints: usize,
+    /// `fingerprint_rejects` rows moved (0 or 1).
+    pub fingerprint_rejects: usize,
+}
+
+impl FileRowsMoved {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// Every per-file row of `(from_album, from_name)` to `(into_album,
+/// into_name)`, on the caller's transaction. One rule for a rename inside
+/// an album ([`rename_track_files`]) and a move between albums
+/// ([`crate::merge::move_track_rows`]):
+///
+/// * `track_tags`: the union. Tags already on the target name are kept
+///   (with their own `created_at`), the source's are added, the source rows
+///   deleted.
+/// * `track_fingerprints` and `fingerprint_rejects`: a row describes the
+///   audio of the file that now carries the target name, so a source row
+///   replaces any target row (that one described a file that is no longer
+///   there). Without a source row the target row is left alone, which also
+///   makes a second call a no-op.
+pub(crate) fn move_file_rows(
+    tx: &Connection,
+    from_album: &str,
+    from_name: &str,
+    into_album: &str,
+    into_name: &str,
+) -> Result<FileRowsMoved> {
+    let p = rusqlite::named_params! {
+        ":fa": from_album, ":fn": from_name, ":ia": into_album, ":in": into_name,
+    };
+    tx.execute(
+        "INSERT OR IGNORE INTO track_tags (album_id, filename, tag, created_at) \
+         SELECT :ia, :in, tag, created_at FROM track_tags \
+         WHERE album_id = :fa AND filename = :fn",
+        p,
+    )?;
+    let track_tags = tx.execute(
+        "DELETE FROM track_tags WHERE album_id = :fa AND filename = :fn",
+        rusqlite::named_params! { ":fa": from_album, ":fn": from_name },
+    )?;
+    let moved = |table: &str| -> Result<usize> {
+        tx.execute(
+            &format!(
+                "DELETE FROM {table} WHERE album_id = :ia AND filename = :in \
+                 AND EXISTS (SELECT 1 FROM {table} WHERE album_id = :fa AND filename = :fn)"
+            ),
+            p,
+        )?;
+        Ok(tx.execute(
+            &format!(
+                "UPDATE {table} SET album_id = :ia, filename = :in \
+                 WHERE album_id = :fa AND filename = :fn"
+            ),
+            p,
+        )?)
+    };
+    let track_fingerprints = moved("track_fingerprints")?;
+    // A reject records that this file's audio could not be decoded; it
+    // follows the file like its fingerprint.
+    let fingerprint_rejects = moved("fingerprint_rejects")?;
+    Ok(FileRowsMoved {
         track_tags,
         track_fingerprints,
+        fingerprint_rejects,
     })
 }
 

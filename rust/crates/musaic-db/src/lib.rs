@@ -16,6 +16,7 @@ pub mod check_inputs;
 pub mod findings;
 pub mod fingerprints_ext;
 pub mod mb_anchor;
+pub mod merge;
 mod migrate;
 mod python_chain;
 pub mod renames;
@@ -59,6 +60,10 @@ pub enum Error {
         "album {old_id} changed while the scan ran, so it cannot move to {new_id}; nothing was saved"
     )]
     AdoptionStale { old_id: String, new_id: String },
+    /// [`merge::merge_album_rows`] or [`merge::move_track_rows`] refused;
+    /// nothing was written.
+    #[error("{0}")]
+    MergeRefused(merge::MergeRefusal),
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
     #[error(transparent)]

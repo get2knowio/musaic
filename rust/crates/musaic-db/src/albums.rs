@@ -2,7 +2,9 @@
 //!
 //! A scan never deletes. An album that is in the cache but not in the new
 //! snapshot gets `missing_since` set and keeps its row and everything hanging
-//! off it (fingerprints, anchor, tags). Only [`delete_album`] removes a row.
+//! off it (fingerprints, anchor, tags). Only [`delete_album`] (the user's removal)
+//! and [`crate::merge::merge_album_rows`] (a user-confirmed merge, after moving
+//! everything on the rows it drops) remove a row.
 //!
 //! Nothing here publishes bus events; each function returns the transitions
 //! it made so the caller can.
@@ -353,7 +355,8 @@ pub fn drop_snapshot(conn: &mut Connection, library_dir: &str) -> Result<()> {
 }
 
 /// Remove an album row; fingerprints, track tags and blocklists cascade.
-/// The only destructive path, reached only by an explicit user action.
+/// Reached only by an explicit user action; the other path that drops a row is
+/// [`crate::merge::merge_album_rows`].
 /// Returns whether a row existed.
 pub fn delete_album(conn: &Connection, album_id: &str) -> Result<bool> {
     Ok(conn.execute("DELETE FROM albums WHERE id = ?1", [album_id])? > 0)
