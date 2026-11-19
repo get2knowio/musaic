@@ -544,7 +544,11 @@ function Folders({ folders }: { folders: MultiDiscFolder[] }) {
             {f.destination && <span className="ml-2 text-accent">(becomes the set's folder)</span>}
           </div>
           {f.exists === false && <div>Already removed: it was empty.</div>}
-          {f.covers.length === 0 && !f.sidecar && f.other_files.length === 0 && !f.junk?.length && (
+          {f.covers.length === 0 &&
+            !f.sidecar &&
+            f.other_files.length === 0 &&
+            !f.junk?.length &&
+            !f.strays?.length && (
             <div>No covers or other files.</div>
           )}
           {f.covers.map((c) => (
@@ -559,10 +563,26 @@ function Folders({ folders }: { folders: MultiDiscFolder[] }) {
               <span className="mono">{f.junk.map((j) => j.name).join(", ")}</span>
             </div>
           )}
+          {f.strays?.map((s) => (
+            <div key={s.name} data-stray-action={s.action}>
+              <span className="mono">{s.name}</span>{" "}
+              {s.action === "identical" ? (
+                "is the same file as the one in the set's folder, so this copy goes to Musaic's trash."
+              ) : s.new_name ? (
+                <>
+                  moves into the set's folder as <span className="mono">{s.new_name}</span>: a
+                  different file named {s.name} is already there.
+                </>
+              ) : (
+                "moves into the set's folder."
+              )}
+              {s.done && <span className="ml-1 text-fg-4">(done)</span>}
+            </div>
+          ))}
           {!f.destination && f.exists !== false && (
             <div>
               {f.other_files.length > 0
-                ? "This folder stays, with the files left in it."
+                ? "This folder is kept: not everything in it is moved."
                 : "This folder is removed once it is empty."}
             </div>
           )}
@@ -575,7 +595,7 @@ function Folders({ folders }: { folders: MultiDiscFolder[] }) {
           )}
           {f.other_files.length > 0 && (
             <div>
-              {f.destination ? "Stays with the set: " : "Stays in this folder: "}
+              {f.destination ? "Stays with the set: " : "Not moved (Musaic never moves a subfolder): "}
               <span className="mono">{f.other_files.join(", ")}</span>
             </div>
           )}

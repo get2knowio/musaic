@@ -501,8 +501,12 @@ pub enum EntryKind {
     Sidecar,
     /// Operating-system clutter (`.DS_Store`, `Thumbs.db`, AppleDouble).
     Junk,
-    /// Anything else that is not a FLAC.
+    /// Any other file that is not a FLAC (a rip log, a cue sheet, a
+    /// booklet).
     Other,
+    /// A subfolder, or anything else that is not a regular file (a link).
+    /// A conversion never looks inside one and never moves it.
+    Folder,
 }
 
 /// A folder entry that is not one of the member's FLACs.
@@ -510,6 +514,11 @@ pub enum EntryKind {
 pub struct EntryFacts {
     pub name: String,
     pub kind: EntryKind,
+    /// The SHA-256 of an [`EntryKind::Other`] file's content, read only
+    /// where another folder of the set has a file of the same name
+    /// ([`digest_shared_strays`]): two such files are the same only when
+    /// both digests are known and equal.
+    pub digest: Option<String>,
 }
 
 /// One member album as found on disk now.
@@ -641,6 +650,54 @@ impl CoverAction {
     }
 }
 
+/// What happens to one other file (a rip log, a cue sheet, a booklet) of a
+/// folder that is emptied.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StrayAction {
+    /// It moves into the destination, under its own name or under
+    /// [`StrayPlan::new_name`].
+    Moved,
+    /// The destination has the same content under this name: this copy
+    /// goes to the app's trash.
+    Identical,
+}
+
+impl StrayAction {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            StrayAction::Moved => "moved",
+            StrayAction::Identical => "identical",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<StrayAction> {
+        Some(match s {
+            "moved" => StrayAction::Moved,
+            "identical" => StrayAction::Identical,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StrayPlan {
+    /// Its name in its own folder.
+    pub name: String,
+    pub action: StrayAction,
+    /// The name it gets in the destination (`rip (disc 2).log`) when its
+    /// own is taken there by a file with other content.
+    pub new_name: Option<String>,
+    /// An interrupted conversion already did it.
+    pub done: bool,
+}
+
+impl StrayPlan {
+    /// The name the file has in the destination once moved.
+    pub fn target(&self) -> &str {
+        self.new_name.as_deref().unwrap_or(&self.name)
+    }
+}
+
 /// The non-FLAC files of one member folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FolderPlan {
@@ -652,9 +709,16 @@ pub struct FolderPlan {
     /// The folder has a track-tag sidecar (its tags are merged into the
     /// destination's).
     pub sidecar: bool,
-    /// Files that are neither FLACs, covers, the sidecar nor clutter: they
-    /// stay where they are.
+    /// Entries that stay where they are: in the destination everything
+    /// that is neither a FLAC, a cover, the sidecar nor clutter; in another
+    /// folder only its subfolders (and links), which a conversion never
+    /// moves, so that folder is not removed.
     pub other_files: Vec<String>,
+    /// The other files of a folder that is emptied (neither FLACs, covers,
+    /// the sidecar nor clutter): each moves into the destination, or goes
+    /// to the app trash when the destination has the same file already.
+    /// Empty for the destination.
+    pub strays: Vec<StrayPlan>,
     /// Operating-system clutter (`.DS_Store`, `Thumbs.db`, AppleDouble
     /// files) of a folder that is emptied: it goes to the app trash so the
     /// folder can be removed. `(name, done)`. The destination keeps its own.
@@ -973,9 +1037,19 @@ finish. Give it back its own name (without the leading dot and the .renaming end
     }
 
     if !one_folder {
-        out.folders = plan_folders(input.members);
+        out.folders = plan_folders(input.members, &out.tracks, &mut out.blockers);
     }
     out
+}
+
+/// `name` with ` (disc N)` before its extension: `rip.log` → `rip (disc
+/// 2).log`. A name without an extension (or only a leading dot) gets it at
+/// the end.
+fn disc_name(name: &str, disc: i64) -> String {
+    match name.rfind('.') {
+        Some(i) if i > 0 => format!("{} (disc {disc}){}", &name[..i], &name[i..]),
+        _ => format!("{name} (disc {disc})"),
+    }
 }
 
 /// Covers, sidecars and other files of each folder.
@@ -986,7 +1060,19 @@ finish. Give it back its own name (without the leading dot and the .renaming end
 /// other cover is a copy of one that is kept (the same bytes: not needed)
 /// or a different picture; both go to the app trash, which can give them
 /// back. Embedded pictures travel inside the files and are not touched.
-fn plan_folders(members: &[MemberFacts]) -> Vec<FolderPlan> {
+///
+/// Other files (a rip log, a cue sheet, a booklet) of a folder that is
+/// emptied move into the destination, in disc order, so that the folder
+/// can be removed: under their own name where it is free there; to the app
+/// trash where the destination has the same content under that name; with
+/// ` (disc N)` before the extension where it has other content. A name
+/// that is taken even then is a blocker, never a guess. Subfolders are
+/// never moved: a folder that has one stays.
+fn plan_folders(
+    members: &[MemberFacts],
+    tracks: &[PlannedTrack],
+    blockers: &mut Vec<Blocker>,
+) -> Vec<FolderPlan> {
     let has_covers = |m: &MemberFacts| {
         m.entries
             .iter()
@@ -1001,10 +1087,39 @@ fn plan_folders(members: &[MemberFacts]) -> Vec<FolderPlan> {
             }
         }
     }
+    // What the destination holds under each name (as an insensitive volume
+    // compares them) once the conversion's files, the covers it takes and
+    // the strays planned so far are in it, with the content digest of an
+    // other file where it is known.
+    let mut taken: HashMap<String, Option<&str>> = HashMap::new();
+    taken.insert(fold(SIDECAR_FILENAME), None);
+    if let Some(dest) = members.first() {
+        for e in &dest.entries {
+            let digest = match e.kind {
+                EntryKind::Other => e.digest.as_deref(),
+                _ => None,
+            };
+            taken.insert(fold(&e.name), digest);
+        }
+    }
+    for t in tracks {
+        if let Some(n) = &t.new_filename {
+            taken.insert(fold(n), None);
+        }
+    }
+    if let Some(s) = source.filter(|s| *s > 0) {
+        for e in &members[s].entries {
+            if matches!(e.kind, EntryKind::Cover(_)) {
+                taken.insert(fold(&e.name), None);
+            }
+        }
+    }
+    let dest_name = members.first().map_or("", |m| m.dir_name.as_str());
     let mut out = Vec::new();
     for (i, m) in members.iter().enumerate() {
         let mut covers = Vec::new();
         let mut other_files = Vec::new();
+        let mut strays = Vec::new();
         let mut junk = Vec::new();
         let mut sidecar = false;
         for e in &m.entries {
@@ -1030,7 +1145,41 @@ fn plan_folders(members: &[MemberFacts]) -> Vec<FolderPlan> {
                 EntryKind::Sidecar => sidecar = true,
                 EntryKind::Junk if i > 0 => junk.push((e.name.clone(), false)),
                 EntryKind::Junk => {}
-                EntryKind::Other => other_files.push(e.name.clone()),
+                EntryKind::Other if i > 0 => {
+                    let disc = m.folder_disc.unwrap_or(i as i64 + 1);
+                    let key = fold(&e.name);
+                    let (action, new_name) = match taken.get(&key) {
+                        None => {
+                            taken.insert(key, e.digest.as_deref());
+                            (StrayAction::Moved, None)
+                        }
+                        Some(Some(d)) if e.digest.as_deref() == Some(*d) => {
+                            (StrayAction::Identical, None)
+                        }
+                        Some(_) => {
+                            let alt = disc_name(&e.name, disc);
+                            if taken.insert(fold(&alt), None).is_some() {
+                                blockers.push(Blocker {
+                                    code: blocker::NAME_COLLISION,
+                                    message: format!(
+                                        "{} in {} cannot move into {dest_name}: a different file \
+named {} is already there, and so is {alt}, the name it would get instead. Rename or remove one of \
+them, then try again.",
+                                        e.name, m.dir_name, e.name
+                                    ),
+                                });
+                            }
+                            (StrayAction::Moved, Some(alt))
+                        }
+                    };
+                    strays.push(StrayPlan {
+                        name: e.name.clone(),
+                        action,
+                        new_name,
+                        done: false,
+                    });
+                }
+                EntryKind::Other | EntryKind::Folder => other_files.push(e.name.clone()),
             }
         }
         out.push(FolderPlan {
@@ -1041,6 +1190,7 @@ fn plan_folders(members: &[MemberFacts]) -> Vec<FolderPlan> {
             covers,
             sidecar,
             other_files,
+            strays,
             junk,
             sidecar_done: false,
             exists: true,
@@ -1137,18 +1287,71 @@ pub fn gather_member(album_id: &str, folder: &Path, folder_disc: Option<i64>) ->
         if is_rename_temp(&name) {
             facts.stranded.push(name.clone());
         }
+        // A link is not followed: only a regular file is ever moved.
+        let regular = std::fs::symlink_metadata(folder.join(&name)).is_ok_and(|m| m.is_file());
         let kind = match entry_kind_of(&name) {
+            Some(EntryKind::Other) if !regular => EntryKind::Folder,
             Some(k) => k,
             None => match std::fs::read(folder.join(&name)) {
                 Ok(bytes) => EntryKind::Cover(bytes),
-                // A directory named like a cover, or one that cannot be
-                // read: not a cover to compare.
+                // A directory named like a cover: not a cover to compare.
+                Err(_) if !regular => EntryKind::Folder,
+                // A cover that cannot be read.
                 Err(_) => EntryKind::Other,
             },
         };
-        facts.entries.push(EntryFacts { name, kind });
+        facts.entries.push(EntryFacts {
+            name,
+            kind,
+            digest: None,
+        });
     }
     facts
+}
+
+/// The SHA-256 of a file's content, read in pieces (a booklet can be
+/// large); `None` when it cannot be read.
+fn file_digest(path: &Path) -> Option<String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut hasher = Sha256::new();
+    let mut buf = vec![0u8; 1 << 16];
+    loop {
+        match file.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => hasher.update(&buf[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => return None,
+        }
+    }
+    Some(
+        hasher
+            .finalize()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect(),
+    )
+}
+
+/// Read the content digest of every other file whose name more than one
+/// folder of the set has (as an insensitive volume compares names): the
+/// plan needs to know whether two such files are the same. A name only one
+/// folder has is never read. `dirs` are the members' folders, in order.
+pub fn digest_shared_strays(facts: &mut [MemberFacts], dirs: &[PathBuf]) {
+    let mut count: HashMap<String, usize> = HashMap::new();
+    for m in facts.iter() {
+        for e in m.entries.iter().filter(|e| e.kind == EntryKind::Other) {
+            *count.entry(fold(&e.name)).or_default() += 1;
+        }
+    }
+    for (m, dir) in facts.iter_mut().zip(dirs) {
+        for e in m.entries.iter_mut() {
+            if e.kind == EntryKind::Other && count.get(&fold(&e.name)).is_some_and(|n| *n > 1) {
+                e.digest = file_digest(&dir.join(&e.name));
+            }
+        }
+    }
 }
 
 /// A name the rename code gives a file while it moves it
@@ -1329,6 +1532,10 @@ impl ConversionPreview {
                     f.sidecar_done,
                     f.other_files,
                     f.exists,
+                    f.strays
+                        .iter()
+                        .map(|s| serde_json::json!([s.name, s.action.as_str(), s.new_name, s.done]))
+                        .collect::<Vec<_>>(),
                 ])
             })
             .collect();
@@ -1589,6 +1796,10 @@ clears the next time the check runs."
         folders.push((f.dir_name.clone(), path));
         facts.push(f);
     }
+    if !one_folder {
+        let dirs: Vec<PathBuf> = folders.iter().map(|(_, p)| p.clone()).collect();
+        digest_shared_strays(&mut facts, &dirs);
+    }
     let target_row = rename_plan_row(conn, &set.anchor)?;
     let mut plan = match &target_row {
         Some(row) => {
@@ -1831,6 +2042,8 @@ longer there, in both {other} and {}.",
 /// Names that would meet when the files of the other discs are renamed in
 /// their own folders and then moved: a renamed file onto something else in
 /// its own folder, or a cover moving onto something in the destination.
+/// (The other files that move are given a free name by the plan itself,
+/// [`plan_folders`].)
 fn gather_collisions(facts: &[MemberFacts], plan: &Planned) -> Vec<Blocker> {
     let mut out = Vec::new();
     for m in facts.iter().skip(1) {
@@ -2152,8 +2365,8 @@ fn lists(dir: &Path, name: &str) -> bool {
 /// file of the record, is a blocker, never a guess. The plan is then made
 /// as for the untouched set (the record gives a written file its old disc
 /// and number back) and must come out as recorded. Covers, clutter, the
-/// old sidecars and the folders themselves are each either still to do or
-/// done, as the disk shows.
+/// other files that move, the old sidecars and the folders themselves are
+/// each either still to do or done, as the disk shows.
 fn derive_resumed_folders(
     conn: &Connection,
     album_id: &str,
@@ -2520,7 +2733,8 @@ recorded ({}). The record is {}.",
         plan.target_name = Some(gm[0].dir_name.clone());
     }
 
-    // Covers, clutter, sidecars and folders: still to do, or done.
+    // Covers, clutter, other files, sidecars and folders: still to do, or
+    // done.
     plan.folders = record
         .folders
         .iter()
@@ -2567,6 +2781,45 @@ one to keep.",
                     done,
                 });
             }
+            // A file that moves is in exactly one of the two folders: its
+            // own under its own name, or the destination under the name
+            // the record gave it.
+            let mut strays = Vec::new();
+            for s in &lf.strays {
+                let action = StrayAction::parse(&s.action).unwrap_or(StrayAction::Moved);
+                let target = s.new_name.as_deref().unwrap_or(&s.name);
+                let done = match action {
+                    StrayAction::Identical => !here(&s.name),
+                    StrayAction::Moved => {
+                        let in_dest = gm[0].exists && lists(&gm[0].dir, target);
+                        match (here(&s.name), in_dest) {
+                            (true, false) => false,
+                            (false, true) => true,
+                            (true, true) => {
+                                blockers.push(mismatch(format!(
+                                    "{} is still in {} and {target} is in {} too, so Musaic \
+cannot tell whether it was moved.",
+                                    s.name, m.dir_name, gm[0].dir_name
+                                )));
+                                false
+                            }
+                            (false, false) => {
+                                blockers.push(mismatch(format!(
+                                    "{}, which was to move from {} into {}, is in neither.",
+                                    s.name, m.dir_name, gm[0].dir_name
+                                )));
+                                false
+                            }
+                        }
+                    }
+                };
+                strays.push(StrayPlan {
+                    name: s.name.clone(),
+                    action,
+                    new_name: s.new_name.clone(),
+                    done,
+                });
+            }
             FolderPlan {
                 album_id: m.album_id.clone(),
                 dir_name: lf.folder_name.clone(),
@@ -2576,6 +2829,7 @@ one to keep.",
                 sidecar: lf.sidecar,
                 sidecar_done: lf.sidecar && !here(SIDECAR_FILENAME),
                 other_files: lf.other_files.clone(),
+                strays,
                 junk: lf.junk.iter().map(|j| (j.clone(), !here(j))).collect(),
                 exists: m.exists,
             }
@@ -2999,6 +3253,7 @@ mod tests {
         d1.entries.push(EntryFacts {
             name: "intro.FLAC".into(),
             kind: EntryKind::Other,
+            digest: None,
         });
         let members = vec![d1, d2, d3];
         let row = target_row();
@@ -3020,14 +3275,17 @@ mod tests {
             EntryFacts {
                 name: "cover.jpg".into(),
                 kind: EntryKind::Cover(vec![1, 2]),
+                digest: None,
             },
             EntryFacts {
                 name: SIDECAR_FILENAME.into(),
                 kind: EntryKind::Sidecar,
+                digest: None,
             },
             EntryFacts {
                 name: "notes.txt".into(),
                 kind: EntryKind::Other,
+                digest: None,
             },
         ];
         let mut d2 = member("d2", 2, 1);
@@ -3035,14 +3293,17 @@ mod tests {
             EntryFacts {
                 name: "Cover.JPG".into(),
                 kind: EntryKind::Cover(vec![1, 2]),
+                digest: None,
             },
             EntryFacts {
                 name: "folder.jpg".into(),
                 kind: EntryKind::Cover(vec![9]),
+                digest: None,
             },
             EntryFacts {
                 name: ".DS_Store".into(),
                 kind: EntryKind::Junk,
+                digest: None,
             },
         ];
         let mut d3 = member("d3", 3, 1);
@@ -3050,10 +3311,12 @@ mod tests {
             EntryFacts {
                 name: "cover.jpg".into(),
                 kind: EntryKind::Cover(vec![3]),
+                digest: None,
             },
             EntryFacts {
                 name: "folder.jpg".into(),
                 kind: EntryKind::Cover(vec![9]),
+                digest: None,
             },
         ];
         let members = vec![d1, d2, d3];
@@ -3126,6 +3389,181 @@ mod tests {
                 ("folder.jpg", CoverAction::Identical)
             ]
         );
+    }
+
+    fn other(name: &str, digest: Option<&str>) -> EntryFacts {
+        EntryFacts {
+            name: name.into(),
+            kind: EntryKind::Other,
+            digest: digest.map(str::to_string),
+        }
+    }
+
+    /// `(name, action, new name)` of each stray of folder `i`.
+    fn strays(p: &Planned, i: usize) -> Vec<(&str, StrayAction, Option<&str>)> {
+        p.folders[i]
+            .strays
+            .iter()
+            .map(|s| (s.name.as_str(), s.action, s.new_name.as_deref()))
+            .collect()
+    }
+
+    #[test]
+    fn other_files_move_with_the_set() {
+        let mut d1 = member("d1", 1, 1);
+        d1.entries = vec![other("rip.log", Some("aa")), other("info.txt", Some("cc"))];
+        let mut d2 = member("d2", 2, 1);
+        d2.entries = vec![
+            other("Rip.LOG", Some("bb")),
+            other("booklet.pdf", None),
+            other("info.txt", Some("cc")),
+            EntryFacts {
+                name: "Scans".into(),
+                kind: EntryKind::Folder,
+                digest: None,
+            },
+        ];
+        let mut d3 = member("d3", 3, 1);
+        d3.entries = vec![
+            other("booklet.pdf", None),
+            other("rip.log", Some("aa")),
+            other("README", Some("dd")),
+        ];
+        let members = vec![d1, d2, d3];
+        let (row, t) = (target_row(), templates());
+        let p = plan_conversion(&PlanInput {
+            members: &members,
+            target_row: &row,
+            templates: &t,
+        });
+        assert!(p.blockers.is_empty(), "{:?}", p.blockers);
+        // The destination's own files stay with the set and nothing of it
+        // is planned to move.
+        assert_eq!(p.folders[0].other_files, ["rip.log", "info.txt"]);
+        assert!(p.folders[0].strays.is_empty());
+        assert_eq!(
+            strays(&p, 1),
+            [
+                // Another log under the same name (as an insensitive volume
+                // compares names): it moves with the disc in its name.
+                ("Rip.LOG", StrayAction::Moved, Some("Rip (disc 2).LOG")),
+                // A free name: it moves as it is.
+                ("booklet.pdf", StrayAction::Moved, None),
+                // The same content as the destination's: not needed.
+                ("info.txt", StrayAction::Identical, None),
+            ]
+        );
+        // Only the subfolder stays in disc 2's folder.
+        assert_eq!(p.folders[1].other_files, ["Scans"]);
+        assert_eq!(
+            strays(&p, 2),
+            [
+                // Disc 2's booklet has the name by now, and nothing says
+                // the two are the same: it is never taken for a copy.
+                (
+                    "booklet.pdf",
+                    StrayAction::Moved,
+                    Some("booklet (disc 3).pdf")
+                ),
+                ("rip.log", StrayAction::Identical, None),
+                ("README", StrayAction::Moved, None),
+            ]
+        );
+        assert!(p.folders[2].other_files.is_empty());
+    }
+
+    #[test]
+    fn a_stray_whose_second_name_is_taken_too_blocks() {
+        let mut d1 = member("d1", 1, 1);
+        d1.entries = vec![
+            other("rip.log", Some("aa")),
+            other("rip (disc 2).log", None),
+        ];
+        let mut d2 = member("d2", 2, 1);
+        d2.entries = vec![other("rip.log", Some("bb"))];
+        let members = vec![d1, d2];
+        let (row, t) = (target_row(), templates());
+        let p = plan_conversion(&PlanInput {
+            members: &members,
+            target_row: &row,
+            templates: &t,
+        });
+        assert_eq!(codes(&p), [blocker::NAME_COLLISION], "{:?}", p.blockers);
+        assert!(
+            p.blockers[0].message.contains("rip (disc 2).log"),
+            "{}",
+            p.blockers[0].message
+        );
+    }
+
+    #[test]
+    fn a_stray_never_takes_a_name_the_set_uses() {
+        // A cover the destination takes from disc 2, the sidecar's name and
+        // a converted file's name are all taken before a stray is placed.
+        let d1 = member("d1", 1, 1);
+        let mut d2 = member("d2", 2, 1);
+        d2.entries = vec![EntryFacts {
+            name: "cover.jpg".into(),
+            kind: EntryKind::Cover(vec![1]),
+            digest: None,
+        }];
+        let mut d3 = member("d3", 3, 1);
+        d3.entries = vec![other("COVER.JPG", None)];
+        // (A name spelled like a cover is a cover; this one stands for any
+        // file whose name the destination has by then.)
+        let members = vec![d1, d2, d3];
+        let (row, t) = (target_row(), templates());
+        let p = plan_conversion(&PlanInput {
+            members: &members,
+            target_row: &row,
+            templates: &t,
+        });
+        assert!(p.blockers.is_empty(), "{:?}", p.blockers);
+        assert_eq!(
+            strays(&p, 2),
+            [("COVER.JPG", StrayAction::Moved, Some("COVER (disc 3).JPG"))]
+        );
+    }
+
+    #[test]
+    fn disc_names() {
+        assert_eq!(disc_name("rip.log", 2), "rip (disc 2).log");
+        assert_eq!(disc_name("a.tar.gz", 3), "a.tar (disc 3).gz");
+        assert_eq!(disc_name("README", 2), "README (disc 2)");
+        assert_eq!(disc_name(".hidden", 2), ".hidden (disc 2)");
+    }
+
+    #[test]
+    fn only_names_more_than_one_folder_has_are_read() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dirs: Vec<PathBuf> = ["a", "b", "c"].iter().map(|d| tmp.path().join(d)).collect();
+        for d in &dirs {
+            std::fs::create_dir(d).unwrap();
+        }
+        std::fs::write(dirs[0].join("rip.log"), b"one").unwrap();
+        std::fs::write(dirs[1].join("RIP.log"), b"two").unwrap();
+        std::fs::write(dirs[2].join("rip.log"), b"one").unwrap();
+        std::fs::write(dirs[1].join("alone.txt"), b"x").unwrap();
+        std::fs::create_dir(dirs[2].join("Scans")).unwrap();
+        let mut facts: Vec<MemberFacts> = dirs
+            .iter()
+            .enumerate()
+            .map(|(i, d)| gather_member(&format!("m{i}"), d, Some(i as i64 + 1)))
+            .collect();
+        digest_shared_strays(&mut facts, &dirs);
+        let entry = |i: usize, name: &str| {
+            facts[i]
+                .entries
+                .iter()
+                .find(|e| e.name == name)
+                .unwrap()
+                .clone()
+        };
+        assert!(entry(0, "rip.log").digest.is_some());
+        assert_eq!(entry(0, "rip.log").digest, entry(2, "rip.log").digest);
+        assert_ne!(entry(0, "rip.log").digest, entry(1, "RIP.log").digest);
+        assert_eq!(entry(1, "alone.txt").digest, None);
+        assert_eq!(entry(2, "Scans").kind, EntryKind::Folder);
     }
 
     #[test]

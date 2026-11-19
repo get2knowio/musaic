@@ -62,10 +62,29 @@ function gatherText(p: MultiDiscConversionPreview): string {
       `${trashed.length === 1 ? "This cover goes" : "These covers go"} to Musaic's trash: ${listed(trashed)}`,
     );
   }
+  const moving: string[] = [];
+  const copies: string[] = [];
+  for (const f of p.folders) {
+    for (const s of f.strays ?? []) {
+      if (s.done) continue;
+      if (s.action === "identical") copies.push(`${s.name} from ${f.dir_name}`);
+      else moving.push(`${s.name} from ${f.dir_name}${s.new_name ? ` (as ${s.new_name})` : ""}`);
+    }
+  }
+  if (moving.length) {
+    sentences.push(
+      `${moving.length === 1 ? "This other file moves" : "These other files move"} into the set's folder too: ${listed(moving)}`,
+    );
+  }
+  if (copies.length) {
+    sentences.push(
+      `${copies.length === 1 ? "This copy" : "These copies"} of a file the set's folder already has ${copies.length === 1 ? "goes" : "go"} to Musaic's trash: ${listed(copies)}`,
+    );
+  }
   const left = p.folders.filter((f) => !f.destination && f.other_files.length > 0);
   for (const f of left) {
     sentences.push(
-      `${listed(f.other_files)} ${f.other_files.length === 1 ? "stays" : "stay"} in ${f.dir_name}, which is kept`,
+      `${listed(f.other_files)} ${f.other_files.length === 1 ? "is" : "are"} not moved, so ${f.dir_name} is kept`,
     );
   }
   const others = Math.max(folders - 1, 0);
