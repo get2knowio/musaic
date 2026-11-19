@@ -1,6 +1,7 @@
 /**
- * Needs attention: what is listed and counted, the filters, the redirects
- * from the old Health and Jobs routes, and Back from an album's panel.
+ * Needs attention: the index of lists and what each one shows, what is
+ * counted (on the page and in the Sidebar), the redirects from the old
+ * Health and Jobs routes, and Back from an album's panel.
  * Checks run on their own, so there is no "Check now". Fix is disabled on
  * a finding whose album is Missing.
  */
@@ -110,6 +111,13 @@ function renderAt(url: string, qc = client()) {
 }
 
 const where = () => screen.getByTestId("where").textContent;
+const lists = () => screen.getByRole("navigation", { name: "Lists" });
+/** Open a list from the index (`nth`: a check with both decisions and
+ *  suggestions is in the index twice). */
+const pick = (label: string, nth = 0) => fireEvent.click(within(lists()).getAllByText(label)[nth]);
+const current = () => lists().querySelector('[aria-current="true"]')!.textContent;
+const summary = () => document.querySelector("[aria-live]")!.textContent;
+const navLink = () => screen.getByRole("link", { name: /Needs attention/ });
 const scrollerEl = () => document.querySelector('div[tabindex="-1"]') as HTMLElement;
 
 afterEach(() => {
@@ -118,111 +126,67 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-describe("what is listed and counted", () => {
-  it("lists warn/error findings, proposed and failed jobs, and counts exactly those", () => {
+
+describe("the index", () => {
+  it("lists every non-empty list with its count, decisions first, and opens the first", () => {
     renderAt("/attention");
-    expect(screen.getByText("gap 1")).toBeTruthy();
-    expect(screen.getByText("gap 2")).toBeTruthy();
-    expect(screen.getByText("no cover")).toBeTruthy();
+    const rows = [...lists().querySelectorAll("button")].map((b) => b.textContent);
+    expect(rows).toEqual([
+      "Proposed changes to review1",
+      "Failed jobs1",
+      "Track gaps2",
+      "No cover art1",
+      "Track gaps1",
+      "In progress1",
+      "Finished jobs1",
+      "Ignored findings",
+    ]);
+    expect(current()).toBe("Proposed changes to review1");
     expect(screen.getByText("Album proposed")).toBeTruthy();
-    expect(screen.getByText("Album failed")).toBeTruthy();
-    // Not on the default view: info, ignored, finished.
-    expect(screen.queryByText("just so you know")).toBeNull();
-    expect(screen.queryByText("ignored one")).toBeNull();
-    expect(screen.queryByText("Album done")).toBeNull();
-    // 3 findings (gap 1, gap 2, no cover) + 1 proposed + 1 failed.
-    expect(document.querySelector("[aria-live]")!.textContent).toBe("5 items");
-    const badge = screen.getByRole("link", { name: /Needs attention/ });
-    expect(badge.textContent).toContain("5");
-    // A running job is shown as progress but not counted.
-    expect(screen.getByText("In progress")).toBeTruthy();
+    expect(screen.queryByText("gap 1")).toBeNull();
   });
 
-  it("the Suggestions view lists informational findings, then finished jobs", () => {
+  it("counts decisions and suggestions separately, on the page and in the Sidebar", () => {
     renderAt("/attention");
-    // The tab counts suggestion findings only (one), not the finished job.
-    fireEvent.click(screen.getByRole("button", { name: "Suggestions (1)" }));
-    expect(where()).toBe("/attention?view=suggestions");
-    expect(screen.getByText("just so you know")).toBeTruthy();
-    expect(screen.getByText("Album done")).toBeTruthy();
-    expect(screen.queryByText("gap 1")).toBeNull();
-    // Still 5 in the badge.
-    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).toContain("5");
+    // 3 findings (gap 1, gap 2, no cover) + 1 proposed + 1 failed; 1 informational.
+    expect(summary()).toBe("5 to decide, 1 suggestion");
+    expect(navLink().textContent).toBe("Needs attention5 to decide1 suggestion");
+    const groups = [...lists().querySelectorAll("[data-tier]")].map((g) => g.textContent);
+    expect(groups).toEqual(["Needs a decision5", "Suggestions1", "Activity"]);
   });
 
-  it("?view=other, the old name, lands on the Suggestions view", () => {
-    renderAt("/attention?view=other");
-    expect(screen.getByRole("button", { name: "Suggestions (1)", pressed: true })).toBeTruthy();
-    expect(screen.getByText("just so you know")).toBeTruthy();
-    expect(screen.queryByText("gap 1")).toBeNull();
-  });
-
-  it("lists finished jobs in their own section below the findings", () => {
-    renderAt("/attention?view=suggestions");
-    const finding = screen.getByText("just so you know");
-    const heading = screen.getByRole("heading", { name: "Finished jobs" });
-    expect(finding.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it("shows finished jobs, not the empty state, when there are no suggestion findings", () => {
-    renderAt("/attention?view=suggestions", client([finding(1)], [job("done", "acted_on")]));
-    expect(screen.getByText("Album done")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "No suggestions" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Suggestions (0)" })).toBeTruthy();
-  });
-
-  it("the Suggestions view is empty when it has neither findings nor jobs", () => {
-    renderAt("/attention?view=suggestions", client([finding(1)], []));
-    expect(screen.getByRole("heading", { name: "No suggestions" })).toBeTruthy();
-  });
-
-  describe("the pointer to suggestions", () => {
-    it("shows the count and switches to the Suggestions view", () => {
-      renderAt("/attention");
-      fireEvent.click(screen.getByRole("button", { name: "1 suggestion" }));
-      expect(where()).toBe("/attention?view=suggestions");
-      // Not shown on the view it points to.
-      expect(screen.queryByRole("button", { name: /^\d+ suggestions?$/ })).toBeNull();
-    });
-
-    it("is plural for more than one", () => {
-      renderAt("/attention", client([finding(1), finding(3, { severity: "info" }), finding(6, { severity: "info" })]));
-      expect(screen.getByRole("button", { name: "2 suggestions" })).toBeTruthy();
-    });
-
-    it("is absent at zero", () => {
-      renderAt("/attention", client([finding(1)]));
-      expect(screen.queryByRole("button", { name: /suggestion/ })).toBeNull();
-    });
-
-    it("is on the empty state, so a quiet badge is not read as nothing to do", () => {
-      renderAt("/attention", client([finding(3, { severity: "info" })], []));
-      expect(screen.getByRole("heading", { name: "Nothing needs attention" })).toBeTruthy();
-      expect(screen.getByRole("button", { name: "1 suggestion" })).toBeTruthy();
-    });
-
-    it("is absent under a check filter", () => {
-      renderAt("/attention?check=track-gaps");
-      expect(screen.queryByRole("button", { name: /^\d+ suggestions?$/ })).toBeNull();
-    });
-  });
-
-  it("says nothing needs attention when there is nothing to decide", () => {
+  it("the Sidebar shows suggestions alone when there is nothing to decide", () => {
     renderAt("/attention", client([finding(3, { severity: "info" })], [job("done", "acted_on")]));
+    expect(navLink().textContent).toBe("Needs attention1 suggestion");
+    expect(summary()).toBe("0 to decide, 1 suggestion");
+    // The suggestions are on the page, not behind anything.
+    expect(within(lists()).getByText("Nothing to decide")).toBeTruthy();
+    expect(screen.getByText("gap 3")).toBeTruthy();
+  });
+
+  it("the Sidebar shows no number when there is neither", () => {
+    renderAt("/attention", client([], [job("done", "acted_on")]));
+    expect(navLink().textContent).toBe("Needs attention");
+    expect(screen.getByText("Album done")).toBeTruthy();
+  });
+
+  it("says nothing needs attention only when every list is empty", () => {
+    renderAt("/attention", client([], []));
     expect(screen.getByRole("heading", { name: "Nothing needs attention" })).toBeTruthy();
-    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).not.toMatch(/\d/);
+    fireEvent.click(screen.getByRole("button", { name: "Ignored findings" }));
+    expect(where()).toBe("/attention?list=ignored");
   });
 
-  it("has no Check now and no run controls", () => {
+  it("the album filter for jobs is named for jobs, and absent when it would list nothing", () => {
     renderAt("/attention");
-    expect(screen.queryByRole("button", { name: /Check now|Run now|Checking/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Jobs to review/ })).toBeTruthy();
+    expect(screen.queryByText("Needs review")).toBeNull();
   });
 
-  it("disables Fix on a Missing album's finding and says why", () => {
-    renderAt("/attention");
-    const fixes = screen.getAllByRole("button", { name: /Fix/ }) as HTMLButtonElement[];
-    const gone = fixes.find((b) => b.disabled)!;
-    expect(gone.title).toMatch(/folder is missing/);
+  it("no jobs filter without a job waiting, whatever the findings", () => {
+    renderAt("/attention", client(findings, []));
+    expect(screen.queryByRole("button", { name: /Jobs to review/ })).toBeNull();
+    expect(navLink().textContent).toContain("3 to decide");
   });
 
   it("the badge is a lower bound when the findings list hit its limit", () => {
@@ -232,27 +196,90 @@ describe("what is listed and counted", () => {
   });
 });
 
-describe("redirects keep deep links", () => {
+describe("a check's list", () => {
+  it("shows what the check looks for and all its open findings, whatever their severity", () => {
+    renderAt("/attention");
+    pick("Track gaps");
+    expect(where()).toBe("/attention?check=track-gaps");
+    expect(screen.getByRole("heading", { name: "Track gaps" })).toBeTruthy();
+    expect(screen.getByText("Track gaps description")).toBeTruthy();
+    expect(screen.getByText("2 need a decision, 1 are suggestions")).toBeTruthy();
+    expect(screen.getByText("gap 1")).toBeTruthy();
+    expect(screen.getByText("gap 2")).toBeTruthy();
+    expect(screen.getByText("just so you know")).toBeTruthy();
+    expect(screen.queryByText("no cover")).toBeNull();
+    expect(screen.queryByText("ignored one")).toBeNull();
+    expect(screen.queryByText("Album proposed")).toBeNull();
+  });
+
+  it("is the same list from either of the check's index rows", () => {
+    renderAt("/attention");
+    pick("Track gaps", 1);
+    expect(where()).toBe("/attention?check=track-gaps");
+    expect(lists().querySelectorAll('[aria-current="true"]')).toHaveLength(2);
+  });
+
+  it("says so when the check has nothing open", () => {
+    renderAt("/attention?check=track-gaps", client([], []));
+    expect(screen.getByText(/Nothing open for this check/)).toBeTruthy();
+  });
+
+  it("has no Check now and no run controls", () => {
+    renderAt("/attention?check=track-gaps");
+    expect(screen.queryByRole("button", { name: /Check now|Run now|Checking/ })).toBeNull();
+  });
+
+  it("disables Fix on a Missing album's finding and says why", () => {
+    renderAt("/attention?check=track-gaps");
+    const fixes = screen.getAllByRole("button", { name: /Fix/ }) as HTMLButtonElement[];
+    const gone = fixes.find((b) => b.disabled)!;
+    expect(gone.title).toMatch(/folder is missing/);
+  });
+});
+
+describe("job lists", () => {
+  it("each has its own list", () => {
+    renderAt("/attention");
+    pick("Failed jobs");
+    expect(where()).toBe("/attention?jobs=failed");
+    expect(screen.getByText("Album failed")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Clear 1 failed" })).toBeTruthy();
+    pick("In progress");
+    expect(screen.getByText("Album running")).toBeTruthy();
+    pick("Finished jobs");
+    expect(where()).toBe("/attention?jobs=finished");
+    expect(screen.getByText("Album done")).toBeTruthy();
+    expect(screen.queryByText("Album failed")).toBeNull();
+  });
+});
+
+describe("old links", () => {
+  for (const view of ["suggestions", "other"]) {
+    it(`?view=${view}, a former tab, opens the first list of suggestions`, () => {
+      renderAt(`/attention?view=${view}`);
+      expect(screen.getByRole("heading", { name: "Track gaps" })).toBeTruthy();
+      expect(screen.getByText("just so you know")).toBeTruthy();
+    });
+  }
+
   it("/health goes to Needs attention", async () => {
     renderAt("/health");
     await waitFor(() => expect(where()).toBe("/attention"));
   });
 
-  it("/health/:checkId lands filtered to that check, informational findings included", async () => {
+  it("/health/:checkId opens that check's list", async () => {
     renderAt("/health/track-gaps");
     await waitFor(() => expect(where()).toBe("/attention?check=track-gaps"));
     expect(screen.getByText("gap 1")).toBeTruthy();
     expect(screen.getByText("just so you know")).toBeTruthy();
     expect(screen.queryByText("no cover")).toBeNull();
-    expect(screen.queryByText("Album proposed")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Show everything/ }));
-    expect(where()).toBe("/attention");
   });
 
   for (const from of ["/jobs?job=done", "/jobs/done"]) {
-    it(`${from} shows that job even though finished jobs do not need attention`, async () => {
+    it(`${from} opens the list holding that job, with the job highlighted`, async () => {
       renderAt(from);
       await waitFor(() => expect(where()).toBe("/attention?job=done"));
+      expect(current()).toBe("Finished jobs1");
       const row = document.querySelector('[data-job-id="done"]');
       expect(row).toBeTruthy();
       expect(row!.className).toContain("bg-accent-soft");
@@ -266,22 +293,22 @@ describe("redirects keep deep links", () => {
 });
 
 describe("Back from an album", () => {
-  it("returns to the same view and scroll position", async () => {
-    renderAt("/attention?view=suggestions");
+  it("returns to the same list and scroll position", async () => {
+    renderAt("/attention?check=track-gaps");
     scrollerEl().scrollTop = 120;
     fireEvent.scroll(scrollerEl());
-    expect(sessionStorage.getItem("mm.attention.scroll.suggestions.")).toBe("120");
+    expect(sessionStorage.getItem("mm.attention.scroll.check.track-gaps")).toBe("120");
     // The album link on a row opens the library with that album's panel.
     fireEvent.click(screen.getAllByRole("link", { name: "View album detail" })[0]);
     expect(where()).toMatch(/^\/library\/present/);
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    await waitFor(() => expect(where()).toBe("/attention?view=suggestions"));
-    expect(screen.getByRole("button", { name: /Suggestions/, pressed: true })).toBeTruthy();
+    await waitFor(() => expect(where()).toBe("/attention?check=track-gaps"));
+    expect(screen.getByRole("heading", { name: "Track gaps" })).toBeTruthy();
     expect(scrollerEl().scrollTop).toBe(120);
   });
 
   it("a fresh visit starts at the top", () => {
-    sessionStorage.setItem("mm.attention.scroll.decision.", "300");
+    sessionStorage.setItem("mm.attention.scroll.jobs.proposed", "300");
     renderAt("/start");
     fireEvent.click(screen.getByRole("link", { name: "go" }));
     expect(scrollerEl().scrollTop).toBe(0);
@@ -309,20 +336,16 @@ describe("ignored findings", () => {
     return fetchMock;
   }
 
-  it("are not counted or on the default view; they can be listed and restored", async () => {
+  it("are not counted or listed; a check's list can show its own, and restore them", async () => {
     const fetchMock = stubIgnored();
-    renderAt("/attention");
-    expect(screen.queryByText("ignored gap")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Show ignored/ })).toBeNull();
-    expect(document.querySelector("[aria-live]")!.textContent).toBe("5 items");
-
-    fireEvent.click(screen.getByRole("button", { name: /^Suggestions/ }));
+    renderAt("/attention?check=track-gaps");
     expect(screen.queryByText("ignored gap")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Show ignored" }));
+    expect(where()).toBe("/attention?check=track-gaps&ignored=1");
     expect(await screen.findByText("ignored gap")).toBeTruthy();
     // Still not counted anywhere.
-    expect(document.querySelector("[aria-live]")!.textContent).toBe("5 items");
-    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).toContain("5");
+    expect(summary()).toBe("5 to decide, 1 suggestion");
+    expect(navLink().textContent).toContain("5 to decide");
 
     const row = screen.getByText("ignored gap").closest("div.px-3")!;
     fireEvent.click(within(row as HTMLElement).getByRole("button", { name: "Restore" }));
@@ -332,34 +355,32 @@ describe("ignored findings", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     );
-  });
-
-  it("can be listed in a check-filtered view", async () => {
-    stubIgnored();
-    renderAt("/attention?check=track-gaps");
-    fireEvent.click(screen.getByRole("button", { name: "Show ignored" }));
-    expect(await screen.findByText("ignored gap")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Hide ignored" }));
     expect(screen.queryByText("ignored gap")).toBeNull();
+  });
+
+  it("have a list of their own, grouped by check", async () => {
+    stubIgnored();
+    renderAt("/attention");
+    pick("Ignored findings");
+    expect(where()).toBe("/attention?list=ignored");
+    expect(await screen.findByText("ignored gap")).toBeTruthy();
+    expect(screen.getByText("ignored one")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Track gaps" })).toBeTruthy();
+    expect(screen.queryByText("gap 1")).toBeNull();
   });
 });
 
 describe("long lists", () => {
   const many = Array.from({ length: 60 }, (_, i) => finding(100 + i, { summary: `many ${i}` }));
 
-  it("caps a check's section at 50 rows with a Show all N button; counts stay true", () => {
+  it("caps a check's list at 50 rows with a Show all N button; counts stay true", () => {
     renderAt("/attention", client(many, []));
     expect(screen.getAllByText(/^many \d+$/)).toHaveLength(50);
-    expect(document.querySelector("[aria-live]")!.textContent).toBe("60 items");
-    expect(screen.getByRole("link", { name: /Needs attention/ }).textContent).toContain("60");
+    expect(summary()).toBe("60 to decide, 0 suggestions");
+    expect(navLink().textContent).toContain("60 to decide");
     expect(document.querySelector("#check-track-gaps")!.textContent).toContain("60");
     fireEvent.click(screen.getByRole("button", { name: "Show all 60" }));
-    expect(screen.getAllByText(/^many \d+$/)).toHaveLength(60);
-    expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
-  });
-
-  it("a check-filtered view lists everything for that check", () => {
-    renderAt("/attention?check=track-gaps", client(many, []));
     expect(screen.getAllByText(/^many \d+$/)).toHaveLength(60);
     expect(screen.queryByRole("button", { name: /Show all/ })).toBeNull();
   });

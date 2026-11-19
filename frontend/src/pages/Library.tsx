@@ -80,7 +80,7 @@ export default function LibraryPage() {
     : null;
   const view: "tiles" | "list" = params.get("view") === "list" ? "list" : "tiles";
 
-  // Albums needing attention (for the "Needs review" filter) — derived from
+  // Albums needing attention (for the "Jobs to review" filter) — derived from
   // the live jobs cache.
   const { data: jobs = [] } = useJobs();
   const needsAttention = useMemo(() => buildNeedsAttentionSet(jobs), [jobs]);

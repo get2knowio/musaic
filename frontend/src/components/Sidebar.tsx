@@ -13,7 +13,9 @@ interface NavItem {
   label: string;
   icon: typeof Disc3;
   count?: number;
-  badge?: { text: string; tone: "accent" | "warn" | "err" };
+  badge?: { text: string; tone: "accent" | "warn" | "err"; title?: string };
+  /** A second, quieter number after the badge; `title` starts with it. */
+  quiet?: { text: string; title: string };
   /** Show a pulsing dot to indicate background activity (e.g. AI job running). */
   activity?: { label: string };
 }
@@ -90,22 +92,34 @@ export default function Sidebar() {
       : queuedCount > 0
       ? `${queuedCount} queued`
       : null;
-  // One item for everything that needs a decision: open warn/error
-  // findings plus proposed and failed jobs. Informational findings and
-  // finished jobs are not counted.
+  // Two numbers, as the page's index groups them: what needs a decision
+  // (open warn/error findings plus proposed and failed jobs), then the
+  // suggestions (informational findings), quieter. Finished jobs and
+  // ignored findings are in neither.
+  const suggestions = attention.infoFindings.length;
   const attentionItem: NavItem = {
     to: "/attention",
     label: "Needs attention",
     icon: AlertCircle,
     badge: attention.count > 0
-      ? { text: attentionBadgeText(attention.count, attention.countIsLowerBound), tone: "warn" }
+      ? {
+          text: attentionBadgeText(attention.count, attention.countIsLowerBound),
+          tone: "warn",
+          title: `${attentionBadgeText(attention.count, attention.countIsLowerBound)} to decide`,
+        }
+      : undefined,
+    quiet: suggestions > 0
+      ? {
+          text: attentionBadgeText(suggestions, attention.countIsLowerBound),
+          title: `${attentionBadgeText(suggestions, attention.countIsLowerBound)} ${suggestions === 1 ? "suggestion" : "suggestions"}`,
+        }
       : undefined,
     activity: runningCount > 0 && activityLabel
       ? { label: activityLabel }
       : undefined,
   };
 
-  // Tooltip the "Needs review" filter chip with both perspectives — albums
+  // Tooltip the "Jobs to review" filter chip with both perspectives — albums
   // with completed jobs (sidebar's count) and the actual jobs in completed/
   // failed status (Jobs page's count). Same name, different granularities;
   // surfacing both prevents confusion when the numbers disagree.
@@ -142,7 +156,11 @@ export default function Sidebar() {
         active={false}
         onClick={() => onFilterClick(null)}
       />
-      {FILTERS.map((f) => (
+      {FILTERS.filter(
+        // With no job waiting the jobs filter would be a permanent 0 (always,
+        // in a build with no model), so it is shown only when it lists something.
+        (f) => f.key !== "needs-review" || counts[f.key] > 0 || activeFilter === f.key,
+      ).map((f) => (
         <FilterChipRow
           key={f.key}
           label={f.label}
@@ -208,6 +226,7 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
       )}
       {item.badge && (
         <span
+          title={item.badge.title}
           className={
             (item.activity ? "" : "ml-auto ") +
             "mono text-[10.5px] tabular-nums px-1.5 py-0.5 rounded-full font-semibold " +
@@ -219,9 +238,22 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
           }
         >
           {item.badge.text}
+          {item.badge.title && <span className="sr-only"> {item.badge.title.replace(/^\S+ /, "")}</span>}
         </span>
       )}
-      {item.activity && !item.badge && <span className="ml-auto" />}
+      {item.quiet && (
+        <span
+          title={item.quiet.title}
+          className={
+            (item.activity || item.badge ? "" : "ml-auto ") +
+            "mono text-[10.5px] tabular-nums px-1.5 py-0.5 rounded-full border border-line text-fg-3"
+          }
+        >
+          {item.quiet.text}
+          <span className="sr-only"> {item.quiet.title.replace(/^\S+ /, "")}</span>
+        </span>
+      )}
+      {item.activity && !item.badge && !item.quiet && <span className="ml-auto" />}
       {item.count !== undefined && !item.badge && (
         <span className="ml-auto mono text-xs text-fg-4 tabular-nums">{item.count}</span>
       )}
