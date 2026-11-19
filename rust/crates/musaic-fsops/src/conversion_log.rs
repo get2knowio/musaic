@@ -27,8 +27,19 @@ pub const LOG_DIR_NAME: &str = "conversions";
 /// `format` of every record, so a reader can tell it from other JSON.
 pub const FORMAT: &str = "musaic-multi-disc-conversion";
 
-/// The record format's version.
+/// The record format's version for a set kept in one folder.
 pub const VERSION: i64 = 1;
+
+/// The version of a record of a set gathered from several folders
+/// (`kind: "folders"`): the members, each file's member and the folder
+/// plans. A build that knows only version 1 skips such a record rather than
+/// resuming it as a one-folder conversion.
+pub const VERSION_FOLDERS: i64 = 2;
+
+/// `kind` of a set kept in one folder.
+pub const KIND_ONE_FOLDER: &str = "one_folder";
+/// `kind` of a set gathered from several folders.
+pub const KIND_FOLDERS: &str = "folders";
 
 /// The tags a conversion reads and writes, as recorded (the keys are case
 /// insensitive in a file; the record spells them in capitals).
@@ -89,6 +100,9 @@ pub fn converted_numbering(old: &NumberingTags, track: i64, total: usize) -> Num
 /// One file of a conversion.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoggedFile {
+    /// The member album the file belonged to before the conversion (a
+    /// `folders` record; empty in a one-folder record).
+    pub album_id: String,
     pub disc: i64,
     /// Its number on its disc.
     pub track: i64,
@@ -97,6 +111,34 @@ pub struct LoggedFile {
     pub new_name: String,
     pub old_tags: NumberingTags,
     pub new_tags: NumberingTags,
+}
+
+/// One member album of a `folders` conversion, as it was before.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LoggedMember {
+    pub album_id: String,
+    /// The folder's full path before the conversion.
+    pub folder: String,
+    pub folder_name: String,
+    pub disc: i64,
+    /// Disc 1's folder: the one the others are gathered into.
+    pub destination: bool,
+}
+
+/// What a `folders` conversion does with the entries of one member folder
+/// that are not its FLACs.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct LoggedFolder {
+    pub album_id: String,
+    pub folder_name: String,
+    /// `(name, action)`: `kept`, `moved`, `identical`, `different`.
+    pub covers: Vec<(String, String)>,
+    /// Operating-system clutter that goes to the app trash.
+    pub junk: Vec<String>,
+    /// The folder had a track-tag sidecar (merged, then put in the trash).
+    pub sidecar: bool,
+    /// Files that stay where they are.
+    pub other_files: Vec<String>,
 }
 
 /// One attempt at running the conversion (a second Convert after an
@@ -135,6 +177,19 @@ pub struct Record {
     pub track_total: usize,
     pub files: Vec<LoggedFile>,
     pub attempts: Vec<Attempt>,
+    /// A `folders` record: every member, in disc order (the destination
+    /// first). Empty in a one-folder record.
+    pub members: Vec<LoggedMember>,
+    /// A `folders` record: the plan for each member folder's other entries.
+    pub folders: Vec<LoggedFolder>,
+    /// A `folders` record: rows Musaic keeps for files no longer on disk
+    /// (`(album id, file name)`), carried to the surviving album under the
+    /// same name so the fold loses nothing.
+    pub orphan_rows: Vec<(String, String)>,
+    /// Set when the user chose to stop treating an unfinished conversion
+    /// as one (`finished_at` is set with it): the files stay as they are and
+    /// scans read the folders again.
+    pub abandoned_at: Option<String>,
 }
 
 fn tags_json(t: &NumberingTags) -> Value {
@@ -180,12 +235,48 @@ impl Record {
         self.album_id_before == id
             || self.album_id_expected == id
             || self.album_id_after.as_deref() == Some(id)
+            || self.members.iter().any(|m| m.album_id == id)
+    }
+
+    /// A set gathered from several folders.
+    pub fn is_folders(&self) -> bool {
+        self.kind == KIND_FOLDERS
+    }
+
+    /// Every album id the conversion touches: the members (or the one
+    /// album), and the id the destination has after its folder rename.
+    pub fn album_ids(&self) -> Vec<String> {
+        let mut v: Vec<String> = vec![self.album_id_before.clone()];
+        v.extend(self.members.iter().map(|m| m.album_id.clone()));
+        v.push(self.album_id_expected.clone());
+        v.extend(self.album_id_after.clone());
+        v.sort();
+        v.dedup();
+        v
+    }
+
+    /// Every folder path the conversion touches: each member's folder, and
+    /// the destination under its old and its new name.
+    pub fn folder_paths(&self) -> Vec<String> {
+        let mut v: Vec<String> = vec![self.folder_before.clone()];
+        v.extend(self.members.iter().map(|m| m.folder.clone()));
+        if let Some(parent) = Path::new(&self.folder_before).parent() {
+            v.push(
+                parent
+                    .join(&self.folder_name_after)
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
+        v.sort();
+        v.dedup();
+        v
     }
 
     pub fn to_json(&self) -> Value {
-        json!({
+        let mut v = json!({
             "format": FORMAT,
-            "version": VERSION,
+            "version": if self.is_folders() { VERSION_FOLDERS } else { VERSION },
             "kind": self.kind,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
@@ -200,6 +291,7 @@ impl Record {
             "dir_template": self.dir_template,
             "track_total": self.track_total,
             "files": self.files.iter().map(|f| json!({
+                "album_id": f.album_id,
                 "disc": f.disc,
                 "track": f.track,
                 "new_track": f.new_track,
@@ -214,15 +306,60 @@ impl Record {
                 "outcome": a.outcome,
                 "steps": a.steps,
             })).collect::<Vec<_>>(),
-        })
+        });
+        if self.abandoned_at.is_some() {
+            v["abandoned_at"] = json!(self.abandoned_at);
+        }
+        if self.is_folders() {
+            v["members"] = json!(
+                self.members
+                    .iter()
+                    .map(|m| json!({
+                        "album_id": m.album_id,
+                        "folder": m.folder,
+                        "folder_name": m.folder_name,
+                        "disc": m.disc,
+                        "destination": m.destination,
+                    }))
+                    .collect::<Vec<_>>()
+            );
+            v["folders"] = json!(self.folders.iter().map(|f| json!({
+                "album_id": f.album_id,
+                "folder_name": f.folder_name,
+                "covers": f.covers.iter().map(|(n, a)| json!({"name": n, "action": a})).collect::<Vec<_>>(),
+                "junk": f.junk,
+                "sidecar": f.sidecar,
+                "other_files": f.other_files,
+            })).collect::<Vec<_>>());
+            v["orphan_rows"] = json!(
+                self.orphan_rows
+                    .iter()
+                    .map(|(a, n)| json!({"album_id": a, "filename": n}))
+                    .collect::<Vec<_>>()
+            );
+        }
+        v
     }
 
     /// A record read back; `None` when it is not one (another format, a
     /// newer version, a missing field).
     pub fn from_json(path: &Path, v: &Value) -> Option<Record> {
-        if v.get("format")?.as_str()? != FORMAT || v.get("version")?.as_i64()? != VERSION {
+        let version = v.get("version")?.as_i64()?;
+        if v.get("format")?.as_str()? != FORMAT
+            || !(version == VERSION || version == VERSION_FOLDERS)
+        {
             return None;
         }
+        let strs = |x: Option<&Value>| -> Vec<String> {
+            x.and_then(Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_string)
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
         let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
         let files = v
             .get("files")?
@@ -230,6 +367,11 @@ impl Record {
             .iter()
             .map(|f| {
                 Some(LoggedFile {
+                    album_id: f
+                        .get("album_id")
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string(),
                     disc: f.get("disc")?.as_i64()?,
                     track: f.get("track")?.as_i64()?,
                     new_track: f.get("new_track")?.as_i64()?,
@@ -265,9 +407,75 @@ impl Record {
                     .collect()
             })
             .unwrap_or_default();
+        let members = match v.get("members").and_then(Value::as_array) {
+            None => Vec::new(),
+            Some(a) => a
+                .iter()
+                .map(|m| {
+                    Some(LoggedMember {
+                        album_id: m.get("album_id")?.as_str()?.to_string(),
+                        folder: m.get("folder")?.as_str()?.to_string(),
+                        folder_name: m.get("folder_name")?.as_str()?.to_string(),
+                        disc: m.get("disc")?.as_i64()?,
+                        destination: m.get("destination")?.as_bool()?,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        };
+        let folders = match v.get("folders").and_then(Value::as_array) {
+            None => Vec::new(),
+            Some(a) => a
+                .iter()
+                .map(|f| {
+                    Some(LoggedFolder {
+                        album_id: f.get("album_id")?.as_str()?.to_string(),
+                        folder_name: f.get("folder_name")?.as_str()?.to_string(),
+                        covers: f
+                            .get("covers")
+                            .and_then(Value::as_array)
+                            .map(|c| {
+                                c.iter()
+                                    .filter_map(|c| {
+                                        Some((
+                                            c.get("name")?.as_str()?.to_string(),
+                                            c.get("action")?.as_str()?.to_string(),
+                                        ))
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default(),
+                        junk: strs(f.get("junk")),
+                        sidecar: f.get("sidecar").and_then(Value::as_bool).unwrap_or(false),
+                        other_files: strs(f.get("other_files")),
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        };
+        let orphan_rows = v
+            .get("orphan_rows")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|o| {
+                        Some((
+                            o.get("album_id")?.as_str()?.to_string(),
+                            o.get("filename")?.as_str()?.to_string(),
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let kind = s("kind")?;
+        // A version-1 record never describes several folders, and a
+        // `folders` record without its members cannot be resumed.
+        if (kind == KIND_FOLDERS) != (version == VERSION_FOLDERS)
+            || (kind == KIND_FOLDERS && members.is_empty())
+        {
+            return None;
+        }
         Some(Record {
             path: path.to_path_buf(),
-            kind: s("kind")?,
+            kind,
             started_at: s("started_at")?,
             finished_at: s("finished_at"),
             library_path: s("library_path")?,
@@ -282,6 +490,10 @@ impl Record {
             track_total: v.get("track_total")?.as_u64()? as usize,
             files,
             attempts,
+            members,
+            folders,
+            orphan_rows,
+            abandoned_at: s("abandoned_at"),
         })
     }
 
@@ -392,6 +604,7 @@ mod tests {
             dir_template: "{album}".into(),
             track_total: 9,
             files: vec![LoggedFile {
+                album_id: String::new(),
                 disc: 2,
                 track: 5,
                 new_track: 9,
@@ -406,6 +619,10 @@ mod tests {
                 outcome: None,
                 steps: vec![json!({"step": "rename_files", "ok": true})],
             }],
+            members: Vec::new(),
+            folders: Vec::new(),
+            orphan_rows: Vec::new(),
+            abandoned_at: None,
         };
         r.save().unwrap();
         assert_eq!(

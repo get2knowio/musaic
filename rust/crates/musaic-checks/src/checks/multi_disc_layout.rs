@@ -35,8 +35,8 @@ pub static META: CheckMeta = CheckMeta {
 per disc (or still carry disc tags). The layout Musaic aims for is one folder per set, tracks numbered \
 straight through all the discs, no disc number in the file names and no disc tags. Sets are found only \
 from disc numbers in the files' tags or in folder names such as \"(disc 2 of 3)\", never guessed. \
-Resolve shows what a conversion does and converts a set kept in one folder; converting a set kept in \
-several folders is not available yet.",
+Resolve shows what a conversion does and converts the set, gathering a set kept in several folders \
+into one, with a record of every change.",
     category: "files",
     cost: Cost::Cheap,
     runs_during_scan: false,
@@ -215,13 +215,22 @@ impl Check for MultiDiscLayout {
         // record, not detection, decides their finding.
         let mut interrupted: Vec<(&DiscRow, Record)> = Vec::new();
         for record in unfinished(ctx) {
-            if let Some(row) = rows.iter().find(|r| record.is_of(&r.id))
+            // The destination's row, under its old or its new id; any row
+            // of the record when that one is gone.
+            let dest = rows.iter().find(|r| {
+                r.id == record.album_id_before
+                    || r.id == record.album_id_expected
+                    || record.album_id_after.as_deref() == Some(r.id.as_str())
+            });
+            if let Some(row) = dest.or_else(|| rows.iter().find(|r| record.is_of(&r.id)))
                 && !interrupted.iter().any(|(r, _)| r.id == row.id)
             {
                 interrupted.push((row, record));
             }
         }
-        let resumed = |id: &str| interrupted.iter().any(|(r, _)| r.id == id);
+        // Every album of an unfinished conversion (each disc of a set kept
+        // in several folders) is the record's, not detection's.
+        let resumed = |id: &str| interrupted.iter().any(|(_, rec)| rec.is_of(id));
         // Not read yet (a row from before the per-file disc numbers were
         // stored): keep whatever it had until a scan reads it.
         for id in &detection.unknown {

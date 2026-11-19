@@ -208,13 +208,173 @@ describe("converting a set kept in one folder", () => {
   });
 });
 
-describe("a set kept in several folders", () => {
-  it("still says converting it is not available, and offers no Convert", async () => {
+const D1 = "Band - Record (disc 1 of 3) [FLAC]";
+const D2 = "Band - Record (disc 2 of 3) [FLAC]";
+const D3 = "Band - Record (disc 3 of 3) [FLAC]";
+
+const folders: MultiDiscConversionPreview = {
+  ...oneFolder,
+  state: "folders",
+  disc_total: 3,
+  present_discs: [1, 2, 3],
+  members: [
+    { album_id: ALBUM_ID, dir_name: D1, disc: 1, missing: false },
+    { album_id: "b2", dir_name: D2, disc: 2, missing: false },
+    { album_id: "b3", dir_name: D3, disc: 3, missing: false },
+  ],
+  tracks: [
+    { album_id: ALBUM_ID, disc: 1, filename: "01 - A1.flac", title: "A1", tracknumber: "1", track: 1, new_track: 1, new_filename: "01 - A1.flac", has_disc_tags: true, tags_done: false, state: "untouched", folder: D1 },
+    { album_id: "b2", disc: 2, filename: "01 - B1.flac", title: "B1", tracknumber: "1", track: 1, new_track: 2, new_filename: "02 - B1.flac", has_disc_tags: true, tags_done: false, state: "untouched", folder: D2 },
+    { album_id: "b3", disc: 3, filename: "01 - C1.flac", title: "C1", tracknumber: "1", track: 1, new_track: 3, new_filename: "03 - C1.flac", has_disc_tags: true, tags_done: false, state: "untouched", folder: D3 },
+  ],
+  track_total: 3,
+  target_folder: { current: D1, new: "Band - Record [FLAC]" },
+  folders: [
+    { album_id: ALBUM_ID, dir_name: D1, disc: 1, destination: true, covers: [{ name: "cover.jpg", action: "kept", done: false }], sidecar: false, other_files: [], junk: [], exists: true },
+    { album_id: "b2", dir_name: D2, disc: 2, destination: false, covers: [{ name: "cover.jpg", action: "identical", done: false }], sidecar: true, other_files: ["notes.txt"], junk: [], exists: true },
+    { album_id: "b3", dir_name: D3, disc: 3, destination: false, covers: [{ name: "cover.jpg", action: "different", done: false }], sidecar: false, other_files: [], junk: [{ name: ".DS_Store", done: false }], exists: true },
+  ],
+  gather: { folded: false, folder_renamed: false, merges: 2, orphan_rows: 0 },
+  records_dir: "/cfg/conversions",
+};
+
+/** A text/event-stream body the test feeds frame by frame. */
+function stream() {
+  let push: (s: string) => void = () => {};
+  let end: () => void = () => {};
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      const enc = new TextEncoder();
+      push = (s) => c.enqueue(enc.encode(s));
+      end = () => c.close();
+    },
+  });
+  const response = new Response(body, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" },
+  });
+  const frame = (event: string, data: unknown) =>
+    push(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  return { response, frame, end };
+}
+
+describe("converting a set kept in several folders", () => {
+  it("says with the real numbers what will happen", () => {
+    expect(confirmationText(folders)).toBe(
+      "3 files from 3 folders will be moved into one folder named Band - Record [FLAC], renumbered 1 to 3, and lose their disc tags (DISCNUMBER, DISCTOTAL). " +
+        `The cover kept is cover.jpg from ${D1}. ` +
+        `These covers go to Musaic's trash: cover.jpg from ${D2} and cover.jpg from ${D3}. ` +
+        `notes.txt stays in ${D2}, which is kept. ` +
+        "The 3 albums become one; findings you ignored on the other 2 discs do not carry over. " +
+        "This cannot be undone from Musaic, but a record of every old name and tag value is kept in /cfg/conversions.",
+    );
+  });
+
+  it("streams the progress, then closes on success", async () => {
+    previewAnswer = async () => json(folders);
+    const s = stream();
+    convertAnswer = async () => s.response;
+    const onClose = vi.fn();
+    wrap(<MultiDiscResolveDialog finding={finding} open onClose={onClose} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Convert…" }));
+    expect(screen.getByText(/3 files from 3 folders will be moved/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Convert now" }));
+    s.frame("progress", { step: "move_files", done: 1, total: 2 });
+    await screen.findByText("Moving files into the set's folder… 1 of 2");
+    s.frame("result", {
+      ok: true,
+      interrupted: false,
+      album_id: "new-id",
+      user_message: "Converted: the 3 files of 3 discs are in Band - Record [FLAC], numbered 1 to 3.",
+      files: [],
+      folders: [],
+      merged: ["b2", "b3"],
+      folder: { old: D1, new: "Band - Record [FLAC]", outcome: "renamed" },
+      record: "/cfg/conversions/x.json",
+      attempts: 1,
+    });
+    s.end();
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    const post = calls.find((c) => c.method === "POST");
+    expect(post?.url).toBe(CONVERT);
+    expect(JSON.parse(post?.body ?? "{}")).toEqual({ digest: "d1g3st" });
+  });
+
+  it("stays open with the reasons when a move failed, and offers to finish", async () => {
+    previewAnswer = async () => json(folders);
+    const s = stream();
+    convertAnswer = async () => s.response;
+    const onClose = vi.fn();
+    wrap(<MultiDiscResolveDialog finding={finding} open onClose={onClose} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Convert…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Convert now" }));
+    s.frame("result", {
+      ok: false,
+      interrupted: false,
+      album_id: ALBUM_ID,
+      user_message: "1 file was moved into the set's folder; the rest were not, and the folders were not merged.",
+      files: [
+        {
+          filename: "01 - C1.flac",
+          new_filename: "03 - C1.flac",
+          folder: D3,
+          rename: "renamed",
+          tags: "written",
+          move: "failed",
+          reason_code: "in_use",
+          user_message: "“03 - C1.flac” could not be moved because another program is using it.",
+        },
+      ],
+      folder: { old: D1, new: "Band - Record [FLAC]", outcome: "not_reached" },
+      record: "/cfg/conversions/x.json",
+      attempts: 1,
+    });
+    s.end();
+    await screen.findByText("The set was not fully converted");
+    expect(screen.getByText(/another program is using it/)).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+    // The fresh preview says where each file is and offers to finish.
     previewAnswer = async () =>
-      json({ ...oneFolder, state: "folders", conversion_available: false, folders: [] });
-    wrap(<MultiDiscResolveDialog finding={finding} open onClose={() => {}} />);
-    await screen.findByText(/several folders is not available yet/);
-    expect(screen.queryByRole("button", { name: /convert/i })).toBeNull();
-    expect(calls.every((c) => c.method === "GET")).toBe(true);
+      json({
+        ...folders,
+        resume: { record: "/cfg/conversions/x.json", started_at: "t", attempts: 1 },
+        tracks: folders.tracks.map((t, i) =>
+          i === 1 ? { ...t, state: "moved", tags_done: true, folder: D1 } : t,
+        ),
+      });
+    await waitFor(() => expect(calls.filter((c) => c.url === PREVIEW).length).toBeGreaterThan(1));
+  });
+
+  it("finishes an interrupted one, or stops treating it as a conversion", async () => {
+    const ABANDON = "/api/checks/multi-disc-layout/findings/7/abandon-conversion";
+    previewAnswer = async () =>
+      json({
+        ...folders,
+        resume: { record: "/cfg/conversions/x.json", started_at: "t", attempts: 1 },
+        tracks: folders.tracks.map((t, i) =>
+          i === 1 ? { ...t, state: "moved", tags_done: true, folder: D1 } : t,
+        ),
+      });
+    const onClose = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ url: String(url), method: init?.method ?? "GET", body: null });
+        if (String(url) === PREVIEW) return previewAnswer();
+        if (String(url) === ABANDON) return json({ ok: true, user_message: "Musaic no longer treats this as a conversion in progress." });
+        return json({ detail: "not found" }, 404);
+      }),
+    );
+    wrap(<MultiDiscResolveDialog finding={finding} open onClose={onClose} />);
+    await screen.findByText("A conversion of this set did not finish");
+    expect(screen.getByText(`(done, in ${D1})`)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Finish converting…" }));
+    expect(screen.getByText(/This finishes the conversion that did not finish: 1 more file will be moved/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Stop this conversion…" }));
+    expect(screen.getByText(/Every file stays where it is now/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stop it" }));
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    expect(calls.some((c) => c.url === ABANDON && c.method === "POST")).toBe(true);
   });
 });

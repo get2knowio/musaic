@@ -554,6 +554,12 @@ impl AppBuilder {
                 },
             ),
         }));
+        // Scans leave the albums of an unfinished multi-disc conversion as
+        // they are (its resume, from the record, puts them together).
+        let logs = musaic_services::multi_disc_convert::log_dir(state.config_dir());
+        state.0.scan.set_held(Arc::new(move || {
+            musaic_services::multi_disc_convert::held_albums(&logs)
+        }));
         // Pool passes in the log (fingerprint_pool.py's INFO lines).
         let weak = Arc::downgrade(&state.0);
         state.0.pool.changed().add_listener(Arc::new(move || {

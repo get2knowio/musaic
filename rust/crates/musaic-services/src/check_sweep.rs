@@ -364,6 +364,11 @@ impl CheckSweeper {
         }
     }
 
+    /// Whether a [`SweepSuspension`] is held (tests).
+    pub fn is_suspended(&self) -> bool {
+        self.inner.ctl().suspended > 0
+    }
+
     /// Whether a pass is planned or running (tests).
     pub fn is_busy(&self) -> bool {
         let c = self.inner.ctl();

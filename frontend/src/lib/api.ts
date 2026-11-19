@@ -605,7 +605,13 @@ export function fetchDuplicateClusterPreview(
 
 /** Re-derive what converting a multi-disc set would do, against current
  *  disk + DB state. Read-only. */
-import type { MultiDiscBlocker, MultiDiscConversionPreview, MultiDiscConvertResult } from "./types";
+import type {
+  MultiDiscBlocker,
+  MultiDiscConversionPreview,
+  MultiDiscConvertResult,
+  MultiDiscProgress,
+} from "./types";
+import { postSse } from "./sse";
 
 export function fetchMultiDiscConversionPreview(
   findingId: number,
@@ -648,6 +654,72 @@ export async function convertMultiDisc(
     }
     throw e;
   }
+}
+
+/** A refusal body turned into a result the dialog shows (nothing changed). */
+function refusedResult(b: unknown): MultiDiscConvertResult | null {
+  const r = b as { user_message?: unknown; reason_code?: unknown; blockers?: unknown } | null;
+  if (!r || typeof r.user_message !== "string") return null;
+  return {
+    ok: false,
+    refused: true,
+    user_message: r.user_message,
+    reason_code: typeof r.reason_code === "string" ? r.reason_code : undefined,
+    blockers: Array.isArray(r.blockers) ? (r.blockers as MultiDiscBlocker[]) : undefined,
+  };
+}
+
+/**
+ * Convert a set kept in several folders, with its progress: the same POST
+ * as {@link convertMultiDisc}, asked for a stream (moving the files of a
+ * big box set over a network share takes minutes). `onProgress` gets each
+ * `{step, done, total}`; the promise resolves with the result, or with a
+ * refusal turned into one.
+ */
+export async function convertMultiDiscStreaming(
+  findingId: number,
+  digest: string,
+  onProgress: (p: MultiDiscProgress) => void,
+): Promise<MultiDiscConvertResult> {
+  let result: MultiDiscConvertResult | null = null;
+  try {
+    await postSse(
+      `/api/checks/multi-disc-layout/findings/${findingId}/convert`,
+      { digest },
+      {
+        progress: (d) => onProgress(d as MultiDiscProgress),
+        result: (d) => {
+          result = d as MultiDiscConvertResult;
+        },
+        refused: (d) => {
+          result = refusedResult(d) ?? {
+            ok: false,
+            refused: true,
+            user_message: "Nothing was converted.",
+          };
+        },
+      },
+    );
+  } catch (e) {
+    // A refusal before the stream starts (a restore running).
+    const status = (e as { status?: number }).status;
+    if (status === 409) {
+      return { ok: false, refused: true, user_message: (e as Error).message };
+    }
+    throw e;
+  }
+  if (!result) throw new Error("The conversion ended without saying how it went. Open the dialog again to see where it got.");
+  return result;
+}
+
+/** Stop treating an unfinished conversion as one: every file stays where
+ *  it is, the record is kept. */
+export function abandonMultiDiscConversion(
+  findingId: number,
+): Promise<{ ok: boolean; user_message: string }> {
+  return request(`/api/checks/multi-disc-layout/findings/${findingId}/abandon-conversion`, {
+    method: "POST",
+  });
 }
 
 // --- User-defined track tags (v9) ---

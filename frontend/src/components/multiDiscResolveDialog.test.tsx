@@ -64,7 +64,8 @@ const folders: MultiDiscConversionPreview = {
   album_id: ALBUM_ID,
   state: "folders",
   convertible: true,
-  conversion_available: false,
+  conversion_available: true,
+  digest: "d1g3st",
   headline: "'Band - Record (disc 1 of 2) [FLAC]'",
   reason: null,
   numbering: null,
@@ -111,9 +112,10 @@ describe("MultiDiscResolveDialog", () => {
     expect(screen.getByText("Track 2")).toBeTruthy();
     expect(screen.getByText(/different picture/)).toBeTruthy();
     expect(screen.getByText("notes.txt")).toBeTruthy();
-    expect(screen.getByText(/several folders is not available yet/)).toBeTruthy();
-    // Read-only: no Convert button, nothing but the preview GET.
-    expect(screen.queryByRole("button", { name: /convert/i })).toBeNull();
+    expect(screen.getByText(/This folder is removed once it is empty/)).toBeTruthy();
+    expect(screen.getByText("Nothing changes until you confirm.")).toBeTruthy();
+    // Convert is offered; nothing but the preview GET happens until then.
+    expect(screen.getByRole("button", { name: "Convert…" })).toBeTruthy();
     expect(calls.every((c) => c.method === "GET" && c.url === URL)).toBe(true);
   });
 

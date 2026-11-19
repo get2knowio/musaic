@@ -22,7 +22,7 @@ use musaic_db::renames::{RenamePlanRow, rename_plan_row};
 use musaic_scan::{COVER_FILENAMES, flacmeta, list_flacs, parse_tracknum};
 use rusqlite::{Connection, params};
 
-use crate::conversion_log::{self, NumberingTags, Record, numbering_of, values_of};
+use crate::conversion_log::{self, LoggedFile, NumberingTags, Record, numbering_of, values_of};
 use crate::fsutil::fold;
 use crate::plan::{Templates, TrackTags, render_dir_name, render_track_stem, same_nfc};
 use crate::sidecar::SIDECAR_FILENAME;
@@ -461,6 +461,17 @@ pub mod blocker {
     pub const RESUME_CHANGED: &str = "resume_changed";
     /// More than one unfinished conversion names this album.
     pub const RESUME_AMBIGUOUS: &str = "resume_ambiguous";
+    /// The discs are matched to MusicBrainz release groups that differ.
+    pub const ANCHORS_DIFFER: &str = "anchors_differ";
+    /// The release group the discs are matched to is marked a wrong match
+    /// on one of them.
+    pub const ANCHOR_BLOCKED: &str = "anchor_blocked";
+    /// Musaic keeps data for a file that is no longer on disk under a name
+    /// a file of the converted set would get.
+    pub const ORPHAN_ROWS: &str = "orphan_rows";
+    /// An album of an interrupted conversion is no longer in the library,
+    /// and not because the conversion folded it.
+    pub const MEMBER_GONE: &str = "member_gone";
 }
 
 /// One FLAC of a member as read now.
@@ -551,6 +562,37 @@ pub struct PlannedTrack {
     /// interrupted conversion wrote it); `disc`, `tracknumber` and
     /// `track` are then the values its record kept from before.
     pub tags_done: bool,
+    /// How far an interrupted conversion got with this file.
+    pub state: TrackState,
+    /// The name of the folder the file is in now (its member's folder, or
+    /// the destination once a set in several folders moved it there).
+    pub folder: String,
+}
+
+/// Where a file of a conversion is, as its record and the disk say.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TrackState {
+    /// Its old name and its old tags, in its own folder.
+    #[default]
+    Untouched,
+    /// Its new name, its old tags, in its own folder.
+    Renamed,
+    /// Its new name and its new tags, in its own folder.
+    Tagged,
+    /// Its new name and its new tags, in the destination folder (a disc of
+    /// a set kept in several folders).
+    Moved,
+}
+
+impl TrackState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TrackState::Untouched => "untouched",
+            TrackState::Renamed => "renamed",
+            TrackState::Tagged => "tagged",
+            TrackState::Moved => "moved",
+        }
+    }
 }
 
 /// What happens to one cover file.
@@ -583,6 +625,20 @@ impl CoverAction {
 pub struct CoverPlan {
     pub name: String,
     pub action: CoverAction,
+    /// An interrupted conversion already did it.
+    pub done: bool,
+}
+
+impl CoverAction {
+    pub fn parse(s: &str) -> Option<CoverAction> {
+        Some(match s {
+            "kept" => CoverAction::Kept,
+            "moved" => CoverAction::Moved,
+            "identical" => CoverAction::Identical,
+            "different" => CoverAction::Different,
+            _ => return None,
+        })
+    }
 }
 
 /// The non-FLAC files of one member folder.
@@ -599,6 +655,16 @@ pub struct FolderPlan {
     /// Files that are neither FLACs, covers, the sidecar nor clutter: they
     /// stay where they are.
     pub other_files: Vec<String>,
+    /// Operating-system clutter (`.DS_Store`, `Thumbs.db`, AppleDouble
+    /// files) of a folder that is emptied: it goes to the app trash so the
+    /// folder can be removed. `(name, done)`. The destination keeps its own.
+    pub junk: Vec<(String, bool)>,
+    /// The sidecar is gone already (an interrupted conversion moved it to
+    /// the trash after merging it).
+    pub sidecar_done: bool,
+    /// The folder is still on disk (an interrupted conversion may have
+    /// removed it once it was empty).
+    pub exists: bool,
 }
 
 /// [`plan_conversion`]'s result.
@@ -850,6 +916,8 @@ finish. Give it back its own name (without the leading dot and the .renaming end
                 has_disc_tags: f.has_disc_tags,
                 numbering: f.numbering.clone(),
                 tags_done: false,
+                state: TrackState::Untouched,
+                folder: m.dir_name.clone(),
             });
         }
         offset += n;
@@ -910,38 +978,57 @@ finish. Give it back its own name (without the leading dot and the .renaming end
     out
 }
 
-/// Covers, sidecars and other files of each folder: the destination keeps
-/// its own copy of a name; another folder's copy moves when the name is
-/// new, and otherwise is a duplicate (same bytes) or goes to the trash.
+/// Covers, sidecars and other files of each folder.
+///
+/// Covers: the destination keeps every cover it has. Only when it has none
+/// do the covers of the first other folder that has any (in disc order)
+/// move in, so the set's picture is never replaced by another disc's. Any
+/// other cover is a copy of one that is kept (the same bytes: not needed)
+/// or a different picture; both go to the app trash, which can give them
+/// back. Embedded pictures travel inside the files and are not touched.
 fn plan_folders(members: &[MemberFacts]) -> Vec<FolderPlan> {
-    let mut kept: HashMap<String, &[u8]> = HashMap::new();
+    let has_covers = |m: &MemberFacts| {
+        m.entries
+            .iter()
+            .any(|e| matches!(e.kind, EntryKind::Cover(_)))
+    };
+    let source = members.iter().position(has_covers);
+    let mut kept: Vec<&[u8]> = Vec::new();
+    if let Some(s) = source {
+        for e in &members[s].entries {
+            if let EntryKind::Cover(bytes) = &e.kind {
+                kept.push(bytes);
+            }
+        }
+    }
     let mut out = Vec::new();
     for (i, m) in members.iter().enumerate() {
         let mut covers = Vec::new();
         let mut other_files = Vec::new();
+        let mut junk = Vec::new();
         let mut sidecar = false;
         for e in &m.entries {
             match &e.kind {
                 EntryKind::Cover(bytes) => {
-                    let key = fold(&e.name);
-                    let action = match kept.get(&key) {
-                        None => {
-                            kept.insert(key, bytes);
-                            if i == 0 {
-                                CoverAction::Kept
-                            } else {
-                                CoverAction::Moved
-                            }
+                    let action = if Some(i) == source {
+                        if i == 0 {
+                            CoverAction::Kept
+                        } else {
+                            CoverAction::Moved
                         }
-                        Some(k) if *k == bytes.as_slice() => CoverAction::Identical,
-                        Some(_) => CoverAction::Different,
+                    } else if kept.contains(&bytes.as_slice()) {
+                        CoverAction::Identical
+                    } else {
+                        CoverAction::Different
                     };
                     covers.push(CoverPlan {
                         name: e.name.clone(),
                         action,
+                        done: false,
                     });
                 }
                 EntryKind::Sidecar => sidecar = true,
+                EntryKind::Junk if i > 0 => junk.push((e.name.clone(), false)),
                 EntryKind::Junk => {}
                 EntryKind::Other => other_files.push(e.name.clone()),
             }
@@ -954,6 +1041,9 @@ fn plan_folders(members: &[MemberFacts]) -> Vec<FolderPlan> {
             covers,
             sidecar,
             other_files,
+            junk,
+            sidecar_done: false,
+            exists: true,
         });
     }
     out
@@ -1138,6 +1228,46 @@ pub struct ConversionPreview {
     /// The record of an interrupted conversion of this album, when one is
     /// what the plan was re-derived from.
     pub resume: Option<Record>,
+    /// A set kept in several folders: the member folders and how far an
+    /// interrupted conversion got with the database and the folders.
+    pub gather: Option<Gather>,
+}
+
+/// A member of a set kept in several folders, as the conversion finds it
+/// now.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GatherMember {
+    pub album_id: String,
+    /// Its folder: the member's own, or the destination's as it is now.
+    pub dir: PathBuf,
+    pub dir_name: String,
+    pub disc: i64,
+    /// Disc 1's folder, which the others are gathered into.
+    pub destination: bool,
+    /// Its album row still exists (the fold removes the other members').
+    pub has_row: bool,
+    /// Its row is marked Missing.
+    pub missing: bool,
+    /// Its folder is on disk (an emptied one is removed at the end).
+    pub exists: bool,
+}
+
+/// What a conversion of a set kept in several folders works on, besides
+/// the files.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Gather {
+    /// In disc order; the first is the destination.
+    pub members: Vec<GatherMember>,
+    /// Rows Musaic keeps for files no longer on disk (`(album id, file
+    /// name)`), carried to the destination under the same name.
+    pub orphan_rows: Vec<(String, String)>,
+    /// The other members' rows are folded into the destination's already.
+    pub folded: bool,
+    /// The destination folder has its new name (and its row the new id).
+    pub folder_renamed: bool,
+    /// The destination folder has its new name on disk but its row still
+    /// has the old path and id: the conversion stopped between the two.
+    pub rekey_pending: bool,
 }
 
 impl ConversionPreview {
@@ -1147,10 +1277,10 @@ impl ConversionPreview {
             && self.plan.blockers.is_empty()
     }
 
-    /// A conversion can be started from the preview: a convertible set in
-    /// one folder (sets in several folders cannot be converted yet).
+    /// A conversion can be started from the preview: a convertible set,
+    /// in one folder or in several.
     pub fn conversion_available(&self) -> bool {
-        self.state == PreviewState::OneFolder && self.convertible()
+        self.convertible()
     }
 
     /// A digest of exactly what a conversion would do now: every file's
@@ -1177,9 +1307,42 @@ impl ConversionPreview {
                         .iter()
                         .map(|(k, v)| serde_json::json!([k, v]))
                         .collect::<Vec<_>>(),
+                    t.state.as_str(),
+                    t.folder,
                 ])
             })
             .collect();
+        let folders: Vec<serde_json::Value> = self
+            .plan
+            .folders
+            .iter()
+            .map(|f| {
+                serde_json::json!([
+                    f.album_id,
+                    f.dir_name,
+                    f.covers
+                        .iter()
+                        .map(|c| serde_json::json!([c.name, c.action.as_str(), c.done]))
+                        .collect::<Vec<_>>(),
+                    f.junk,
+                    f.sidecar,
+                    f.sidecar_done,
+                    f.other_files,
+                    f.exists,
+                ])
+            })
+            .collect();
+        let gather = self.gather.as_ref().map(|g| {
+            serde_json::json!({
+                "members": g.members.iter().map(|m| serde_json::json!([
+                    m.album_id, m.dir.to_string_lossy(), m.disc, m.has_row, m.missing, m.exists,
+                ])).collect::<Vec<_>>(),
+                "orphan_rows": g.orphan_rows,
+                "folded": g.folded,
+                "folder_renamed": g.folder_renamed,
+                "rekey_pending": g.rekey_pending,
+            })
+        });
         let doc = serde_json::json!({
             "album_id": self.album_id,
             "state": self.state.as_str(),
@@ -1188,6 +1351,8 @@ impl ConversionPreview {
             "target_new": self.plan.target_name,
             "track_total": self.plan.track_total,
             "tracks": tracks,
+            "folders": folders,
+            "gather": gather,
             "blockers": self.plan.blockers.iter().map(|b| b.code).collect::<Vec<_>>(),
             "resume": self.resume.as_ref().map(|r| r.path.to_string_lossy().into_owned()),
         });
@@ -1308,7 +1473,11 @@ pub fn derive_conversion(
     logs: Option<&Path>,
 ) -> musaic_db::Result<Option<ConversionPreview>> {
     if let Some(dir) = logs {
-        let records = conversion_log::unfinished_of(dir, album_id);
+        let mut records = conversion_log::unfinished_of(dir, album_id);
+        if records.len() == 1 && records[0].is_folders() {
+            let record = records.pop().expect("one record");
+            return derive_resumed_folders(conn, album_id, record);
+        }
         if !records.is_empty() {
             return derive_resumed(conn, album_id, records);
         }
@@ -1362,6 +1531,7 @@ fn derive_fresh(conn: &Connection, album_id: &str) -> musaic_db::Result<Option<C
         library_path: library.clone(),
         plan: Planned::default(),
         resume: None,
+        gather: None,
     };
     let Some(set) = set else {
         preview.reason = Some(
@@ -1446,15 +1616,268 @@ clears the next time the check runs."
             .filter(|t| preview.target_current.as_deref() != Some(*t));
         plan.blockers.extend(disk_blockers(&folders, target));
     }
-    for id in active_jobs(conn, &ids)? {
-        let name = row_of(&id).and_then(|r| r.dir_name.clone()).unwrap_or(id);
-        plan.blockers.push(Blocker {
-            code: blocker::JOB_ACTIVE,
-            message: format!("A job is queued or running on {name}. Wait for it to finish."),
+    if one_folder {
+        for id in active_jobs(conn, &ids)? {
+            let name = row_of(&id).and_then(|r| r.dir_name.clone()).unwrap_or(id);
+            plan.blockers.push(Blocker {
+                code: blocker::JOB_ACTIVE,
+                message: format!("A job is queued or running on {name}. Wait for it to finish."),
+            });
+        }
+    } else {
+        let name_of = |id: &str| {
+            row_of(id)
+                .and_then(|r| r.dir_name.clone())
+                .unwrap_or_else(|| id.to_string())
+        };
+        plan.blockers.extend(set_blockers(conn, &ids, &name_of)?);
+        let (blockers, orphans) = orphan_rows(conn, &facts, &plan)?;
+        plan.blockers.extend(blockers);
+        plan.blockers.extend(gather_collisions(&facts, &plan));
+        preview.gather = Some(Gather {
+            members: ids
+                .iter()
+                .enumerate()
+                .filter_map(|(i, id)| {
+                    let r = row_of(id)?;
+                    let dir = PathBuf::from(&r.path);
+                    Some(GatherMember {
+                        album_id: id.to_string(),
+                        dir_name: file_name(&dir),
+                        exists: dir.is_dir(),
+                        dir,
+                        disc: r.disc_number.unwrap_or_default(),
+                        destination: i == 0,
+                        has_row: true,
+                        missing: r.missing,
+                    })
+                })
+                .collect(),
+            orphan_rows: orphans,
+            ..Default::default()
         });
     }
     preview.plan = plan;
     Ok(Some(preview))
+}
+
+/// What the fold of a set's rows (`musaic_db::merge::merge_album_rows`)
+/// would refuse, asked before anything moves so that the fold is never the
+/// first to say no: a job on a member that is queued, running or waiting
+/// with a suggestion made for that disc alone, members matched to two
+/// release groups, or the one group marked a wrong match on a member.
+fn set_blockers(
+    conn: &Connection,
+    ids: &[&str],
+    name_of: &dyn Fn(&str) -> String,
+) -> musaic_db::Result<Vec<Blocker>> {
+    let mut out = Vec::new();
+    let json = serde_json::Value::from(ids.to_vec()).to_string();
+    let statuses =
+        serde_json::Value::from(musaic_db::ai_jobs::ACTIVE_STATUSES.to_vec()).to_string();
+    let mut stmt = conn.prepare(
+        "SELECT album_id, status FROM ai_jobs WHERE album_id IN (SELECT value FROM json_each(?1)) \
+         AND status IN (SELECT value FROM json_each(?2)) ORDER BY album_id, status",
+    )?;
+    let jobs = stmt
+        .query_map([&json, &statuses], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut seen = BTreeSet::new();
+    for (id, status) in jobs {
+        if !seen.insert(id.clone()) {
+            continue;
+        }
+        let name = name_of(&id);
+        out.push(Blocker {
+            code: blocker::JOB_ACTIVE,
+            message: if status == "completed" {
+                format!(
+                    "A job on {name} has a suggestion waiting, made for that disc alone. Act on it \
+or discard it on the Jobs page first."
+                )
+            } else {
+                format!("A job is queued or running on {name}. Wait for it to finish.")
+            },
+        });
+    }
+    let mut groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for id in ids {
+        let rg: Option<String> = conn
+            .query_row(
+                "SELECT mb_release_group_mbid FROM albums WHERE id = ?1",
+                [id],
+                |r| r.get(0),
+            )
+            .ok()
+            .flatten()
+            .filter(|s: &String| !s.is_empty());
+        if let Some(rg) = rg {
+            groups.entry(rg).or_default().push(name_of(id));
+        }
+    }
+    if groups.len() > 1 {
+        out.push(Blocker {
+            code: blocker::ANCHORS_DIFFER,
+            message: format!(
+                "The discs are matched to different MusicBrainz releases ({}). Match them to the \
+same release, or clear the match of the wrong one, first.",
+                groups
+                    .iter()
+                    .map(|(rg, names)| format!("{} to {rg}", names.join(", ")))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
+        });
+    } else if let Some(rg) = groups.keys().next() {
+        for id in ids {
+            let blocked: bool = conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM album_blocked_mb_release_groups \
+                 WHERE album_id = ?1 AND release_group_mbid = ?2)",
+                params![id, rg],
+                |r| r.get(0),
+            )?;
+            if blocked {
+                out.push(Blocker {
+                    code: blocker::ANCHOR_BLOCKED,
+                    message: format!(
+                        "The set is matched to MusicBrainz release group {rg}, which is marked as \
+a wrong match on {}. Fix the match first.",
+                        name_of(id)
+                    ),
+                });
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// `(album id, file name)` of rows kept for files no longer on disk.
+type OrphanRows = Vec<(String, String)>;
+
+/// The file names Musaic keeps rows for under `album_id` (fingerprints,
+/// decode rejects, track tags).
+fn row_filenames(conn: &Connection, album_id: &str) -> musaic_db::Result<BTreeSet<String>> {
+    let mut out = BTreeSet::new();
+    for table in musaic_db::renames::FILE_ROW_TABLES {
+        let mut stmt = conn.prepare(&format!(
+            "SELECT DISTINCT filename FROM {table} WHERE album_id = ?1"
+        ))?;
+        for n in stmt.query_map([album_id], |r| r.get::<_, String>(0))? {
+            out.insert(n?);
+        }
+    }
+    Ok(out)
+}
+
+/// Rows of files that are no longer in their folder. The fold refuses a
+/// member with any row left, so the other members' are carried to the
+/// destination under their own name (data for a file that is gone stays
+/// data for that name, as before). Where such a name is one a file of the
+/// converted set gets, its rows would land on the wrong file: that blocks.
+fn orphan_rows(
+    conn: &Connection,
+    facts: &[MemberFacts],
+    plan: &Planned,
+) -> musaic_db::Result<(Vec<Blocker>, OrphanRows)> {
+    let finals: HashMap<String, String> = plan
+        .tracks
+        .iter()
+        .filter_map(|t| Some((fold(t.new_filename.as_deref()?), t.filename.clone())))
+        .collect();
+    let mut blockers = Vec::new();
+    let mut carried = Vec::new();
+    let mut taken: HashMap<String, String> = HashMap::new();
+    for (i, m) in facts.iter().enumerate() {
+        let on_disk: Vec<&str> = m.files.iter().map(|f| f.name.as_str()).collect();
+        for name in row_filenames(conn, &m.album_id)? {
+            if on_disk.iter().any(|d| same_nfc(d, &name)) {
+                continue;
+            }
+            let key = fold(&name);
+            if let Some(file) = finals.get(&key) {
+                blockers.push(Blocker {
+                    code: blocker::ORPHAN_ROWS,
+                    message: format!(
+                        "Musaic keeps tags or a fingerprint for a file named {name} in {} that is \
+no longer there, and {file} would get that name. Remove the tags of {name} first.",
+                        m.dir_name
+                    ),
+                });
+                continue;
+            }
+            if let Some(other) = taken.insert(key, m.dir_name.clone())
+                && i > 0
+            {
+                blockers.push(Blocker {
+                    code: blocker::ORPHAN_ROWS,
+                    message: format!(
+                        "Musaic keeps tags or a fingerprint for a file named {name} that is no \
+longer there, in both {other} and {}.",
+                        m.dir_name
+                    ),
+                });
+                continue;
+            }
+            if i > 0 {
+                carried.push((m.album_id.clone(), name));
+            }
+        }
+    }
+    Ok((blockers, carried))
+}
+
+/// Names that would meet when the files of the other discs are renamed in
+/// their own folders and then moved: a renamed file onto something else in
+/// its own folder, or a cover moving onto something in the destination.
+fn gather_collisions(facts: &[MemberFacts], plan: &Planned) -> Vec<Blocker> {
+    let mut out = Vec::new();
+    for m in facts.iter().skip(1) {
+        let others: HashMap<String, &str> = m
+            .entries
+            .iter()
+            .map(|e| (fold(&e.name), e.name.as_str()))
+            .collect();
+        for t in plan.tracks.iter().filter(|t| t.album_id == m.album_id) {
+            let Some(new) = &t.new_filename else { continue };
+            if let Some(e) = others.get(&fold(new)) {
+                out.push(Blocker {
+                    code: blocker::NAME_COLLISION,
+                    message: format!(
+                        "{} would be renamed to {new}, which is already taken by {e} in {}.",
+                        t.filename, m.dir_name
+                    ),
+                });
+            }
+        }
+    }
+    if let Some(dest) = facts.first() {
+        let mut taken: HashMap<String, String> = dest
+            .entries
+            .iter()
+            .map(|e| (fold(&e.name), e.name.clone()))
+            .collect();
+        for t in &plan.tracks {
+            if let Some(n) = &t.new_filename {
+                taken.insert(fold(n), n.clone());
+            }
+        }
+        for f in plan.folders.iter().skip(1) {
+            for c in f.covers.iter().filter(|c| c.action == CoverAction::Moved) {
+                if let Some(e) = taken.insert(fold(&c.name), c.name.clone()) {
+                    out.push(Blocker {
+                        code: blocker::NAME_COLLISION,
+                        message: format!(
+                            "{} in {} would move into {}, which already has {e}.",
+                            c.name, f.dir_name, dest.dir_name
+                        ),
+                    });
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The preview of an album that has an unfinished conversion record.
@@ -1523,6 +1946,7 @@ fn derive_resumed(
         library_path: library.clone(),
         plan: Planned::default(),
         resume: Some(record.clone()),
+        gather: None,
     };
     if records.len() > 1 {
         preview.plan.blockers.push(Blocker {
@@ -1643,6 +2067,9 @@ finish. The records are in {}.",
             continue;
         };
         t.tags_done = done;
+        if done {
+            t.state = TrackState::Tagged;
+        }
         let e = &record.files[i];
         let same = t.disc == Some(e.disc)
             && t.track == Some(e.track)
@@ -1704,6 +2131,519 @@ recorded ({}). The record is {}.",
     preview.numbering = Some(classify_numbering(&pairs));
     preview.plan = plan;
     Ok(Some(preview))
+}
+
+/// Whether `dir` lists an entry spelled `name` (up to NFC normalisation).
+fn lists(dir: &Path, name: &str) -> bool {
+    musaic_scan::dir_names(dir)
+        .is_ok_and(|names| names.iter().any(|n| same_nfc(&n.to_string_lossy(), name)))
+}
+
+/// The preview of a set kept in several folders whose conversion did not
+/// finish, from its record and the disk.
+///
+/// Every FLAC in the member folders and in the destination must be one of
+/// the record's files in exactly one of the states it passes through: its
+/// old name and old tags in its own folder (not started), its new name and
+/// old tags there (renamed), its new name and new tags there (tagged), or
+/// its new name and new tags in the destination (moved). A name alone
+/// cannot tell two files apart where one file's new name is another's old
+/// one, so the tags decide; a file that fits no state, or more than one
+/// file of the record, is a blocker, never a guess. The plan is then made
+/// as for the untouched set (the record gives a written file its old disc
+/// and number back) and must come out as recorded. Covers, clutter, the
+/// old sidecars and the folders themselves are each either still to do or
+/// done, as the disk shows.
+fn derive_resumed_folders(
+    conn: &Connection,
+    album_id: &str,
+    record: Record,
+) -> musaic_db::Result<Option<ConversionPreview>> {
+    let rows = load_rows(conn, &record.library_path)?;
+    let row_of = |id: &str| rows.iter().find(|r| r.id == id);
+    if row_of(album_id).is_none() {
+        return Ok(None);
+    }
+    let templates = Templates::from_settings(conn)?;
+    let mut blockers: Vec<Blocker> = Vec::new();
+    let mismatch = |message: String| Blocker {
+        code: blocker::RESUME_MISMATCH,
+        message,
+    };
+
+    // The destination: under its old id, or re-keyed by the folder rename.
+    let dest = &record.members[0];
+    let dest_row = [
+        Some(record.album_id_before.as_str()),
+        Some(record.album_id_expected.as_str()),
+        record.album_id_after.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .find_map(row_of);
+    let mut preview = ConversionPreview {
+        album_id: album_id.to_string(),
+        state: PreviewState::Folders,
+        reason: None,
+        numbering: None,
+        disc_total: Some(record.members.len() as i64),
+        present_discs: record.members.iter().map(|m| m.disc).collect(),
+        absent_discs: Vec::new(),
+        members: record
+            .members
+            .iter()
+            .map(|m| SetMember {
+                album_id: m.album_id.clone(),
+                dir_name: Some(m.folder_name.clone()),
+                disc: m.disc,
+                missing: row_of(&m.album_id).is_some_and(|r| r.missing),
+            })
+            .collect(),
+        is_compilation: dest_row.is_some_and(|r| r.is_compilation),
+        template: String::new(),
+        dir_template: String::new(),
+        target_current: None,
+        target_path: None,
+        library_path: record.library_path.clone(),
+        plan: Planned::default(),
+        resume: Some(record.clone()),
+        gather: None,
+    };
+    let Some(dest_row) = dest_row else {
+        preview.plan.blockers.push(Blocker {
+            code: blocker::MEMBER_GONE,
+            message: format!(
+                "{} is no longer in the library, so the conversion cannot be finished. The record \
+is {}.",
+                dest.folder_name,
+                record.path.display()
+            ),
+        });
+        return Ok(Some(preview));
+    };
+    let dest_id = dest_row.id.clone();
+    let mut dest_dir = PathBuf::from(&dest_row.path);
+    let after = Path::new(&record.folder_before)
+        .parent()
+        .map(|p| p.join(&record.folder_name_after))
+        .unwrap_or_default();
+    let renames_folder = !same_nfc(&record.folder_name_before, &record.folder_name_after);
+    let mut rekey_pending = false;
+    if renames_folder
+        && dest_id == record.album_id_before
+        && !dest_dir.is_dir()
+        && after.is_dir()
+        && row_of(&record.album_id_expected).is_none()
+    {
+        // The folder got its new name but the process stopped before its
+        // row did.
+        rekey_pending = true;
+        dest_dir = after.clone();
+    }
+    let folder_renamed = rekey_pending
+        || (renames_folder && same_nfc(&file_name(&dest_dir), &record.folder_name_after));
+
+    // The members as they are now.
+    let mut gm: Vec<GatherMember> = Vec::new();
+    for (i, m) in record.members.iter().enumerate() {
+        let (id, dir) = if i == 0 {
+            (dest_id.clone(), dest_dir.clone())
+        } else {
+            (m.album_id.clone(), PathBuf::from(&m.folder))
+        };
+        let r = row_of(&id);
+        gm.push(GatherMember {
+            album_id: id,
+            dir_name: file_name(&dir),
+            exists: dir.is_dir(),
+            dir,
+            disc: m.disc,
+            destination: i == 0,
+            has_row: r.is_some(),
+            missing: r.is_some_and(|r| r.missing),
+        });
+    }
+    let others_with_row = gm.iter().skip(1).filter(|m| m.has_row).count();
+    let folded = others_with_row == 0;
+    if !folded && others_with_row < gm.len() - 1 {
+        for m in gm.iter().skip(1).filter(|m| !m.has_row) {
+            blockers.push(Blocker {
+                code: blocker::MEMBER_GONE,
+                message: format!(
+                    "{} is no longer in the library, but the other discs were not merged yet. \
+The record is {}.",
+                    m.dir_name,
+                    record.path.display()
+                ),
+            });
+        }
+    }
+    if !gm[0].exists {
+        blockers.push(Blocker {
+            code: blocker::MEMBER_MISSING,
+            message: format!("The folder {} is not on disk right now.", gm[0].dir_name),
+        });
+    }
+
+    // Every FLAC where it is now.
+    let facts_now: Vec<Option<MemberFacts>> = gm
+        .iter()
+        .map(|m| {
+            m.exists
+                .then(|| gather_member(&m.album_id, &m.dir, (!m.destination).then_some(m.disc)))
+        })
+        .collect();
+    for f in facts_now.iter().flatten() {
+        if let Some(p) = &f.problem {
+            blockers.push(p.clone());
+        }
+        for name in &f.stranded {
+            blockers.push(Blocker {
+                code: blocker::STRANDED_TEMP,
+                message: format!(
+                    "{name} in {} is a file left under a temporary name by a rename that did not \
+finish. Give it back its own name (without the leading dot and the .renaming ending), then try again.",
+                    f.dir_name
+                ),
+            });
+        }
+    }
+    let member_of = |e: &LoggedFile| record.members.iter().position(|m| m.album_id == e.album_id);
+    // Per record file: (folder index, the file's facts now, its state).
+    let mut found: Vec<Vec<(usize, FileFacts, TrackState)>> = vec![Vec::new(); record.files.len()];
+    for (fi, facts) in facts_now.iter().enumerate() {
+        let Some(facts) = facts else { continue };
+        for f in &facts.files {
+            if !f.readable {
+                blockers.push(Blocker {
+                    code: blocker::MEMBER_UNREADABLE,
+                    message: format!("{} in {} could not be read.", f.name, facts.dir_name),
+                });
+                continue;
+            }
+            let mut fits: BTreeMap<usize, TrackState> = BTreeMap::new();
+            for (i, e) in record.files.iter().enumerate() {
+                let Some(mi) = member_of(e) else { continue };
+                let old = same_nfc(&f.name, &e.old_name);
+                let new = same_nfc(&f.name, &e.new_name);
+                let mut states = Vec::new();
+                if fi == mi {
+                    if old && f.numbering == e.old_tags {
+                        states.push(TrackState::Untouched);
+                    }
+                    if new && f.numbering == e.old_tags {
+                        states.push(TrackState::Renamed);
+                    }
+                    if new && f.numbering == e.new_tags {
+                        states.push(TrackState::Tagged);
+                    }
+                } else if fi == 0 && new && f.numbering == e.new_tags {
+                    states.push(TrackState::Moved);
+                }
+                // A file whose name and tags do not change fits more than
+                // one state of the same entry: it is as far as it can be.
+                if let Some(s) = states.into_iter().max_by_key(|s| *s as u8) {
+                    fits.insert(i, s);
+                }
+            }
+            match fits.len() {
+                1 => {
+                    let (i, s) = fits.into_iter().next().expect("one");
+                    found[i].push((fi, f.clone(), s));
+                }
+                0 => blockers.push(mismatch(format!(
+                    "{} in {} is not one of the files of the interrupted conversion, or its track \
+number or disc tags changed since.",
+                    f.name, facts.dir_name
+                ))),
+                _ => blockers.push(mismatch(format!(
+                    "{} in {} could be more than one file of the interrupted conversion, so \
+Musaic cannot tell which it is.",
+                    f.name, facts.dir_name
+                ))),
+            }
+        }
+    }
+    let mut placed: Vec<Option<(usize, FileFacts, TrackState)>> = Vec::new();
+    for (i, e) in record.files.iter().enumerate() {
+        match found[i].len() {
+            1 => placed.push(found[i].pop()),
+            0 => {
+                // A member that is gone with its folder: its files were
+                // all moved before (the fold), so the destination has them.
+                blockers.push(mismatch(format!(
+                    "{} (before the conversion: {} in {}) is not in any of the set's folders.",
+                    e.new_name,
+                    e.old_name,
+                    member_of(e)
+                        .map(|m| record.members[m].folder_name.clone())
+                        .unwrap_or_default()
+                )));
+                placed.push(None);
+            }
+            _ => {
+                blockers.push(mismatch(format!(
+                    "{} is in the set's folders more than once.",
+                    e.new_name
+                )));
+                placed.push(None);
+            }
+        }
+    }
+    // A Missing member is only fine once every file of it has moved.
+    for (k, m) in gm.iter().enumerate() {
+        let pending =
+            record.files.iter().zip(&placed).any(|(e, p)| {
+                member_of(e) == Some(k) && !matches!(p, Some((_, _, TrackState::Moved)))
+            });
+        if (m.missing || !m.exists) && pending && k > 0 {
+            blockers.push(Blocker {
+                code: blocker::MEMBER_MISSING,
+                message: format!(
+                    "{} is not on disk right now, and some of its files have not been moved yet.",
+                    m.dir_name
+                ),
+            });
+        }
+    }
+
+    // The plan as for the untouched set, from what the record kept.
+    let mut members: Vec<MemberFacts> = Vec::new();
+    for (k, m) in record.members.iter().enumerate() {
+        let mut facts = MemberFacts {
+            album_id: m.album_id.clone(),
+            dir_name: m.folder_name.clone(),
+            folder_disc: Some(m.disc),
+            ..Default::default()
+        };
+        if k == 0 {
+            facts.album_id = dest_id.clone();
+            facts.dir_name = gm[0].dir_name.clone();
+            if let Some(now) = &facts_now[0] {
+                facts.entries = now.entries.clone();
+            }
+        }
+        for (e, p) in record.files.iter().zip(&placed) {
+            if member_of(e) != Some(k) {
+                continue;
+            }
+            let Some((_, f, s)) = p else { continue };
+            let mut f = f.clone();
+            if matches!(s, TrackState::Tagged | TrackState::Moved) {
+                let old = |key: &str| values_of(&e.old_tags, key).to_vec();
+                f.tracknumber = old("TRACKNUMBER").first().cloned().unwrap_or_default();
+                f.disc = flacmeta::file_disc(
+                    old("DISCNUMBER").iter().map(String::as_str),
+                    old("TRACKNUMBER").iter().map(String::as_str),
+                );
+                f.has_disc_tags = ["DISCNUMBER", "DISCTOTAL", "TOTALDISCS"]
+                    .iter()
+                    .any(|key| !values_of(&e.old_tags, key).is_empty());
+                f.numbering = e.old_tags.clone();
+            }
+            facts.files.push(f);
+        }
+        members.push(facts);
+    }
+    let target_row = rename_plan_row(conn, &dest_id)?;
+    let mut plan = match &target_row {
+        Some(r) => {
+            let (t, d) = templates.for_row(r);
+            preview.template = t.to_string();
+            preview.dir_template = d.to_string();
+            plan_conversion(&PlanInput {
+                members: &members,
+                target_row: r,
+                templates: &templates,
+            })
+        }
+        None => Planned::default(),
+    };
+    // The plan's member ids are the record's; the destination's is the one
+    // it has now.
+    let mut changed = Vec::new();
+    for t in plan.tracks.iter_mut() {
+        let Some((i, e)) = record.files.iter().enumerate().find(|(_, e)| {
+            let mi = member_of(e);
+            let id_now = if mi == Some(0) { &dest_id } else { &e.album_id };
+            *id_now == t.album_id
+                && placed_name(&placed, &record.files, e).is_some_and(|n| n == t.filename)
+        }) else {
+            continue;
+        };
+        let (fi, _, s) = placed[i].as_ref().expect("placed");
+        t.state = *s;
+        t.tags_done = matches!(s, TrackState::Tagged | TrackState::Moved);
+        t.folder = gm[*fi].dir_name.clone();
+        let same = t.disc == Some(e.disc)
+            && t.track == Some(e.track)
+            && t.new_track == Some(e.new_track)
+            && t.new_filename
+                .as_deref()
+                .is_some_and(|n| same_nfc(n, &e.new_name));
+        if !same {
+            changed.push(t.filename.clone());
+        }
+    }
+    let complete = placed.iter().all(Option::is_some);
+    if !changed.is_empty() || (complete && plan.track_total != record.track_total) {
+        plan.blockers.push(Blocker {
+            code: blocker::RESUME_CHANGED,
+            message: format!(
+                "The plan made now is not the one the interrupted conversion recorded{}: a \
+template, a title or a track number changed since. Musaic will not finish it with other numbers or \
+names. The record is {}.",
+                if changed.is_empty() {
+                    String::new()
+                } else {
+                    format!(" (for {})", changed.join(", "))
+                },
+                record.path.display()
+            ),
+        });
+    }
+    if let Some(t) = &plan.target_name
+        && !same_nfc(t, &record.folder_name_after)
+        && !folder_renamed
+    {
+        plan.blockers.push(Blocker {
+            code: blocker::RESUME_CHANGED,
+            message: format!(
+                "The folder name made now ({t}) is not the one the interrupted conversion \
+recorded ({}). The record is {}.",
+                record.folder_name_after,
+                record.path.display()
+            ),
+        });
+    }
+    if folder_renamed {
+        plan.target_name = Some(gm[0].dir_name.clone());
+    }
+
+    // Covers, clutter, sidecars and folders: still to do, or done.
+    plan.folders = record
+        .folders
+        .iter()
+        .map(|lf| {
+            let k = record
+                .members
+                .iter()
+                .position(|m| m.album_id == lf.album_id)
+                .unwrap_or(0);
+            let m = &gm[k];
+            let here = |name: &str| m.exists && lists(&m.dir, name);
+            let mut covers = Vec::new();
+            for (name, action) in &lf.covers {
+                let action = CoverAction::parse(action).unwrap_or(CoverAction::Kept);
+                let done = match action {
+                    CoverAction::Kept => false,
+                    CoverAction::Moved => {
+                        let in_dest = gm[0].exists && lists(&gm[0].dir, name);
+                        match (here(name), in_dest) {
+                            (true, false) => false,
+                            (false, true) => true,
+                            (true, true) => {
+                                blockers.push(mismatch(format!(
+                                    "{name} is both in {} and in {}, so Musaic cannot tell which \
+one to keep.",
+                                    m.dir_name, gm[0].dir_name
+                                )));
+                                false
+                            }
+                            (false, false) => {
+                                blockers.push(mismatch(format!(
+                                    "{name}, which was to move from {} into {}, is in neither.",
+                                    m.dir_name, gm[0].dir_name
+                                )));
+                                false
+                            }
+                        }
+                    }
+                    CoverAction::Identical | CoverAction::Different => !here(name),
+                };
+                covers.push(CoverPlan {
+                    name: name.clone(),
+                    action,
+                    done,
+                });
+            }
+            FolderPlan {
+                album_id: m.album_id.clone(),
+                dir_name: lf.folder_name.clone(),
+                disc: (!m.destination).then_some(m.disc),
+                destination: m.destination,
+                covers,
+                sidecar: lf.sidecar,
+                sidecar_done: lf.sidecar && !here(SIDECAR_FILENAME),
+                other_files: lf.other_files.clone(),
+                junk: lf.junk.iter().map(|j| (j.clone(), !here(j))).collect(),
+                exists: m.exists,
+            }
+        })
+        .collect();
+
+    preview.target_current = Some(gm[0].dir_name.clone());
+    preview.target_path = Some(dest_row.path.clone());
+    plan.blockers.extend(blockers);
+    if gm[0].exists && !rekey_pending {
+        let folders: Vec<(String, PathBuf)> = gm
+            .iter()
+            .filter(|m| m.exists)
+            .map(|m| (m.dir_name.clone(), m.dir.clone()))
+            .collect();
+        let target = plan
+            .target_name
+            .as_deref()
+            .filter(|t| !folder_renamed && preview.target_current.as_deref() != Some(*t));
+        plan.blockers.extend(disk_blockers(&folders, target));
+    }
+    let with_rows: Vec<&str> = gm
+        .iter()
+        .filter(|m| m.has_row)
+        .map(|m| m.album_id.as_str())
+        .collect();
+    let name_of = |id: &str| {
+        gm.iter()
+            .find(|m| m.album_id == id)
+            .map(|m| m.dir_name.clone())
+            .unwrap_or_else(|| id.to_string())
+    };
+    if !folded {
+        plan.blockers
+            .extend(set_blockers(conn, &with_rows, &name_of)?);
+    } else {
+        for id in active_jobs(conn, &[dest_id.as_str()])? {
+            plan.blockers.push(Blocker {
+                code: blocker::JOB_ACTIVE,
+                message: format!(
+                    "A job is queued or running on {}. Wait for it to finish.",
+                    name_of(&id)
+                ),
+            });
+        }
+    }
+    let pairs: Vec<(Option<i64>, Option<i64>)> =
+        plan.tracks.iter().map(|t| (t.disc, t.track)).collect();
+    preview.numbering = Some(classify_numbering(&pairs));
+    preview.gather = Some(Gather {
+        members: gm,
+        orphan_rows: record.orphan_rows.clone(),
+        folded,
+        folder_renamed,
+        rekey_pending,
+    });
+    preview.plan = plan;
+    Ok(Some(preview))
+}
+
+/// The name a placed record file has now.
+fn placed_name<'a>(
+    placed: &'a [Option<(usize, FileFacts, TrackState)>],
+    files: &[LoggedFile],
+    e: &LoggedFile,
+) -> Option<&'a str> {
+    let i = files.iter().position(|x| std::ptr::eq(x, e))?;
+    placed[i].as_ref().map(|(_, f, _)| f.name.as_str())
 }
 
 #[cfg(test)]
@@ -2131,10 +3071,51 @@ mod tests {
                 .collect()
         };
         assert_eq!(acts(0), vec![("cover.jpg", CoverAction::Kept)]);
+        // The destination has a cover, so no other picture moves in, under
+        // whatever name: the set keeps its own picture.
         assert_eq!(
             acts(1),
             vec![
                 ("Cover.JPG", CoverAction::Identical),
+                ("folder.jpg", CoverAction::Different)
+            ]
+        );
+        assert_eq!(
+            acts(2),
+            vec![
+                ("cover.jpg", CoverAction::Different),
+                ("folder.jpg", CoverAction::Different)
+            ]
+        );
+        assert!(p.folders[0].sidecar);
+        assert_eq!(p.folders[0].other_files, vec!["notes.txt".to_string()]);
+        assert!(p.folders[1].other_files.is_empty());
+        assert_eq!(p.folders[1].junk, vec![(".DS_Store".to_string(), false)]);
+
+        // Without a cover of its own, the destination takes the covers of
+        // the first disc that has any; a copy of one of them elsewhere is
+        // not needed.
+        let mut members = members;
+        members[0]
+            .entries
+            .retain(|e| !matches!(e.kind, EntryKind::Cover(_)));
+        let p = plan_conversion(&PlanInput {
+            members: &members,
+            target_row: &row,
+            templates: &t,
+        });
+        let acts = |i: usize| -> Vec<(&str, CoverAction)> {
+            p.folders[i]
+                .covers
+                .iter()
+                .map(|c| (c.name.as_str(), c.action))
+                .collect()
+        };
+        assert!(acts(0).is_empty());
+        assert_eq!(
+            acts(1),
+            vec![
+                ("Cover.JPG", CoverAction::Moved),
                 ("folder.jpg", CoverAction::Moved)
             ]
         );
@@ -2145,9 +3126,6 @@ mod tests {
                 ("folder.jpg", CoverAction::Identical)
             ]
         );
-        assert!(p.folders[0].sidecar);
-        assert_eq!(p.folders[0].other_files, vec!["notes.txt".to_string()]);
-        assert!(p.folders[1].other_files.is_empty());
     }
 
     #[test]

@@ -76,6 +76,13 @@ impl SseSender {
         self.tx.blocking_send(Bytes::from(frame.into())).is_ok()
     }
 
+    /// Queue a frame only if there is room: for progress that may be
+    /// dropped, so a slow client never holds the producer up. `false` when
+    /// it was dropped or the client is gone.
+    pub fn try_send_frame(&self, frame: impl Into<String>) -> bool {
+        self.tx.try_send(Bytes::from(frame.into())).is_ok()
+    }
+
     pub fn is_closed(&self) -> bool {
         self.tx.is_closed()
     }

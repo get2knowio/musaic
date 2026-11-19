@@ -318,6 +318,38 @@ struct Shared {
     state: Mutex<PoolState>,
     changed: ChangedEvent,
     task: Mutex<Option<(JoinHandle<()>, CancelToken)>>,
+    pause: Mutex<Pause>,
+}
+
+/// [`FingerprintPool::pause`]'s bookkeeping.
+#[derive(Default)]
+struct Pause {
+    /// Pauses held.
+    holds: usize,
+    /// The last pass started: what a pause that cut it short restarts.
+    last: Option<(String, PoolDeps)>,
+    /// A pass asked for (or cut short) while paused, started when the last
+    /// pause ends.
+    wanted: Option<(String, PoolDeps)>,
+}
+
+/// [`FingerprintPool::pause`]'s guard: no pass runs while it lives.
+#[must_use = "the pool stays paused only while the guard is kept"]
+pub struct PoolPause {
+    pool: FingerprintPool,
+}
+
+impl Drop for PoolPause {
+    fn drop(&mut self) {
+        let wanted = {
+            let mut p = self.pool.shared.lock_pause();
+            p.holds = p.holds.saturating_sub(1);
+            if p.holds == 0 { p.wanted.take() } else { None }
+        };
+        if let Some((lib, deps)) = wanted {
+            self.pool.warm_library(&lib, deps);
+        }
+    }
 }
 
 /// Process-wide pool (`fingerprint_pool` module state). Clones share it.
@@ -339,8 +371,35 @@ impl FingerprintPool {
                 state: Mutex::new(PoolState::default()),
                 changed: ChangedEvent::default(),
                 task: Mutex::new(None),
+                pause: Mutex::new(Pause::default()),
             }),
         }
+    }
+
+    /// Stop the pass in flight (as [`Self::stop`]) and start none until
+    /// the guard drops; a pass asked for meanwhile, or the one cut short,
+    /// starts then. For work that moves files between albums (a multi-disc
+    /// conversion): a pass that wrote a fingerprint row under an album id
+    /// the work just folded away would fail its foreign key.
+    pub fn pause(&self) -> PoolPause {
+        let was_running = {
+            let mut p = self.shared.lock_pause();
+            p.holds += 1;
+            self.is_running()
+        };
+        self.stop();
+        if was_running {
+            let mut p = self.shared.lock_pause();
+            if p.wanted.is_none() {
+                p.wanted = p.last.clone();
+            }
+        }
+        PoolPause { pool: self.clone() }
+    }
+
+    /// Whether a [`PoolPause`] is held.
+    pub fn is_paused(&self) -> bool {
+        self.shared.lock_pause().holds > 0
     }
 
     /// `get_state()`.
@@ -367,6 +426,14 @@ impl FingerprintPool {
     /// running. Returns the state as it stands when the call returns (for a
     /// new pass: "running", total 0).
     pub fn warm_library(&self, library_dir: &str, deps: PoolDeps) -> PoolState {
+        {
+            let mut p = self.shared.lock_pause();
+            if p.holds > 0 {
+                p.wanted = Some((library_dir.to_owned(), deps));
+                return self.state();
+            }
+            p.last = Some((library_dir.to_owned(), deps.clone()));
+        }
         if self.is_running() {
             return self.state();
         }
@@ -473,6 +540,10 @@ impl FingerprintPool {
 impl Shared {
     fn lock_state(&self) -> MutexGuard<'_, PoolState> {
         self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn lock_pause(&self) -> MutexGuard<'_, Pause> {
+        self.pause.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Mutate under the lock, then `_notify_changed()`.

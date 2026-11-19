@@ -185,6 +185,9 @@ fn the_extra_route_list_is_exactly_this() {
             // Deliberate addition: converting a multi-disc set kept in one
             // folder (issue #296).
             "POST /api/checks/multi-disc-layout/findings/{finding_id}/convert",
+            // Deliberate addition: abandoning an unfinished multi-disc
+            // conversion (issue #296).
+            "POST /api/checks/multi-disc-layout/findings/{finding_id}/abandon-conversion",
             // Deliberate additions: the one-time AcoustID prompt's dismissal
             // (issue #194), kept on the server.
             "GET /api/prompts/acoustid",
