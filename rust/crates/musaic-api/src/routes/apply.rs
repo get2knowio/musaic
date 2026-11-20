@@ -1,11 +1,18 @@
-//! `musaic/api/apply.py`: the streaming apply and the cover upload.
+//! `musaic/api/apply.py`: the streaming apply and the cover upload, over
+//! `ops().apply()`.
 //!
-//! The pipeline runs on a blocking thread and hands each item to the SSE
-//! channel (capacity 1: it never runs more than one frame ahead of the
-//! client). When the client goes away the sink answers
-//! `Break` and musaic-services runs a non-dry-run apply to completion anyway;
-//! the HTTP layer only stops forwarding. A Missing album is refused
-//! by musaic-services' `resolve_album` with 409, surfaced as is.
+//! Each handler parses its request (the body's 422, the multipart reading and the
+//! upload cap, which are HTTP's), then runs the operation through
+//! [`sse::run_stream`]: on a blocking thread, with a sink that renders each event
+//! and sends it down the stream (capacity 1: it never runs more than one frame
+//! ahead of the client). The operation owns the
+//! restore gate, the album lookup (409 without a library, 404, 409 for a Missing
+//! album) and the order of the three: a refusal comes back before the first event
+//! and is answered as a status, not a stream. Once the first event is out, the
+//! answer is the stream.
+//!
+//! When the client goes away the sink answers `Gone` and the operation stops
+//! calling it; a non-dry-run apply still runs to completion.
 //!
 //! Removing a tag (not in the Python app): `clear` lists album-level
 //! fields and `track_clear` maps a filename to per-track fields to remove
@@ -13,147 +20,48 @@
 //! only these explicit lists remove anything. Refused with 422 before
 //! anything runs: an unknown field name, `tracknumber` (the scanner orders
 //! tracks by it; set a number instead) and a field that is both suggested
-//! and cleared for the same target.
-
-use std::ops::ControlFlow;
+//! and cleared for the same target ([`ApplyChanges::removal_problems`]).
 
 use axum::body::Bytes;
 use axum::extract::multipart::MultipartRejection;
 use axum::extract::{Multipart, Path as UrlPath, State};
-use musaic_services::{ApplyRequest, Removals, apply_album_changes};
+use musaic_app::ops::apply::{
+    ApplyChanges, MAX_COVER_UPLOAD_BYTES, RemovalFault, RemovalProblem, RemovalTarget,
+    check_cover_type,
+};
 use serde_json::{Value, json};
 
-use crate::gate::WorkGuard;
-use crate::http::{ApiError, ApiResult, blocking};
+use crate::http::{ApiError, ApiResult};
 use crate::lax::{Fields, KeyOrder, err, literal_err, parse_json_body, unprocessable};
+use crate::render::apply as render;
 use crate::sse;
 use crate::state::AppState;
-
-fn sugg(pairs: Vec<(String, String)>) -> Vec<(String, Option<String>)> {
-    pairs.into_iter().map(|(k, v)| (k, Some(v))).collect()
-}
 
 fn value_error(loc: Vec<Value>, msg: &str, input: Value) -> Value {
     err("value_error", loc, &format!("Value error, {msg}"), input)
 }
 
-/// `clear` / `track_clear` checked against the removable fields and
-/// against the suggestions for the same target.
-fn removals(
-    suggestions: &[(String, String)],
-    track: &[(String, Vec<(String, String)>)],
-    clear: Vec<String>,
-    track_clear: Vec<(String, Vec<String>)>,
-) -> Result<Removals, ApiError> {
-    let mut errors = Vec::new();
-    let suggested = |pairs: &[(String, String)], field: &str| pairs.iter().any(|(k, _)| k == field);
-    for (i, field) in clear.iter().enumerate() {
-        let loc = vec![json!("body"), json!("clear"), json!(i)];
-        if !musaic_services::is_removable_album_field(field) {
-            errors.push(literal_err(
-                loc,
-                json!(field),
-                &musaic_services::removable_album_fields(),
-            ));
-        } else if suggested(suggestions, field) {
-            errors.push(value_error(
-                loc,
-                &format!("{field} is both in suggestions and in clear"),
-                json!(field),
-            ));
+/// The 422 entry for one removal that cannot be honoured, in pydantic's shape.
+fn removal_error(p: &RemovalProblem) -> Value {
+    let loc = match &p.target {
+        RemovalTarget::Album { index } => vec![json!("body"), json!("clear"), json!(index)],
+        RemovalTarget::Track { filename, index } => vec![
+            json!("body"),
+            json!("track_clear"),
+            json!(filename),
+            json!(index),
+        ],
+    };
+    let input = json!(p.field);
+    match &p.fault {
+        RemovalFault::Unknown { allowed } => {
+            let allowed: Vec<&str> = allowed.iter().map(String::as_str).collect();
+            literal_err(loc, input, &allowed)
+        }
+        RemovalFault::SetOnly | RemovalFault::AlsoSuggested => {
+            value_error(loc, &p.message(), input)
         }
     }
-    for (filename, fields) in &track_clear {
-        let row = track
-            .iter()
-            .find(|(f, _)| f == filename)
-            .map_or(&[][..], |(_, r)| r.as_slice());
-        for (i, field) in fields.iter().enumerate() {
-            let loc = vec![
-                json!("body"),
-                json!("track_clear"),
-                json!(filename),
-                json!(i),
-            ];
-            if musaic_services::TRACK_FIELDS_NOT_REMOVABLE.contains(&field.as_str()) {
-                errors.push(value_error(
-                    loc,
-                    &format!("{field} cannot be removed; set a value instead"),
-                    json!(field),
-                ));
-            } else if !musaic_services::is_removable_track_field(field) {
-                errors.push(literal_err(
-                    loc,
-                    json!(field),
-                    &musaic_services::removable_track_fields(),
-                ));
-            } else if suggested(row, field) {
-                errors.push(value_error(
-                    loc,
-                    &format!("{field} is both in track_suggestions and in track_clear"),
-                    json!(field),
-                ));
-            }
-        }
-    }
-    if !errors.is_empty() {
-        return Err(unprocessable(errors));
-    }
-    Ok(Removals {
-        album: clear,
-        tracks: track_clear,
-    })
-}
-
-/// `guard` is held until the pipeline returns, which is after the
-/// client has gone away when it does, or released by unwinding.
-fn stream_apply(
-    st: AppState,
-    req: ApplyRequest,
-    guard: Option<WorkGuard>,
-) -> axum::response::Response {
-    let (tx, resp) = sse::channel(&st, 1);
-    let ctx = musaic_events::context::current();
-    tokio::task::spawn_blocking(move || {
-        let _guard = guard;
-        musaic_events::context::run_in(ctx, || {
-            let mut conn = match st.conn() {
-                Ok(c) => c,
-                Err(_) => {
-                    let _ = tx.send_blocking(sse::frame(
-                        "error",
-                        &json!({"detail": "database unavailable"}).to_string(),
-                    ));
-                    return;
-                }
-            };
-            st.with_apply_env(&mut conn, |env| {
-                let mut forwarding = true;
-                apply_album_changes(env, &req, &mut |item| {
-                    if forwarding && !tx.send_blocking(item.sse_frame()) {
-                        forwarding = false;
-                    }
-                    if forwarding {
-                        ControlFlow::Continue(())
-                    } else {
-                        ControlFlow::Break(())
-                    }
-                });
-            });
-        })
-    });
-    resp
-}
-
-async fn resolve(st: &AppState, album_id: String) -> Result<(String, String), ApiError> {
-    let st = st.clone();
-    blocking(move || {
-        let conn = st.conn()?;
-        let lib = st.library_dir();
-        let a = musaic_services::resolve_album(&conn, lib.as_deref(), &album_id, st.0.track_order)?;
-        Ok::<_, ApiError>((a.id, a.path))
-    })
-    .await?
 }
 
 pub async fn apply_stream(
@@ -165,33 +73,26 @@ pub async fn apply_stream(
     // body's key order, as the Python app's dicts do: Vorbis comments are
     // appended and `AlbumTagsChanged.fields` listed in that order.
     let mut f = Fields::required(parse_json_body(&body)?)?.with_order(KeyOrder::of_body(&body));
-    let suggestions = f.str_map("suggestions");
-    let track = f.str_map_map("track_suggestions");
-    let clear = f.opt_str_list("clear").unwrap_or_default();
-    let track_clear = f.str_list_map("track_clear");
-    let cover_url = f.opt_str("cover_url");
-    let dry_run = f.bool_or("dry_run", false);
-    f.finish()?;
-    let removals = removals(&suggestions, &track, clear, track_clear)?;
-    // An apply is refused while a restore runs, and
-    // so is a dry run — it reads the database the restore swaps —
-    // so it takes the gate like a real apply, which also keeps a restore
-    // from starting under it (409 for the restore instead).
-    let guard = Some(st.begin_work_as(crate::gate::WorkKind::Apply)?);
-    let (id, path) = resolve(&st, album_id).await?;
-    let req = ApplyRequest {
-        album_id: id,
-        album_path: path,
-        library_dir: Some(st.library_dir().unwrap_or_default()),
-        suggestions: sugg(suggestions),
-        track_suggestions: track.into_iter().map(|(k, v)| (k, sugg(v))).collect(),
-        removals,
-        cover_url,
-        cover_bytes: None,
-        cover_mime: None,
-        dry_run,
+    let changes = ApplyChanges {
+        suggestions: f.str_map("suggestions"),
+        track_suggestions: f.str_map_map("track_suggestions"),
+        clear: f.opt_str_list("clear").unwrap_or_default(),
+        track_clear: f.str_list_map("track_clear"),
+        cover_url: f.opt_str("cover_url"),
+        dry_run: f.bool_or("dry_run", false),
     };
-    Ok(stream_apply(st, req, guard))
+    f.finish()?;
+    let problems = changes.removal_problems();
+    if !problems.is_empty() {
+        return Err(unprocessable(problems.iter().map(removal_error).collect()));
+    }
+    sse::run_stream(
+        &st,
+        render::frame,
+        move |ops| ops.apply().prepare_changes(&album_id, &changes),
+        |run, sink| run.run(sink),
+    )
+    .await
 }
 
 pub async fn upload_cover(
@@ -212,7 +113,7 @@ pub async fn upload_cover(
     // that refuses a too-long Content-Length before the part headers are
     // read, and the Python app checks the part's MIME type (400) before its
     // size (413).
-    let limit = st.0.cover_body_limit;
+    let limit = st.cover_body_limit();
     let mut mp = mp.map_err(|_| missing())?;
     let mut read: usize = 0;
     let mut got: Option<(Option<String>, Vec<u8>)> = None;
@@ -236,20 +137,15 @@ pub async fn upload_cover(
     }
     let (ct, bytes) = got.ok_or_else(missing)?;
     // After FastAPI's own validation (the 422 for a
-    // missing part) and the transport cap (413), before the handler's
-    // checks (the image type's 400) and the album lookup.
-    let guard = st.begin_work()?;
-    let mime = musaic_services::validate_cover_upload(ct.as_deref(), &bytes)?;
-    let (id, path) = resolve(&st, album_id).await?;
-    let req = ApplyRequest {
-        album_id: id,
-        album_path: path,
-        library_dir: Some(st.library_dir().unwrap_or_default()),
-        cover_bytes: Some(bytes),
-        cover_mime: Some(mime),
-        ..Default::default()
-    };
-    Ok(stream_apply(st, req, Some(guard)))
+    // missing part) and the transport cap (413), before the operation's
+    // checks (the guard, the image type's 400) and the album lookup.
+    sse::run_stream(
+        &st,
+        render::frame,
+        move |ops| ops.apply().prepare_upload(&album_id, ct.as_deref(), bytes),
+        |run, sink| run.run(sink),
+    )
+    .await
 }
 
 /// The parts read went over the cover cap
@@ -260,8 +156,7 @@ pub async fn upload_cover(
 /// the body was not read past it).
 fn body_too_large(content_type: Option<Option<&str>>, limit: usize) -> ApiError {
     if let Some(ct) = content_type
-        && let Err(e) = musaic_services::validate_cover_upload(ct, b"\0")
-        && e.status == 400
+        && let Err(e) = check_cover_type(ct)
     {
         return e.into();
     }
@@ -269,7 +164,7 @@ fn body_too_large(content_type: Option<Option<&str>>, limit: usize) -> ApiError 
         413,
         format!(
             "Cover too large (more than {limit} bytes in the request). Max accepted is {} MB.",
-            musaic_services::apply::MAX_COVER_UPLOAD_BYTES / (1024 * 1024)
+            MAX_COVER_UPLOAD_BYTES / (1024 * 1024)
         ),
     )
 }

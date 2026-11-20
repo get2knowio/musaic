@@ -1,3 +1,7 @@
+//! (Moved here from `musaic-services/tests` when the pipeline began to report
+//! typed events: the items compared below are `musaic_api::render::apply`'s
+//! rendering of them. Every assertion is the old one.)
+//!
 //! Removing a tag through the apply pipeline (issue #210): the stream items,
 //! the database row after the single-album upsert, `AlbumTagsChanged`, and
 //! the check-fix path, which never removes anything.
@@ -9,6 +13,7 @@ use std::ops::ControlFlow;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use musaic_api::render::apply as render;
 use musaic_db::Db;
 use musaic_events::{Bus, Event, EventKind, Subscriber, Topic};
 use musaic_scan::{TrackOrder, py_resolve, scan_library};
@@ -116,7 +121,8 @@ fn apply(l: &mut Lib, req: &ApplyRequest) -> (Vec<(String, Json)>, Vec<Vec<Strin
     };
     let mut items = Vec::new();
     apply_album_changes(&mut env, req, &mut |it| {
-        items.push((it.event.to_string(), it.data));
+        let it: musaic_app::ops::apply::ApplyEvent = it.into();
+        items.push((render::event_name(&it).to_string(), render::payload(&it)));
         ControlFlow::Continue(())
     });
     let fields = seen.lock().unwrap().clone();

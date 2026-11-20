@@ -1,3 +1,8 @@
+//! (Moved here from `musaic-services/tests` when the pipeline began to report
+//! typed events: the items compared below are `musaic_api::render::apply`'s
+//! rendering of them, and a refusal's status is `ApiError::from(OpError)`'s.
+//! Every assertion is the old one.)
+//!
 //! The apply pipeline against testdata/golden/services/apply.json, recorded
 //! by a generator that drove the Python app's own
 //! `services.apply.apply_album_changes_iter`.
@@ -22,6 +27,7 @@
 //!   JPEG against the Python app's own normalised JPEG >= 45 dB, the embedded
 //!   picture is byte-identical to our cover.jpg, and `bytes` equals its size.
 
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
 
 use std::collections::HashMap;
@@ -30,9 +36,11 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use common::*;
+use musaic_api::http::ApiError;
+use musaic_api::render::apply as render;
 use musaic_scan::TrackOrder;
 use musaic_services::apply::{
-    ApplyEnv, ApplyItem, ApplyOutcome, ApplyRequest, CoverSource, apply_album_changes,
+    ApplyEnv, ApplyEvent, ApplyOutcome, ApplyRequest, CoverSource, apply_album_changes,
     apply_direct, missing_album_detail, resolve_album, validate_cover_upload,
 };
 use serde_json::{Value, json};
@@ -442,10 +450,15 @@ fn run(sc: &Value, s: &Setup) -> Run {
     // panics here (treated as Break).
     let panics = sc["stop_by"] == "raise";
     let mut items = Vec::new();
-    let outcome = apply_album_changes(&mut env, &req, &mut |item: ApplyItem| {
-        items.push(json!({"event": item.event, "data": item.data.to_value(),
-            "bus_events_so_far": log.lock().unwrap().len()}));
-        if stop_after.is_some_and(|n| items.len() >= n) || stop_event == Some(item.event) {
+    let outcome = apply_album_changes(&mut env, &req, &mut |item: ApplyEvent| {
+        // The surface's event renders; the services' converts into it.
+        let item: musaic_app::ops::apply::ApplyEvent = item.into();
+        let name = render::event_name(&item);
+        items.push(
+            json!({"event": name, "data": render::payload(&item).to_value(),
+            "bus_events_so_far": log.lock().unwrap().len()}),
+        );
+        if stop_after.is_some_and(|n| items.len() >= n) || stop_event == Some(name) {
             if panics {
                 panic!("consumer raised (deliberate, stop test)");
             }
@@ -812,7 +825,7 @@ fn router_checks() {
             vec![0u8; 25 * 1024 * 1024 + 1],
         ),
     ] {
-        let err = validate_cover_upload(Some(mime), &body).unwrap_err();
+        let err = ApiError::from(validate_cover_upload(Some(mime), &body).unwrap_err());
         let c = http_case(id);
         assert_eq!(json!(err.status), c["status"], "{id}");
         assert_eq!(json!(err.detail), c["json"]["detail"], "{id}");
@@ -829,18 +842,20 @@ fn router_checks() {
     seed_scan(&mut conn, &lib);
     let lib_s = lib.to_string_lossy().into_owned();
     for id in ["apply-stream-unknown-album", "upload-unknown-album"] {
-        let err = resolve_album(
-            &conn,
-            Some(&lib_s),
-            "0123456789abcdef",
-            TrackOrder::DiscTrack,
-        )
-        .unwrap_err();
+        let err = ApiError::from(
+            resolve_album(
+                &conn,
+                Some(&lib_s),
+                "0123456789abcdef",
+                TrackOrder::DiscTrack,
+            )
+            .unwrap_err(),
+        );
         let c = http_case(id);
         assert_eq!(json!(err.status), c["status"], "{id}");
         assert_eq!(json!(err.detail), c["json"]["detail"], "{id}");
     }
-    let err = resolve_album(&conn, None, "x", TrackOrder::DiscTrack).unwrap_err();
+    let err = ApiError::from(resolve_album(&conn, None, "x", TrackOrder::DiscTrack).unwrap_err());
     let c = http_case("apply-stream-no-library");
     assert_eq!(json!(err.status), c["status"]);
     assert_eq!(json!(err.detail), c["json"]["detail"]);
@@ -891,7 +906,7 @@ fn sse_body_is_byte_identical() {
         };
         let mut body = String::new();
         apply_album_changes(&mut env, &req, &mut |item| {
-            body.push_str(&item.sse_frame());
+            body.push_str(&render::frame(&item.into()));
             ControlFlow::Continue(())
         });
         let body = mask_sse(&body, &norm);
@@ -1001,16 +1016,22 @@ fn missing_album_is_refused_with_409() {
         describe_lib(&lib),
         dump_db(&conn, &Norm::new(&lib), &album_columns()),
     );
-    let err = resolve_album(
-        &conn,
-        Some(&lib.to_string_lossy()),
-        &id,
-        TrackOrder::DiscTrack,
-    )
-    .unwrap_err();
+    let err = ApiError::from(
+        resolve_album(
+            &conn,
+            Some(&lib.to_string_lossy()),
+            &id,
+            TrackOrder::DiscTrack,
+        )
+        .unwrap_err(),
+    );
     assert_eq!(err.status, 409);
-    assert_eq!(err.detail, missing_album_detail(MISSING_SINCE_SEED));
-    assert!(err.detail.contains("Rescan"), "{}", err.detail);
+    assert_eq!(err.detail, json!(missing_album_detail(MISSING_SINCE_SEED)));
+    assert!(
+        err.detail.as_str().unwrap().contains("Rescan"),
+        "{}",
+        err.detail
+    );
     // The pipeline refuses on its own too, for a dry run and for an upload.
     let (bus, log) = recording_bus();
     let mut conn = connect(&db);
@@ -1043,10 +1064,11 @@ fn missing_album_is_refused_with_409() {
         });
         assert_eq!(outcome, ApplyOutcome::Finished);
         assert_eq!(items.len(), 1, "dry_run={dry_run}");
-        assert_eq!(items[0].event, "error");
         assert_eq!(
-            items[0].data.get("detail").and_then(|d| d.as_str()),
-            Some(missing_album_detail(MISSING_SINCE_SEED).as_str())
+            items[0],
+            ApplyEvent::Error {
+                detail: missing_album_detail(MISSING_SINCE_SEED)
+            }
         );
     }
     // apply_direct (the check-fix path) is refused the same way.
