@@ -155,6 +155,16 @@ fn masked(n: &Norm, text: &str) -> String {
         .into_owned()
 }
 
+/// The `finding_id` of each `progress` frame, in order.
+fn progress_ids(frames: &[String]) -> Vec<i64> {
+    let re = regex::Regex::new(r#""finding_id": (\d+)"#).unwrap();
+    frames
+        .iter()
+        .filter(|f| f.starts_with("event: progress\n"))
+        .map(|f| re.captures(f).expect("a finding id")[1].parse().unwrap())
+        .collect()
+}
+
 /// `frames` with the ones between the first and the last sorted.
 fn progress_sorted(mut frames: Vec<String>) -> Vec<String> {
     if frames.len() > 2 {
@@ -404,6 +414,14 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
     assert_eq!(ca, cb);
     let (ida, idb) = (a.first_album_id().await, b.first_album_id().await);
     let (ka, kb) = (a.finding_keys(&ca).await, b.finding_keys(&cb).await);
+    // The order each copy will take its findings in: the findings list's own
+    // (newest first, then by id), read before the run.
+    let ids = |fs: Vec<Value>| {
+        fs.iter()
+            .map(|f| f["id"].as_i64().unwrap())
+            .collect::<Vec<_>>()
+    };
+    let (order_a, order_b) = (ids(a.findings(&ca).await), ids(b.findings(&cb).await));
 
     let mut ops = Vec::new();
     a.st.ops()
@@ -422,15 +440,29 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
     )
     .await;
     assert_eq!(got.status, 200, "{}", got.text());
+    // Within each copy the progress frames follow that order exactly: the
+    // operation's, and the HTTP stream's.
+    let http = http_frames(&got.text());
+    assert_eq!(
+        progress_ids(&ops),
+        order_a,
+        "quick-fix-all: the operation's order"
+    );
+    assert_eq!(
+        progress_ids(&http),
+        order_b,
+        "quick-fix-all: the stream's order"
+    );
     // The findings are taken newest first (`last_seen_at`, whole seconds), so
     // two copies whose check runs straddled a second differently list them in
-    // a different order: `start` and `done` are compared in place, the
-    // progress frames between them as a set.
+    // a different order: across the copies `start` and `done` are compared in
+    // place, the progress frames between them as a set (their order is held
+    // above, per copy).
     assert_same_frames(
         "quick-fix-all",
         &progress_sorted(keyed(&ops, &ka)),
         &a.norm(&[&ida]),
-        &progress_sorted(keyed(&http_frames(&got.text()), &kb)),
+        &progress_sorted(keyed(&http, &kb)),
         &b.norm(&[&idb]),
     );
 }
