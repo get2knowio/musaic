@@ -121,7 +121,7 @@ fn apply(l: &mut Lib, req: &ApplyRequest) -> (Vec<(String, Json)>, Vec<Vec<Strin
     };
     let mut items = Vec::new();
     apply_album_changes(&mut env, req, &mut |it| {
-        let it: musaic_app::ops::apply::ApplyEvent = it.into();
+        let it = musaic_app::ops::apply::typed(it);
         items.push((render::event_name(&it).to_string(), render::payload(&it)));
         ControlFlow::Continue(())
     });

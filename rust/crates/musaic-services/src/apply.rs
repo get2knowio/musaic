@@ -118,8 +118,12 @@ impl CoverSource for NoCovers {
 /// `Done`), `CoverSaved` (a cover, not a dry run), and last `UpdatedAlbum` or
 /// `RemovedAlbum`; an `Error` replaces whatever would have followed. A dry run
 /// ends with the `Done` of its `Tags`.
+///
+/// `A` is the album's form in `UpdatedAlbum`: the document here (the
+/// default), a typed record on the operations surface ([`ApplyEvent::map_album`]
+/// converts), so the steps are listed once.
 #[derive(Debug, Clone, PartialEq)]
-pub enum ApplyEvent {
+pub enum ApplyEvent<A = Json> {
     /// The cover at `url` is being fetched.
     CoverDownloading { url: String },
     /// The cover was fetched and normalised to JPEG.
@@ -136,11 +140,48 @@ pub enum ApplyEvent {
     CoverSaved { path: String, filename: String },
     /// The album as the database holds it after the run (the merged row when a
     /// library folder is set, else what a scan reads).
-    UpdatedAlbum(Json),
+    UpdatedAlbum(A),
     /// The album's folder is gone after the run: its row is now Missing.
     RemovedAlbum { id: String, path: String },
     /// The run failed or was refused; nothing more follows.
     Error { detail: String },
+}
+
+impl<A> ApplyEvent<A> {
+    /// The event ends the run: nothing follows it (a dry run ends with the
+    /// `Done` of its `Tags`).
+    pub fn is_terminal(&self) -> bool {
+        match self {
+            ApplyEvent::UpdatedAlbum(_)
+            | ApplyEvent::RemovedAlbum { .. }
+            | ApplyEvent::Error { .. } => true,
+            ApplyEvent::Tags(TagEvent::Done { dry_run, .. }) => *dry_run,
+            _ => false,
+        }
+    }
+
+    /// The same event with the album of `UpdatedAlbum` converted by `f`.
+    pub fn map_album<B>(self, f: impl FnOnce(A) -> B) -> ApplyEvent<B> {
+        match self {
+            ApplyEvent::CoverDownloading { url } => ApplyEvent::CoverDownloading { url },
+            ApplyEvent::CoverDownloaded {
+                source_bytes,
+                source_mime,
+                bytes,
+                mime,
+            } => ApplyEvent::CoverDownloaded {
+                source_bytes,
+                source_mime,
+                bytes,
+                mime,
+            },
+            ApplyEvent::Tags(t) => ApplyEvent::Tags(t),
+            ApplyEvent::CoverSaved { path, filename } => ApplyEvent::CoverSaved { path, filename },
+            ApplyEvent::UpdatedAlbum(a) => ApplyEvent::UpdatedAlbum(f(a)),
+            ApplyEvent::RemovedAlbum { id, path } => ApplyEvent::RemovedAlbum { id, path },
+            ApplyEvent::Error { detail } => ApplyEvent::Error { detail },
+        }
+    }
 }
 
 impl ApplyEvent {

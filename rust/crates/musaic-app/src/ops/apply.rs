@@ -54,74 +54,11 @@ const PREVIEW_LOG_TARGET: &str = "musaic.api.preview";
 /// only), the per-file steps (`Tags`), the saved `cover.jpg` (`CoverSaved`), and
 /// last `UpdatedAlbum` or `RemovedAlbum`. `Error` replaces whatever would have
 /// followed. A dry run ends with the `Done` of its `Tags`.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ApplyEvent {
-    CoverDownloading {
-        url: String,
-    },
-    CoverDownloaded {
-        source_bytes: usize,
-        source_mime: String,
-        bytes: usize,
-        mime: String,
-    },
-    /// A per-file step of the tag writer (`Start`, `FileStarted`, `FileDone`,
-    /// `FileRenamed`, `Done`); never its `CoverDownloaded` / `CoverSaved`, which
-    /// are variants here.
-    Tags(TagEvent),
-    CoverSaved {
-        path: String,
-        filename: String,
-    },
-    /// The album as the database holds it after the run.
-    UpdatedAlbum(AlbumRecord),
-    /// The album's folder is gone after the run: its row is now Missing.
-    RemovedAlbum {
-        id: String,
-        path: String,
-    },
-    /// The run failed after it began (a database or file failure, a cover that
-    /// could not be fetched); nothing more follows.
-    Error {
-        detail: String,
-    },
-}
+pub type ApplyEvent = musaic_services::apply::ApplyEvent<AlbumRecord>;
 
-impl ApplyEvent {
-    /// The event ends the run: nothing follows it.
-    pub fn is_terminal(&self) -> bool {
-        match self {
-            ApplyEvent::UpdatedAlbum(_)
-            | ApplyEvent::RemovedAlbum { .. }
-            | ApplyEvent::Error { .. } => true,
-            ApplyEvent::Tags(TagEvent::Done { dry_run, .. }) => *dry_run,
-            _ => false,
-        }
-    }
-}
-
-impl From<Step> for ApplyEvent {
-    fn from(e: Step) -> Self {
-        match e {
-            Step::CoverDownloading { url } => ApplyEvent::CoverDownloading { url },
-            Step::CoverDownloaded {
-                source_bytes,
-                source_mime,
-                bytes,
-                mime,
-            } => ApplyEvent::CoverDownloaded {
-                source_bytes,
-                source_mime,
-                bytes,
-                mime,
-            },
-            Step::Tags(t) => ApplyEvent::Tags(t),
-            Step::CoverSaved { path, filename } => ApplyEvent::CoverSaved { path, filename },
-            Step::UpdatedAlbum(doc) => ApplyEvent::UpdatedAlbum(AlbumRecord::new(doc)),
-            Step::RemovedAlbum { id, path } => ApplyEvent::RemovedAlbum { id, path },
-            Step::Error { detail } => ApplyEvent::Error { detail },
-        }
-    }
+/// A services apply event, with its album as a typed record.
+pub fn typed(e: Step) -> ApplyEvent {
+    e.map_album(AlbumRecord::new)
 }
 
 /// What to write. An empty or absent suggestion means "no change": only the
@@ -284,7 +221,7 @@ impl ApplyRun {
             if listening {
                 // A sink that panics is treated as gone.
                 listening = matches!(
-                    catch_unwind(AssertUnwindSafe(|| sink(event.into()))),
+                    catch_unwind(AssertUnwindSafe(|| sink(typed(event)))),
                     Ok(Listening::Yes)
                 );
             }
