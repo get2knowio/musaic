@@ -11,10 +11,20 @@ pub fn health(h: Health) -> Json {
     }
 }
 
-/// `GET /api/fingerprint-pool/status`, in the Python app's key order (the
-/// service keeps the ordered body: its golden test pins it).
+/// `GET /api/fingerprint-pool/status`: `get_state()` in the Python app's key
+/// order (`tests/fingerprint_pool_golden.rs` pins it).
 pub fn pool_state(s: &PoolState) -> Json {
-    s.to_json()
+    Json::obj([
+        ("status", Json::from(s.status.as_str())),
+        ("library_dir", Json::from(s.library_dir.clone())),
+        ("total", Json::from(s.total)),
+        ("completed", Json::from(s.completed)),
+        ("errors", Json::from(s.errors)),
+        ("current_album_id", Json::from(s.current_album_id.clone())),
+        ("started_at", Json::from(s.started_at.clone())),
+        ("completed_at", Json::from(s.completed_at.clone())),
+        ("skip_reason", Json::from(s.skip_reason.clone())),
+    ])
 }
 
 /// One frame of `GET /api/fingerprint-pool/stream`: `sse_event("state", state)`.

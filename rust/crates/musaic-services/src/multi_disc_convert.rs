@@ -160,10 +160,8 @@ pub struct ConvertEnv<'a> {
     /// Suspended for the whole conversion, for the same reason (findings
     /// and inputs under a member id).
     pub sweeper: Option<&'a crate::check_sweep::CheckSweeper>,
-    /// Told what a long conversion is doing (`{step, done, total}`). The
-    /// JSON form, kept for the callers that already hand one in.
-    pub progress: Option<std::sync::Arc<dyn Fn(Value) + Send + Sync>>,
-    /// The same report, typed: what an operation's sink is fed from.
+    /// Told what a long conversion is doing: what an operation's sink is fed
+    /// from.
     pub on_progress: Option<&'a dyn Fn(ConvertProgress)>,
 }
 
@@ -201,9 +199,6 @@ pub(crate) fn recorded_numbers(
 
 /// Tell the host what the conversion is doing.
 pub(crate) fn report(env: &ConvertEnv<'_>, step: &str, done: usize, total: usize) {
-    if let Some(p) = &env.progress {
-        p(json!({"step": step, "done": done, "total": total}));
-    }
     if let Some(p) = env.on_progress {
         p(ConvertProgress {
             step: step.to_string(),

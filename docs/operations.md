@@ -362,9 +362,8 @@ take the guard before the meaning validation, listed per row and below).
   first, so the HTTP face can tell a restore's 409 from a refusal that is an item), then
   `Progress { step, done, total }`. A refusal after `Started` is the return value (the stream
   renders it as a `refused` item). `convert` and `abandon` in `musaic-services` still return the
-  JSON document and take `ConvertEnv::progress` (JSON callback) because two pre-existing
-  `musaic-api` tests call and assign them; the typed report is the new `ConvertEnv::on_progress`
-  and the operation's result is the record newtype `ConversionRecord` / `AbandonRecord` (in
+  JSON document because pre-existing `musaic-api` tests call them; progress is reported only
+  typed, through `ConvertEnv::on_progress` (the JSON callback went in #315), and the operation's result is the record newtype `ConversionRecord` / `AbandonRecord` (in
   `record.rs`: the document keeps its sorted key order).
 - A conversion refusal's `reason_code`, `user_message`, `blockers` and `digest` are
   `Details::Refusal` on `Rejected` / `Conflict`. A 404 refusal is `NotFound`
@@ -425,9 +424,6 @@ These stay `pub`, because an existing test or another crate calls them:
 - `App::subscribe_jobs`: called by `musaic-app/tests/ops_fixes.rs` and `ops_settings.rs`.
 - `App::gate()`, `begin_shutdown`, `shutdown_signal`, the builder and the other host methods
   the desktop shell and the tests use (not guard-taking helpers).
-- `ConvertEnv::progress` (JSON callback) in `musaic-services`, kept for two pre-existing
-  `musaic-api` tests; `PoolState::sse_frame` and `to_json`, kept for `pool_stream_wake.rs`.
-- `musaic_api::lookup::resolve_album_dict`, for the desktop shell's reveal-in-file-manager.
 
 ## Remaining deviations, in one list
 
@@ -435,8 +431,6 @@ These stay `pub`, because an existing test or another crate calls them:
   `POST /api/checks/{id}/run`, `fixes.fix`, the job writers and `GET .../resolution` take the
   guard before the meaning validation, as their routes always did.
 - Tag writes publish no event, as today (no subscriber wants one).
-- `PoolState::sse_frame` / `to_json` stay for `pool_stream_wake.rs`; `ConvertEnv::progress`
-  stays for the two pre-existing conversion tests (the typed report is `on_progress`).
 - Meaning validation answers 400 (`Rejected`), not the 422 `InvalidInput` that
   `contracts/errors.md` first mapped; `InvalidInput` stays for the apply removals check.
 - A quick-fix-all whose sink goes away stops the loop (the route's behaviour), unlike the
