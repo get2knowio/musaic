@@ -1,11 +1,13 @@
 //! `musaic/api/settings.py`: settings read / patch (keys in the OS
-//! keyring), database info, backup download, restore upload and named
-//! snapshots.
+//! keyring), prompts, UI preferences, database info, backup download, restore
+//! upload and named snapshots.
 //!
-//! `PATCH /api/settings` and snapshot create / delete take the
-//! restore gate's [`crate::WorkGuard`] (409 while a restore runs, before any
-//! check of their own); the two restore routes take the
-//! [`crate::RestoreGuard`] first, before the snapshot name is looked at.
+//! Every handler parses the request (a 422 before anything runs), calls one
+//! operation of `ops().settings()` / `ops().database()` and renders the answer
+//! (`crate::render::settings`). The guard, the order of the preconditions and
+//! the events are the operations' (`docs/operations.md`); what stays here is
+//! HTTP: the JSON parsing, receiving the restore upload to a scratch file
+//! (with its cap) and framing the backup download.
 
 use std::io::Write;
 
@@ -13,108 +15,54 @@ use axum::body::Bytes;
 use axum::extract::multipart::MultipartRejection;
 use axum::extract::{Multipart, Path as UrlPath, State};
 use axum::http::{HeaderValue, header};
-use musaic_db::backup::{self, Counts, RestoreError};
-use musaic_services::db_admin::{self, ScratchError, SnapshotsDisabled};
-use musaic_services::settings_patch::{self, PatchError, SettingsPatch, TEMPLATE_KEYS};
-use serde_json::{Map, Value, json};
+use musaic_app::ops::settings::{PrefValue, SettingsPatch, TEMPLATE_KEYS};
+use serde_json::{Value, json};
 
 use crate::http::{ApiError, ApiResult, blocking, ok_value};
 use crate::lax::{Fields, err, parse_json_body, unprocessable};
+use crate::render::settings as render;
 use crate::state::AppState;
 
-/// The settings body: musaic-secrets' view (the Python app's shape plus
-/// `keyring_available`) plus `keys_pending_removal`, true while an
-/// unfinished secret scrub leaves keys (or old copies of them) in the
-/// database file or its pre-migration backup (a deliberate addition to the Python app's
-/// shape; see `crate::keyscrub`).
-fn settings_body(st: &AppState) -> Result<Value, ApiError> {
-    let conn = st.conn()?;
-    let m = musaic_secrets::all_settings(&conn, st.0.secrets.as_ref())?;
-    let mut out = Map::new();
-    for (k, v) in m {
-        let after_keyring = k == "keyring_available";
-        out.insert(k, v);
-        if after_keyring {
-            out.insert(
-                KEYS_PENDING_REMOVAL.into(),
-                Value::Bool(st.key_scrub_pending()),
-            );
-        }
-    }
-    out.entry(KEYS_PENDING_REMOVAL)
-        .or_insert(Value::Bool(st.key_scrub_pending()));
-    Ok(Value::Object(out))
-}
-
-/// The settings body's flag for an unfinished secret scrub.
-pub const KEYS_PENDING_REMOVAL: &str = "keys_pending_removal";
-
 pub async fn get_settings(State(st): State<AppState>) -> ApiResult {
-    blocking(move || ok_value(settings_body(&st)?)).await?
-}
-
-/// The settings row that remembers the one-time "add an AcoustID key"
-/// prompt was dismissed. It is not part of `GET /api/settings`, and no
-/// check reads it.
-const ACOUSTID_PROMPT_DISMISSED: &str = "acoustid_prompt_dismissed";
-
-fn prompt_body(st: &AppState) -> Result<Value, ApiError> {
-    let conn = st.conn()?;
-    let dismissed = musaic_db::settings::get_bool(&conn, ACOUSTID_PROMPT_DISMISSED, false)?;
-    Ok(json!({ "dismissed": dismissed }))
+    blocking(move || ok_value(render::settings(&st.ops().settings().get()?))).await?
 }
 
 /// `GET /api/prompts/acoustid`: `{"dismissed": bool}`.
 pub async fn acoustid_prompt(State(st): State<AppState>) -> ApiResult {
-    blocking(move || ok_value(prompt_body(&st)?)).await?
-}
-
-/// `POST /api/prompts/acoustid/dismiss`: remember the dismissal (idempotent)
-/// and publish `SettingsChanged` so open windows refresh.
-pub async fn dismiss_acoustid_prompt(State(st): State<AppState>) -> ApiResult {
-    let guard = st.begin_work()?;
     blocking(move || {
-        let _guard = guard;
-        let conn = st.conn()?;
-        musaic_db::settings::set_raw(&conn, ACOUSTID_PROMPT_DISMISSED, "1")?;
-        drop(conn);
-        st.0.bus.publish(&musaic_events::Event::SettingsChanged {
-            keys: vec![ACOUSTID_PROMPT_DISMISSED.to_owned()],
-        });
-        ok_value(prompt_body(&st)?)
+        ok_value(render::acoustid_prompt(
+            st.ops().settings().acoustid_prompt()?,
+        ))
     })
     .await?
 }
 
-/// The settings rows holding the UI preferences. They are not part of
-/// `GET /api/settings`, and no check reads them.
-const UI_THEME: &str = "ui_theme";
-const UI_TILE_COLUMNS: &str = "ui_tile_columns";
-
-/// The Library tile-size slider's range (frontend `useTileColumns`).
-const TILE_COLUMNS_MIN: i64 = 3;
-const TILE_COLUMNS_MAX: i64 = 7;
-
-fn ui_prefs_body(st: &AppState) -> Result<Value, ApiError> {
-    let conn = st.conn()?;
-    let theme =
-        musaic_db::settings::get_raw(&conn, UI_THEME)?.filter(|t| t == "light" || t == "dark");
-    let columns = musaic_db::settings::get_raw(&conn, UI_TILE_COLUMNS)?
-        .and_then(|v| v.parse::<i64>().ok())
-        .filter(|n| (TILE_COLUMNS_MIN..=TILE_COLUMNS_MAX).contains(n));
-    Ok(json!({ "theme": theme, "tile_columns": columns }))
+/// `POST /api/prompts/acoustid/dismiss`.
+pub async fn dismiss_acoustid_prompt(State(st): State<AppState>) -> ApiResult {
+    blocking(move || {
+        ok_value(render::acoustid_prompt(
+            st.ops().settings().dismiss_acoustid_prompt()?,
+        ))
+    })
+    .await?
 }
 
-/// `GET /api/ui-prefs`: `{"theme": "light"|"dark"|null, "tile_columns": 3..7|null}`
-/// (null: never chosen).
+/// `GET /api/ui-prefs`.
 pub async fn ui_prefs(State(st): State<AppState>) -> ApiResult {
-    blocking(move || ok_value(ui_prefs_body(&st)?)).await?
+    blocking(move || ok_value(render::ui_prefs(&st.ops().settings().ui_prefs()?))).await?
 }
 
-/// `PUT /api/ui-prefs`: set the preferences named in the body (`theme`,
-/// `tile_columns`); a field set to `null` is forgotten, a field left out is
-/// untouched. 400 for an unknown field or a value out of range. Publishes
-/// `SettingsChanged` (names only) so open windows refresh.
+/// One body value as the operation tells them apart.
+fn pref_value(v: &Value) -> PrefValue {
+    match v {
+        Value::Null => PrefValue::Null,
+        Value::String(t) => PrefValue::Text(t.clone()),
+        n => n.as_i64().map_or(PrefValue::Other, PrefValue::Whole),
+    }
+}
+
+/// `PUT /api/ui-prefs`: the preferences named in the body (`theme`,
+/// `tile_columns`); the operation refuses an unknown field or a value out of range.
 pub async fn put_ui_prefs(State(st): State<AppState>, body: Bytes) -> ApiResult {
     let Some(Value::Object(map)) = parse_json_body(&body)? else {
         return Err(ApiError::new(
@@ -122,69 +70,11 @@ pub async fn put_ui_prefs(State(st): State<AppState>, body: Bytes) -> ApiResult 
             "the body must be a JSON object".to_owned(),
         ));
     };
-    let mut writes: Vec<(&'static str, Option<String>)> = Vec::new();
-    for (k, v) in &map {
-        match (k.as_str(), v) {
-            ("theme", Value::Null) => writes.push((UI_THEME, None)),
-            ("theme", Value::String(t)) if t == "light" || t == "dark" => {
-                writes.push((UI_THEME, Some(t.clone())));
-            }
-            ("theme", _) => {
-                return Err(ApiError::new(
-                    400,
-                    "theme must be \"light\", \"dark\" or null".to_owned(),
-                ));
-            }
-            ("tile_columns", Value::Null) => writes.push((UI_TILE_COLUMNS, None)),
-            ("tile_columns", n)
-                if n.as_i64()
-                    .is_some_and(|n| (TILE_COLUMNS_MIN..=TILE_COLUMNS_MAX).contains(&n)) =>
-            {
-                writes.push((UI_TILE_COLUMNS, Some(n.to_string())));
-            }
-            ("tile_columns", _) => {
-                return Err(ApiError::new(
-                    400,
-                    format!(
-                        "tile_columns must be a whole number from {TILE_COLUMNS_MIN} to {TILE_COLUMNS_MAX} or null"
-                    ),
-                ));
-            }
-            (other, _) => {
-                return Err(ApiError::new(400, format!("unknown preference {other:?}")));
-            }
-        }
-    }
-    let guard = st.begin_work()?;
-    blocking(move || {
-        let _guard = guard;
-        let conn = st.conn()?;
-        for (key, value) in &writes {
-            match value {
-                Some(v) => musaic_db::settings::set_raw(&conn, key, v)?,
-                None => musaic_db::settings::delete_raw(&conn, key)?,
-            }
-        }
-        drop(conn);
-        if !writes.is_empty() {
-            st.0.bus.publish(&musaic_events::Event::SettingsChanged {
-                keys: writes.iter().map(|(k, _)| (*k).to_owned()).collect(),
-            });
-        }
-        ok_value(ui_prefs_body(&st)?)
-    })
-    .await?
-}
-
-/// The PATCH's refusals as HTTP answers: 400 (range, provider), 503
-/// (keyring), 500 (database).
-fn patch_error(e: PatchError) -> ApiError {
-    match e {
-        PatchError::Invalid(d) => ApiError::new(400, d),
-        PatchError::Keyring(d) => ApiError::new(503, d),
-        PatchError::Db(e) => ApiError::from(e),
-        PatchError::Sqlite(e) => ApiError::internal(e),
-    }
+    let prefs: Vec<(String, PrefValue)> = map
+        .iter()
+        .map(|(k, v)| (k.clone(), pref_value(v)))
+        .collect();
+    blocking(move || ok_value(render::ui_prefs(&st.ops().settings().set_ui_prefs(&prefs)?))).await?
 }
 
 pub async fn patch_settings(State(st): State<AppState>, body: Bytes) -> ApiResult {
@@ -212,121 +102,28 @@ pub async fn patch_settings(State(st): State<AppState>, body: Bytes) -> ApiResul
         interval,
         tpl,
     };
-    // A new, non-empty AcoustID key: the stored fingerprints can now be
-    // looked up (see `kick_fingerprint_pool`).
-    let kick_pool = patch.sets_acoustid_key();
-    let guard = st.begin_work()?;
-    blocking(move || {
-        let _guard = guard;
-        let conn = st.conn()?;
-        // The providers `GET /api/ai/providers` lists (issue #199).
-        let listed = st.ai_provider_ids();
-        let listed: Vec<&str> = listed.iter().map(String::as_str).collect();
-        settings_patch::apply_patch(
-            conn,
-            st.0.secrets.as_ref(),
-            patch,
-            &listed,
-            st.log(),
-            &st.0.bus,
-        )
-        .map_err(patch_error)?;
-        // `notify_jobs_changed()` (api/settings.py:136): wake the AI
-        // dispatcher (a max_parallel bump or an unpause) and the jobs streams.
-        st.ai_jobs_changed();
-        if kick_pool {
-            settings_patch::kick_fingerprint_pool(&st.0.pool, st.library_dir(), || st.pool_deps());
-        }
-        ok_value(settings_body(&st)?)
-    })
-    .await?
+    blocking(move || ok_value(render::settings(&st.ops().settings().patch(patch)?))).await?
 }
 
 // ------------------------------------------------------------- db
 
-fn counts_json(c: &Counts) -> Value {
-    Value::Object(c.iter().map(|(k, v)| (k.clone(), json!(v))).collect())
-}
-
 pub async fn db_info(State(st): State<AppState>) -> ApiResult {
-    blocking(move || {
-        let _g = st.0.db_gate.read().unwrap_or_else(|e| e.into_inner());
-        let db = st.db()?;
-        let i = backup::db_info(&db);
-        ok_value(json!({
-            "path": i.path.to_string_lossy(),
-            "exists": i.exists,
-            "size_bytes": i.size_bytes,
-            "schema_version": i.schema_version,
-            "current_schema": i.current_schema,
-            "counts": counts_json(&i.counts),
-            "modified_at": i.modified_at,
-        }))
-    })
-    .await?
+    blocking(move || ok_value(render::db_info(&st.ops().database().info()?))).await?
 }
 
 pub async fn db_backup(State(st): State<AppState>) -> ApiResult {
     blocking(move || {
-        let (mut r, tag) = db_admin::backup_with(
-            &st.0.db_gate,
-            || st.db(),
-            st.config_dir(),
-            &|| st.now(),
-            |path, tag| {
-                let r = crate::files::file_response(path, "application/octet-stream")?;
-                Ok::<_, ApiError>((r, tag.to_string()))
-            },
-        )?;
-        let h = r.headers_mut();
-        let name = backup::suggested_backup_filename(&tag);
-        if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{name}\"")) {
-            h.insert(header::CONTENT_DISPOSITION, v);
+        let backup = st.ops().database().backup()?;
+        let file = &backup.file;
+        let mut r = crate::files::file_response(&file.path, "application/octet-stream")?;
+        if let Ok(v) =
+            HeaderValue::from_str(&format!("attachment; filename=\"{}\"", file.suggested_name))
+        {
+            r.headers_mut().insert(header::CONTENT_DISPOSITION, v);
         }
         Ok(r)
     })
     .await?
-}
-
-/// No scratch directory next to the database: a 500.
-impl From<ScratchError> for ApiError {
-    fn from(e: ScratchError) -> Self {
-        ApiError::internal(e)
-    }
-}
-
-/// A refused restore or a bad snapshot name: a 400 with its message.
-impl From<RestoreError> for ApiError {
-    fn from(e: RestoreError) -> Self {
-        restore_error(&e)
-    }
-}
-
-/// Snapshotting disabled is a 409.
-impl From<SnapshotsDisabled> for ApiError {
-    fn from(_: SnapshotsDisabled) -> Self {
-        ApiError::new(409, db_admin::SNAPSHOTS_DISABLED)
-    }
-}
-
-fn restore_body(info: &backup::RestoreInfo) -> Value {
-    json!({
-        "schema_version": info.schema_version,
-        "size_bytes": info.size_bytes,
-        "counts": counts_json(&info.counts),
-        "restored_at": info.restored_at,
-        "aside_paths": info.aside_paths.iter().map(|p| p.to_string_lossy().into_owned()).collect::<Vec<_>>(),
-    })
-}
-
-/// Runs while the restore still holds the gate and the file lock, so no
-/// writing work, pool, backup or snapshot of ours holds a connection that
-/// could block the scrub's checkpoint (only a short read request can). An
-/// outcome that is not clean is logged, surfaced as `keys_pending_removal`
-/// and retried later (`crate::keyscrub`).
-fn after_restore(st: &AppState, db: &musaic_db::Db) {
-    st.scrub_keys(db, "after restore");
-    st.0.resolver.invalidate(None);
 }
 
 pub async fn db_restore(
@@ -342,8 +139,8 @@ pub async fn db_restore(
         )])
     };
     let mut mp = mp.map_err(|_| missing())?;
-    let limit = st.0.restore_upload_limit;
-    let tmp = db_admin::tempdir_in_config(st.config_dir())?;
+    let limit = st.restore_upload_limit();
+    let tmp = st.ops().database().scratch()?;
     let upload = tmp.path().join("upload.db");
     let mut found = false;
     while let Some(mut field) = mp.next_field().await.map_err(|_| missing())? {
@@ -351,9 +148,9 @@ pub async fn db_restore(
             continue;
         }
         // An early refusal before the upload is read (the Python app's
-        // 422 for a missing file part still comes first). The guard taken
-        // below is what counts.
-        st.0.gate.restore_allowed()?;
+        // 422 for a missing file part still comes first). The guard the
+        // operation takes is what counts.
+        st.ops().database().restore_allowed()?;
         let mut out = std::fs::File::create(&upload).map_err(ApiError::internal)?;
         let mut written: u64 = 0;
         while let Some(chunk) = field.chunk().await.map_err(ApiError::internal)? {
@@ -372,35 +169,10 @@ pub async fn db_restore(
     if !found {
         return Err(missing());
     }
-    // Refused (409) while writing work holds the
-    // gate; new ones are refused until this guard drops (end of the
-    // blocking task, or its unwinding).
-    let guard = st.0.gate.begin_restore()?;
-    // Removed right after the swap; on an earlier failure, when the task
-    // ends (after the guard is released), as before the move to services.
-    let mut tmp = Some(tmp);
     blocking(move || {
-        let _guard = guard;
-        // Neither the fingerprint pool nor the check sweep holds the
-        // gate; a restore stops the one and suspends the other before the
-        // file is swapped (see `state.rs`).
-        let info = db_admin::restore_with(
-            db_admin::BackgroundWork {
-                pool: &st.0.pool,
-                sweeper: &st.0.sweeper,
-            },
-            st.0.on_restore.as_deref(),
-            &st.0.db_gate,
-            || st.db(),
-            &|| st.now(),
-            |db, tag, now| {
-                let r = backup::restore_from(db, &upload, tag, now);
-                drop(tmp.take());
-                r
-            },
-            |db| after_restore(&st, db),
-        )?;
-        ok_value(restore_body(&info))
+        ok_value(render::restore(
+            &st.ops().database().restore_upload(tmp, &upload)?,
+        ))
     })
     .await?
 }
@@ -414,47 +186,15 @@ fn restore_too_large(limit: u64) -> ApiError {
     )
 }
 
-fn restore_error(e: &RestoreError) -> ApiError {
-    ApiError::new(400, e.to_string())
-}
-
-fn snapshot_entry(s: &backup::SnapshotEntry) -> Value {
-    json!({
-        "filename": s.filename,
-        "size_bytes": s.size_bytes,
-        "modified_at": s.modified_at,
-        "schema_version": s.schema_version,
-        "valid": s.valid,
-        "counts": if s.valid { counts_json(&s.counts) } else { Value::Object(Map::new()) },
-    })
-}
-
 pub async fn list_snapshots(State(st): State<AppState>) -> ApiResult {
-    blocking(move || {
-        let list =
-            backup::list_snapshots(&st.0.config.snapshot_dir()).map_err(ApiError::internal)?;
-        ok_value(json!({"snapshots": list.iter().map(snapshot_entry).collect::<Vec<_>>()}))
-    })
-    .await?
+    blocking(move || ok_value(render::snapshots(&st.ops().database().snapshots()?))).await?
 }
 
 pub async fn create_snapshot(State(st): State<AppState>) -> ApiResult {
-    let guard = st.begin_work()?;
     blocking(move || {
-        let _guard = guard;
-        let s = db_admin::create_snapshot_with::<ApiError>(
-            &st.0.db_gate,
-            || st.db(),
-            &st.0.config.snapshot_dir(),
-            &|| st.now(),
-        )?;
-        ok_value(json!({
-            "filename": s.filename,
-            "size_bytes": s.size_bytes,
-            "modified_at": s.modified_at,
-            "schema_version": s.schema_version,
-            "pruned": s.pruned,
-        }))
+        ok_value(render::created_snapshot(
+            &st.ops().database().create_snapshot()?,
+        ))
     })
     .await?
 }
@@ -463,13 +203,9 @@ pub async fn delete_snapshot(
     State(st): State<AppState>,
     UrlPath(name): UrlPath<String>,
 ) -> ApiResult {
-    let guard = st.begin_work()?;
     blocking(move || {
-        let _guard = guard;
-        match backup::delete_snapshot(&st.0.config.snapshot_dir(), &name) {
-            Ok(deleted) => ok_value(json!({"deleted": deleted, "name": name})),
-            Err(e) => Err(restore_error(&e)),
-        }
+        let d = st.ops().database().delete_snapshot(&name)?;
+        ok_value(render::snapshot_deleted(d.deleted, &d.name))
     })
     .await?
 }
@@ -478,28 +214,10 @@ pub async fn restore_snapshot(
     State(st): State<AppState>,
     UrlPath(name): UrlPath<String>,
 ) -> ApiResult {
-    // As for the uploaded restore.
-    let guard = st.0.gate.begin_restore()?;
     blocking(move || {
-        let _guard = guard;
-        // Neither the fingerprint pool nor the check sweep holds the
-        // gate; a restore stops the one and suspends the other before the
-        // file is swapped (see `state.rs`).
-        let info = db_admin::restore_with(
-            db_admin::BackgroundWork {
-                pool: &st.0.pool,
-                sweeper: &st.0.sweeper,
-            },
-            st.0.on_restore.as_deref(),
-            &st.0.db_gate,
-            || st.db(),
-            &|| st.now(),
-            |db, tag, now| {
-                backup::restore_from_snapshot(db, &st.0.config.snapshot_dir(), &name, tag, now)
-            },
-            |db| after_restore(&st, db),
-        )?;
-        ok_value(restore_body(&info))
+        ok_value(render::restore(
+            &st.ops().database().restore_snapshot(&name)?,
+        ))
     })
     .await?
 }
