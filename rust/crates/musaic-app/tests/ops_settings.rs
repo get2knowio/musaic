@@ -80,6 +80,29 @@ fn a_patch_wakes_the_jobs_feed_and_a_refused_one_does_not() {
     };
     app.ops().settings().patch(paused).unwrap();
     assert!(rx.has_changed().unwrap());
+    rx.borrow_and_update();
+
+    // Refused after an unpause was saved: the unpause is in effect, so the
+    // queue is woken for it.
+    let err = app
+        .ops()
+        .settings()
+        .patch(SettingsPatch {
+            paused: Some(false),
+            retention: Some(500),
+            ..SettingsPatch::default()
+        })
+        .unwrap_err();
+    assert!(matches!(err, OpError::Rejected { .. }), "{err:?}");
+    assert_eq!(
+        app.ops().settings().get().unwrap().bool("ai_queue_paused"),
+        Some(false),
+        "the field before the refused one was saved"
+    );
+    assert!(
+        rx.has_changed().unwrap(),
+        "the saved unpause wakes the queue"
+    );
 }
 
 #[test]

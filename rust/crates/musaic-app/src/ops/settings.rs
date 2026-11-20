@@ -77,8 +77,9 @@ impl Settings<'_> {
     /// (fields before it stay written, as always), a keyring that cannot save
     /// a key is `Unavailable` with nothing written. Publishes `SettingsChanged`
     /// once with the names written, wakes the AI queue, and when a non-empty
-    /// AcoustID key was set restarts the fingerprint pool on the library so
-    /// stored fingerprints get their lookups now.
+    /// AcoustID key was saved restarts the fingerprint pool on the library so
+    /// stored fingerprints get their lookups now. A refused patch that saved
+    /// fields before the refused one does both for what it saved.
     pub fn patch(&self, patch: SettingsPatch) -> Result<SettingsRecord, OpError> {
         let kick_pool = patch.sets_acoustid_key();
         let _guard = self.app.gate().begin_work()?;
@@ -86,24 +87,30 @@ impl Settings<'_> {
         // The providers `jobs.providers` lists.
         let listed = self.app.ai_provider_ids();
         let listed: Vec<&str> = listed.iter().map(String::as_str).collect();
-        musaic_services::settings_patch::apply_patch(
+        let out = musaic_services::settings_patch::apply_patch(
             conn,
             self.app.0.secrets.as_ref(),
             patch,
             &listed,
             self.app.log(),
             self.app.bus(),
-        )?;
+        );
         // Wake the AI dispatcher (a max_parallel bump or an unpause) and the
-        // jobs streams.
-        self.app.ai_jobs_changed();
-        if kick_pool {
+        // jobs streams: after a patch that went through, and after a refused
+        // one that saved the fields before the refused one (they are in
+        // effect), so an unpause saved that way is not left waiting for the
+        // queue's next periodic wake.
+        if out.result.is_ok() || !out.saved.is_empty() {
+            self.app.ai_jobs_changed();
+        }
+        if kick_pool && out.saved.contains(&"acoustid_api_key") {
             musaic_services::settings_patch::kick_fingerprint_pool(
                 &self.app.0.pool,
                 self.app.library_dir(),
                 || self.app.pool_deps(),
             );
         }
+        out.result?;
         self.get()
     }
 

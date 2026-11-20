@@ -119,6 +119,30 @@ pub fn apply_patch(
     listed_providers: &[&str],
     log: &dyn HostLog,
     bus: &musaic_events::Bus,
+) -> PatchOutcome {
+    let mut saved = Vec::new();
+    let result = apply_patch_into(conn, store, patch, listed_providers, log, bus, &mut saved);
+    PatchOutcome { saved, result }
+}
+
+/// What [`apply_patch`] did: the settings it saved, which a refused patch
+/// may also have (the fields before the refused one stay saved), and
+/// whether it was refused.
+#[derive(Debug)]
+pub struct PatchOutcome {
+    /// The setting names saved (committed), in the patch's order.
+    pub saved: Vec<&'static str>,
+    pub result: Result<(), OpError>,
+}
+
+fn apply_patch_into(
+    conn: Connection,
+    store: &dyn musaic_secrets::SecretStore,
+    patch: SettingsPatch,
+    listed_providers: &[&str],
+    log: &dyn HostLog,
+    bus: &musaic_events::Bus,
+    saved: &mut Vec<&'static str>,
 ) -> Result<(), OpError> {
     let SettingsPatch {
         max_parallel,
@@ -259,6 +283,7 @@ pub fn apply_patch(
     }
     // Committed: what was written is in effect, also when a later field
     // was refused.
+    saved.extend(keys.iter().copied());
     if !keys.is_empty() {
         bus.publish(&musaic_events::Event::SettingsChanged {
             keys: keys.iter().map(|k| k.to_string()).collect(),

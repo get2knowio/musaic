@@ -223,9 +223,10 @@ take the guard before the meaning validation, listed per row and below).
   `RestoreError` (including a database failure during the swap) answer 400 today, so
   they are all `Rejected`, not `NotFound` / `Internal`.
 - A failed patch can have written the fields before the refused one (secrets included) and
-  publishes `SettingsChanged` for them; `settings.patch` keeps that. It does not wake the
-  job queue then (an unpause saved before the refusal waits for the queue's next wake), as
-  the route did not.
+  publishes `SettingsChanged` for them; `settings.patch` keeps that, and also wakes the job
+  queue for them (and restarts the fingerprint pool when the AcoustID key was among them),
+  which the route did not: an unpause saved before the refusal took effect only at the
+  queue's next periodic wake (#312).
 - The backup is written to a scratch directory the result owns (`database.backup`; `backup_to`
   writes into a directory the caller names) and no longer holds the database file lock while the HTTP face reads the copy into its response.
 - `SettingsRecord` keeps `serde_json` (in `record.rs`, the allow-list) because the
