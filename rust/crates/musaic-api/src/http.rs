@@ -47,12 +47,6 @@ impl ApiError {
     }
 }
 
-impl From<musaic_services::HttpError> for ApiError {
-    fn from(e: musaic_services::HttpError) -> Self {
-        ApiError::new(e.status, e.detail)
-    }
-}
-
 impl From<musaic_db::Error> for ApiError {
     fn from(e: musaic_db::Error) -> Self {
         ApiError::internal(e)

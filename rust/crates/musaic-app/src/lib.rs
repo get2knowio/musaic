@@ -19,6 +19,8 @@
 //!   stream's start-unless-running-then-subscribe step.
 //! - [`logging`]: the app's log ([`logging::AppLog`], [`logging::Masks`],
 //!   [`logging::MaskingStore`]) and the binary's rotating server log.
+//! - [`ops`]: the operations surface (`App::ops()`): typed, blocking operations
+//!   and the error type every face handles.
 //! - [`work`]: what is running now ([`work::WorkSnapshot`]).
 
 pub mod ai;
@@ -26,6 +28,7 @@ pub mod app;
 pub mod envs;
 pub mod jobs;
 pub mod logging;
+pub mod ops;
 pub mod scan;
 pub mod work;
 

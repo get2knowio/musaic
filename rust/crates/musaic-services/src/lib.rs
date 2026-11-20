@@ -3,8 +3,8 @@
 //! (`musaic/services/scan.py`). Plain synchronous code: no HTTP, no async
 //! runtime.
 //!
-//! - [`apply`]: [`apply::apply_album_changes`] yields the Python app's
-//!   `(event, payload)` items to a sink that can stop reading (a non-dry
+//! - [`apply`]: [`apply::apply_album_changes`] hands a typed
+//!   [`apply::ApplyEvent`] per step to a sink that can stop reading (a non-dry
 //!   run still completes every step);
 //!   [`apply::apply_direct`] is the check-fix consumer; the router checks
 //!   ([`apply::resolve_album`], [`apply::validate_cover_upload`]).
@@ -64,6 +64,7 @@ pub mod check_sweep;
 pub mod clock;
 pub mod covers;
 pub mod db_admin;
+pub mod error;
 pub mod fingerprint;
 pub mod fingerprint_pool;
 pub mod fix_flow;
@@ -91,10 +92,11 @@ pub mod track_tags;
 pub mod vocabulary;
 
 pub use apply::{
-    ApplyEnv, ApplyItem, ApplyOutcome, ApplyRequest, CoverSource, HttpError, NoCovers,
-    ResolvedAlbum, apply_album_changes, apply_direct, missing_album_detail, refuse_missing,
-    resolve_album, validate_cover_upload,
+    ApplyEnv, ApplyEvent, ApplyOutcome, ApplyRequest, CoverSource, NoCovers, ResolvedAlbum,
+    apply_album_changes, apply_direct, missing_album_detail, refuse_missing, resolve_album,
+    validate_cover_upload,
 };
+pub use error::{OpError, Subject};
 pub use json::Json;
 /// What an apply may remove (the HTTP layer validates a request against it).
 pub use musaic_tags::{
@@ -102,6 +104,6 @@ pub use musaic_tags::{
     removable_album_fields, removable_track_fields,
 };
 pub use scan::{
-    CancelScan, Poll, ScanDeps, ScanEvent, ScanJob, ScanService, ScanState, ScanStatus,
-    ScanSubscription, StartScan,
+    CancelPhase, CancelScan, Poll, ScanCancelled, ScanDeps, ScanDone, ScanEvent, ScanEventKind,
+    ScanJob, ScanService, ScanState, ScanStatus, ScanSubscription, StartScan,
 };
