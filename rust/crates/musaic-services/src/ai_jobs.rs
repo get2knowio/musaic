@@ -1,20 +1,20 @@
 //! The AI job queue's rules over the database (`musaic/api/jobs.py`): what
-//! enqueue,
-//! acted-on, retry, delete and bulk delete check and write, and the
-//! provider selection's stored defaults. This lives here rather than in
-//! musaic-api's `routes/jobs.rs` so a non-HTTP face applies the same
-//! rules. Rendering jobs (`musaic_ai::job_to_py`), the queue state and the
-//! provider's own description stay with the host: musaic-ai depends on this
-//! crate.
+//! enqueue, acted-on, retry, delete and bulk delete check and write, and the
+//! provider selection's stored defaults. This lives here rather than in a
+//! face so every face applies the same rules. Rendering jobs
+//! (`musaic_ai::job_to_py`), the queue state and the provider's own
+//! description stay with the host: musaic-ai depends on this crate.
 //!
-//! Each refusal carries the Python app's detail text ([`JobRefusal::detail`]);
-//! the HTTP host maps it to its status code. An active-job conflict is not
-//! a refusal: it is answered with the existing job ([`Conflict`]).
+//! Every refusal is an [`OpError`] whose message is the Python app's detail
+//! text; a face maps the variant to its own answer. An album that already has
+//! an active job is a [`OpError::Conflict`] carrying the existing job
+//! ([`Details::ExistingJob`]).
 
 use musaic_db::ai_jobs::{self, EnqueueRefused, JOB_TYPES, JobRow, NewJob, STATUSES};
 use rusqlite::Connection;
 
 use crate::albums::AlbumRow;
+use crate::error::{Details, OpError, Subject};
 use crate::host_log::HostLog;
 
 fn repr(s: &str) -> String {
@@ -29,180 +29,106 @@ fn list_repr(items: &[String]) -> String {
     )
 }
 
-/// Why a job operation was refused (the Python app's `HTTPException`s).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum JobRefusal {
-    /// 400 `Unknown job_type '...'`.
-    UnknownJobType(String),
-    /// 404 `Album '...' not in cache; rescan first`.
-    AlbumNotInCache(String),
-    /// 404 `Job not found`.
-    NotFound,
-    /// 409: acted-on for a job that is not completed (its status).
-    ActedOnNotCompleted(String),
-    /// 400: an action other than applied / discarded.
-    BadAction,
-    /// 409: retry of a job that is not failed (its status).
-    RetryNotFailed(String),
-    /// 409: the job changed between the check and the retry.
-    RetryStateChanged,
-    /// 409: delete of a running job.
-    DeleteRunning,
-    /// 400: bulk delete with no status left after trimming.
-    BulkNoStatus,
-    /// 400: bulk delete naming unknown statuses.
-    BulkUnknownStatus(Vec<String>),
-    /// 409: bulk delete naming `running`.
-    BulkRunning,
-}
-
-impl JobRefusal {
-    /// The Python app's status code.
-    pub fn status(&self) -> u16 {
-        match self {
-            JobRefusal::UnknownJobType(_)
-            | JobRefusal::BadAction
-            | JobRefusal::BulkNoStatus
-            | JobRefusal::BulkUnknownStatus(_) => 400,
-            JobRefusal::AlbumNotInCache(_) | JobRefusal::NotFound => 404,
-            JobRefusal::ActedOnNotCompleted(_)
-            | JobRefusal::RetryNotFailed(_)
-            | JobRefusal::RetryStateChanged
-            | JobRefusal::DeleteRunning
-            | JobRefusal::BulkRunning => 409,
-        }
-    }
-
-    /// The Python app's `detail` text.
-    pub fn detail(&self) -> String {
-        match self {
-            JobRefusal::UnknownJobType(t) => format!("Unknown job_type {}", repr(t)),
-            JobRefusal::AlbumNotInCache(id) => {
-                format!("Album {} not in cache; rescan first", repr(id))
-            }
-            JobRefusal::NotFound => "Job not found".to_string(),
-            JobRefusal::ActedOnNotCompleted(status) => format!(
-                "Can only mark a completed job as acted-on (current status: {})",
-                status
-            ),
-            JobRefusal::BadAction => "action must be 'applied' or 'discarded'".to_string(),
-            JobRefusal::RetryNotFailed(status) => {
-                format!("Can only retry a failed job (current status: {})", status)
-            }
-            JobRefusal::RetryStateChanged => "Job state changed; refresh and try again".to_string(),
-            JobRefusal::DeleteRunning => {
-                "Can't delete a job while it's running. Wait for it to finish.".to_string()
-            }
-            JobRefusal::BulkNoStatus => "status query param is required".to_string(),
-            JobRefusal::BulkUnknownStatus(invalid) => {
-                format!("Unknown status: {}", list_repr(invalid))
-            }
-            JobRefusal::BulkRunning => {
-                "Bulk delete cannot include 'running' jobs. Wait for them to finish.".to_string()
-            }
-        }
+fn rejected(message: String) -> OpError {
+    OpError::Rejected {
+        message,
+        details: None,
     }
 }
 
-/// A job operation's failure: a database error, a refusal, or (check-fix
-/// enqueue only) an unexpected job type, which the host treats as an
-/// internal error.
-#[derive(Debug)]
-pub enum JobError {
-    Db(musaic_db::Error),
-    Refused(JobRefusal),
-    Internal(String),
-}
-
-impl From<musaic_db::Error> for JobError {
-    fn from(e: musaic_db::Error) -> Self {
-        JobError::Db(e)
+fn conflict(message: String) -> OpError {
+    OpError::Conflict {
+        message,
+        details: None,
     }
 }
 
-impl From<rusqlite::Error> for JobError {
-    fn from(e: rusqlite::Error) -> Self {
-        JobError::Db(e.into())
-    }
-}
-
-impl From<JobRefusal> for JobError {
-    fn from(r: JobRefusal) -> Self {
-        JobError::Refused(r)
+fn job_not_found(job_id: &str) -> OpError {
+    OpError::NotFound {
+        what: Subject::Job,
+        id: job_id.to_string(),
+        message: "Job not found".to_string(),
     }
 }
 
 /// `JobConflictError`: the album already has an active job (its id and
-/// status).
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Conflict {
-    pub existing_job_id: String,
-    pub status: String,
+/// status), carried so a face can show it.
+fn active_job(existing_job_id: String, status: String) -> OpError {
+    OpError::Conflict {
+        message: format!("Active job {existing_job_id} ({status}) already exists for this album"),
+        details: Some(Details::ExistingJob {
+            job_id: existing_job_id,
+            status,
+        }),
+    }
 }
 
 // ------------------------------------------------------------- enqueue
 
 /// `POST /api/ai/jobs`' first check, before any database access: the job
-/// type must be one of [`JOB_TYPES`].
-pub fn check_job_type(job_type: &str) -> Result<(), JobRefusal> {
+/// type must be one of [`JOB_TYPES`] (`Rejected`).
+pub fn check_job_type(job_type: &str) -> Result<(), OpError> {
     if !JOB_TYPES.contains(&job_type) {
-        return Err(JobRefusal::UnknownJobType(job_type.to_string()));
+        return Err(rejected(format!("Unknown job_type {}", repr(job_type))));
     }
     Ok(())
 }
 
 /// The album a job is enqueued for: cached in the configured library, or
-/// [`JobRefusal::AlbumNotInCache`].
+/// `NotFound`.
 pub fn album_for_job(
     conn: &Connection,
     library_dir: Option<&str>,
     album_id: &str,
-) -> Result<AlbumRow, JobError> {
+) -> Result<AlbumRow, OpError> {
     match crate::sources::cached_album(conn, library_dir, album_id)? {
         Some(row) => Ok(row),
-        None => Err(JobRefusal::AlbumNotInCache(album_id.to_string()).into()),
+        None => Err(OpError::NotFound {
+            what: Subject::Album,
+            id: album_id.to_string(),
+            message: format!("Album {} not in cache; rescan first", repr(album_id)),
+        }),
     }
 }
 
-/// `jobs.enqueue(...)` as `POST /api/ai/jobs` runs it: the new job
-/// (`notify` called once its row is written), or the active job's
-/// [`Conflict`]; an unknown job type is [`JobRefusal::UnknownJobType`].
+/// `jobs.enqueue(...)` as `POST /api/ai/jobs` runs it: the new job (`notify`
+/// called once its row is written); an unknown job type is `Rejected`, an
+/// album with an active job `Conflict` with that job.
 pub fn enqueue(
     conn: &mut Connection,
     job: &NewJob<'_>,
     ids: &dyn Fn() -> String,
     now_iso: &str,
     notify: &dyn Fn(),
-) -> Result<Result<JobRow, Conflict>, JobError> {
-    let out = ai_jobs::enqueue(conn, job, ids, now_iso)?;
-    match out {
+) -> Result<JobRow, OpError> {
+    match ai_jobs::enqueue(conn, job, ids, now_iso)? {
         Ok(job) => {
             notify();
-            Ok(Ok(job))
+            Ok(job)
         }
         Err(EnqueueRefused::Conflict {
             existing_job_id,
             status,
-        }) => Ok(Err(Conflict {
-            existing_job_id,
-            status,
-        })),
-        Err(EnqueueRefused::UnknownJobType(t)) => Err(JobRefusal::UnknownJobType(t).into()),
+        }) => Err(active_job(existing_job_id, status)),
+        Err(EnqueueRefused::UnknownJobType(t)) => {
+            Err(rejected(format!("Unknown job_type {}", repr(&t))))
+        }
     }
 }
 
 /// What a check fix does where the Python app called `jobs.enqueue(...)`
-/// (checks/*.py): the new job, or the existing active job's (id, status).
-/// The caller notifies once the fix has finished (a deliberate change: the
-/// Python app did not notify at all). Differs from [`enqueue`]: the album
-/// fields come from the fix, the cover is always attached, nothing is
-/// notified here, and an unknown job type is [`JobError::Internal`].
+/// (checks/*.py): the new job's id, or the existing active job's (id,
+/// status). The caller notifies once the fix has finished (a deliberate
+/// change: the Python app did not notify at all). Differs from [`enqueue`]:
+/// the album fields come from the fix, the cover is always attached, nothing
+/// is notified here, an active job is an answer and not an error, and an
+/// unknown job type is `Internal`.
 pub fn enqueue_for_fix(
     conn: &mut Connection,
     req: &crate::check_fixes::AiJobRequest,
     ids: &dyn Fn() -> String,
     now_iso: &str,
-) -> Result<Result<String, (String, String)>, JobError> {
+) -> Result<Result<String, (String, String)>, OpError> {
     let job = NewJob {
         album_id: &req.album_id,
         album_path: &req.album_path,
@@ -211,14 +137,16 @@ pub fn enqueue_for_fix(
         hint: &req.hint,
         attach_cover: true,
     };
-    match enqueue(conn, &job, ids, now_iso, &|| {}) {
-        Ok(Ok(job)) => Ok(Ok(job.id)),
-        Ok(Err(c)) => Ok(Err((c.existing_job_id, c.status))),
+    match ai_jobs::enqueue(conn, &job, ids, now_iso)? {
+        Ok(job) => Ok(Ok(job.id)),
+        Err(EnqueueRefused::Conflict {
+            existing_job_id,
+            status,
+        }) => Ok(Err((existing_job_id, status))),
         // The type comes from the fix, not from a client: a bad one is a bug.
-        Err(JobError::Refused(JobRefusal::UnknownJobType(t))) => {
-            Err(JobError::Internal(format!("unknown job type {t}")))
+        Err(EnqueueRefused::UnknownJobType(t)) => {
+            Err(OpError::internal(format!("unknown job type {t}")))
         }
-        Err(e) => Err(e),
     }
 }
 
@@ -236,13 +164,18 @@ pub fn mark_acted_on(
     now_iso: &dyn Fn() -> String,
     log: &dyn HostLog,
     notify: &dyn Fn(),
-) -> Result<JobRow, JobError> {
-    let job = ai_jobs::get_job(conn, job_id)?.ok_or(JobRefusal::NotFound)?;
+) -> Result<JobRow, OpError> {
+    let job = ai_jobs::get_job(conn, job_id)?.ok_or_else(|| job_not_found(job_id))?;
     if job.status != "completed" {
-        return Err(JobRefusal::ActedOnNotCompleted(job.status).into());
+        return Err(conflict(format!(
+            "Can only mark a completed job as acted-on (current status: {})",
+            job.status
+        )));
     }
     if action != "applied" && action != "discarded" {
-        return Err(JobRefusal::BadAction.into());
+        return Err(rejected(
+            "action must be 'applied' or 'discarded'".to_string(),
+        ));
     }
     let now = now_iso();
     ai_jobs::mark_acted_on(conn, job_id, action, &now)?;
@@ -258,64 +191,68 @@ pub fn mark_acted_on(
         );
     }
     notify();
-    let job = ai_jobs::get_job(conn, job_id)?.ok_or(JobRefusal::NotFound)?;
+    let job = ai_jobs::get_job(conn, job_id)?.ok_or_else(|| job_not_found(job_id))?;
     Ok(job)
 }
 
 /// `POST /api/ai/jobs/{job_id}/retry`: a failed job back to queued; 404,
-/// or 409 unless failed. The album's other active job is answered as a
-/// [`Conflict`], and the failure excerpt is cleared with the error (both
+/// or 409 unless failed. The album's other active job is a `Conflict` with
+/// that job, and the failure excerpt is cleared with the error (both
 /// deliberate changes from the Python app).
 pub fn retry(
     conn: &mut Connection,
     job_id: &str,
     now_iso: &dyn Fn() -> String,
     notify: &dyn Fn(),
-) -> Result<Result<JobRow, Conflict>, JobError> {
-    let job = ai_jobs::get_job(conn, job_id)?.ok_or(JobRefusal::NotFound)?;
+) -> Result<JobRow, OpError> {
+    let job = ai_jobs::get_job(conn, job_id)?.ok_or_else(|| job_not_found(job_id))?;
     if job.status != "failed" {
-        return Err(JobRefusal::RetryNotFailed(job.status).into());
+        return Err(conflict(format!(
+            "Can only retry a failed job (current status: {})",
+            job.status
+        )));
     }
     match ai_jobs::retry_job(conn, job_id, &now_iso())? {
         ai_jobs::RetryOutcome::Retried(updated) => {
             notify();
-            Ok(Ok(*updated))
+            Ok(*updated)
         }
         ai_jobs::RetryOutcome::OtherActive {
             existing_job_id,
             status,
-        } => Ok(Err(Conflict {
-            existing_job_id,
-            status,
-        })),
-        ai_jobs::RetryOutcome::NotFailed => Err(JobRefusal::RetryStateChanged.into()),
+        } => Err(active_job(existing_job_id, status)),
+        ai_jobs::RetryOutcome::NotFailed => Err(conflict(
+            "Job state changed; refresh and try again".to_string(),
+        )),
     }
 }
 
 /// `DELETE /api/ai/jobs/{job_id}`: 404, 409 while running.
-pub fn delete(conn: &Connection, job_id: &str, notify: &dyn Fn()) -> Result<(), JobError> {
-    let job = ai_jobs::get_job(conn, job_id)?.ok_or(JobRefusal::NotFound)?;
+pub fn delete(conn: &Connection, job_id: &str, notify: &dyn Fn()) -> Result<(), OpError> {
+    let job = ai_jobs::get_job(conn, job_id)?.ok_or_else(|| job_not_found(job_id))?;
     if job.status == "running" {
-        return Err(JobRefusal::DeleteRunning.into());
+        return Err(conflict(
+            "Can't delete a job while it's running. Wait for it to finish.".to_string(),
+        ));
     }
     if !ai_jobs::delete_job(conn, job_id)? {
-        return Err(JobRefusal::NotFound.into());
+        return Err(job_not_found(job_id));
     }
     notify();
     Ok(())
 }
 
-/// `DELETE /api/ai/jobs?status=a,b`'s statuses: trimmed, blank entries
-/// dropped; refused when none is left or one is unknown, and when `running`
-/// is named. No database access.
-pub fn bulk_delete_statuses(status: &str) -> Result<Vec<String>, JobRefusal> {
+/// `DELETE /api/ai/jobs?status=a,b`'s statuses: each trimmed, blank entries
+/// dropped; `Rejected` when none is left or one is unknown, `Conflict` when
+/// `running` is named. No database access.
+pub fn bulk_delete_statuses(status: &[String]) -> Result<Vec<String>, OpError> {
     let statuses: Vec<String> = status
-        .split(',')
+        .iter()
         .map(|s| musaic_core::pycompat::strip(s).to_string())
         .filter(|s| !s.is_empty())
         .collect();
     if statuses.is_empty() {
-        return Err(JobRefusal::BulkNoStatus);
+        return Err(rejected("status query param is required".to_string()));
     }
     let invalid: Vec<String> = statuses
         .iter()
@@ -323,10 +260,12 @@ pub fn bulk_delete_statuses(status: &str) -> Result<Vec<String>, JobRefusal> {
         .cloned()
         .collect();
     if !invalid.is_empty() {
-        return Err(JobRefusal::BulkUnknownStatus(invalid));
+        return Err(rejected(format!("Unknown status: {}", list_repr(&invalid))));
     }
     if statuses.iter().any(|s| s == "running") {
-        return Err(JobRefusal::BulkRunning);
+        return Err(conflict(
+            "Bulk delete cannot include 'running' jobs. Wait for them to finish.".to_string(),
+        ));
     }
     Ok(statuses)
 }
@@ -337,7 +276,7 @@ pub fn bulk_delete(
     conn: &Connection,
     statuses: &[String],
     notify: &dyn Fn(),
-) -> Result<usize, JobError> {
+) -> Result<usize, OpError> {
     let n = ai_jobs::delete_jobs_by_status(conn, statuses)?;
     if n > 0 {
         notify();

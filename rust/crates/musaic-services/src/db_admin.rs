@@ -3,9 +3,11 @@
 //! the backup copy, the restore sequence under the restore gate (stop the
 //! fingerprint pool, the test hook, the file lock, swap, the after-restore
 //! work) and snapshot creation with its retention. It lives here rather than
-//! in musaic-api so a non-HTTP face backs up and restores the same way. The host takes the gate's guards (a restore's
-//! [`crate::gate::RestoreGuard`], a snapshot's work guard), receives the
-//! upload, and renders the results.
+//! in musaic-api so a non-HTTP face backs up and restores the same way. The
+//! caller takes the gate's guards (a restore's [`crate::gate::RestoreGuard`], a
+//! snapshot's work guard) and supplies the upload as a file; a refusal is an
+//! [`OpError`] (a refused restore or a bad snapshot name `Rejected`, snapshots
+//! disabled `Conflict`, anything unexpected `Internal`).
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -15,6 +17,7 @@ use musaic_db::backup::{self, CreatedSnapshot, RestoreError, RestoreFailed, Rest
 use musaic_db::settings::get_int;
 
 use crate::check_sweep::CheckSweeper;
+use crate::error::OpError;
 use crate::fingerprint_pool::FingerprintPool;
 use crate::gate::DbGate;
 
@@ -44,6 +47,23 @@ pub enum ScratchError {
     Exhausted,
 }
 
+impl From<ScratchError> for OpError {
+    fn from(e: ScratchError) -> Self {
+        OpError::internal(e)
+    }
+}
+
+/// A refused restore, or a snapshot name that is not acceptable: understood and
+/// refused, with the restore's own sentence.
+impl From<RestoreError> for OpError {
+    fn from(e: RestoreError) -> Self {
+        OpError::Rejected {
+            message: e.to_string(),
+            details: None,
+        }
+    }
+}
+
 /// A fresh scratch directory under `<config>/tmp`.
 pub fn tempdir_in_config(config_dir: &Path) -> Result<TempDir, ScratchError> {
     let base = config_dir.join("tmp");
@@ -57,29 +77,20 @@ pub fn tempdir_in_config(config_dir: &Path) -> Result<TempDir, ScratchError> {
     Err(ScratchError::Exhausted)
 }
 
-/// Make a backup copy of the database in a fresh scratch directory and
-/// hand its path and filename tag to `respond` (the host reads it into its
-/// answer), all under the file lock for reading. The scratch directory is
-/// removed once `respond` returns. Errors convert into the host's error
-/// type where they happen.
-pub fn backup_with<R, E>(
+/// Make a backup copy of the database in `dir` (a directory of the caller's,
+/// which owns its removal) under the file lock for reading, and return the
+/// copy's path and the filename tag it was named with.
+pub fn backup_into(
     db_gate: &DbGate,
-    open: impl FnOnce() -> Result<Db, E>,
-    config_dir: &Path,
+    open: impl FnOnce() -> Result<Db, OpError>,
+    dir: &Path,
     clock: &dyn Fn() -> SystemTime,
-    respond: impl FnOnce(&Path, &str) -> Result<R, E>,
-) -> Result<R, E>
-where
-    E: From<musaic_db::Error> + From<ScratchError>,
-{
+) -> Result<(PathBuf, String), OpError> {
     let _g = db_gate.read().unwrap_or_else(|e| e.into_inner());
     let db = open()?;
-    let tmp = tempdir_in_config(config_dir)?;
     let tag = backup::filename_tag(clock());
-    let path = backup::make_backup_in(&db, tmp.path(), &tag)?;
-    let r = respond(&path, &tag)?;
-    drop(tmp);
-    Ok(r)
+    let path = backup::make_backup_in(&db, dir, &tag)?;
+    Ok((path, tag))
 }
 
 /// The background workers that hold no work guard, which a restore quiets
@@ -99,18 +110,15 @@ pub struct BackgroundWork<'a> {
 /// on success `after` with the restored database while the lock is still
 /// held (the secret scrub, the resolver memo). A refused restore converts
 /// into the host's error type ([`RestoreError`], a 400 for HTTP).
-pub fn restore_with<E>(
+pub fn restore_with(
     background: BackgroundWork<'_>,
     on_restore: Option<&(dyn Fn() + Send + Sync)>,
     db_gate: &DbGate,
-    open: impl FnOnce() -> Result<Db, E>,
+    open: impl FnOnce() -> Result<Db, OpError>,
     clock: &dyn Fn() -> SystemTime,
     swap: impl FnOnce(Db, &str, SystemTime) -> Result<(Db, RestoreInfo), Box<RestoreFailed>>,
     after: impl FnOnce(&Db),
-) -> Result<RestoreInfo, E>
-where
-    E: From<RestoreError>,
-{
+) -> Result<RestoreInfo, OpError> {
     background.pool.stop();
     let _sweep = background.sweeper.suspend();
     if let Some(h) = on_restore {
@@ -124,34 +132,37 @@ where
             after(&db);
             Ok(info)
         }
-        Err(f) => Err(E::from(f.error)),
+        Err(f) => Err(OpError::from(f.error)),
     }
 }
 
 /// 409 detail when a snapshot is asked for with retention 0.
 pub const SNAPSHOTS_DISABLED: &str = "Snapshotting is disabled (retention count is 0). Set snapshot_retention_count > 0 in Settings first.";
 
-/// Snapshotting is disabled (retention count 0; a 409 for HTTP).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct SnapshotsDisabled;
+impl OpError {
+    /// Snapshotting is disabled (retention count 0): `Conflict`.
+    fn snapshots_disabled() -> OpError {
+        OpError::Conflict {
+            message: SNAPSHOTS_DISABLED.to_string(),
+            details: None,
+        }
+    }
+}
 
 /// Create a named snapshot in `snapshot_dir` under the file lock for
 /// reading, pruning to the retention count (`snapshot_retention_count`,
 /// clamped to 0..=100; 0 refuses). The caller holds a work guard.
-pub fn create_snapshot_with<E>(
+pub fn create_snapshot_with(
     db_gate: &DbGate,
-    open: impl FnOnce() -> Result<Db, E>,
+    open: impl FnOnce() -> Result<Db, OpError>,
     snapshot_dir: &Path,
     clock: &dyn Fn() -> SystemTime,
-) -> Result<CreatedSnapshot, E>
-where
-    E: From<musaic_db::Error> + From<SnapshotsDisabled>,
-{
+) -> Result<CreatedSnapshot, OpError> {
     let _g = db_gate.read().unwrap_or_else(|e| e.into_inner());
     let db = open()?;
     let retention = get_int(db.connection(), "snapshot_retention_count", 10)?.clamp(0, 100);
     if retention <= 0 {
-        return Err(E::from(SnapshotsDisabled));
+        return Err(OpError::snapshots_disabled());
     }
     let now = clock();
     Ok(backup::create_snapshot(

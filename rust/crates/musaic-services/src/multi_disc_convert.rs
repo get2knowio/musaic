@@ -82,6 +82,7 @@ use serde_json::{Value, json};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::apply::{ApplyEnv, NoCovers};
+use crate::error::{Blocker, Details, OpError, Refusal as ErrRefusal, Subject};
 use crate::scan::ScanService;
 
 /// `<config dir>/conversions`, where the records are kept.
@@ -159,8 +160,20 @@ pub struct ConvertEnv<'a> {
     /// Suspended for the whole conversion, for the same reason (findings
     /// and inputs under a member id).
     pub sweeper: Option<&'a crate::check_sweep::CheckSweeper>,
-    /// Told what a long conversion is doing (`{step, done, total}`).
+    /// Told what a long conversion is doing (`{step, done, total}`). The
+    /// JSON form, kept for the callers that already hand one in.
     pub progress: Option<std::sync::Arc<dyn Fn(Value) + Send + Sync>>,
+    /// The same report, typed: what an operation's sink is fed from.
+    pub on_progress: Option<&'a dyn Fn(ConvertProgress)>,
+}
+
+/// What a long conversion is doing: the step it is in and how far along.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConvertProgress {
+    /// `rename_files` | `write_tags` | `move_files`.
+    pub step: String,
+    pub done: usize,
+    pub total: usize,
 }
 
 /// The numbers to write to the file the record calls `new_name`: exactly
@@ -190,6 +203,13 @@ pub(crate) fn recorded_numbers(
 pub(crate) fn report(env: &ConvertEnv<'_>, step: &str, done: usize, total: usize) {
     if let Some(p) = &env.progress {
         p(json!({"step": step, "done": done, "total": total}));
+    }
+    if let Some(p) = env.on_progress {
+        p(ConvertProgress {
+            step: step.to_string(),
+            done,
+            total,
+        });
     }
 }
 
@@ -226,6 +246,53 @@ impl Refusal {
         let mut m = self.extra.clone();
         m.insert("detail".into(), json!(self.detail));
         Value::Object(m)
+    }
+
+    /// The refusal as the operation's error: the status picks the variant, the
+    /// code, sentence, blockers and fresh digest travel as typed details.
+    /// `finding_id` is the finding the request named (a 404's subject).
+    pub fn into_op_error(self, finding_id: i64) -> OpError {
+        let text = |k: &str| {
+            self.extra
+                .get(k)
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        };
+        let reason_code = text("reason_code").unwrap_or_default();
+        let blockers = self
+            .extra
+            .get("blockers")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .map(|b| Blocker {
+                        code: b["code"].as_str().unwrap_or_default().to_string(),
+                        message: b["message"].as_str().unwrap_or_default().to_string(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let details = Some(Details::Refusal(Box::new(ErrRefusal {
+            user_message: text("user_message").unwrap_or_else(|| self.detail.clone()),
+            digest: text("digest"),
+            reason_code: reason_code.clone(),
+            blockers,
+        })));
+        let message = self.detail;
+        match self.status {
+            400 => OpError::Rejected { message, details },
+            404 => OpError::NotFound {
+                what: if reason_code == Reason::AlbumNotFound.code() {
+                    Subject::Album
+                } else {
+                    Subject::Finding
+                },
+                id: finding_id.to_string(),
+                message,
+            },
+            409 => OpError::Conflict { message, details },
+            _ => OpError::Failed { message, details },
+        }
     }
 }
 
@@ -759,13 +826,9 @@ fn run_steps(
                 &dir.to_string_lossy(),
                 env.library_dir,
                 &conversion,
-                &mut |item| {
-                    if item.event == "error" {
-                        apply_error = item
-                            .data
-                            .get("detail")
-                            .and_then(crate::Json::as_str)
-                            .map(str::to_string);
+                &mut |event| {
+                    if let crate::apply::ApplyEvent::Error { detail } = event {
+                        apply_error = Some(detail);
                     }
                     ControlFlow::Continue(())
                 },

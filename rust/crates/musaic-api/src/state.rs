@@ -17,15 +17,11 @@ use std::time::Duration;
 
 use musaic_app::{App, AppBuilder, AppInner};
 use musaic_checks::ResolutionSource;
-use musaic_db::Db;
 use musaic_scan::TrackOrder;
 use musaic_services::check_fixes::FixSources;
 use musaic_services::fingerprint_pool::PoolSleeper;
-use rusqlite::Connection;
 
-use crate::gate::WorkGuard;
 use crate::host_check::AllowedHosts;
-use crate::http::ApiError;
 use crate::keyscrub::Logger;
 use crate::logging::{LogSink, Masks};
 use crate::sources::{Fingerprinting, Network};
@@ -286,22 +282,28 @@ impl AppState {
         &self.0.app
     }
 
-    /// A [`WorkGuard`] for writing work, or the 409.
-    pub(crate) fn begin_work(&self) -> Result<WorkGuard, ApiError> {
-        Ok(self.0.gate.begin_work()?)
+    /// The directory of the built UI, when the app serves one.
+    pub fn frontend_dir(&self) -> Option<&std::path::Path> {
+        self.0.frontend_dir.as_deref()
     }
 
-    /// [`Self::begin_work`] labelled with the kind of work.
-    pub(crate) fn begin_work_as(&self, kind: crate::gate::WorkKind) -> Result<WorkGuard, ApiError> {
-        Ok(self.0.gate.begin(kind)?)
+    /// How long an event stream stays silent before a `: ping`.
+    pub fn ping_interval(&self) -> Duration {
+        self.0.ping_interval
     }
 
-    pub(crate) fn conn(&self) -> Result<Connection, ApiError> {
-        open_conn(self.db_path()).map_err(ApiError::internal)
+    /// Host names accepted besides loopback.
+    pub fn allowed_hosts(&self) -> &AllowedHosts {
+        &self.0.allowed_hosts
     }
 
-    pub(crate) fn db(&self) -> Result<Db, ApiError> {
-        let (db, _) = Db::open(self.db_path())?;
-        Ok(db)
+    /// Cap on a cover upload's request body.
+    pub fn cover_body_limit(&self) -> usize {
+        self.0.cover_body_limit
+    }
+
+    /// Cap on a restore upload's bytes.
+    pub fn restore_upload_limit(&self) -> u64 {
+        self.0.restore_upload_limit
     }
 }

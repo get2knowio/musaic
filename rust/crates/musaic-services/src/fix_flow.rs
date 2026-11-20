@@ -21,9 +21,8 @@ use musaic_events::Bus;
 use musaic_scan::TrackOrder;
 use rusqlite::Connection;
 
-use crate::ai_jobs::JobError;
-use crate::apply::HttpError;
 use crate::check_fixes::{self, FixEnv, FixOutcome, FixResult, FixSources};
+use crate::error::OpError;
 use crate::production::{AppFixSources, Fingerprinting, NetCovers, Parts, SharedTransport};
 
 /// `datetime.now().strftime("%Y-%m-%dT%H-%M-%S")` for a trash name
@@ -102,14 +101,6 @@ pub fn with_fix_env<T>(host: FixHost<'_>, f: impl FnOnce(&mut FixEnv<'_>) -> T) 
     f(&mut env)
 }
 
-/// Why [`fix_finding`] failed: the fix itself refused (the host maps it as
-/// it maps every service refusal), or the AI job could not be written.
-#[derive(Debug)]
-pub enum FixFindingError {
-    Fix(HttpError),
-    Job(JobError),
-}
-
 /// `POST /api/checks/{check_id}/findings/{finding_id}/fix`: run the fix;
 /// where it falls through to AI ([`FixOutcome::NeedsAiJob`]) enqueue the
 /// job as the Python app's `jobs.enqueue(...)` inside `fix()` (checks/*.py):
@@ -125,17 +116,13 @@ pub fn fix_finding(
     hint: &str,
     ids: &dyn Fn() -> String,
     now_iso: &dyn Fn() -> String,
-) -> Result<(FixResult, bool), FixFindingError> {
+) -> Result<(FixResult, bool), OpError> {
     let mut enqueued = false;
-    let r = match check_fixes::fix_finding(env, check_id, finding_id, hint)
-        .map_err(FixFindingError::Fix)?
-    {
+    let r = match check_fixes::fix_finding(env, check_id, finding_id, hint)? {
         FixOutcome::Done(r) => r,
         // checks/*.py: `jobs.enqueue(...)`, or the JobConflictError answer.
         FixOutcome::NeedsAiJob(req) => {
-            match crate::ai_jobs::enqueue_for_fix(env.conn, &req, ids, &now_iso())
-                .map_err(FixFindingError::Job)?
-            {
+            match crate::ai_jobs::enqueue_for_fix(env.conn, &req, ids, &now_iso())? {
                 Ok(job_id) => {
                     enqueued = true;
                     FixResult {

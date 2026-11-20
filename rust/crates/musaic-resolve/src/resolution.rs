@@ -161,35 +161,33 @@ impl AlbumResolution {
 
 /// The Python app's trace note for an album no tier anchored. The resolver
 /// always records this text (results are memoized and also fed to the AI
-/// prompt); [`reword_notes`] rewords it where it is shown.
+/// prompt); [`AlbumResolution::reword_notes`] rewords it where it is shown.
 pub const UNANCHORED_NOTE: &str = "No anchor found via Tiers 0a-0c; AI escalation may be required";
 
 /// [`UNANCHORED_NOTE`] when no AI provider is ready.
 pub const UNANCHORED_NOTE_NEUTRAL: &str = "No anchor found via Tiers 0a-0c";
 
-/// The `notes` of a `to_dict()`
-/// as shown to the user (`GET /api/albums/{id}/resolution`, the badge
-/// tooltip). With [`AiWording::NamesAi`] nothing changes; with
-/// [`AiWording::Neutral`] [`UNANCHORED_NOTE`] becomes
-/// [`UNANCHORED_NOTE_NEUTRAL`]. The memoized resolution itself is never
-/// changed, so a change of readiness only changes what the next read shows.
-///
-/// [`AiWording::NamesAi`]: musaic_core::AiWording::NamesAi
-/// [`AiWording::Neutral`]: musaic_core::AiWording::Neutral
-pub fn reword_notes(dict: &mut serde_json::Value, wording: musaic_core::AiWording) {
-    if wording.names_ai() {
-        return;
-    }
-    if let Some(notes) = dict.get_mut("notes").and_then(|n| n.as_array_mut()) {
-        for n in notes.iter_mut() {
-            if n.as_str() == Some(UNANCHORED_NOTE) {
-                *n = serde_json::Value::from(UNANCHORED_NOTE_NEUTRAL);
+impl AlbumResolution {
+    /// The `notes` as shown to the user (`GET /api/albums/{id}/resolution`,
+    /// the badge tooltip). With [`AiWording::NamesAi`] nothing changes; with
+    /// [`AiWording::Neutral`] [`UNANCHORED_NOTE`] becomes
+    /// [`UNANCHORED_NOTE_NEUTRAL`]. Call it on a copy: the memoized resolution
+    /// itself is never changed, so a change of readiness only changes what the
+    /// next read shows.
+    ///
+    /// [`AiWording::NamesAi`]: musaic_core::AiWording::NamesAi
+    /// [`AiWording::Neutral`]: musaic_core::AiWording::Neutral
+    pub fn reword_notes(&mut self, wording: musaic_core::AiWording) {
+        if wording.names_ai() {
+            return;
+        }
+        for n in self.notes.iter_mut() {
+            if n == UNANCHORED_NOTE {
+                *n = UNANCHORED_NOTE_NEUTRAL.to_string();
             }
         }
     }
-}
 
-impl AlbumResolution {
     /// Every FLAC with its fingerprint fields only, all unresolved (for an
     /// anchored album without a tracklist, a deliberate change; the Python app's unanchored ending).
     pub fn attach_unresolved_tracks(&mut self, flac: &[FlacTrack], fp: &FingerprintMap) {

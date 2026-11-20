@@ -46,8 +46,8 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 | `musaic-checks` | Health-check framework: `Check` trait, registry of the eight checks, findings runner, post-scan reruns, the inputs digest each completed run records (`inputs.rs`) |
 | `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, the background check sweep, analysis (BPM / ReplayGain), check fixes, library operations, the multi-disc conversion (`multi_disc_convert.rs`; a set kept in several folders: `multi_disc_gather.rs`) |
 | `musaic-ai` | The job queue: persistence, worker loop, the resolver synthesizer; a provider trait with no network provider in this build |
-| `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log |
-| `musaic-api` | The HTTP face on axum: every `/api` route, SSE streams, Host/Origin check, launch-cookie gate; also a standalone server binary (`musaic-api`) used for UI development |
+| `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log; and the **operations surface**, `musaic_app::ops` (one module per group: system, library, scan, settings, database, tags, analyze, apply, checks, fixes, jobs), where every user-visible action lives with its guard, validation order, events and follow-up notifications (`docs/operations.md`) |
+| `musaic-api` | The HTTP face on axum, an adapter over `musaic_app::ops`: every `/api` route parses its request (`lax`), calls one operation and renders the result (`render/`) and the `OpError` status; also SSE framing, Host/Origin check, launch-cookie gate; and a standalone server binary (`musaic-api`) used for UI development |
 | `musaic-desktop` | The Tauri 2 shell: single-instance lock, loopback server, navigation lock, native dialogs, reveal in file manager, window state, quit handling |
 | `musaic-testdata` | Dev-only: locates public test data and the optional private test data |
 
@@ -204,7 +204,8 @@ the SSE relay). Callers never call those directly.
   `musaic-checks/src/inputs.rs`) no longer matches. It yields to scans, restores and
   any work holding the work gate, uses the background network path (and skips network
   checks offline), plans nothing while the library folder is absent, and writes only
-  what a check run writes. A settings write publishes `SettingsChanged` (names only).
+  what a check run writes. A settings write publishes `SettingsChanged` (names only); the
+  operation `settings.patch` (`musaic-app/src/ops/settings.rs`) does it, not the route.
 - Recursion guard and bulk suppression: `musaic-events/src/context.rs`
   (`in_post_scan_rerun`, `in_bulk_run`). A bulk loop runs under `in_bulk_run` and
   publishes `BulkBatchCompleted` once at the end, for one library-wide rerun instead of N.
@@ -230,7 +231,7 @@ never shows ghost rows.
 - `GET /api/checks/multi-disc-layout/findings/{id}/conversion-preview` →
   `musaic-fsops/src/multi_disc.rs` (`derive_conversion`; the plan itself is the pure
   `plan_conversion`). Read-only: no conversion is built yet.
-- Routes: `musaic-api/src/routes/checks.rs`.
+- Operations: `musaic-app/src/ops/checks.rs`; the HTTP routes over them: `musaic-api/src/routes/checks.rs`.
 
 Use stored `detail` for labels only, never as the source of what to apply.
 
@@ -329,6 +330,23 @@ nothing and nobody is marked Missing from a partial walk.
 
 New operation that touches an album's files → skip Missing albums.
 
+### 7. Operations surface: every face goes through `ops`
+
+What the app does is an operation, a blocking function on `musaic_app::ops`
+(`app.ops().<group>().<operation>(…)`); `docs/operations.md` is the inventory, one row per
+route. The operation takes the work guard, validates in the documented order, publishes the
+events and wakes the job queue; it returns typed results and `OpError`, and knows no status
+code or wire format. A face (the HTTP routes today, an MCP server or a native UI later)
+only parses, calls one operation and renders: a handler under `musaic-api/src/routes/`
+takes no guard, publishes nothing, sends no notification and calls nothing but `ops()`.
+Streams are an operation's sink or `Feed`; the face adds only framing and pings. A new
+mutation is a new operation (rule 1 still applies inside it), with an inventory row. Three
+tests hold the boundary: `musaic-app/tests/ops_boundary.rs` (no HTTP dependency or wire
+word under `src/ops/`), `musaic-api/tests/thin_handlers.rs` (every file under `routes/`
+but `mod.rs`) and `musaic-api/tests/operations_inventory.rs` (every route has a row naming
+one operation); `musaic-app/tests/ops_all_groups.rs` requires an ops test per group and
+`musaic-api/tests/stream_equivalence.rs` that the streams are the rendered events.
+
 ## Security posture (keep it)
 
 - The API binds `127.0.0.1` only. `musaic-api/src/host_check.rs` refuses requests whose
@@ -351,7 +369,8 @@ See `SECURITY.md`.
 2. Add it to `Registry::default` in `musaic-checks/src/registry.rs` (order is display
    order).
 3. A fix, if any, goes in `musaic-services/src/check_fixes.rs`, and mutates through the
-   apply pipeline or publishes the matching event (rule 1).
+   apply pipeline or publishes the matching event (rule 1). The face reaches it through
+   `musaic_app::ops::fixes` (rule 7), never from a route.
 4. Exclude Missing albums (rule 6); store references in findings (rule 2).
 5. Tell the background sweep what the check depends on (`Check` in `base.rs`):
    `granularity()` (per album, or the whole library), `input_extras()` for settings or

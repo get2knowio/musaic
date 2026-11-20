@@ -17,7 +17,7 @@ impl App {
     /// Start a scan on its own thread, holding `guard` for as long as the scan
     /// job runs ([`musaic_services::scan_run::start_scan_with`]), with this
     /// app's scan dependencies and log.
-    pub fn start_scan(&self, lib: &str, force: bool, guard: WorkGuard) -> ScanState {
+    pub(crate) fn start_scan(&self, lib: &str, force: bool, guard: WorkGuard) -> ScanState {
         // The thumbnail pool is drained by `on_worker_done`, before the
         // terminal status and `LibraryScanCompleted` on every path; the guard
         // is dropped when the job returns, right after the terminal status.
@@ -36,7 +36,7 @@ impl App {
     /// subscribe from sequence 0 (every subscriber replays the
     /// current scan's buffer). While a scan runs `guard` is not needed and
     /// is handed back; the caller drops it when it is done.
-    pub fn scan_and_subscribe(
+    pub(crate) fn scan_and_subscribe(
         &self,
         lib: &str,
         force: bool,
@@ -54,7 +54,7 @@ impl App {
     /// Cancel the running scan (`POST /api/scan/cancel`, and the first step
     /// of [`App::shutdown`]): [`musaic_services::ScanService::cancel`],
     /// logged when it was accepted.
-    pub fn cancel_scan(&self) -> CancelScan {
+    pub(crate) fn cancel_scan(&self) -> CancelScan {
         let out = self.0.scan.cancel();
         if let CancelScan::Requested(s) = &out {
             self.log().info(
@@ -70,7 +70,7 @@ impl App {
 
     /// [`App::cancel_scan`], then wait up to `timeout` for the scan to end.
     /// `true` when no scan runs at the end.
-    pub fn cancel_scan_and_wait(&self, timeout: Duration) -> bool {
+    pub(crate) fn cancel_scan_and_wait(&self, timeout: Duration) -> bool {
         match self.cancel_scan() {
             CancelScan::NotRunning(_) => true,
             _ => self.0.scan.wait_until_stopped(timeout),

@@ -21,7 +21,10 @@ use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::Response;
 use bytes::Bytes;
 use http_body::Frame;
-use tokio::sync::{mpsc, watch};
+use musaic_app::ops::{Listening, OpError, Ops};
+use tokio::sync::{mpsc, oneshot, watch};
+
+use crate::http::ApiError;
 
 /// The Python app's SSE content type (Starlette appends the charset to `text/*`).
 pub const CONTENT_TYPE: &str = "text/event-stream; charset=utf-8";
@@ -129,4 +132,57 @@ pub fn channel_until(
 /// `sse_event(name, data)` for a pre-rendered JSON payload.
 pub fn frame(name: &str, data_json: &str) -> String {
     musaic_events::sse_frame(name, data_json)
+}
+
+/// An operation's run as the answer. `prepare` (the operation's checks: the
+/// guard, the album lookup) runs on a blocking thread and is awaited, so a
+/// client that leaves meanwhile drops the prepared run and nothing is written,
+/// as before the operations existed; its refusal is answered as its status.
+/// Then `run` goes on a blocking thread (in the caller's event context) with a
+/// sink that renders each event with `render` and sends it down a capacity-1
+/// stream (a slow client holds the run's reporting back; the run itself goes
+/// on as the operation decides). Answers the stream once the first event is
+/// out, or once the run ended without one; a refusal returned before any event
+/// is answered as its status instead.
+pub async fn run_stream<E, P, T, R>(
+    st: &crate::AppState,
+    render: fn(&E) -> String,
+    prepare: impl FnOnce(Ops) -> Result<P, OpError> + Send + 'static,
+    run: R,
+) -> crate::http::ApiResult
+where
+    E: 'static,
+    P: Send + 'static,
+    R: FnOnce(P, &mut dyn FnMut(E) -> Listening) -> Result<T, OpError> + Send + 'static,
+{
+    let ops = st.ops();
+    let prepared = crate::http::blocking(move || prepare(ops)).await??;
+    let (tx, resp) = channel(st, 1);
+    // Answers once: `Ok` when the first event is out (or the run ended without
+    // one), `Err` when the operation refused before any.
+    let (ready_tx, ready_rx) = oneshot::channel::<Result<(), ApiError>>();
+    let ctx = musaic_events::context::current();
+    tokio::task::spawn_blocking(move || {
+        musaic_events::context::run_in(ctx, || {
+            let mut ready = Some(ready_tx);
+            let result = run(prepared, &mut |event| {
+                if let Some(r) = ready.take() {
+                    let _ = r.send(Ok(()));
+                }
+                if tx.send_blocking(render(&event)) {
+                    Listening::Yes
+                } else {
+                    Listening::Gone
+                }
+            });
+            if let Some(r) = ready.take() {
+                let _ = r.send(result.map(|_| ()).map_err(ApiError::from));
+            }
+        })
+    });
+    match ready_rx.await {
+        Ok(Ok(())) => Ok(resp),
+        Ok(Err(e)) => Err(e),
+        Err(_) => Err(ApiError::internal("the run ended without an answer")),
+    }
 }

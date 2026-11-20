@@ -195,3 +195,31 @@ pub fn thumb_path(
     }
     Some(thumb)
 }
+
+/// The album has no cover to serve ([`NO_COVER`]).
+pub fn no_cover(album_id: &str) -> crate::error::OpError {
+    crate::error::OpError::NotFound {
+        what: crate::error::Subject::Cover,
+        id: album_id.to_string(),
+        message: NO_COVER.to_string(),
+    }
+}
+
+/// [`full_cover`], or [`no_cover`].
+pub fn full_cover_or_none(
+    album_id: &str,
+    album_path: &str,
+    album: &Json,
+) -> Result<FullCover, crate::error::OpError> {
+    full_cover(album_path, album).ok_or_else(|| no_cover(album_id))
+}
+
+/// [`thumb_path`], or [`no_cover`].
+pub fn thumb_or_none(
+    thumbs_dir: &Path,
+    album_id: &str,
+    album_path: &str,
+    album: &Json,
+) -> Result<PathBuf, crate::error::OpError> {
+    thumb_path(thumbs_dir, album_id, album_path, album).ok_or_else(|| no_cover(album_id))
+}

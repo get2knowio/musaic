@@ -2,22 +2,19 @@
 //! was in effect stays.
 
 use musaic_core::config::ConfigDir;
-use musaic_services::apply::HttpError;
+use musaic_services::OpError;
 use musaic_services::library_ops::{self, LibraryChoice};
 
-/// The error a handler would answer with: the status of an `HttpError`, 500
-/// for anything else.
+/// What a handler would answer: the status each refusal maps to.
 #[derive(Debug)]
 struct Answer(u16);
 
-impl From<HttpError> for Answer {
-    fn from(e: HttpError) -> Self {
-        Answer(e.status)
-    }
-}
-impl From<musaic_db::Error> for Answer {
-    fn from(_: musaic_db::Error) -> Self {
-        Answer(500)
+impl From<OpError> for Answer {
+    fn from(e: OpError) -> Self {
+        Answer(match e {
+            OpError::Rejected { .. } => 400,
+            _ => 500,
+        })
     }
 }
 
@@ -30,13 +27,12 @@ struct World {
 
 fn set(w: &World, dir: &str) -> Result<LibraryChoice, Answer> {
     let db_path = w.db_path.clone();
-    library_ops::set_library_dir::<Answer>(
+    Ok(library_ops::set_library_dir(
         &w.cfg,
         None,
         dir,
         move || Ok(musaic_db::open_connection(&db_path)?),
-        |_| Answer(500),
-    )
+    )?)
 }
 
 fn setup() -> World {

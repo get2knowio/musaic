@@ -25,6 +25,7 @@ pub mod launch;
 pub mod lax;
 pub mod logging;
 pub mod loopback;
+pub mod render;
 pub mod route_table;
 pub mod routes;
 pub mod sources;

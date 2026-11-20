@@ -15,6 +15,13 @@ API, the UI's ordinary `fetch('/api/…')` calls, its App-level `EventSource`
 streams, the streaming POST responses (apply, analyze, quick-fix-all) and
 `<img src="/api/albums/…/cover">` work unchanged. There is no Tauri IPC.
 
+The loopback HTTP server is one face over `musaic_app::ops`, the application's operations
+surface: each route parses its request, calls one operation and renders the result, so the
+guard, the validation order, the events and the follow-up notifications live in the
+operation, not in the route. Another face (an MCP server, a native UI) calls the same
+operations in-process, with no HTTP in between. See [operations.md](operations.md) for the
+inventory of operations and routes and the rules a face follows.
+
 Plain HTTP to a loopback origin is ordinary web traffic for WKWebView (macOS),
 WebView2 (Windows) and WebKitGTK (Linux), so server-sent events and streamed
 response bodies behave as in a browser. This has been confirmed on macOS; on

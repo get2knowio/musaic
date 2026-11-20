@@ -31,7 +31,7 @@ use musaic_resolve::LookupResult;
 use musaic_resolve::source::NetError;
 use musaic_scan::{TrackOrder, py_resolve, scan_library};
 use musaic_services::Json;
-use musaic_services::apply::{ApplyEnv, ApplyRequest, NoCovers, apply_album_changes};
+use musaic_services::apply::{ApplyEnv, ApplyEvent, ApplyRequest, NoCovers, apply_album_changes};
 use musaic_services::fingerprint::{
     AcoustIdLookup, FingerprintEnv, Fingerprinter, fingerprint_album,
 };
@@ -297,7 +297,7 @@ fn acoustid_failure_lines_carry_no_key() {
 
 const APPLY: &str = "musaic.services.apply";
 
-fn apply(l: &mut Lib, req: &ApplyRequest) -> (Vec<(String, Json)>, Vec<Record>) {
+fn apply(l: &mut Lib, req: &ApplyRequest) -> (Vec<ApplyEvent>, Vec<Record>) {
     let bus = Bus::new();
     let now = || NOW.to_string();
     let mut env = ApplyEnv {
@@ -310,7 +310,7 @@ fn apply(l: &mut Lib, req: &ApplyRequest) -> (Vec<(String, Json)>, Vec<Record>) 
     let mut items = Vec::new();
     let ((), lines) = capture(|| {
         apply_album_changes(&mut env, req, &mut |it| {
-            items.push((it.event.to_string(), it.data));
+            items.push(it);
             ControlFlow::Continue(())
         });
     });
@@ -352,7 +352,10 @@ fn track_tag_migration_failure_is_logged() {
     )];
     let (items, lines) = apply(&mut l, &req);
     assert!(l.album.join("02 a.flac").is_file());
-    assert_eq!(items.last().unwrap().0, "updated_album", "{items:?}");
+    assert!(
+        matches!(items.last(), Some(ApplyEvent::UpdatedAlbum(_))),
+        "{items:?}"
+    );
     let r = has(&lines, Level::Error, APPLY, "Failed to migrate track tags ");
     assert_eq!(
         r.message,
@@ -382,13 +385,10 @@ fn apply_failure_is_logged() {
     let mut req = request(&l);
     req.suggestions = vec![("genre".into(), Some("Drone".into()))];
     let (items, lines) = apply(&mut l, &req);
-    let (event, data) = items.last().unwrap();
-    assert_eq!(event, "error", "{items:?}");
-    let detail = data
-        .get("detail")
-        .and_then(Json::as_str)
-        .unwrap()
-        .to_string();
+    let Some(ApplyEvent::Error { detail }) = items.last() else {
+        panic!("{items:?}");
+    };
+    let detail = detail.clone();
     assert!(detail.contains("albums locked (test)"), "{detail}");
     let r = has(
         &lines,
@@ -414,7 +414,10 @@ fn failed_cover_download_is_not_an_apply_failure() {
     let mut req = request(&l);
     req.cover_url = Some("https://covers.invalid/x.jpg".into());
     let (items, lines) = apply(&mut l, &req);
-    assert_eq!(items.last().unwrap().0, "error");
+    assert!(
+        matches!(items.last(), Some(ApplyEvent::Error { .. })),
+        "{items:?}"
+    );
     assert!(lines.iter().all(|r| r.target != APPLY), "{lines:?}");
 }
 

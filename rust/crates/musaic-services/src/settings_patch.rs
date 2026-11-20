@@ -5,13 +5,16 @@
 //! musaic-api's `routes/settings.rs` so a non-HTTP face changes
 //! settings the same way. The host parses the request into a
 //! [`SettingsPatch`], takes the restore gate's work guard, passes the
-//! providers it has installed (data, so this crate needs no AI types), and
-//! maps a [`PatchError`] to its answer.
+//! providers it has installed (data, so this crate needs no AI types); a
+//! refusal is an [`OpError`] (`Rejected` for a value out of range or an
+//! unknown provider, `Unavailable` for the keyring, `Internal` for the
+//! database).
 
 use musaic_core::pycompat::strip;
 use musaic_db::settings::set_raw;
 use rusqlite::Connection;
 
+use crate::error::OpError;
 use crate::fingerprint_pool::{FingerprintPool, PoolDeps};
 use crate::host_log::HostLog;
 
@@ -49,48 +52,21 @@ impl SettingsPatch {
     }
 }
 
-/// Why a PATCH was refused.
-#[derive(Debug)]
-pub enum PatchError {
-    /// A field out of range or an unknown provider (400 with this detail).
-    /// Fields validated before it are still persisted, secrets included.
-    Invalid(String),
-    /// A secret-store write failed (503 with this
-    /// detail, which names the keyring and never the value). Nothing
-    /// persisted.
-    Keyring(String),
-    /// A settings write failed (500). Nothing persisted.
-    Db(musaic_db::Error),
-    /// Starting or committing the transaction failed (500). Nothing
-    /// persisted.
-    Sqlite(rusqlite::Error),
-}
-
-impl PatchError {
-    /// A database error (500): it persists nothing, as before the secrets.
-    fn is_internal(&self) -> bool {
-        matches!(self, PatchError::Db(_) | PatchError::Sqlite(_))
+/// A field out of range or an unknown provider. Fields validated before it are
+/// still persisted, secrets included.
+fn invalid(message: impl Into<String>) -> OpError {
+    OpError::Rejected {
+        message: message.into(),
+        details: None,
     }
 }
 
-impl From<musaic_db::Error> for PatchError {
-    fn from(e: musaic_db::Error) -> Self {
-        PatchError::Db(e)
+/// A failed keyring write: the detail names the keyring and never the value.
+/// Nothing persisted.
+fn secret_error(key: &str, e: &musaic_secrets::StoreError) -> OpError {
+    OpError::Unavailable {
+        message: format!("Could not save {key} to the OS keyring ({e}). No settings were changed."),
     }
-}
-
-impl From<rusqlite::Error> for PatchError {
-    fn from(e: rusqlite::Error) -> Self {
-        PatchError::Sqlite(e)
-    }
-}
-
-/// A failed keyring write answers 503 with a detail
-/// that names the keyring. Never contains the value.
-fn secret_error(key: &str, e: &musaic_secrets::StoreError) -> PatchError {
-    PatchError::Keyring(format!(
-        "Could not save {key} to the OS keyring ({e}). No settings were changed."
-    ))
 }
 
 /// The secret writes of one PATCH, undoable. Each key's previous value is
@@ -102,7 +78,7 @@ struct SecretWrites<'a> {
 }
 
 impl<'a> SecretWrites<'a> {
-    fn write(&mut self, key: &'static str, value: &str) -> Result<(), PatchError> {
+    fn write(&mut self, key: &'static str, value: &str) -> Result<(), OpError> {
         let prev = self.store.get(key).map_err(|e| secret_error(key, &e))?;
         self.previous.push((key, prev));
         musaic_secrets::set_secret(self.store, key, value).map_err(|e| secret_error(key, &e))
@@ -143,7 +119,7 @@ pub fn apply_patch(
     listed_providers: &[&str],
     log: &dyn HostLog,
     bus: &musaic_events::Bus,
-) -> Result<(), PatchError> {
+) -> Result<(), OpError> {
     let SettingsPatch {
         max_parallel,
         paused,
@@ -170,12 +146,10 @@ pub fn apply_patch(
     // The setting names written, for `SettingsChanged`.
     let mut keys: Vec<&'static str> = Vec::new();
     let mut secrets: Vec<(&'static str, String)> = Vec::new();
-    let outcome = (|| -> Result<(), PatchError> {
+    let outcome = (|| -> Result<(), OpError> {
         if let Some(n) = max_parallel {
             if !(1..=8).contains(&n) {
-                return Err(PatchError::Invalid(
-                    "ai_max_parallel must be between 1 and 8".into(),
-                ));
+                return Err(invalid("ai_max_parallel must be between 1 and 8"));
             }
             set_raw(&tx, "ai_max_parallel", &n.to_string())?;
             changed.push(format!("ai_max_parallel={n}"));
@@ -192,7 +166,7 @@ pub fn apply_patch(
                 || pid == STORED_DEFAULT_PROVIDER_ID
                 || listed_providers.contains(&pid.as_str());
             if !accepted {
-                return Err(PatchError::Invalid(format!(
+                return Err(invalid(format!(
                     "Unknown or not-installed provider {}. Installed: {}.",
                     musaic_fsops::py_repr(&pid),
                     listed_providers.join(", ")
@@ -227,8 +201,8 @@ pub fn apply_patch(
         }
         if let Some(n) = retention {
             if !(0..=100).contains(&n) {
-                return Err(PatchError::Invalid(
-                    "snapshot_retention_count must be between 0 and 100".into(),
+                return Err(invalid(
+                    "snapshot_retention_count must be between 0 and 100",
                 ));
             }
             set_raw(&tx, "snapshot_retention_count", &n.to_string())?;
@@ -239,14 +213,12 @@ pub fn apply_patch(
             // Infinity and NaN parse as floats but are not intervals (and
             // infinity cannot be sent back as JSON).
             if !h.is_finite() {
-                return Err(PatchError::Invalid(
-                    "snapshot_min_interval_hours must be a finite number".into(),
+                return Err(invalid(
+                    "snapshot_min_interval_hours must be a finite number",
                 ));
             }
             if h < 0.0 {
-                return Err(PatchError::Invalid(
-                    "snapshot_min_interval_hours must be >= 0".into(),
-                ));
+                return Err(invalid("snapshot_min_interval_hours must be >= 0"));
             }
             set_raw(
                 &tx,
@@ -267,7 +239,7 @@ pub fn apply_patch(
     })();
     // A database error (500) persists nothing, as before the secrets.
     let outcome = match outcome {
-        Err(e) if e.is_internal() => return Err(e),
+        Err(e @ OpError::Internal { .. }) => return Err(e),
         other => other,
     };
     let mut writes = SecretWrites {
@@ -283,7 +255,7 @@ pub fn apply_patch(
     }
     if let Err(e) = tx.commit() {
         writes.undo();
-        return Err(PatchError::Sqlite(e));
+        return Err(e.into());
     }
     // Committed: what was written is in effect, also when a later field
     // was refused.

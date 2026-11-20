@@ -2544,7 +2544,10 @@ dependencies = [
  "musaic-scan",
  "musaic-secrets",
  "musaic-services",
+ "musaic-testdata",
  "rusqlite",
+ "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
 ]

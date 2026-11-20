@@ -771,13 +771,9 @@ library records to it ({e}). Nothing else was changed; convert again to finish."
                 &dirs[k].to_string_lossy(),
                 env.library_dir,
                 &conversion,
-                &mut |item| {
-                    if item.event == "error" {
-                        apply_error = item
-                            .data
-                            .get("detail")
-                            .and_then(crate::Json::as_str)
-                            .map(str::to_string);
+                &mut |event| {
+                    if let crate::apply::ApplyEvent::Error { detail } = event {
+                        apply_error = Some(detail);
                     }
                     ControlFlow::Continue(())
                 },

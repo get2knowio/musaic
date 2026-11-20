@@ -1,7 +1,6 @@
 //! Running a library scan for a host: start one on its
 //! own thread holding the caller's work guard, log its start and end
-//! (`musaic.services.scan`), and forward a subscription's events to a
-//! client. It lives here rather than in musaic-api's `routes/library.rs`
+//! (`musaic.services.scan`). It lives here rather than in musaic-api's `routes/library.rs`
 //! so a non-HTTP face starts and follows scans the same way. The host
 //! builds the [`ScanDeps`] (its thumbnail pool and fingerprint pool) and
 //! frames the events for its transport.
@@ -11,7 +10,7 @@ use std::time::Duration;
 
 use crate::gate::{WorkGuard, WorkKind};
 use crate::host_log::HostLog;
-use crate::scan::{Poll, ScanDeps, ScanEvent, ScanService, ScanState, ScanSubscription, StartScan};
+use crate::scan::{ScanDeps, ScanEvent, ScanEventKind, ScanService, ScanState, StartScan};
 
 /// The logger name of scans (`musaic.services.scan`).
 pub const SCAN_TARGET: &str = "musaic.services.scan";
@@ -60,7 +59,7 @@ pub fn log_scan_end(log: &dyn HostLog, scan: &ScanService, took: Duration) {
     let ms = took.as_millis();
     let t = SCAN_TARGET;
     match (s.status.as_str(), last) {
-        ("done", Some(ev)) if ev.name == "done" => log.info(
+        ("done", Some(ScanEvent { kind: ScanEventKind::Done(done), .. })) => log.info(
             t,
             &format!(
                 "scan done in {ms}ms: {} album(s) of {} found ({} cached before), {} marked missing, {} returned",
@@ -68,15 +67,12 @@ pub fn log_scan_end(log: &dyn HostLog, scan: &ScanService, took: Duration) {
                 s.total,
                 s.cached_count,
                 s.removed_count,
-                ev.data.get("returned_count").map_or_else(String::new, |v| v.dumps()),
+                done.returned_count,
             ),
         ),
-        ("aborted", Some(ev)) if ev.name == "aborted" => log.warn(
+        ("aborted", Some(ScanEvent { kind: ScanEventKind::Aborted(a), .. })) => log.warn(
             t,
-            &format!(
-                "Scan sanity check tripped after {ms}ms: {}",
-                ev.data.get("detail").and_then(|v| v.as_str()).unwrap_or("")
-            ),
+            &format!("Scan sanity check tripped after {ms}ms: {}", a.detail),
         ),
         ("cancelled", _) => log.info(
             t,
@@ -93,33 +89,6 @@ pub fn log_scan_end(log: &dyn HostLog, scan: &ScanService, took: Duration) {
                 s.error.as_deref().unwrap_or("")
             ),
         ),
-    }
-}
-
-/// Hand a subscription's events to a client until the scan is over or the
-/// client is gone (the scan keeps running). Blocking: polls every 200 ms;
-/// `send` answers false when the client is gone, `is_closed` is asked
-/// between events.
-pub fn forward_events(
-    mut sub: ScanSubscription,
-    mut send: impl FnMut(&ScanEvent) -> bool,
-    is_closed: impl Fn() -> bool,
-) {
-    loop {
-        match sub.next_timeout(Duration::from_millis(200)) {
-            Poll::Event(ev) => {
-                if !send(&ev) {
-                    // Client gone; the scan keeps running.
-                    return;
-                }
-            }
-            Poll::Pending => {
-                if is_closed() {
-                    return;
-                }
-            }
-            Poll::Finished => return,
-        }
     }
 }
 

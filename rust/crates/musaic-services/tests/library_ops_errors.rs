@@ -4,30 +4,8 @@
 
 use musaic_events::Bus;
 use musaic_scan::TrackOrder;
-use musaic_services::apply::HttpError;
-use musaic_services::{library_ops, sources, track_tags};
+use musaic_services::{OpError, library_ops, sources, track_tags};
 use rusqlite::Connection;
-
-/// The error a handler would answer with: the status of an `HttpError`, 500
-/// for anything else.
-#[derive(Debug)]
-struct Answer(u16);
-
-impl From<HttpError> for Answer {
-    fn from(e: HttpError) -> Self {
-        Answer(e.status)
-    }
-}
-impl From<musaic_db::Error> for Answer {
-    fn from(_: musaic_db::Error) -> Self {
-        Answer(500)
-    }
-}
-impl From<rusqlite::Error> for Answer {
-    fn from(_: rusqlite::Error) -> Self {
-        Answer(500)
-    }
-}
 
 fn unreadable_db() -> Connection {
     Connection::open_in_memory().unwrap()
@@ -51,11 +29,11 @@ fn album_lookup_answers_500_not_a_live_walk_when_the_database_fails() {
     let conn = unreadable_db();
     let err = library_ops::resolve_album_dict(&conn, Some(lib), "abc", TrackOrder::default())
         .unwrap_err();
-    assert_eq!(err.status, 500, "{}", err.detail);
-    // The tag routes share the same lookup.
+    assert!(matches!(err, OpError::Failed { .. }), "{err:?}");
+    // The tag routes share the same lookup, and answer the plain-text 500.
     let err =
         track_tags::resolve_album_dict(&conn, Some(lib), "abc", TrackOrder::default()).unwrap_err();
-    assert_eq!(err.status, 500, "{}", err.detail);
+    assert!(matches!(err, OpError::Internal { .. }), "{err:?}");
 }
 
 #[test]
@@ -63,8 +41,8 @@ fn removing_an_album_answers_500_not_404_when_the_database_fails() {
     let lib = tempfile::tempdir().unwrap();
     let lib = lib.path().to_str().unwrap();
     let bus = Bus::new();
-    let r = library_ops::delete_album::<Answer>(unreadable_db(), &bus, Some(lib), "abc");
-    assert_eq!(r.unwrap_err().0, 500);
+    let r = library_ops::delete_album(unreadable_db(), &bus, Some(lib), "abc");
+    assert!(matches!(r.unwrap_err(), OpError::Internal { .. }));
 }
 
 #[test]

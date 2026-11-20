@@ -4,8 +4,9 @@
 //!
 //! # Shape
 //!
-//! [`apply_album_changes`] calls a sink once per item the Python app's generator
-//! yields, in the same order and with the same `(event, payload)`. The sink
+//! [`apply_album_changes`] calls a sink once per [`ApplyEvent`], in the order and
+//! with the content of the items the Python app's generator yields (the HTTP face
+//! renders each as that item: `musaic-api/src/render/apply.rs`). The sink
 //! returns [`ControlFlow::Break`] to stop reading. The sequence is
 //!
 //! ```text
@@ -83,11 +84,16 @@ use std::path::Path;
 
 use musaic_events::{Bus, Event as BusEvent};
 use musaic_scan::{TrackOrder, py_resolve};
-use musaic_tags::{Event as TagEvent, Removals, Suggestions, TrackSuggestions};
+/// The tag writer's per-file events, as `ApplyEvent::Tags` carries them.
+pub use musaic_tags::Event as TagEvent;
+use musaic_tags::{Removals, Suggestions, TrackSuggestions};
 use rusqlite::Connection;
 
 use crate::albums::{self, album_to_json};
+use crate::error::{OpError, Subject};
 use crate::json::Json;
+use crate::library_ops::no_library;
+use crate::track_tags::conflict;
 
 /// Fetches cover bytes for `cover_url` (`tags.download_cover`): `(bytes, mime)`
 /// or `None` on any failure. musaic-net's CoverArtClient implements the real
@@ -105,17 +111,58 @@ impl CoverSource for NoCovers {
     }
 }
 
-/// One item of the stream: the SSE event name and its JSON payload.
+/// One step of an apply, in the order the pipeline reaches it.
+///
+/// A run is: `CoverDownloading`, `CoverDownloaded` (a cover only), then the
+/// per-file `Tags` events (`Start`, `FileStarted`, `FileDone`, `FileRenamed`,
+/// `Done`), `CoverSaved` (a cover, not a dry run), and last `UpdatedAlbum` or
+/// `RemovedAlbum`; an `Error` replaces whatever would have followed. A dry run
+/// ends with the `Done` of its `Tags`.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ApplyItem {
-    pub event: &'static str,
-    pub data: Json,
+pub enum ApplyEvent {
+    /// The cover at `url` is being fetched.
+    CoverDownloading { url: String },
+    /// The cover was fetched and normalised to JPEG.
+    CoverDownloaded {
+        source_bytes: usize,
+        source_mime: String,
+        bytes: usize,
+        mime: String,
+    },
+    /// A per-file step from the tag writer: never its `CoverDownloaded` or
+    /// `CoverSaved`, which are the variants of this enum.
+    Tags(TagEvent),
+    /// `cover.jpg` was written to the album folder.
+    CoverSaved { path: String, filename: String },
+    /// The album as the database holds it after the run (the merged row when a
+    /// library folder is set, else what a scan reads).
+    UpdatedAlbum(Json),
+    /// The album's folder is gone after the run: its row is now Missing.
+    RemovedAlbum { id: String, path: String },
+    /// The run failed or was refused; nothing more follows.
+    Error { detail: String },
 }
 
-impl ApplyItem {
-    /// `services.sse.sse_event(event, data)`.
-    pub fn sse_frame(&self) -> String {
-        format!("event: {}\ndata: {}\n\n", self.event, self.data.dumps())
+impl ApplyEvent {
+    fn from_tag(ev: TagEvent) -> ApplyEvent {
+        match ev {
+            TagEvent::CoverDownloaded {
+                source_bytes,
+                source_mime,
+                bytes,
+                mime,
+            } => ApplyEvent::CoverDownloaded {
+                source_bytes,
+                source_mime,
+                bytes,
+                mime,
+            },
+            TagEvent::CoverSaved { path, filename } => ApplyEvent::CoverSaved {
+                path: path_str(&path),
+                filename,
+            },
+            other => ApplyEvent::Tags(other),
+        }
     }
 }
 
@@ -231,16 +278,14 @@ pub fn missing_album_detail(missing_since: &str) -> String {
     )
 }
 
-/// Deliberate change from the Python app: `Err(409)`
+/// Deliberate change from the Python app: `Conflict`
 /// when the album's row is Missing (`missing_since` set and not empty, the
 /// runner's test). An album without a row is not refused here.
-pub fn refuse_missing(conn: &Connection, album_id: &str) -> Result<(), HttpError> {
+pub fn refuse_missing(conn: &Connection, album_id: &str) -> Result<(), OpError> {
     match musaic_db::albums::missing_since(conn, album_id) {
-        Ok(Some(since)) if !since.is_empty() => {
-            Err(HttpError::new(409, missing_album_detail(&since)))
-        }
+        Ok(Some(since)) if !since.is_empty() => Err(conflict(missing_album_detail(&since))),
         Ok(_) => Ok(()),
-        Err(e) => Err(HttpError::new(500, e.to_string())),
+        Err(e) => Err(OpError::failed(e)),
     }
 }
 
@@ -250,7 +295,7 @@ pub const EMPTY_UPLOAD_DETAIL: &str = "Empty file";
 
 /// Hands items to the consumer until it stops reading.
 struct Forward<'s> {
-    sink: &'s mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+    sink: &'s mut dyn FnMut(ApplyEvent) -> ControlFlow<()>,
     gone: bool,
     dry_run: bool,
 }
@@ -259,11 +304,11 @@ impl Forward<'_> {
     /// Forward one item unless the consumer is gone. A panic in the sink
     /// counts as `Break`. `Err(Stopped)` only for a dry run whose consumer is
     /// gone (nothing is mutated, so it may end early).
-    fn emit(&mut self, event: &'static str, data: Json) -> Result<(), Halt> {
+    fn emit(&mut self, event: ApplyEvent) -> Result<(), Halt> {
         if !self.gone {
             let sink = &mut *self.sink;
-            let flow = catch_unwind(AssertUnwindSafe(|| sink(ApplyItem { event, data })))
-                .unwrap_or(ControlFlow::Break(()));
+            let flow =
+                catch_unwind(AssertUnwindSafe(|| sink(event))).unwrap_or(ControlFlow::Break(()));
             self.gone = flow.is_break();
         }
         if self.gone && self.dry_run {
@@ -311,167 +356,6 @@ fn path_str(p: &Path) -> String {
     p.to_string_lossy().into_owned()
 }
 
-/// `cleared` is not in the Python app's payloads: added only when not empty,
-/// so an apply without removals sends exactly what it always did.
-fn with_cleared(mut j: Json, cleared: &[String]) -> Json {
-    if !cleared.is_empty() {
-        j.set(
-            "cleared",
-            Json::Arr(cleared.iter().map(|f| Json::from(f.as_str())).collect()),
-        );
-    }
-    j
-}
-
-fn str_map(pairs: &[(String, String)]) -> Json {
-    Json::obj(
-        pairs
-            .iter()
-            .map(|(k, v)| (k.clone(), Json::from(v.as_str()))),
-    )
-}
-
-/// The payload `tags.apply_to_album_iter` yields for each event.
-pub fn tag_event_json(ev: &TagEvent) -> Json {
-    match ev {
-        TagEvent::CoverDownloaded {
-            source_bytes,
-            source_mime,
-            bytes,
-            mime,
-        } => Json::obj([
-            ("source_bytes", Json::from(*source_bytes)),
-            ("source_mime", Json::from(source_mime.as_str())),
-            ("bytes", Json::from(*bytes)),
-            ("mime", Json::from(mime.as_str())),
-        ]),
-        TagEvent::Start {
-            album_path,
-            dry_run,
-            file_count,
-            suggestions_applied,
-            cleared,
-            has_cover_change,
-            track_change_count,
-        } => with_cleared(
-            Json::obj([
-                ("album_path", Json::from(path_str(album_path))),
-                ("dry_run", Json::from(*dry_run)),
-                ("file_count", Json::from(*file_count)),
-                ("suggestions_applied", str_map(suggestions_applied)),
-                ("has_cover_change", Json::from(*has_cover_change)),
-                ("track_change_count", Json::from(*track_change_count)),
-            ]),
-            cleared,
-        ),
-        TagEvent::FileStarted {
-            index,
-            filename,
-            path,
-        } => Json::obj([
-            ("index", Json::from(*index)),
-            ("filename", Json::from(filename.as_str())),
-            ("path", Json::from(path_str(path))),
-        ]),
-        TagEvent::FileDone(c) => {
-            let mut j = Json::obj([
-                ("path", Json::from(path_str(&c.path))),
-                ("filename", Json::from(c.filename.as_str())),
-                (
-                    "diffs",
-                    Json::obj(c.diffs.iter().map(|(k, d)| {
-                        (
-                            k.clone(),
-                            Json::obj([
-                                ("old", Json::from(d.old.as_str())),
-                                // null: the tag is removed.
-                                ("new", Json::from(d.new.clone())),
-                            ]),
-                        )
-                    })),
-                ),
-                ("art_changed", Json::from(c.art_changed)),
-                ("saved", Json::from(c.saved)),
-                ("error", Json::from(c.error.clone())),
-            ]);
-            if let Some(r) = &c.renamed_to {
-                j.set("renamed_to", Json::from(r.as_str()));
-            }
-            // Only when there is something to say, so the event stays the
-            // Python app's otherwise.
-            if !c.warnings.is_empty() {
-                j.set(
-                    "warnings",
-                    Json::Arr(c.warnings.iter().map(|w| Json::from(w.as_str())).collect()),
-                );
-            }
-            j
-        }
-        TagEvent::FileRenamed {
-            old_path,
-            new_path,
-            old_filename,
-            new_filename,
-        } => Json::obj([
-            ("old_path", Json::from(path_str(old_path))),
-            ("new_path", Json::from(path_str(new_path))),
-            ("old_filename", Json::from(old_filename.as_str())),
-            ("new_filename", Json::from(new_filename.as_str())),
-        ]),
-        TagEvent::Done {
-            album_path,
-            dry_run,
-            saved_count,
-            art_changed_count,
-            renamed_count,
-            errors,
-            suggestions_applied,
-            cleared,
-            rename_failures,
-        } => {
-            let mut j = with_cleared(
-                Json::obj([
-                    ("album_path", Json::from(path_str(album_path))),
-                    ("dry_run", Json::from(*dry_run)),
-                    ("saved_count", Json::from(*saved_count)),
-                    ("art_changed_count", Json::from(*art_changed_count)),
-                    ("renamed_count", Json::from(*renamed_count)),
-                    ("errors", Json::from(*errors)),
-                    ("suggestions_applied", str_map(suggestions_applied)),
-                ]),
-                cleared,
-            );
-            // Only when there is something to say, so the event stays the
-            // Python app's otherwise: files whose TRACKNUMBER was written
-            // but whose rename did not happen.
-            if !rename_failures.is_empty() {
-                j.set(
-                    "rename_failures",
-                    Json::Arr(
-                        rename_failures
-                            .iter()
-                            .map(|f| {
-                                Json::obj([
-                                    ("filename", Json::from(f.filename.as_str())),
-                                    ("new_filename", Json::from(f.new_filename.as_str())),
-                                    ("error", Json::from(f.error.as_str())),
-                                    ("reason_code", Json::from(f.reason.code())),
-                                    ("user_message", Json::from(f.user_message.as_str())),
-                                ])
-                            })
-                            .collect(),
-                    ),
-                );
-            }
-            j
-        }
-        TagEvent::CoverSaved { path, filename } => Json::obj([
-            ("path", Json::from(path_str(path))),
-            ("filename", Json::from(filename.as_str())),
-        ]),
-    }
-}
-
 /// `tuple(suggestions.keys())`: the caller's dict keys, first position kept,
 /// then the album-level fields removed that are not among them.
 fn changed_fields(s: &Suggestions, removals: &Removals) -> Vec<String> {
@@ -509,7 +393,7 @@ fn changed_fields(s: &Suggestions, removals: &Removals) -> Vec<String> {
 pub fn apply_album_changes(
     env: &mut ApplyEnv<'_>,
     req: &ApplyRequest,
-    sink: &mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+    sink: &mut dyn FnMut(ApplyEvent) -> ControlFlow<()>,
 ) -> ApplyOutcome {
     apply_with(env, req, None, sink)
 }
@@ -532,7 +416,7 @@ pub fn apply_disc_conversion(
     album_path: &str,
     library_dir: Option<&str>,
     conversion: &musaic_tags::DiscConversion,
-    sink: &mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+    sink: &mut dyn FnMut(ApplyEvent) -> ControlFlow<()>,
 ) -> ApplyOutcome {
     let req = ApplyRequest {
         album_id: album_id.to_string(),
@@ -547,7 +431,7 @@ fn apply_with(
     env: &mut ApplyEnv<'_>,
     req: &ApplyRequest,
     conversion: Option<&musaic_tags::DiscConversion>,
-    sink: &mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+    sink: &mut dyn FnMut(ApplyEvent) -> ControlFlow<()>,
 ) -> ApplyOutcome {
     let mut fwd = Forward {
         sink,
@@ -555,16 +439,20 @@ fn apply_with(
         dry_run: req.dry_run,
     };
     if let Err(refusal) = refuse_missing(env.conn, &req.album_id) {
-        let _ = fwd.emit("error", Json::obj([("detail", Json::from(refusal.detail))]));
+        let _ = fwd.emit(ApplyEvent::Error {
+            detail: refusal.message().to_string(),
+        });
         return fwd.outcome();
     }
     let cover_url = req.cover_url.as_deref().filter(|u| !u.is_empty());
     if cover_url.is_some() && req.cover_bytes.is_some() {
         let detail = "Pass cover_url OR cover_bytes — not both. (Caller bug.)";
-        let _ = fwd.emit("error", Json::obj([("detail", Json::from(detail))]));
+        let _ = fwd.emit(ApplyEvent::Error {
+            detail: detail.to_string(),
+        });
         return fwd.outcome();
     }
-    let mut emit = |event: &'static str, data: Json| fwd.emit(event, data);
+    let mut emit = |event: ApplyEvent| fwd.emit(event);
     let result = run(env, req, cover_url, conversion, &mut emit);
     match result {
         Err(Halt::Failed(detail)) => {
@@ -578,10 +466,10 @@ fn apply_with(
                     req.album_id
                 ),
             );
-            let _ = fwd.emit("error", Json::obj([("detail", Json::from(detail))]));
+            let _ = fwd.emit(ApplyEvent::Error { detail });
         }
         Err(Halt::Refused(detail)) => {
-            let _ = fwd.emit("error", Json::obj([("detail", Json::from(detail))]));
+            let _ = fwd.emit(ApplyEvent::Error { detail });
         }
         Ok(()) | Err(Halt::Stopped) => {}
     }
@@ -593,14 +481,16 @@ fn run(
     req: &ApplyRequest,
     cover_url: Option<&str>,
     conversion: Option<&musaic_tags::DiscConversion>,
-    emit: &mut dyn FnMut(&'static str, Json) -> Result<(), Halt>,
+    emit: &mut dyn FnMut(ApplyEvent) -> Result<(), Halt>,
 ) -> Result<(), Halt> {
     let album_dir = Path::new(&req.album_path);
 
     // 1. Cover bytes, normalised to JPEG q95.
     let mut final_cover: Option<Vec<u8>> = None;
     if let Some(url) = cover_url {
-        emit("cover_downloading", Json::obj([("url", Json::from(url))]))?;
+        emit(ApplyEvent::CoverDownloading {
+            url: url.to_string(),
+        })?;
         // Zero bytes are a failed download.
         let Some((raw, raw_mime)) = env.covers.download(url).filter(|(b, _)| !b.is_empty()) else {
             return Err(Halt::Refused(format!(
@@ -608,21 +498,21 @@ fn run(
             )));
         };
         let out = musaic_tags::normalize_to_jpeg(&raw, 95);
-        let data = tag_event_json(&TagEvent::CoverDownloaded {
+        let event = ApplyEvent::CoverDownloaded {
             source_bytes: raw.len(),
             source_mime: raw_mime,
             bytes: out.len(),
             mime: "image/jpeg".into(),
-        });
+        };
         final_cover = Some(out);
-        emit("cover_downloaded", data)?;
+        emit(event)?;
     } else if let Some(raw) = &req.cover_bytes {
         // An empty upload is a failed download too.
         if raw.is_empty() {
             return Err(Halt::Refused(EMPTY_UPLOAD_DETAIL.into()));
         }
         let out = musaic_tags::normalize_to_jpeg(raw, 95);
-        let data = tag_event_json(&TagEvent::CoverDownloaded {
+        let event = ApplyEvent::CoverDownloaded {
             source_bytes: raw.len(),
             source_mime: req
                 .cover_mime
@@ -631,9 +521,9 @@ fn run(
                 .unwrap_or_else(|| "image/jpeg".into()),
             bytes: out.len(),
             mime: "image/jpeg".into(),
-        });
+        };
         final_cover = Some(out);
-        emit("cover_downloaded", data)?;
+        emit(event)?;
     }
 
     // 2. Per-file writes, streamed; renames followed in the database.
@@ -684,7 +574,7 @@ fn run(
         // A consumer that is gone only stops the forwarding; the
         // loop and the rename passes always finish. (A dry run's `Stopped`
         // takes effect at the next step boundary.)
-        let _ = emit(ev.name(), tag_event_json(&ev));
+        let _ = emit(ApplyEvent::from_tag(ev));
     };
     match conversion {
         Some(c) => musaic_tags::apply_disc_conversion(album_dir, c, &mut callback),
@@ -712,13 +602,10 @@ fn run(
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        emit(
-            "cover_saved",
-            Json::obj([
-                ("path", Json::from(path_str(&saved))),
-                ("filename", Json::from(filename)),
-            ]),
-        )?;
+        emit(ApplyEvent::CoverSaved {
+            path: path_str(&saved),
+            filename,
+        })?;
     }
 
     // 5. Track-tag sidecar after renames (only when the album has tags).
@@ -748,13 +635,10 @@ fn run(
                 missing_since: since,
             });
         }
-        return emit(
-            "removed_album",
-            Json::obj([
-                ("id", Json::from(req.album_id.as_str())),
-                ("path", Json::from(req.album_path.as_str())),
-            ]),
-        );
+        return emit(ApplyEvent::RemovedAlbum {
+            id: req.album_id.clone(),
+            path: req.album_path.clone(),
+        });
     };
     let mut fresh_json = album_to_json(&fresh);
     if let Some(lib) = req.library_dir.as_deref().filter(|l| !l.is_empty()) {
@@ -780,23 +664,7 @@ fn run(
             album_id: req.album_id.clone(),
         });
     }
-    emit("updated_album", fresh_json)
-}
-
-/// An HTTP refusal the router would raise before streaming anything.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HttpError {
-    pub status: u16,
-    pub detail: String,
-}
-
-impl HttpError {
-    fn new(status: u16, detail: impl Into<String>) -> Self {
-        HttpError {
-            status,
-            detail: detail.into(),
-        }
-    }
+    emit(ApplyEvent::UpdatedAlbum(fresh_json))
 }
 
 /// The album an apply targets.
@@ -809,11 +677,12 @@ pub struct ResolvedAlbum {
     pub json: Json,
 }
 
-/// `services.albums.resolve_album_dict`: 409 without a configured library;
-/// the cached row; else a live walk of the library; else 404.
+/// `services.albums.resolve_album_dict`: `NoLibrary` without a configured
+/// library; the cached row; else a live walk of the library; else `NotFound`.
+/// A database failure is `Failed` (the route showed its cause in the body).
 ///
 /// Deliberate change: a cached row that is Missing is refused with
-/// 409 ([`missing_album_detail`], which says to rescan) before anything is
+/// `Conflict` ([`missing_album_detail`], which says to rescan) before anything is
 /// read or written, dry runs and cover uploads included. The Python app returned
 /// the row and let the apply run.
 pub fn resolve_album(
@@ -821,17 +690,16 @@ pub fn resolve_album(
     library_dir: Option<&str>,
     album_id: &str,
     order: TrackOrder,
-) -> Result<ResolvedAlbum, HttpError> {
+) -> Result<ResolvedAlbum, OpError> {
     let Some(lib) = library_dir.filter(|l| !l.is_empty()) else {
-        return Err(HttpError::new(409, "No library directory configured"));
+        return Err(no_library());
     };
     let resolved = path_str(&py_resolve(Path::new(lib)));
-    let cached =
-        albums::load_snapshot(conn, &resolved).map_err(|e| HttpError::new(500, e.to_string()))?;
+    let cached = albums::load_snapshot(conn, &resolved).map_err(OpError::failed)?;
     if let Some(row) = cached.into_iter().find(|r| r.id() == album_id) {
         // A Missing album is refused before anything else happens.
         if let Some(since) = row.missing_since.as_deref().filter(|s| !s.is_empty()) {
-            return Err(HttpError::new(409, missing_album_detail(since)));
+            return Err(conflict(missing_album_detail(since)));
         }
         return Ok(ResolvedAlbum {
             id: row.album.id.clone(),
@@ -845,44 +713,68 @@ pub fn resolve_album(
             path: a.path.clone(),
             json: album_to_json(&a),
         }),
-        None => Err(HttpError::new(
-            404,
-            "Album not found (try rescanning the library)",
-        )),
+        None => Err(OpError::NotFound {
+            what: Subject::Album,
+            id: album_id.to_string(),
+            message: "Album not found (try rescanning the library)".to_string(),
+        }),
     }
 }
 
 /// `_MAX_COVER_UPLOAD_BYTES`.
 pub const MAX_COVER_UPLOAD_BYTES: usize = 25 * 1024 * 1024;
 
-/// The checks `POST /api/albums/{id}/cover/upload` makes BEFORE resolving
-/// the album, in its order: MIME prefix `image/` (400), empty body (400),
-/// size cap (413). Returns the lower-cased MIME to pass as `cover_mime`.
-pub fn validate_cover_upload(content_type: Option<&str>, body: &[u8]) -> Result<String, HttpError> {
+/// The upload's content type alone: it must start with `image/` (`Rejected`).
+/// Returns the lower-cased type to pass as `cover_mime`.
+pub fn check_cover_type(content_type: Option<&str>) -> Result<String, OpError> {
     let mime = content_type.unwrap_or("").to_lowercase();
     if !mime.starts_with("image/") {
-        return Err(HttpError::new(
-            400,
-            format!(
-                "Unsupported file type {} — please upload an image",
+        return Err(OpError::Rejected {
+            message: format!(
+                "Unsupported file type {} \u{2014} please upload an image",
                 musaic_fsops::py_repr(&mime)
             ),
-        ));
+            details: None,
+        });
     }
+    Ok(mime)
+}
+
+/// The checks `POST /api/albums/{id}/cover/upload` makes BEFORE resolving
+/// the album, in its order: MIME prefix `image/` (`Rejected`), empty body
+/// (`Rejected`), size cap (`TooLarge`). Returns the lower-cased MIME to pass as
+/// `cover_mime`.
+pub fn validate_cover_upload(content_type: Option<&str>, body: &[u8]) -> Result<String, OpError> {
+    let mime = check_cover_type(content_type)?;
     if body.is_empty() {
-        return Err(HttpError::new(400, "Empty file"));
+        return Err(OpError::Rejected {
+            message: "Empty file".into(),
+            details: None,
+        });
     }
     if body.len() > MAX_COVER_UPLOAD_BYTES {
-        return Err(HttpError::new(
-            413,
-            format!(
+        return Err(OpError::TooLarge {
+            limit: MAX_COVER_UPLOAD_BYTES as u64,
+            message: format!(
                 "Cover too large ({} bytes). Max accepted is {} MB.",
                 body.len(),
                 MAX_COVER_UPLOAD_BYTES / (1024 * 1024)
             ),
-        ));
+        });
     }
     Ok(mime)
+}
+
+/// `result.cover.cover_url` of a stored job result, when it is a non-empty
+/// string (written by the AI worker or the model-free MusicBrainz synthesizer).
+pub fn stored_cover_url(result_json: Option<&str>) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(result_json?).ok()?;
+    v.get("cover")?
+        .get("cover_url")?
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
 }
 
 /// `checks._apply.apply_direct`: find the album in the cache, drain the
@@ -922,20 +814,21 @@ pub fn apply_direct(
     let mut saved = 0usize;
     let mut warnings = 0usize;
     let mut error: Option<String> = None;
-    apply_album_changes(env, &req, &mut |item| {
-        if item.event == "file_done" && item.data.get("saved") == Some(&Json::Bool(true)) {
-            saved += 1;
-            if let Some(Json::Arr(w)) = item.data.get("warnings") {
-                warnings += w.len();
+    apply_album_changes(env, &req, &mut |event| {
+        match event {
+            ApplyEvent::Tags(TagEvent::FileDone(c)) if c.saved => {
+                saved += 1;
+                warnings += c.warnings.len();
             }
-        } else if item.event == "error" {
-            let detail = item
-                .data
-                .get("detail")
-                .and_then(Json::as_str)
-                .filter(|d| !d.is_empty())
-                .unwrap_or("apply failed");
-            error = Some(detail.to_string());
+            ApplyEvent::Error { detail } => {
+                let detail = if detail.is_empty() {
+                    "apply failed".to_string()
+                } else {
+                    detail
+                };
+                error = Some(detail);
+            }
+            _ => {}
         }
         ControlFlow::Continue(())
     });

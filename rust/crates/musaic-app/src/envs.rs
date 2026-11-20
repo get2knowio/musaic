@@ -10,7 +10,7 @@ use musaic_services::ApplyEnv;
 use musaic_services::analyze::AnalyzeEnv;
 use musaic_services::check_fixes::{FixEnv, FixSources};
 use musaic_services::fix_flow::{self, FixHost};
-use musaic_services::multi_disc_convert::ConvertEnv;
+use musaic_services::multi_disc_convert::{ConvertEnv, ConvertProgress};
 use musaic_services::production::NetCovers;
 use musaic_services::track_tags::TagEnv;
 use rusqlite::Connection;
@@ -21,7 +21,7 @@ impl App {
     /// The apply pipeline's environment over `conn`: the bus, covers
     /// downloaded through the app's transport, the app clock, the track
     /// order.
-    pub fn with_apply_env<R>(
+    pub(crate) fn with_apply_env<R>(
         &self,
         conn: &mut Connection,
         f: impl FnOnce(&mut ApplyEnv<'_>) -> R,
@@ -42,7 +42,7 @@ impl App {
 
     /// The analyses' environment over `conn`: the bus, the app's analyzer,
     /// the app clock, the track order.
-    pub fn with_analyze_env<R>(
+    pub(crate) fn with_analyze_env<R>(
         &self,
         conn: &mut Connection,
         f: impl FnOnce(&mut AnalyzeEnv<'_>) -> R,
@@ -67,6 +67,26 @@ impl App {
         conn: &mut Connection,
         f: impl FnOnce(&mut ConvertEnv<'_>) -> R,
     ) -> R {
+        self.convert_env(conn, None, f)
+    }
+
+    /// [`with_convert_env`](Self::with_convert_env) with the conversion's
+    /// typed progress reported to `on_progress`, on the calling thread.
+    pub(crate) fn with_convert_env_reporting<R>(
+        &self,
+        conn: &mut Connection,
+        on_progress: &dyn Fn(ConvertProgress),
+        f: impl FnOnce(&mut ConvertEnv<'_>) -> R,
+    ) -> R {
+        self.convert_env(conn, Some(on_progress), f)
+    }
+
+    fn convert_env<R>(
+        &self,
+        conn: &mut Connection,
+        on_progress: Option<&dyn Fn(ConvertProgress)>,
+        f: impl FnOnce(&mut ConvertEnv<'_>) -> R,
+    ) -> R {
         let lib = self.library_dir();
         let now = || self.now_iso();
         let logs = musaic_services::multi_disc_convert::log_dir(self.config_dir());
@@ -84,13 +104,14 @@ impl App {
             pool: Some(&self.0.pool),
             sweeper: Some(&self.0.sweeper),
             progress: None,
+            on_progress,
         };
         f(&mut env)
     }
 
     /// The track-tag environment over `conn`: the library as configured
     /// now, the track order, one timestamp taken now.
-    pub fn with_tag_env<R>(
+    pub(crate) fn with_tag_env<R>(
         &self,
         conn: &mut Connection,
         f: impl FnOnce(&mut TagEnv<'_>) -> R,
@@ -111,7 +132,11 @@ impl App {
     /// resolver's parts with the AcoustID key as it is now, the app clock,
     /// the test override of the fixes' sources, and whether a model backend
     /// exists.
-    pub fn with_fix_env<T>(&self, conn: Connection, f: impl FnOnce(&mut FixEnv<'_>) -> T) -> T {
+    pub(crate) fn with_fix_env<T>(
+        &self,
+        conn: Connection,
+        f: impl FnOnce(&mut FixEnv<'_>) -> T,
+    ) -> T {
         let lib = self.library_dir();
         let parts = self.parts();
         let now = || self.now_iso();

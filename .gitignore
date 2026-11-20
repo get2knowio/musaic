@@ -38,4 +38,6 @@ __pycache__/
 
 # local
 desktop/
-.claude/
+# Claude Code's local state; the Spec Kit commands in skills/ are shared
+.claude/*
+!.claude/skills/

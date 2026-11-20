@@ -1,6 +1,6 @@
 //! Enumerated deliberate changes against
 //! testdata/golden/services/check_fixes.json shared by the service-level
-//! replay (musaic-services tests/golden_check_fixes.rs) and the HTTP replay
+//! replay (musaic-api tests/golden_check_fixes.rs) and the HTTP replay
 //! (musaic-api tests/check_fixes_http.rs).
 #![allow(dead_code)]
 
