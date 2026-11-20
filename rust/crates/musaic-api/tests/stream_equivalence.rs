@@ -146,13 +146,27 @@ fn http_frames(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The numbers a copy makes its own: modification times and the like.
+/// The numbers a copy makes its own: modification times, and the time a
+/// conversion record is named after (the copies run a moment apart).
 fn masked(n: &Norm, text: &str) -> String {
     let t = n.raw_json_text(&n.text(text));
-    regex::Regex::new(r#""(\w*mtime\w*)": -?[0-9.e+-]+"#)
+    let t = regex::Regex::new(r#""(\w*mtime\w*)": -?[0-9.e+-]+"#)
         .unwrap()
-        .replace_all(&t, r#""$1": "<MTIME>""#)
+        .replace_all(&t, r#""$1": "<MTIME>""#);
+    regex::Regex::new(r"conversions/\d{8}T\d{6}Z-")
+        .unwrap()
+        .replace_all(&t, "conversions/<TIME>-")
         .into_owned()
+}
+
+/// The `finding_id` of each `progress` frame, in order.
+fn progress_ids(frames: &[String]) -> Vec<i64> {
+    let re = regex::Regex::new(r#""finding_id": (\d+)"#).unwrap();
+    frames
+        .iter()
+        .filter(|f| f.starts_with("event: progress\n"))
+        .map(|f| re.captures(f).expect("a finding id")[1].parse().unwrap())
+        .collect()
 }
 
 /// `frames` with the ones between the first and the last sorted.
@@ -404,6 +418,14 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
     assert_eq!(ca, cb);
     let (ida, idb) = (a.first_album_id().await, b.first_album_id().await);
     let (ka, kb) = (a.finding_keys(&ca).await, b.finding_keys(&cb).await);
+    // The order each copy will take its findings in: the findings list's own
+    // (newest first, then by id), read before the run.
+    let ids = |fs: Vec<Value>| {
+        fs.iter()
+            .map(|f| f["id"].as_i64().unwrap())
+            .collect::<Vec<_>>()
+    };
+    let (order_a, order_b) = (ids(a.findings(&ca).await), ids(b.findings(&cb).await));
 
     let mut ops = Vec::new();
     a.st.ops()
@@ -422,15 +444,29 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
     )
     .await;
     assert_eq!(got.status, 200, "{}", got.text());
+    // Within each copy the progress frames follow that order exactly: the
+    // operation's, and the HTTP stream's.
+    let http = http_frames(&got.text());
+    assert_eq!(
+        progress_ids(&ops),
+        order_a,
+        "quick-fix-all: the operation's order"
+    );
+    assert_eq!(
+        progress_ids(&http),
+        order_b,
+        "quick-fix-all: the stream's order"
+    );
     // The findings are taken newest first (`last_seen_at`, whole seconds), so
     // two copies whose check runs straddled a second differently list them in
-    // a different order: `start` and `done` are compared in place, the
-    // progress frames between them as a set.
+    // a different order: across the copies `start` and `done` are compared in
+    // place, the progress frames between them as a set (their order is held
+    // above, per copy).
     assert_same_frames(
         "quick-fix-all",
         &progress_sorted(keyed(&ops, &ka)),
         &a.norm(&[&ida]),
-        &progress_sorted(keyed(&http_frames(&got.text()), &kb)),
+        &progress_sorted(keyed(&http, &kb)),
         &b.norm(&[&idb]),
     );
 }
