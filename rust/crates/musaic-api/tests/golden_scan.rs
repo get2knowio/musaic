@@ -37,7 +37,9 @@
 //! database is opened read-only so the save fails. Only the failure's text
 //! (`error.detail`, `state.error`) is masked on both sides.
 
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
+mod scan_wire;
 
 use std::path::PathBuf;
 use std::sync::mpsc;
@@ -129,7 +131,13 @@ fn buffer_json(svc: &ScanService, norm: &Norm) -> Value {
     Value::Array(
         svc.buffer()
             .iter()
-            .map(|e| norm.value(&json!([e.seq, e.name, e.data.to_value()])))
+            .map(|e| {
+                norm.value(&json!([
+                    e.seq,
+                    scan_wire::name(e),
+                    scan_wire::data(e).to_value()
+                ]))
+            })
             .collect(),
     )
 }
@@ -156,7 +164,13 @@ fn mask_injected(mut v: Value, injected: bool) -> Value {
 fn drain(svc: &ScanService, from: u64, norm: &Norm) -> Value {
     Value::Array(
         svc.subscribe(from)
-            .map(|e| norm.value(&json!([e.seq, e.name, e.data.to_value()])))
+            .map(|e| {
+                norm.value(&json!([
+                    e.seq,
+                    scan_wire::name(&e),
+                    scan_wire::data(&e).to_value()
+                ]))
+            })
             .collect(),
     )
 }
@@ -658,7 +672,7 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
         // very first state, and states inside a story, are comparable.
         if first_story || !first_scan {
             assert_eq!(
-                story.norm.value(&svc.state().to_json().to_value()),
+                story.norm.value(&scan_wire::state(&svc.state()).to_value()),
                 step["state_before"],
                 "{label}: state before"
             );
@@ -672,7 +686,10 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
                 panic!("{label}: a scan was already running");
             };
             assert_eq!(
-                mask_injected(story.norm.value(&state.to_json().to_value()), injected),
+                mask_injected(
+                    story.norm.value(&scan_wire::state(&state).to_value()),
+                    injected
+                ),
                 mask_injected(step["start_return"].clone(), injected),
                 "{label}: start_scan return"
             );
@@ -709,14 +726,14 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
                 panic!("{label}: already running");
             };
             assert_eq!(
-                story.norm.value(&state.to_json().to_value()),
+                story.norm.value(&scan_wire::state(&state).to_value()),
                 step["start_return"],
                 "{label}: start_scan return"
             );
             let worker = std::thread::spawn(move || job.run());
             reached_rx.recv_timeout(Duration::from_secs(30)).unwrap();
             assert_eq!(
-                story.norm.value(&svc.state().to_json().to_value()),
+                story.norm.value(&scan_wire::state(&svc.state()).to_value()),
                 step["state_mid"],
                 "{label}: state mid-scan"
             );
@@ -728,7 +745,7 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
             // A second start while running returns the running state, unchanged.
             match svc.start_scan(&lib_s, true, story.deps(false, None)) {
                 StartScan::AlreadyRunning(s) => assert_eq!(
-                    story.norm.value(&s.to_json().to_value()),
+                    story.norm.value(&scan_wire::state(&s).to_value()),
                     step["second_start_return"],
                     "{label}: second start"
                 ),
@@ -741,7 +758,11 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
             let mut got3 = Vec::new();
             for (sub, got) in [(&mut sub0, &mut got0), (&mut sub3, &mut got3)] {
                 while let Poll::Event(e) = sub.next_timeout(Duration::from_millis(50)) {
-                    got.push(story.norm.value(&json!([e.seq, e.name, e.data.to_value()])));
+                    got.push(story.norm.value(&json!([
+                        e.seq,
+                        scan_wire::name(&e),
+                        scan_wire::data(&e).to_value()
+                    ])));
                 }
             }
             assert_eq!(
@@ -758,9 +779,11 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
             for (sub, got) in [(&mut sub0, &mut got0), (&mut sub3, &mut got3)] {
                 loop {
                     match sub.next_timeout(Duration::from_secs(30)) {
-                        Poll::Event(e) => {
-                            got.push(story.norm.value(&json!([e.seq, e.name, e.data.to_value()])))
-                        }
+                        Poll::Event(e) => got.push(story.norm.value(&json!([
+                            e.seq,
+                            scan_wire::name(&e),
+                            scan_wire::data(&e).to_value()
+                        ]))),
                         Poll::Finished => break,
                         Poll::Pending => panic!("{label}: subscriber stalled"),
                     }
@@ -785,7 +808,7 @@ fn run_story(svc: &ScanService, st: &Value, first_story: bool) {
         }
         assert_eq!(
             mask_injected(
-                story.norm.value(&svc.state().to_json().to_value()),
+                story.norm.value(&scan_wire::state(&svc.state()).to_value()),
                 injected
             ),
             mask_injected(step["state_after"].clone(), injected),
@@ -990,7 +1013,11 @@ fn worker_done_hook_runs_before_library_scan_completed_on_every_path() {
         let svc2 = svc.clone();
         deps.on_worker_done = Some(Arc::new(move || {
             let st = svc2.state();
-            let last = svc2.buffer().last().map(|e| e.name).unwrap_or("");
+            let last = svc2
+                .buffer()
+                .last()
+                .map(|e| scan_wire::name(e))
+                .unwrap_or("");
             o3.lock().unwrap().push(format!(
                 "worker_done status={} last_event={last}",
                 st.status.as_str()

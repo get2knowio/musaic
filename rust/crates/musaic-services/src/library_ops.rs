@@ -6,10 +6,9 @@
 //! album from the library, clearing an album's MusicBrainz anchor, setting
 //! the library directory, the album list route and an album's resolution.
 //! This lives here rather than in musaic-api's `routes/library.rs` so a
-//! non-HTTP face reads and changes the library the same way. The host takes
-//! the restore gate's work guard and renders the answers; each error
-//! converts into the host's error type where it happens (a refusal is an
-//! [`HttpError`]).
+//! non-HTTP face reads and changes the library the same way. The operations
+//! (`musaic_app::ops::library`) take the restore gate's work guard; a face
+//! renders the typed answers. Every failure is an [`OpError`].
 
 use std::path::Path;
 
@@ -20,7 +19,7 @@ use musaic_scan::{TrackOrder, py_resolve};
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::albums::{AlbumRow, album_to_json, find_album_by_id, load_snapshot};
-use crate::apply::HttpError;
+use crate::error::{NoLibraryKind, OpError, Subject};
 use crate::json::Json;
 use crate::sources::{cached_album, file_name};
 
@@ -31,10 +30,19 @@ fn resolved(lib: &str) -> String {
     py_resolve(Path::new(lib)).to_string_lossy().into_owned()
 }
 
-fn refuse(status: u16, detail: impl Into<String>) -> HttpError {
-    HttpError {
-        status,
-        detail: detail.into(),
+/// No library folder is configured.
+pub fn no_library() -> OpError {
+    OpError::NoLibrary {
+        kind: NoLibraryKind::NotConfigured,
+        message: NO_LIBRARY.to_string(),
+    }
+}
+
+fn album_not_found(album_id: &str, message: String) -> OpError {
+    OpError::NotFound {
+        what: Subject::Album,
+        id: album_id.to_string(),
+        message,
     }
 }
 
@@ -100,36 +108,37 @@ pub fn resolve_album_dict(
     library_dir: Option<&str>,
     album_id: &str,
     order: TrackOrder,
-) -> Result<(String, String, Json), HttpError> {
+) -> Result<(String, String, Json), OpError> {
     let Some(lib) = library_dir.filter(|l| !l.is_empty()) else {
-        return Err(refuse(409, NO_LIBRARY));
+        return Err(no_library());
     };
-    if let Some(row) =
-        cached_album(conn, Some(lib), album_id).map_err(|e| refuse(500, e.to_string()))?
-    {
+    if let Some(row) = cached_album(conn, Some(lib), album_id).map_err(OpError::failed)? {
         return Ok((row.album.id.clone(), row.album.path.clone(), row.json));
     }
     match find_album_by_id(Path::new(lib), album_id, order) {
         Some(a) => Ok((a.id.clone(), a.path.clone(), album_to_json(&a))),
-        None => Err(refuse(404, "Album not found (try rescanning the library)")),
+        None => Err(album_not_found(
+            album_id,
+            "Album not found (try rescanning the library)".to_string(),
+        )),
     }
 }
 
 /// `GET /api/albums/{id}`: the album in the library's snapshot, else a live
 /// walk of `library_dir`, else 404.
-pub fn get_album<E: From<rusqlite::Error> + From<HttpError>>(
+pub fn get_album(
     conn: &Connection,
     library_dir: &str,
     album_id: &str,
     order: TrackOrder,
-) -> Result<Json, E> {
+) -> Result<Json, OpError> {
     let (_, rows) = snapshot(conn, library_dir)?;
     if let Some(r) = rows.into_iter().find(|r| r.id() == album_id) {
         return Ok(r.json);
     }
     match find_album_by_id(Path::new(library_dir), album_id, order) {
         Some(a) => Ok(album_to_json(&a)),
-        None => Err(E::from(refuse(404, "Album not found"))),
+        None => Err(album_not_found(album_id, "Album not found".to_string())),
     }
 }
 
@@ -148,9 +157,18 @@ pub fn read_tracks_for_panel(album_dir: &str) -> Json {
 }
 
 fn tracks_json(album_dir: &str, with_album: bool) -> Json {
+    Json::Arr(track_rows(album_dir, with_album))
+}
+
+/// The track list [`read_tracks_for_panel`] returns, one dict per file.
+pub fn panel_track_rows(album_dir: &str) -> Vec<Json> {
+    track_rows(album_dir, true)
+}
+
+fn track_rows(album_dir: &str, with_album: bool) -> Vec<Json> {
     let dir = Path::new(album_dir);
     if !dir.is_dir() {
-        return Json::Arr(Vec::new());
+        return Vec::new();
     }
     let mut out = Vec::new();
     for p in musaic_scan::list_flacs(dir) {
@@ -197,24 +215,24 @@ fn tracks_json(album_dir: &str, with_album: bool) -> Json {
             ])),
         }
     }
-    Json::Arr(out)
+    out
 }
 
 /// `DELETE /api/albums/{id}` (one of the two paths that drop an album row;
 /// the other is a user-confirmed merge, `musaic_db::merge::merge_album_rows`):
 /// 404 unless the album is cached for `library_dir`; the connection is
 /// closed before `AlbumDeleted` is published. The caller holds a work guard.
-pub fn delete_album<E: From<musaic_db::Error> + From<rusqlite::Error> + From<HttpError>>(
+pub fn delete_album(
     conn: Connection,
     bus: &Bus,
     library_dir: Option<&str>,
     album_id: &str,
-) -> Result<(), E> {
+) -> Result<(), OpError> {
     if cached_album(&conn, library_dir, album_id)?.is_none() {
-        return Err(E::from(refuse(
-            404,
+        return Err(album_not_found(
+            album_id,
             format!("Album {} not in cache", musaic_fsops::py_repr(album_id)),
-        )));
+        ));
     }
     musaic_db::albums::delete_album(&conn, album_id)?;
     drop(conn);
@@ -232,7 +250,7 @@ pub fn delete_album<E: From<musaic_db::Error> + From<rusqlite::Error> + From<Htt
 /// opened). `now_iso` is asked only when a release group is blocked.
 /// Returns the blocked release group. The caller holds a work guard.
 #[allow(clippy::too_many_arguments)]
-pub fn clear_mb_anchor<E: From<musaic_db::Error> + From<HttpError>>(
+pub fn clear_mb_anchor(
     conn: Connection,
     library_dir: impl FnOnce() -> Option<String>,
     order: TrackOrder,
@@ -240,7 +258,7 @@ pub fn clear_mb_anchor<E: From<musaic_db::Error> + From<HttpError>>(
     bus: &Bus,
     now_iso: impl FnOnce() -> String,
     album_id: &str,
-) -> Result<Option<String>, E> {
+) -> Result<Option<String>, OpError> {
     resolve_album_dict(&conn, library_dir().as_deref(), album_id, order)?;
     let rejected = musaic_db::mb_anchor::get_album_mb_anchor(&conn, album_id)?
         .map(|a| a.release_group_mbid)
@@ -304,37 +322,45 @@ fn known_spelling(
     }))
 }
 
-/// `POST /api/config`: expand `~`, refuse a path that is not a directory
-/// or cannot be listed (400, nothing stored: the previous folder stays in
-/// effect), store the library directory, then drop its snapshot (the next
-/// scan re-reads it). Only a change is checked: a folder that is already
-/// configured and has since gone away (an unmounted drive) is never touched
-/// here. A folder that is the same file as one already known, spelled
-/// differently, keeps the known string: every album id and `library_path`
-/// derives from it, so a new spelling would orphan the rows. Returns the
-/// stored `library_dir`. `open` opens a database connection; `save_failed`
-/// maps a failure to write the config.
-pub fn set_library_dir<E: From<HttpError> + From<musaic_db::Error>>(
+/// `POST /api/config`'s folder checks: expand `~`, refuse a path that is not
+/// a directory or cannot be listed (nothing is stored: the previous folder
+/// stays in effect). Asked after the work guard, as the route always did.
+pub fn check_library_target(dir: &str, home: Option<&Path>) -> Result<std::path::PathBuf, OpError> {
+    let target = musaic_core::config::expand_user(dir, home);
+    if !target.is_dir() {
+        return Err(OpError::Rejected {
+            message: format!("Not a directory: {}", py_path_str(&target)),
+            details: None,
+        });
+    }
+    if let Err(e) = std::fs::read_dir(&target) {
+        return Err(OpError::Rejected {
+            message: format!("Cannot read folder: {} ({e})", py_path_str(&target)),
+            details: None,
+        });
+    }
+    Ok(target)
+}
+
+/// `POST /api/config`: [`check_library_target`], store the library
+/// directory, then drop its snapshot (the next scan re-reads it). Only a
+/// change is checked: a folder that is already configured and has since gone
+/// away (an unmounted drive) is never touched here. A folder that is the
+/// same file as one already known, spelled differently, keeps the known
+/// string: every album id and `library_path` derives from it, so a new
+/// spelling would orphan the rows. Returns the stored `library_dir`. `open`
+/// opens a database connection; a failure to write the config is
+/// `Internal`.
+pub fn set_library_dir(
     config: &musaic_core::config::ConfigDir,
     home: Option<&Path>,
     dir: &str,
-    open: impl FnOnce() -> Result<Connection, E>,
-    save_failed: impl Fn(std::io::Error) -> E,
-) -> Result<LibraryChoice, E> {
-    let target = musaic_core::config::expand_user(dir, home);
-    if !target.is_dir() {
-        return Err(refuse(400, format!("Not a directory: {}", py_path_str(&target))).into());
-    }
-    if let Err(e) = std::fs::read_dir(&target) {
-        return Err(refuse(
-            400,
-            format!("Cannot read folder: {} ({e})", py_path_str(&target)),
-        )
-        .into());
-    }
+    open: impl FnOnce() -> Result<Connection, OpError>,
+) -> Result<LibraryChoice, OpError> {
+    let target = check_library_target(dir, home)?;
     let mut conn = open()?;
     let current = config.load().library_dir;
-    let resolved = musaic_core::config::resolve_path(&target).map_err(&save_failed)?;
+    let resolved = musaic_core::config::resolve_path(&target).map_err(OpError::internal)?;
     let kept = match resolved.to_str() {
         Some(r) => known_spelling(current.as_deref(), &conn, r, &target)?,
         None => None,
@@ -342,14 +368,16 @@ pub fn set_library_dir<E: From<HttpError> + From<musaic_db::Error>>(
     let (library_dir, kept_stored_spelling) = match kept {
         Some(known) => {
             if current.as_deref() != Some(known.as_str()) {
-                config.set_library_dir(&known, home).map_err(&save_failed)?;
+                config
+                    .set_library_dir(&known, home)
+                    .map_err(OpError::internal)?;
             }
             (Some(known), true)
         }
         None => (
             config
                 .set_library_dir(&target.to_string_lossy(), home)
-                .map_err(&save_failed)?
+                .map_err(OpError::internal)?
                 .library_dir,
             false,
         ),
@@ -363,52 +391,60 @@ pub fn set_library_dir<E: From<HttpError> + From<musaic_db::Error>>(
     })
 }
 
-/// The configured library directory, which must exist: 409 without one
-/// ([`NO_LIBRARY`]) or when it is not a directory.
-pub fn configured_library(library_dir: Option<String>) -> Result<String, HttpError> {
+/// The configured library directory, which must exist: [`OpError::NoLibrary`]
+/// without one ([`NO_LIBRARY`]) or when it is not a directory.
+pub fn configured_library(library_dir: Option<String>) -> Result<String, OpError> {
     let lib = library_dir
         .filter(|l| !l.is_empty())
-        .ok_or_else(|| refuse(409, NO_LIBRARY))?;
+        .ok_or_else(no_library)?;
     if !Path::new(&lib).is_dir() {
-        return Err(refuse(
-            409,
-            format!("Configured library directory does not exist: {lib}"),
-        ));
+        return Err(OpError::NoLibrary {
+            kind: NoLibraryKind::Missing,
+            message: format!("Configured library directory does not exist: {lib}"),
+        });
     }
     Ok(lib)
 }
 
+/// The library's cached albums in the Python app's order, as
+/// [`list_albums`] returns them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AlbumListing {
+    pub library_dir: String,
+    /// `""` when never scanned.
+    pub scanned_at: String,
+    /// Each album as its dict, in the Python app's sort.
+    pub albums: Vec<Json>,
+}
+
 /// `GET /api/albums`: the library's cached albums in the Python app's sort,
 /// after dropping the snapshot first when `refresh`.
-pub fn list_albums<E: From<musaic_db::Error> + From<rusqlite::Error>>(
+pub fn list_albums(
     conn: &mut Connection,
     lib: &str,
     refresh: bool,
-) -> Result<Json, E> {
+) -> Result<AlbumListing, OpError> {
     if refresh {
         drop_snapshot(conn, lib)?;
     }
     let (scanned_at, rows) = snapshot(conn, lib)?;
     let mut albums: Vec<Json> = rows.into_iter().map(|r| r.json).collect();
     sort_albums(&mut albums);
-    Ok(Json::obj([
-        ("library_dir", Json::from(lib)),
-        ("count", Json::from(albums.len())),
-        ("scanned_at", Json::from(scanned_at)),
-        ("albums", Json::Arr(albums)),
-    ]))
+    Ok(AlbumListing {
+        library_dir: lib.to_string(),
+        scanned_at,
+        albums,
+    })
 }
 
 /// `GET /api/albums/{id}/resolution`: the album must resolve (409 / 404,
-/// [`resolve_album_dict`]); then the resolver's answer as the Python app's
-/// `to_dict()`. `library_dir` is read once, for the lookup and the
-/// resolve alike. Tier 0c is reachable here: with an
-/// AcoustID key the parts fingerprint the album (stored,
+/// [`resolve_album_dict`]); then the resolver's answer. `library_dir` is
+/// read once, for the lookup and the resolve alike. Tier 0c is reachable
+/// here: with an AcoustID key the parts fingerprint the album (stored,
 /// `TrackFingerprinted`) and vote. `parts` builds the resolver's parts
-/// (reading the AcoustID key) only once the album has resolved; `failed`
-/// maps a resolver failure.
-#[allow(clippy::too_many_arguments)]
-pub fn album_resolution<E: From<HttpError>>(
+/// (reading the AcoustID key) only once the album has resolved. A resolver
+/// failure is `Internal`.
+pub fn album_resolution(
     conn: &Connection,
     library_dir: &dyn Fn() -> Option<String>,
     order: TrackOrder,
@@ -416,12 +452,11 @@ pub fn album_resolution<E: From<HttpError>>(
     album_id: &str,
     hint: &str,
     force: bool,
-    failed: impl FnOnce(String) -> E,
-) -> Result<serde_json::Value, E> {
+) -> Result<musaic_resolve::AlbumResolution, OpError> {
     let lib = library_dir();
     resolve_album_dict(conn, lib.as_deref(), album_id, order)?;
     let r = parts()
         .resolve(conn, lib.as_deref(), album_id, hint, force)
-        .map_err(failed)?;
-    Ok(r.to_dict())
+        .map_err(OpError::internal)?;
+    Ok((*r).clone())
 }

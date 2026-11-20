@@ -13,7 +13,9 @@
 //! - A scan started right after a cancelled one runs normally.
 //! - A subscriber joining late replays the whole buffer and ends.
 
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
+mod scan_wire;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -170,7 +172,7 @@ impl World {
 }
 
 fn names(svc: &ScanService) -> Vec<&'static str> {
-    svc.buffer().iter().map(|e| e.name).collect()
+    svc.buffer().iter().map(|e| scan_wire::name(e)).collect()
 }
 
 /// Drain a subscription to its end (generous deadline per event).
@@ -179,7 +181,7 @@ fn drain(svc: &ScanService, from: u64) -> Vec<&'static str> {
     let mut got = Vec::new();
     loop {
         match sub.next_timeout(Duration::from_secs(30)) {
-            Poll::Event(e) => got.push(e.name),
+            Poll::Event(e) => got.push(scan_wire::name(&e)),
             Poll::Finished => return got,
             Poll::Pending => panic!("subscriber stalled after {got:?}"),
         }
@@ -212,7 +214,10 @@ fn cancel_during_albums_writes_nothing_and_the_next_scan_runs() {
             *o = Some(svc2.cancel());
             // While the scan still runs, it reports `cancelling`.
             assert_eq!(
-                svc2.state().to_json().get("status").unwrap().as_str(),
+                scan_wire::state(&svc2.state())
+                    .get("status")
+                    .unwrap()
+                    .as_str(),
                 Some("cancelling")
             );
             assert!(svc2.is_running());
@@ -236,7 +241,7 @@ fn cancel_during_albums_writes_nothing_and_the_next_scan_runs() {
     let st = svc.state();
     assert_eq!(st.status.as_str(), "cancelled");
     assert_eq!(
-        st.to_json().get("status").unwrap().as_str(),
+        scan_wire::state(&st).get("status").unwrap().as_str(),
         Some("cancelled")
     );
     assert_eq!(st.scanned, 1, "the album being read is finished, no more");
@@ -250,7 +255,7 @@ fn cancel_during_albums_writes_nothing_and_the_next_scan_runs() {
         ["start", "album", "progress", "cancelling", "cancelled"]
     );
     assert_eq!(live, names(&svc), "the live subscriber saw every event");
-    let last = svc.buffer().last().unwrap().data.to_value();
+    let last = scan_wire::data(svc.buffer().last().unwrap()).to_value();
     assert_eq!(last["reason"], "cancelled");
     assert_eq!(last["phase"], "albums");
     assert_eq!(last["scanned"], 1);
@@ -333,7 +338,7 @@ fn cancel_before_discovery() {
         panic!("cancel refused")
     };
     assert_eq!(
-        s.to_json().get("status").unwrap().as_str(),
+        scan_wire::state(&s).get("status").unwrap().as_str(),
         Some("cancelling")
     );
     assert!(matches!(svc.cancel(), CancelScan::AlreadyRequested(_)));
@@ -344,7 +349,7 @@ fn cancel_before_discovery() {
     ));
     job.run();
     assert_eq!(names(&svc), ["cancelling", "cancelled"]);
-    let last = svc.buffer().last().unwrap().data.to_value();
+    let last = scan_wire::data(svc.buffer().last().unwrap()).to_value();
     assert_eq!(last["phase"], "discovery");
     assert_eq!(last["scanned"], 0);
     assert_eq!(svc.state().status.as_str(), "cancelled");

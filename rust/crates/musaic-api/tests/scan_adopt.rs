@@ -10,7 +10,9 @@
 //! but does not count as an album folder; the real Linux behaviour (the old
 //! spelling does not open, nothing is adopted) has its own tests.
 
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
+mod scan_wire;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -245,7 +247,7 @@ impl World {
 }
 
 fn names(svc: &ScanService) -> Vec<&'static str> {
-    svc.buffer().iter().map(|e| e.name).collect()
+    svc.buffer().iter().map(|e| scan_wire::name(e)).collect()
 }
 
 fn types(events: &[Value]) -> Vec<String> {
@@ -406,15 +408,18 @@ fn a_respelled_folder_keeps_its_row_and_everything_on_it() {
     assert!(!stream.contains(&"marked_missing"), "{stream:?}");
     assert_eq!(stream.iter().filter(|n| **n == "adopted").count(), 1);
     let buffer = svc.buffer();
-    let adopted = buffer.iter().find(|e| e.name == "adopted").unwrap();
+    let adopted = buffer
+        .iter()
+        .find(|e| scan_wire::name(e) == "adopted")
+        .unwrap();
     assert_eq!(
-        adopted.data.to_value(),
+        scan_wire::data(adopted).to_value(),
         json!({"old_id": old_id, "id": new_id, "old_path": old_path, "path": new_path})
     );
     let done = buffer.last().unwrap();
-    assert_eq!(done.name, "done");
-    assert_eq!(done.data.to_value()["marked_missing_count"], 0);
-    assert_eq!(done.data.to_value()["newly_missing_count"], 0);
+    assert_eq!(scan_wire::name(done), "done");
+    assert_eq!(scan_wire::data(done).to_value()["marked_missing_count"], 0);
+    assert_eq!(scan_wire::data(done).to_value()["newly_missing_count"], 0);
 
     // Idempotent: the next scan finds the row at the listed spelling.
     let again = w.scan(None);
@@ -457,7 +462,7 @@ fn an_absent_library_root_still_aborts() {
     std::fs::rename(&w.lib, w.root.join("away")).unwrap();
     let svc = w.scan(None);
     assert_eq!(svc.state().status.as_str(), "aborted");
-    let last = svc.buffer().last().unwrap().data.to_value();
+    let last = scan_wire::data(svc.buffer().last().unwrap()).to_value();
     assert_eq!(last["vanish_count"], 10);
     assert_eq!(last["cached_count"], 10);
     assert_eq!(w.dump(), before);

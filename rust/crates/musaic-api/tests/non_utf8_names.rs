@@ -5,7 +5,9 @@
 
 #![cfg(target_os = "linux")]
 
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
+mod scan_wire;
 
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
@@ -100,11 +102,11 @@ fn the_done_event_and_status_carry_the_count() {
     };
     job.run();
     assert_eq!(svc.state().status.as_str(), "done");
-    let done = svc.buffer().last().unwrap().data.to_value();
+    let done = scan_wire::data(svc.buffer().last().unwrap()).to_value();
     assert_eq!(done["count"], 1);
     assert_eq!(done["skipped_non_utf8_count"], 2);
     assert_eq!(
-        svc.state().to_json().to_value()["skipped_non_utf8_count"],
+        scan_wire::state(&svc.state()).to_value()["skipped_non_utf8_count"],
         2
     );
 }
@@ -132,11 +134,10 @@ fn a_clean_library_keeps_the_usual_payload() {
         panic!("a scan was already running")
     };
     job.run();
-    let done = svc.buffer().last().unwrap().data.to_value();
+    let done = scan_wire::data(svc.buffer().last().unwrap()).to_value();
     assert!(done.get("skipped_non_utf8_count").is_none());
     assert!(
-        svc.state()
-            .to_json()
+        scan_wire::state(&svc.state())
             .get("skipped_non_utf8_count")
             .is_none()
     );

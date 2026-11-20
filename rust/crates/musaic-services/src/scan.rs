@@ -234,44 +234,98 @@ impl ScanState {
             self.status.as_str()
         }
     }
+}
 
-    /// `GET /api/scan/status` body (key order of `to_dict`). The cancel is
-    /// visible only through `status` (`cancelling`, then `cancelled`), so
-    /// the body keeps the Python app's keys.
-    ///
-    /// `skipped_non_utf8_count` appears only when something was skipped, so the usual body is unchanged.
-    pub fn to_json(&self) -> Json {
-        let mut pairs = vec![
-            ("status", Json::from(self.status_str())),
-            ("library_dir", Json::from(self.library_dir.clone())),
-            ("force", Json::from(self.force)),
-            ("total", Json::from(self.total)),
-            ("scanned", Json::from(self.scanned)),
-            ("cached_count", Json::from(self.cached_count)),
-            ("removed_count", Json::from(self.removed_count)),
-            ("started_at", Json::from(self.started_at.clone())),
-            ("completed_at", Json::from(self.completed_at.clone())),
-            ("error", Json::from(self.error.clone())),
-        ];
-        if self.skipped_non_utf8 > 0 {
-            pairs.push(("skipped_non_utf8_count", Json::from(self.skipped_non_utf8)));
+/// What the scan's `done` event carries.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScanDone {
+    pub count: usize,
+    pub marked_missing_count: usize,
+    pub newly_missing_count: usize,
+    pub returned_count: usize,
+    pub scanned_at: String,
+    /// Present only when something was skipped.
+    pub skipped_non_utf8_count: Option<usize>,
+}
+
+/// What the scan's `cancelled` event carries.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScanCancelled {
+    pub phase: CancelPhase,
+    pub scanned: usize,
+    pub total: usize,
+    pub detail: String,
+}
+
+/// Where a cancelled scan was stopped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CancelPhase {
+    Discovery,
+    Albums,
+}
+
+impl CancelPhase {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CancelPhase::Discovery => "discovery",
+            CancelPhase::Albums => "albums",
         }
-        Json::obj(pairs)
     }
 }
 
-/// One buffered event.
+/// The typed form of one scan event (module docs, "Events"). Exactly one of
+/// `Done`, `Aborted`, `Cancelled` and `Error` ends every scan.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ScanEventKind {
+    Start {
+        library_dir: String,
+        total: usize,
+        cached_count: usize,
+        force: bool,
+    },
+    /// One album as the scan read it: its dict, and whether it came from
+    /// the cache (`cached`) or from the files (`fresh`).
+    Album {
+        album: Json,
+        status: &'static str,
+    },
+    Progress {
+        scanned: usize,
+        total: usize,
+    },
+    MarkedMissing {
+        id: String,
+        path: String,
+    },
+    Adopted {
+        old_id: String,
+        id: String,
+        old_path: String,
+        path: String,
+    },
+    Cancelling {
+        scanned: usize,
+        total: usize,
+    },
+    Done(ScanDone),
+    Aborted(musaic_db::albums::ScanAbort),
+    Cancelled(ScanCancelled),
+    Error {
+        detail: String,
+    },
+}
+
+/// One buffered event: its sequence number and its typed form. The wire
+/// rendering (name, payload, SSE frame) is `musaic-api`'s `render::library`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScanEvent {
     pub seq: u64,
-    pub name: &'static str,
-    pub data: Json,
+    pub kind: ScanEventKind,
 }
 
 impl ScanEvent {
-    /// `sse_event(name, payload)`.
-    pub fn sse_frame(&self) -> String {
-        format!("event: {}\ndata: {}\n\n", self.name, self.data.dumps())
+    fn new(seq: u64, kind: ScanEventKind) -> Self {
+        ScanEvent { seq, kind }
     }
 }
 
@@ -288,10 +342,10 @@ struct Inner {
 }
 
 impl Inner {
-    fn push(&mut self, name: &'static str, data: Json) {
+    fn push(&mut self, kind: ScanEventKind) {
         let seq = self.next_seq;
         self.next_seq += 1;
-        self.events.push_back(ScanEvent { seq, name, data });
+        self.events.push_back(ScanEvent::new(seq, kind));
         while self.events.len() > MAX_BUFFER {
             self.events.pop_front();
         }
@@ -334,8 +388,8 @@ impl Shared {
     }
 
     /// `_push_event`.
-    fn push(&self, name: &'static str, data: Json) {
-        self.lock().push(name, data);
+    fn push(&self, kind: ScanEventKind) {
+        self.lock().push(kind);
         self.changed.notify_all();
     }
 
@@ -362,10 +416,10 @@ impl Shared {
 
     /// The terminal status and the terminal event under one lock, so no
     /// subscriber sees one without the other.
-    fn finish(&self, f: impl FnOnce(&mut ScanState), name: &'static str, data: Json) {
+    fn finish(&self, f: impl FnOnce(&mut ScanState), kind: ScanEventKind) {
         let mut g = self.lock();
         f(&mut g.state);
-        g.push(name, data);
+        g.push(kind);
         drop(g);
         self.changed.notify_all();
     }
@@ -375,10 +429,10 @@ impl Shared {
 enum Outcome {
     /// The snapshot was saved (`done` is in the buffer).
     Saved,
-    /// The sanity check refused to write: the `aborted` payload.
-    Aborted(Json),
-    /// Cancelled before the save: the `cancelled` payload.
-    Cancelled(Json),
+    /// The sanity check refused to write: the `aborted` event.
+    Aborted(musaic_db::albums::ScanAbort),
+    /// Cancelled before the save: the `cancelled` event.
+    Cancelled(ScanCancelled),
 }
 
 /// Opens the library database for the worker thread.
@@ -541,13 +595,7 @@ impl ScanService {
         }
         g.state.cancel_requested = true;
         let (scanned, total) = (g.state.scanned, g.state.total);
-        g.push(
-            "cancelling",
-            Json::obj([
-                ("scanned", Json::from(scanned)),
-                ("total", Json::from(total)),
-            ]),
-        );
+        g.push(ScanEventKind::Cancelling { scanned, total });
         let state = g.state.clone();
         drop(g);
         self.shared.changed.notify_all();
@@ -725,14 +773,18 @@ impl ScanJob {
         // nothing new to look at (and after an abort the library was just
         // judged unreachable); subscribers learn the scan ended, and why,
         // from `LibraryScanStopped`.
-        let (status, reason, name, payload) = match result {
-            Ok(Outcome::Saved) => (ScanStatus::Done, "", "", Json::Null),
-            Ok(Outcome::Aborted(payload)) => {
-                (ScanStatus::Aborted, ABORT_REASON, "aborted", payload)
-            }
-            Ok(Outcome::Cancelled(payload)) => {
-                (ScanStatus::Cancelled, CANCEL_REASON, "cancelled", payload)
-            }
+        let (status, reason, terminal) = match result {
+            Ok(Outcome::Saved) => (ScanStatus::Done, "", None),
+            Ok(Outcome::Aborted(a)) => (
+                ScanStatus::Aborted,
+                ABORT_REASON,
+                Some(ScanEventKind::Aborted(a)),
+            ),
+            Ok(Outcome::Cancelled(c)) => (
+                ScanStatus::Cancelled,
+                CANCEL_REASON,
+                Some(ScanEventKind::Cancelled(c)),
+            ),
             Err(detail) => {
                 shared.update(|s| {
                     s.status = ScanStatus::Error;
@@ -746,15 +798,14 @@ impl ScanJob {
                 return;
             }
         };
-        if status != ScanStatus::Done {
+        if let Some(terminal) = terminal {
             let now = (deps.clock)();
             shared.finish(
                 |s| {
                     s.status = status;
                     s.completed_at = Some(now);
                 },
-                name,
-                payload,
+                terminal,
             );
             deps.bus.publish(&BusEvent::LibraryScanStopped {
                 reason: reason.to_string(),
@@ -1070,10 +1121,9 @@ fn scan_worker(
     }))
     .unwrap_or_else(|p| Err(format!("scan worker panicked: {}", panic_text(p.as_ref()))));
     if let Err(detail) = &res {
-        shared.push(
-            "error",
-            Json::obj([("detail", Json::from(detail.as_str()))]),
-        );
+        shared.push(ScanEventKind::Error {
+            detail: detail.clone(),
+        });
     }
     res
 }
@@ -1084,24 +1134,24 @@ fn cancelled_payload(shared: &Shared, phase: &str) -> Outcome {
         let g = shared.lock();
         (g.state.scanned, g.state.total)
     };
-    Outcome::Cancelled(Json::obj([
-        ("reason", Json::from(CANCEL_REASON)),
-        ("phase", Json::from(phase)),
-        ("scanned", Json::from(scanned)),
-        ("total", Json::from(total)),
-        (
-            "detail",
-            Json::from(format!(
-                "Scan cancelled {}. Nothing was saved: the library keeps the result of its \
-                 previous scan.",
-                if phase == "discovery" {
-                    "while looking for album folders".to_string()
-                } else {
-                    format!("after {scanned} of {total} album(s)")
-                }
-            )),
+    let phase = if phase == "discovery" {
+        CancelPhase::Discovery
+    } else {
+        CancelPhase::Albums
+    };
+    Outcome::Cancelled(ScanCancelled {
+        phase,
+        scanned,
+        total,
+        detail: format!(
+            "Scan cancelled {}. Nothing was saved: the library keeps the result of its \
+             previous scan.",
+            match phase {
+                CancelPhase::Discovery => "while looking for album folders".to_string(),
+                CancelPhase::Albums => format!("after {scanned} of {total} album(s)"),
+            }
         ),
-    ]))
+    })
 }
 
 fn scan_body(
@@ -1167,15 +1217,12 @@ fn scan_body(
         s.cached_count = cached_count;
         s.skipped_non_utf8 = skipped_non_utf8;
     });
-    shared.push(
-        "start",
-        Json::obj([
-            ("library_dir", Json::from(library_dir)),
-            ("total", Json::from(total)),
-            ("cached_count", Json::from(cached_count)),
-            ("force", Json::from(force)),
-        ]),
-    );
+    shared.push(ScanEventKind::Start {
+        library_dir: library_dir.to_string(),
+        total,
+        cached_count,
+        force,
+    });
 
     // collected: path -> (album for the save), in first-seen order.
     let mut collected: Vec<(String, Album)> = Vec::new();
@@ -1191,20 +1238,22 @@ fn scan_body(
             if let Some(row) = held_rows.iter().find(|r| {
                 r.album.path == *path && r.missing_since.as_deref().is_none_or(str::is_empty)
             }) {
-                let mut dict = row.json.clone();
-                dict.set("_status", Json::from("cached"));
+                let dict = row.json.clone();
                 if !collected.iter().any(|(p, _)| p == path) {
                     collected.push((path.clone(), row.album.clone()));
                 }
                 scanned += 1;
                 shared.update(|s| s.scanned = scanned);
-                shared.push("album", dict);
+                shared.push(ScanEventKind::Album {
+                    album: dict,
+                    status: "cached",
+                });
             }
             continue;
         }
         let cached = cached_by_path.get(path).map(|&i| &cached_rows[i]);
         let current = effective_mtime(Path::new(path));
-        let (status, mut dict, album) = match cached {
+        let (status, dict, album) = match cached {
             Some(row)
                 if (row.album.dir_mtime - current).abs() < 0.001
                     && cached_row_is_complete(&row.album) =>
@@ -1216,7 +1265,6 @@ fn scan_body(
                 None => continue,
             },
         };
-        dict.set("_status", Json::from(status));
         let key = album.path.clone();
         match collected.iter_mut().find(|(p, _)| *p == key) {
             Some(slot) => slot.1 = album,
@@ -1224,19 +1272,18 @@ fn scan_body(
         }
         scanned += 1;
         shared.update(|s| s.scanned = scanned);
-        shared.push("album", dict.clone());
+        shared.push(ScanEventKind::Album {
+            album: dict.clone(),
+            status,
+        });
         let step = if total < 200 { 1 } else { (total / 100).max(1) };
         if scanned == total || scanned.is_multiple_of(step) {
-            shared.push(
-                "progress",
-                Json::obj([
-                    ("scanned", Json::from(scanned)),
-                    ("total", Json::from(total)),
-                ]),
-            );
+            shared.push(ScanEventKind::Progress { scanned, total });
         }
         if let Some(hook) = &deps.on_album {
-            hook(&dict, status == "fresh");
+            let mut with_status = dict;
+            with_status.set("_status", Json::from(status));
+            hook(&with_status, status == "fresh");
         }
     }
     // Deliberate change: only albums that were Present before this scan
@@ -1296,14 +1343,7 @@ fn scan_body(
     if let Some(abort) =
         musaic_db::albums::scan_sanity_check(present_count, removed.len(), library_dir)
     {
-        return Ok(Outcome::Aborted(Json::obj([
-            ("reason", Json::from(ABORT_REASON)),
-            ("vanish_ratio", Json::Float(abort.vanish_ratio)),
-            ("vanish_count", Json::from(abort.vanish_count)),
-            ("cached_count", Json::from(abort.cached_count)),
-            ("threshold", Json::Float(abort.threshold)),
-            ("detail", Json::from(abort.detail)),
-        ])));
+        return Ok(Outcome::Aborted(abort));
     }
 
     // The commit point: from here on a cancel is refused (`TooLate`) and
@@ -1315,13 +1355,10 @@ fn scan_body(
     // Announced only for Present -> Missing transitions.
     for (id, path) in &removed {
         shared.update(|s| s.removed_count += 1);
-        shared.push(
-            "marked_missing",
-            Json::obj([
-                ("id", Json::from(id.as_str())),
-                ("path", Json::from(path.as_str())),
-            ]),
-        );
+        shared.push(ScanEventKind::MarkedMissing {
+            id: id.clone(),
+            path: path.clone(),
+        });
     }
 
     let scanned_at = (deps.clock)();
@@ -1348,15 +1385,12 @@ fn scan_body(
                 ad.old_path, ad.new_path, ad.old_id, ad.new_id
             ),
         );
-        shared.push(
-            "adopted",
-            Json::obj([
-                ("old_id", Json::from(ad.old_id.as_str())),
-                ("id", Json::from(ad.new_id.as_str())),
-                ("old_path", Json::from(ad.old_path.as_str())),
-                ("path", Json::from(ad.new_path.as_str())),
-            ]),
-        );
+        shared.push(ScanEventKind::Adopted {
+            old_id: ad.old_id.clone(),
+            id: ad.new_id.clone(),
+            old_path: ad.old_path.clone(),
+            path: ad.new_path.clone(),
+        });
     }
     // The rename subscribers would rerun the checks for each adopted album
     // on its own; the scan's `LibraryScanCompleted` reruns them for the
@@ -1400,17 +1434,14 @@ fn scan_body(
             .map(|a| (a.id.as_str(), a.path.as_str())),
         &now,
     );
-    let mut done = vec![
-        ("count", Json::from(collected.len())),
-        ("marked_missing_count", Json::from(removed.len())),
-        ("newly_missing_count", Json::from(newly_missing.len())),
-        ("returned_count", Json::from(returned.len())),
-        ("scanned_at", Json::from(scanned_at)),
-    ];
-    // Only when something was skipped, so the usual payload is unchanged.
-    if skipped_non_utf8 > 0 {
-        done.push(("skipped_non_utf8_count", Json::from(skipped_non_utf8)));
-    }
-    shared.push("done", Json::obj(done));
+    shared.push(ScanEventKind::Done(ScanDone {
+        count: collected.len(),
+        marked_missing_count: removed.len(),
+        newly_missing_count: newly_missing.len(),
+        returned_count: returned.len(),
+        scanned_at,
+        // Only when something was skipped, so the usual payload is unchanged.
+        skipped_non_utf8_count: (skipped_non_utf8 > 0).then_some(skipped_non_utf8),
+    }));
     Ok(Outcome::Saved)
 }
