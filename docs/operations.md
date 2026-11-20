@@ -284,8 +284,9 @@ take the guard before the meaning validation, listed per row and below).
   and a dry run ended early). `ApplyEvent`: `CoverDownloading`, `CoverDownloaded`,
   `Tags(TagEvent)` (the tag writer's `Start`, `FileStarted`, `FileDone`,
   `FileRenamed`, `Done`), `CoverSaved`, `UpdatedAlbum(AlbumRecord)`, `RemovedAlbum`,
-  `Error`. The services' own `ApplyEvent` carries the album as a document and
-  converts into this one.
+  `Error`. It is the services' `ApplyEvent<A>` with the album as an `AlbumRecord`
+  (`ApplyEvent<AlbumRecord>`); the services use it with the album document, and
+  `ops::apply::typed` converts (one list of steps, #314).
 - The order is today's. An apply checks `clear` / `track_clear` first (422, as the
   handler did, rendered from the typed `RemovalProblem`s the operation also uses
   for its `InvalidInput`), then takes the guard (`Apply`, a dry run included), then

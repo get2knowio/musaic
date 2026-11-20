@@ -452,7 +452,7 @@ fn run(sc: &Value, s: &Setup) -> Run {
     let mut items = Vec::new();
     let outcome = apply_album_changes(&mut env, &req, &mut |item: ApplyEvent| {
         // The surface's event renders; the services' converts into it.
-        let item: musaic_app::ops::apply::ApplyEvent = item.into();
+        let item = musaic_app::ops::apply::typed(item);
         let name = render::event_name(&item);
         items.push(
             json!({"event": name, "data": render::payload(&item).to_value(),
@@ -906,7 +906,7 @@ fn sse_body_is_byte_identical() {
         };
         let mut body = String::new();
         apply_album_changes(&mut env, &req, &mut |item| {
-            body.push_str(&render::frame(&item.into()));
+            body.push_str(&render::frame(&musaic_app::ops::apply::typed(item)));
             ControlFlow::Continue(())
         });
         let body = mask_sse(&body, &norm);
