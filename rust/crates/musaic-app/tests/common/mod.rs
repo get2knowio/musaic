@@ -110,3 +110,24 @@ fn copy_dir(src: &Path, dst: &Path) {
 pub fn hold_restore(app: &App) -> RestoreGuard {
     app.gate().begin_restore().expect("no work is running")
 }
+
+/// Waits until the fingerprint pass a finished scan starts has finished, so a
+/// check that reads fingerprints (duplicate tracks) sees every album's. The
+/// pass runs on its own thread; on a slow machine a check run straight after
+/// the scan can otherwise find no fingerprints at all.
+#[allow(dead_code)] // not every test binary that includes this module calls it
+pub fn wait_for_fingerprints(app: &App) {
+    use musaic_services::fingerprint_pool::PoolStatus;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    loop {
+        let s = app.ops().system().pool_status();
+        if s.status == PoolStatus::Done && s.completed + s.errors >= s.total {
+            return;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the fingerprint pass did not finish: {s:?}"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}

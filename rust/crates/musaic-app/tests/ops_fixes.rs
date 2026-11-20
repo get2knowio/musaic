@@ -41,6 +41,7 @@ fn checked_with(
     eventually("the work guard released", || {
         app.gate().snapshot() == (0, false)
     });
+    common::wait_for_fingerprints(&app);
     for c in app.ops().checks().list().unwrap() {
         app.ops().checks().run(c.check_id(), "all", None).unwrap();
     }

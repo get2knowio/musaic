@@ -80,6 +80,37 @@ impl World {
         assert_eq!(r.status, 200, "{}", r.text());
     }
 
+    /// `"finding_id": <n>` → `"finding_id": "<album folder>"` for every
+    /// finding of `check`: a copy numbers its findings in the order of its own
+    /// album ids, which hash its own paths, so the numbers differ between the
+    /// copies while the albums they refer to do not.
+    async fn finding_keys(&self, check: &str) -> Vec<(String, String)> {
+        let albums = call(&self.app, "GET", "/api/albums", None).await.json();
+        let folder = |id: &str| {
+            albums["albums"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|a| a["id"] == id)
+                .and_then(|a| a["path"].as_str())
+                .map(|p| p.rsplit(['/', '\\']).next().unwrap().to_string())
+                .unwrap_or_else(|| panic!("album {id} not listed"))
+        };
+        self.findings(check)
+            .await
+            .iter()
+            .map(|f| {
+                (
+                    format!("\"finding_id\": {},", f["id"]),
+                    format!(
+                        "\"finding_id\": \"{}\",",
+                        folder(f["album_id"].as_str().unwrap())
+                    ),
+                )
+            })
+            .collect()
+    }
+
     async fn findings(&self, check: &str) -> Vec<Value> {
         let r = call(
             &self.app,
@@ -122,6 +153,26 @@ fn masked(n: &Norm, text: &str) -> String {
         .unwrap()
         .replace_all(&t, r#""$1": "<MTIME>""#)
         .into_owned()
+}
+
+/// `frames` with the ones between the first and the last sorted.
+fn progress_sorted(mut frames: Vec<String>) -> Vec<String> {
+    if frames.len() > 2 {
+        let n = frames.len();
+        frames[1..n - 1].sort();
+    }
+    frames
+}
+
+/// `frames` with each `"finding_id": <n>,` replaced as `keys` says.
+fn keyed(frames: &[String], keys: &[(String, String)]) -> Vec<String> {
+    frames
+        .iter()
+        .map(|f| {
+            keys.iter()
+                .fold(f.clone(), |f, (from, to)| f.replace(from.as_str(), to))
+        })
+        .collect()
 }
 
 fn assert_same_frames(
@@ -352,6 +403,7 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
     let (ca, cb) = (busiest_check(&a).await, busiest_check(&b).await);
     assert_eq!(ca, cb);
     let (ida, idb) = (a.first_album_id().await, b.first_album_id().await);
+    let (ka, kb) = (a.finding_keys(&ca).await, b.finding_keys(&cb).await);
 
     let mut ops = Vec::new();
     a.st.ops()
@@ -370,11 +422,15 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
     )
     .await;
     assert_eq!(got.status, 200, "{}", got.text());
+    // The findings are taken newest first (`last_seen_at`, whole seconds), so
+    // two copies whose check runs straddled a second differently list them in
+    // a different order: `start` and `done` are compared in place, the
+    // progress frames between them as a set.
     assert_same_frames(
         "quick-fix-all",
-        &ops,
+        &progress_sorted(keyed(&ops, &ka)),
         &a.norm(&[&ida]),
-        &http_frames(&got.text()),
+        &progress_sorted(keyed(&http_frames(&got.text()), &kb)),
         &b.norm(&[&idb]),
     );
 }

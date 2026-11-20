@@ -42,6 +42,7 @@ fn scan_and_run(app: &App, s: &common::Scratch) {
     eventually("the work guard released", || {
         app.gate().snapshot() == (0, false)
     });
+    common::wait_for_fingerprints(app);
     for c in app.ops().checks().list().unwrap() {
         let run = app
             .ops()
