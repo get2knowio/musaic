@@ -146,12 +146,16 @@ fn http_frames(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The numbers a copy makes its own: modification times and the like.
+/// The numbers a copy makes its own: modification times, and the time a
+/// conversion record is named after (the copies run a moment apart).
 fn masked(n: &Norm, text: &str) -> String {
     let t = n.raw_json_text(&n.text(text));
-    regex::Regex::new(r#""(\w*mtime\w*)": -?[0-9.e+-]+"#)
+    let t = regex::Regex::new(r#""(\w*mtime\w*)": -?[0-9.e+-]+"#)
         .unwrap()
-        .replace_all(&t, r#""$1": "<MTIME>""#)
+        .replace_all(&t, r#""$1": "<MTIME>""#);
+    regex::Regex::new(r"conversions/\d{8}T\d{6}Z-")
+        .unwrap()
+        .replace_all(&t, "conversions/<TIME>-")
         .into_owned()
 }
 
