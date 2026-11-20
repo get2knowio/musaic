@@ -15,57 +15,29 @@
 //! | `POST /api/ai/queue/resume` | [`resume_queue`] |
 //! | `GET /api/ai/providers` | [`ai_providers`] |
 //!
-//! Every route that writes takes the restore gate's work guard after
-//! request validation (422) and before any check of its own. Bodies are the Python app's, key order included (Starlette's
-//! compact rendering of the ordered dict); the stream's frames are
-//! `sse_event("jobs", {"jobs": [...], "queue_state": {...}})` byte for byte.
+//! Every handler answers the Python app's 422 for its body, query or path first,
+//! then calls one operation of `ops().jobs()` and renders the answer
+//! (`crate::render::jobs`: the Python app's bodies, key order included; the
+//! stream's frames are `sse_event("jobs", {"jobs": [...], "queue_state": {...}})`
+//! byte for byte). The writers' guard (taken before any check of their own) and
+//! their wake-up of the jobs feeds are the operations' (`docs/operations.md`).
 //!
 //! `GET /api/ai/providers` lists the provider this build has (by default
 //! [`musaic_ai::Unconfigured`]) instead of the installed airframe adapters,
 //! and `uninstalled` is empty (this build installs no other provider).
 
+use std::time::Duration;
+
 use axum::body::Bytes;
 use axum::extract::{Path as UrlPath, State};
-use axum::response::Response;
-use musaic_ai::Py;
-use musaic_app::jobs::{
-    bulk_deleted_body, conflict_body, deleted_body, job_body, jobs_body, jobs_stream_payload,
-};
-use musaic_db::ai_jobs::{self, LIST_LIMIT};
-use musaic_services::ai_jobs::{Conflict, JobError, JobRefusal};
 use serde_json::json;
 
-use crate::http::{ApiError, ApiResult, blocking, json_ordered, ok_ordered};
+use crate::http::{ApiError, ApiResult, blocking, ok_ordered};
 use crate::lax::{Fields, err, parse_json_body, unprocessable};
+use crate::render::jobs as render;
 use crate::routes::library::{Q, qp};
 use crate::sse;
 use crate::state::AppState;
-
-fn ok_py(v: &Py) -> ApiResult {
-    ok_ordered(&v.to_json())
-}
-
-fn not_found() -> ApiError {
-    ApiError::new(404, "Job not found")
-}
-
-/// The queue's rules live in [`musaic_services::ai_jobs`]; a refusal is
-/// the Python app's `HTTPException` with its status and detail.
-impl From<JobRefusal> for ApiError {
-    fn from(r: JobRefusal) -> Self {
-        ApiError::new(r.status(), r.detail())
-    }
-}
-
-impl From<JobError> for ApiError {
-    fn from(e: JobError) -> Self {
-        match e {
-            JobError::Db(e) => ApiError::from(e),
-            JobError::Refused(r) => ApiError::from(r),
-            JobError::Internal(m) => ApiError::internal(m),
-        }
-    }
-}
 
 // ------------------------------------------------------------- enqueue
 
@@ -81,36 +53,17 @@ pub async fn enqueue_job(State(st): State<AppState>, body: Bytes) -> ApiResult {
     let attach_cover = f.bool_or("attach_cover", true);
     f.finish()?;
     let (album_id, job_type) = (album_id.unwrap_or_default(), job_type.unwrap_or_default());
-    let guard = st.begin_work()?;
     blocking(move || {
-        let _guard = guard;
-        musaic_services::ai_jobs::check_job_type(&job_type)?;
-        let mut conn = st.conn()?;
-        let out = st.enqueue_job(&mut conn, &album_id, &job_type, &hint, attach_cover)?;
-        match out {
-            Ok(job) => ok_py(&job_body(&job)),
-            Err(c) => Ok(conflict_response(&c)),
+        match st
+            .ops()
+            .jobs()
+            .enqueue(&album_id, &job_type, &hint, attach_cover)
+        {
+            Ok(job) => ok_ordered(&render::job(&job)),
+            Err(e) => render::job_error(e),
         }
     })
     .await?
-}
-
-/// The 409 for an album with an active job (`JobConflictError`), its
-/// detail in the Python app's key order ([`conflict_body`]).
-fn conflict_response(c: &Conflict) -> Response {
-    json_ordered(409, &conflict_body(c).to_json())
-}
-
-/// What a check fix does where the Python app calls `jobs.enqueue(...)`
-/// (checks/*.py): the new job, or the existing active job's (id, status).
-/// The caller notifies once the fix has finished (a deliberate change: the
-/// Python app does not notify at all).
-pub fn enqueue_for_fix(
-    st: &AppState,
-    conn: &mut rusqlite::Connection,
-    req: &musaic_services::check_fixes::AiJobRequest,
-) -> Result<Result<String, (String, String)>, ApiError> {
-    Ok(st.enqueue_job_for_fix(conn, req)?)
 }
 
 // ------------------------------------------------------------- reads
@@ -124,9 +77,8 @@ pub async fn list_jobs(State(st): State<AppState>, q: Q) -> ApiResult {
         .filter(|s| !s.is_empty())
         .map(|s| s.split(',').map(str::to_string).collect());
     blocking(move || {
-        let conn = st.conn()?;
-        let rows = ai_jobs::list_jobs(&conn, statuses.as_deref(), LIST_LIMIT)?;
-        ok_py(&jobs_body(&rows))
+        let jobs = st.ops().jobs().list(statuses.as_deref())?;
+        ok_ordered(&render::job_list(&jobs))
     })
     .await?
 }
@@ -138,11 +90,8 @@ pub async fn active_job_for_album(
     UrlPath(album_id): UrlPath<String>,
 ) -> ApiResult {
     blocking(move || {
-        let conn = st.conn()?;
-        match ai_jobs::get_active_job_for_album(&conn, &album_id)? {
-            Some(j) => ok_py(&job_body(&j)),
-            None => ok_py(&Py::Null),
-        }
+        let job = st.ops().jobs().active_for_album(&album_id)?;
+        ok_ordered(&render::job_or_null(job.as_ref()))
     })
     .await?
 }
@@ -150,52 +99,66 @@ pub async fn active_job_for_album(
 /// `GET /api/ai/jobs/{job_id}`.
 pub async fn get_job(State(st): State<AppState>, UrlPath(job_id): UrlPath<String>) -> ApiResult {
     blocking(move || {
-        let conn = st.conn()?;
-        match ai_jobs::get_job(&conn, &job_id)? {
-            Some(j) => ok_py(&job_body(&j)),
-            None => Err(not_found()),
-        }
+        let job = st.ops().jobs().get(&job_id)?;
+        ok_ordered(&render::job(&job))
     })
     .await?
 }
 
 // ------------------------------------------------------------- stream
 
-fn stream_frame(st: &AppState) -> Result<String, ApiError> {
-    let conn = st.conn()?;
-    Ok(sse::frame("jobs", &jobs_stream_payload(&conn)?))
-}
-
 /// `GET /api/ai/jobs/stream`: a `jobs` frame with the 200 newest jobs and
 /// the queue state now, then one after every change (a `: ping` after
-/// `ping_interval` without one). Each connection has its own receiver.
+/// `ping_interval` without one). Each connection has its own feed, subscribed
+/// before the first value is read: a change in between is sent (as an extra
+/// frame), never lost. The first value is read before the response begins, so a
+/// database failure there is an error response; a later value that cannot be
+/// read is skipped.
 pub async fn jobs_stream(State(st): State<AppState>) -> ApiResult {
+    let mut feed = st.ops().jobs().feed();
     let (tx, resp) = sse::channel(&st, 2);
-    let ping = st.0.ping_interval;
-    // Subscribed before the first snapshot: a change in between is sent
-    // (as an extra frame), never lost.
-    let mut changes = st.subscribe_jobs();
-    let s2 = st.clone();
-    let first = blocking(move || stream_frame(&s2)).await??;
+    let ping = st.ping_interval();
+    let (back, first) = blocking(move || {
+        let first = feed.next(Duration::ZERO);
+        (feed, first)
+    })
+    .await?;
+    feed = back;
+    let first = match first {
+        Some(Ok(list)) => render::jobs_frame(&list),
+        Some(Err(e)) => return Err(e.into()),
+        // The application is shutting down: the stream ends.
+        None => return Ok(resp),
+    };
     tokio::spawn(async move {
         if !tx.send(first).await {
             return;
         }
         loop {
-            let frame = tokio::select! {
-                r = changes.changed() => {
-                    if r.is_err() {
+            let ready = tokio::select! {
+                r = feed.wait() => Some(r),
+                _ = tokio::time::sleep(ping) => None,
+                _ = tx.closed() => return,
+            };
+            let frame = match ready {
+                Some(false) => return,
+                None => sse::PING.to_string(),
+                Some(true) => {
+                    let Ok((back, next)) = blocking(move || {
+                        let next = feed.next(Duration::ZERO);
+                        (feed, next)
+                    })
+                    .await
+                    else {
                         return;
-                    }
-                    changes.borrow_and_update();
-                    let s2 = st.clone();
-                    match blocking(move || stream_frame(&s2)).await {
-                        Ok(Ok(f)) => f,
-                        _ => continue,
+                    };
+                    feed = back;
+                    match next {
+                        Some(Ok(list)) => render::jobs_frame(&list),
+                        Some(Err(_)) => continue,
+                        None => return,
                     }
                 }
-                _ = tokio::time::sleep(ping) => sse::PING.to_string(),
-                _ = tx.closed() => return,
             };
             if !tx.send(frame).await {
                 return;
@@ -219,39 +182,20 @@ pub async fn mark_job_acted_on(
     let action = f.req_str("action");
     f.finish()?;
     let action = action.unwrap_or_default();
-    let guard = st.begin_work()?;
     blocking(move || {
-        let _guard = guard;
-        let conn = st.conn()?;
-        let job = musaic_services::ai_jobs::mark_acted_on(
-            &conn,
-            &job_id,
-            &action,
-            &|| st.now_iso(),
-            &st.0.log,
-            &|| st.ai_jobs_changed(),
-        )?;
-        ok_py(&job_body(&job))
+        let job = st.ops().jobs().mark_acted_on(&job_id, &action)?;
+        ok_ordered(&render::job(&job))
     })
     .await?
 }
 
 /// `POST /api/ai/jobs/{job_id}/retry`: a failed job back to queued (its
-/// stored failure excerpt kept, as in the Python app); 404, or 409 unless failed.
+/// stored failure excerpt cleared with the error); 404, or 409 unless failed, or
+/// while the album has another active job (the enqueue conflict's shape).
 pub async fn retry_job(State(st): State<AppState>, UrlPath(job_id): UrlPath<String>) -> ApiResult {
-    let guard = st.begin_work()?;
-    blocking(move || {
-        let _guard = guard;
-        let mut conn = st.conn()?;
-        // 409 while the album has another active job,
-        // in the enqueue conflict's shape. The failure
-        // excerpt is cleared with the error.
-        match musaic_services::ai_jobs::retry(&mut conn, &job_id, &|| st.now_iso(), &|| {
-            st.ai_jobs_changed()
-        })? {
-            Ok(updated) => ok_py(&job_body(&updated)),
-            Err(c) => Ok(conflict_response(&c)),
-        }
+    blocking(move || match st.ops().jobs().retry(&job_id) {
+        Ok(job) => ok_ordered(&render::job(&job)),
+        Err(e) => render::job_error(e),
     })
     .await?
 }
@@ -259,26 +203,25 @@ pub async fn retry_job(State(st): State<AppState>, UrlPath(job_id): UrlPath<Stri
 /// `POST /api/ai/queue/resume`: clears `ai_queue_paused` (any body is
 /// ignored, as FastAPI does for a route without one).
 pub async fn resume_queue(State(st): State<AppState>) -> ApiResult {
-    let guard = st.begin_work()?;
     blocking(move || {
-        let _guard = guard;
-        let conn = st.conn()?;
-        ok_py(&st.resume_queue(&conn)?)
+        let state = st.ops().jobs().resume_queue()?;
+        ok_ordered(&render::resumed(&state))
     })
     .await?
 }
 
-/// `DELETE /api/ai/jobs/{job_id}`: 404, 409 while running.
 /// `DELETE /api/ai/jobs/stream`: the Python app routes it to `DELETE
 /// /api/ai/jobs/{job_id}` with job id `stream` (first full match in
-/// registration order; axum prefers the static `stream` route).
+/// registration order; axum prefers the static `stream` route). A routing
+/// alias of this face, no operation of its own.
 pub async fn delete_job_shadowed(st: State<AppState>) -> ApiResult {
     delete_job(st, UrlPath("stream".to_string())).await
 }
 
 /// `POST /api/ai/jobs/active/{x}`: the Python app routes `acted-on` / `retry`
 /// to the job routes with job id `active`; anything else is a 405 (the
-/// GET route matched by path), with the dispatcher's `Allow`.
+/// GET route matched by path), with the dispatcher's `Allow`. A routing alias of
+/// this face, no operation of its own.
 pub async fn post_shadowed_by_active(
     st: State<AppState>,
     UrlPath(rest): UrlPath<String>,
@@ -292,13 +235,11 @@ pub async fn post_shadowed_by_active(
     }
 }
 
+/// `DELETE /api/ai/jobs/{job_id}`: 404, 409 while running.
 pub async fn delete_job(State(st): State<AppState>, UrlPath(job_id): UrlPath<String>) -> ApiResult {
-    let guard = st.begin_work()?;
     blocking(move || {
-        let _guard = guard;
-        let conn = st.conn()?;
-        musaic_services::ai_jobs::delete(&conn, &job_id, &|| st.ai_jobs_changed())?;
-        ok_py(&deleted_body(job_id))
+        let deleted = st.ops().jobs().delete(&job_id)?;
+        ok_ordered(&render::deleted(&deleted))
     })
     .await?
 }
@@ -316,13 +257,10 @@ pub async fn bulk_delete_jobs(State(st): State<AppState>, q: Q) -> ApiResult {
             serde_json::Value::Null,
         )]));
     };
-    let guard = st.begin_work()?;
+    let statuses: Vec<String> = status.split(',').map(str::to_string).collect();
     blocking(move || {
-        let _guard = guard;
-        let statuses = musaic_services::ai_jobs::bulk_delete_statuses(&status)?;
-        let conn = st.conn()?;
-        let n = musaic_services::ai_jobs::bulk_delete(&conn, &statuses, &|| st.ai_jobs_changed())?;
-        ok_py(&bulk_deleted_body(n, statuses))
+        let deleted = st.ops().jobs().delete_many(&statuses)?;
+        ok_ordered(&render::deleted_many(&deleted))
     })
     .await?
 }
@@ -335,8 +273,8 @@ pub async fn bulk_delete_jobs(State(st): State<AppState>, q: Q) -> ApiResult {
 /// uninstalled.
 pub async fn ai_providers(State(st): State<AppState>) -> ApiResult {
     blocking(move || {
-        let conn = st.conn()?;
-        ok_py(&st.ai_providers(&conn)?)
+        let list = st.ops().jobs().providers()?;
+        ok_ordered(&render::providers(&list))
     })
     .await?
 }
