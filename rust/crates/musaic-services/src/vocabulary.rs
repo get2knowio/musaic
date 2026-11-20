@@ -1,6 +1,7 @@
 //! The service functions behind the seven `/api/vocabulary` routes of
 //! `musaic/api/tags.py`: list, add, patch, rename, merge, delete and
-//! promote-orphan, with the routes' 400 / 409 refusals and the sidecar
+//! promote-orphan (typed results, `OpError`s; the HTTP face builds the
+//! bodies), with the routes' 400 / 409 refusals and the sidecar
 //! resync (`services.albums.resync_sidecars_for_albums`) after any mutation
 //! that touched `track_tags` rows. No bus event, as in the Python app.
 //!
@@ -31,93 +32,83 @@
 use std::path::Path;
 
 use musaic_core::pycompat::strip;
-use musaic_db::track_tags::{self as db, RenameResult, VocabEntry};
+pub use musaic_db::track_tags::VocabEntry;
+use musaic_db::track_tags::{self as db, MergeResult, RenameResult};
 use rusqlite::Connection;
 
-use crate::apply::HttpError;
-use crate::json::Json;
-use crate::track_tags::db_err;
+use crate::error::OpError;
+use crate::track_tags::{conflict, db_err, rejected};
 
-fn err(status: u16, detail: impl Into<String>) -> HttpError {
-    HttpError {
-        status,
-        detail: detail.into(),
+/// The tag vocabulary: its entries in display order, the tags in use that
+/// have no entry, and groups of entries a database written under the old
+/// ASCII-only rules holds that now fold to one tag (empty when none).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Vocabulary {
+    pub entries: Vec<VocabEntry>,
+    /// `(tag, track rows)`.
+    pub orphans: Vec<(String, i64)>,
+    pub case_conflicts: Vec<Vec<String>>,
+}
+
+/// What a rename or a delete did to the track rows. `albums` are the albums
+/// whose rows changed, sorted; `sidecars_not_written` those among them whose
+/// sidecar could not be (a Missing album's folder is not touched).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagRewrite {
+    /// A vocabulary row was renamed (deleted, for a delete).
+    pub vocab: bool,
+    /// Track rows rewritten (deleted, for a strip).
+    pub tag_rows: usize,
+    pub albums: Vec<String>,
+    pub sidecars_not_written: Vec<String>,
+}
+
+/// What a merge did to the track rows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagMerge {
+    /// Rows actually inserted at the destination.
+    pub moved: usize,
+    pub albums: Vec<String>,
+    pub sidecars_not_written: Vec<String>,
+}
+
+/// The vocabulary after a rename.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VocabularyRenamed {
+    pub vocabulary: Vocabulary,
+    pub renamed: TagRewrite,
+}
+
+/// The vocabulary after a merge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VocabularyMerged {
+    pub vocabulary: Vocabulary,
+    pub merged: TagMerge,
+}
+
+/// The vocabulary after a delete.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VocabularyDeleted {
+    pub vocabulary: Vocabulary,
+    pub deleted: TagRewrite,
+}
+
+/// `GET /api/vocabulary`.
+pub fn list_vocabulary(conn: &Connection) -> Result<Vocabulary, OpError> {
+    Ok(Vocabulary {
+        entries: db::list_vocabulary(conn).map_err(db_err)?,
+        orphans: db::find_orphan_tags(conn).map_err(db_err)?,
+        case_conflicts: db::case_conflicts(conn).map_err(db_err)?,
+    })
+}
+
+fn rewrite(r: RenameResult, sidecars_not_written: Vec<String>) -> TagRewrite {
+    TagRewrite {
+        vocab: r.vocab,
+        tag_rows: r.tag_rows,
+        albums: r.albums,
+        sidecars_not_written,
     }
-}
-
-fn entry_json(e: VocabEntry) -> Json {
-    Json::obj([
-        ("tag", Json::Str(e.tag)),
-        ("description", Json::Str(e.description)),
-        ("color", e.color.map_or(Json::Null, Json::Str)),
-        ("sort_order", Json::Int(e.sort_order)),
-        ("created_at", Json::Str(e.created_at)),
-        ("count", Json::Int(e.count)),
-    ])
-}
-
-/// `GET /api/vocabulary`: `{vocabulary, orphans}`, plus `case_conflicts`
-/// when entries written under the old rules fold alike.
-pub fn list_vocabulary(conn: &Connection) -> Result<Json, HttpError> {
-    let vocab = db::list_vocabulary(conn).map_err(db_err)?;
-    let orphans = db::find_orphan_tags(conn).map_err(db_err)?;
-    let conflicts = db::case_conflicts(conn).map_err(db_err)?;
-    let mut body = Json::obj([
-        (
-            "vocabulary",
-            Json::Arr(vocab.into_iter().map(entry_json).collect()),
-        ),
-        (
-            "orphans",
-            Json::Arr(
-                orphans
-                    .into_iter()
-                    .map(|(t, n)| Json::obj([("tag", Json::Str(t)), ("count", Json::Int(n))]))
-                    .collect(),
-            ),
-        ),
-    ]);
-    if !conflicts.is_empty() {
-        body.set(
-            "case_conflicts",
-            Json::Arr(
-                conflicts
-                    .into_iter()
-                    .map(|g| Json::Arr(g.into_iter().map(Json::Str).collect()))
-                    .collect(),
-            ),
-        );
-    }
-    Ok(body)
-}
-
-fn with(mut body: Json, key: &str, value: Json) -> Json {
-    body.set(key, value);
-    body
-}
-
-fn albums_json(ids: &[String]) -> Json {
-    Json::Arr(ids.iter().map(|s| Json::from(s.as_str())).collect())
-}
-
-fn rename_json(r: &RenameResult, not_written: &[String]) -> Json {
-    with_not_written(
-        Json::obj([
-            ("vocab", Json::Bool(r.vocab)),
-            ("tag_rows", Json::from(r.tag_rows)),
-            ("albums", albums_json(&r.albums)),
-        ]),
-        not_written,
-    )
-}
-
-/// Name the albums whose sidecar was not written (a Missing album's folder
-/// is not touched).
-fn with_not_written(mut result: Json, not_written: &[String]) -> Json {
-    if !not_written.is_empty() {
-        result.set("sidecars_not_written", albums_json(not_written));
-    }
-    result
 }
 
 /// `resync_sidecars_for_albums`: rewrite each listed album's sidecar from
@@ -163,10 +154,10 @@ pub fn add_vocabulary_entry(
     description: Option<&str>,
     color: Option<&str>,
     sort_order: Option<i64>,
-) -> Result<Json, HttpError> {
+) -> Result<Vocabulary, OpError> {
     let tag = strip(tag);
     if tag.is_empty() {
-        return Err(err(400, "tag is required"));
+        return Err(rejected("tag is required"));
     }
     db::add_vocabulary_entry(conn, tag, description.unwrap_or(""), color, sort_order, now)
         .map_err(db_err)?;
@@ -181,61 +172,60 @@ pub fn patch_vocabulary_entry(
     description: Option<&str>,
     color: Option<&str>,
     sort_order: Option<i64>,
-) -> Result<Json, HttpError> {
+) -> Result<Vocabulary, OpError> {
     let tag = strip(tag);
     if tag.is_empty() {
-        return Err(err(400, "tag is required"));
+        return Err(rejected("tag is required"));
     }
     db::update_vocabulary_entry(conn, tag, description, color, sort_order)
         .map_err(db_err)?
-        .map_err(|e| err(409, e.0))?;
+        .map_err(|e| conflict(e.0))?;
     list_vocabulary(conn)
 }
 
-/// `POST /api/vocabulary/{tag}/rename`: 400 when either is blank, 409 when
-/// another entry already has the new name.
+/// `POST /api/vocabulary/{tag}/rename`: refused when either is blank, in
+/// conflict when another entry already has the new name.
 pub fn rename_vocabulary_entry(
     conn: &mut Connection,
     tag: &str,
     new_tag: &str,
-) -> Result<Json, HttpError> {
+) -> Result<VocabularyRenamed, OpError> {
     let (tag, new_tag) = (strip(tag), strip(new_tag));
     if tag.is_empty() || new_tag.is_empty() {
-        return Err(err(400, "tag and new_tag are required"));
+        return Err(rejected("tag and new_tag are required"));
     }
     let r = db::rename_vocabulary_entry(conn, tag, new_tag)
         .map_err(db_err)?
-        .map_err(|e| err(409, e.0))?;
+        .map_err(|e| conflict(e.0))?;
     let not_written = resync_sidecars_for_albums(conn, &r.albums);
-    Ok(with(
-        list_vocabulary(conn)?,
-        "rename_result",
-        rename_json(&r, &not_written),
-    ))
+    Ok(VocabularyRenamed {
+        vocabulary: list_vocabulary(conn)?,
+        renamed: rewrite(r, not_written),
+    })
 }
 
-/// `POST /api/vocabulary/{tag}/merge`: every refusal is a 400.
+/// `POST /api/vocabulary/{tag}/merge`: every refusal is a `Rejected`.
 pub fn merge_vocabulary_entry(
     conn: &mut Connection,
     tag: &str,
     into_tag: &str,
-) -> Result<Json, HttpError> {
+) -> Result<VocabularyMerged, OpError> {
     let (tag, into_tag) = (strip(tag), strip(into_tag));
     if tag.is_empty() || into_tag.is_empty() {
-        return Err(err(400, "tag and into_tag are required"));
+        return Err(rejected("tag and into_tag are required"));
     }
-    let r = db::merge_vocabulary_entries(conn, tag, into_tag)
+    let MergeResult { moved, albums } = db::merge_vocabulary_entries(conn, tag, into_tag)
         .map_err(db_err)?
-        .map_err(|e| err(400, e.0))?;
-    let not_written = resync_sidecars_for_albums(conn, &r.albums);
-    let result = with_not_written(
-        Json::obj([
-            ("moved", Json::from(r.moved)),
-            ("albums", albums_json(&r.albums)),
-        ]),
-        &not_written,
-    );
-    Ok(with(list_vocabulary(conn)?, "merge_result", result))
+        .map_err(|e| rejected(e.0))?;
+    let sidecars_not_written = resync_sidecars_for_albums(conn, &albums);
+    Ok(VocabularyMerged {
+        vocabulary: list_vocabulary(conn)?,
+        merged: TagMerge {
+            moved,
+            albums,
+            sidecars_not_written,
+        },
+    })
 }
 
 /// `DELETE /api/vocabulary/{tag}?strip_from_tracks=`.
@@ -243,31 +233,34 @@ pub fn delete_vocabulary_entry(
     conn: &mut Connection,
     tag: &str,
     strip_from_tracks: bool,
-) -> Result<Json, HttpError> {
+) -> Result<VocabularyDeleted, OpError> {
     let tag = strip(tag);
     if tag.is_empty() {
-        return Err(err(400, "tag is required"));
+        return Err(rejected("tag is required"));
     }
     let r = db::delete_vocabulary_entry(conn, tag, strip_from_tracks)
         .map_err(db_err)?
-        .map_err(|e| err(400, e.0))?;
+        .map_err(|e| rejected(e.0))?;
     let not_written = if strip_from_tracks {
         resync_sidecars_for_albums(conn, &r.albums)
     } else {
         Vec::new()
     };
-    Ok(with(
-        list_vocabulary(conn)?,
-        "delete_result",
-        rename_json(&r, &not_written),
-    ))
+    Ok(VocabularyDeleted {
+        vocabulary: list_vocabulary(conn)?,
+        deleted: rewrite(r, not_written),
+    })
 }
 
 /// `POST /api/vocabulary/orphans/{tag}/promote`: add with defaults.
-pub fn promote_orphan_tag(conn: &mut Connection, now: &str, tag: &str) -> Result<Json, HttpError> {
+pub fn promote_orphan_tag(
+    conn: &mut Connection,
+    now: &str,
+    tag: &str,
+) -> Result<Vocabulary, OpError> {
     let tag = strip(tag);
     if tag.is_empty() {
-        return Err(err(400, "tag is required"));
+        return Err(rejected("tag is required"));
     }
     db::add_vocabulary_entry(conn, tag, "", None, None, now).map_err(db_err)?;
     list_vocabulary(conn)

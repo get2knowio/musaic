@@ -1,69 +1,23 @@
 //! `musaic/api/tags.py`: the six album / track tag routes, the two
-//! `/api/tags` routes and the seven `/api/vocabulary` routes, over `musaic_services::{track_tags,
-//! vocabulary}`.
+//! `/api/tags` routes and the seven `/api/vocabulary` routes, over
+//! `ops().tags()`.
 //!
-//! Every route answers the Python app's 422 for its body / query first, then
-//! (mutations only) takes the restore gate's [`crate::WorkGuard`]
-//! (refused with 409 while a restore runs), then runs on a blocking task.
-//! Reproduced from the Python app: a case-only vocabulary rename drops the
-//! tag, a Missing album's tags can be changed, any filename is accepted,
-//! and rename / merge / strip fold case for ASCII only.
+//! Every handler answers the Python app's 422 for its body / query first, then
+//! calls one operation and renders the answer (`crate::render::tags`). The
+//! restore gate's guard, the Missing-album refusal and the order of the
+//! preconditions are the operations' (`docs/operations.md`). Reproduced from the
+//! Python app: a case-only vocabulary rename drops the tag, any filename the
+//! album lists is accepted, and rename / merge / strip fold case for ASCII only.
 
 use axum::body::Bytes;
 use axum::extract::{Path as UrlPath, State};
-use musaic_services::track_tags::{self, TagEnv};
-use musaic_services::{HttpError, Json, vocabulary};
-use rusqlite::Connection;
 use serde_json::{Value, json};
 
-use crate::http::{ApiError, ApiResult, blocking, ok_ordered};
+use crate::http::{ApiResult, blocking, ok_ordered};
 use crate::lax::{Fields, KeyOrder, Params, err, parse_json_body, unprocessable};
+use crate::render::tags as render;
 use crate::routes::library::{Q, qp};
 use crate::state::AppState;
-
-/// A service refusal as the route's `HTTPException`; a database failure
-/// (the services' 500) is FastAPI's plain `Internal Server Error`.
-pub fn svc(e: HttpError) -> ApiError {
-    if e.status == 500 {
-        ApiError::internal(e.detail)
-    } else {
-        e.into()
-    }
-}
-
-fn reply(r: Result<Json, HttpError>) -> ApiResult {
-    match r {
-        Ok(j) => ok_ordered(&j),
-        Err(e) => Err(svc(e)),
-    }
-}
-
-/// Run `f` with a [`TagEnv`] on a blocking task.
-async fn with_tags<F>(st: AppState, guard: Option<crate::WorkGuard>, f: F) -> ApiResult
-where
-    F: FnOnce(&mut TagEnv<'_>) -> Result<Json, HttpError> + Send + 'static,
-{
-    blocking(move || {
-        let _guard = guard;
-        let mut conn = st.conn()?;
-        reply(st.with_tag_env(&mut conn, f))
-    })
-    .await?
-}
-
-/// Run `f` on a plain connection on a blocking task.
-async fn with_conn<F>(st: AppState, guard: Option<crate::WorkGuard>, f: F) -> ApiResult
-where
-    F: FnOnce(&mut Connection, &str) -> Result<Json, HttpError> + Send + 'static,
-{
-    blocking(move || {
-        let _guard = guard;
-        let mut conn = st.conn()?;
-        let now = st.now_iso();
-        reply(f(&mut conn, &now))
-    })
-    .await?
-}
 
 // ------------------------------------------------------------- album tags
 
@@ -71,10 +25,11 @@ pub async fn get_album_tags(
     State(st): State<AppState>,
     UrlPath(album_id): UrlPath<String>,
 ) -> ApiResult {
-    with_tags(st, None, move |env| {
-        track_tags::get_album_tags(env, &album_id)
+    blocking(move || {
+        let tags = st.ops().tags().album_tags(&album_id)?;
+        ok_ordered(&render::album_tags(&tags))
     })
-    .await
+    .await?
 }
 
 /// `dict[str, list[str]]` (required): entries in body order (`order`, the
@@ -150,11 +105,11 @@ pub async fn replace_album_tags(
     if !errors.is_empty() {
         return Err(unprocessable(errors));
     }
-    let guard = st.begin_work()?;
-    with_tags(st, Some(guard), move |env| {
-        track_tags::replace_album_tags(env, &album_id, &map)
+    blocking(move || {
+        let tags = st.ops().tags().replace_album_tags(&album_id, &map)?;
+        ok_ordered(&render::album_tags(&tags))
     })
-    .await
+    .await?
 }
 
 pub async fn add_album_tag(
@@ -167,22 +122,25 @@ pub async fn add_album_tag(
     let filenames = f.opt_str_list("filenames");
     f.finish()?;
     let tag = tag.unwrap_or_default();
-    let guard = st.begin_work()?;
-    with_tags(st, Some(guard), move |env| {
-        track_tags::add_album_tag(env, &album_id, &tag, filenames.as_deref())
+    blocking(move || {
+        let tags = st
+            .ops()
+            .tags()
+            .add_album_tag(&album_id, &tag, filenames.as_deref())?;
+        ok_ordered(&render::album_tags(&tags))
     })
-    .await
+    .await?
 }
 
 pub async fn remove_album_tag(
     State(st): State<AppState>,
     UrlPath((album_id, tag)): UrlPath<(String, String)>,
 ) -> ApiResult {
-    let guard = st.begin_work()?;
-    with_tags(st, Some(guard), move |env| {
-        track_tags::remove_album_tag(env, &album_id, &tag)
+    blocking(move || {
+        let tags = st.ops().tags().remove_album_tag(&album_id, &tag)?;
+        ok_ordered(&render::album_tags(&tags))
     })
-    .await
+    .await?
 }
 
 pub async fn add_track_tag(
@@ -194,44 +152,56 @@ pub async fn add_track_tag(
     let tag = f.req_str("tag");
     f.finish()?;
     let tag = tag.unwrap_or_default();
-    let guard = st.begin_work()?;
-    with_tags(st, Some(guard), move |env| {
-        track_tags::add_track_tag(env, &album_id, &filename, &tag)
+    blocking(move || {
+        let tags = st.ops().tags().add_track_tag(&album_id, &filename, &tag)?;
+        ok_ordered(&render::album_tags(&tags))
     })
-    .await
+    .await?
 }
 
 pub async fn remove_track_tag(
     State(st): State<AppState>,
     UrlPath((album_id, filename, tag)): UrlPath<(String, String, String)>,
 ) -> ApiResult {
-    let guard = st.begin_work()?;
-    with_tags(st, Some(guard), move |env| {
-        track_tags::remove_track_tag(env, &album_id, &filename, &tag)
+    blocking(move || {
+        let tags = st
+            .ops()
+            .tags()
+            .remove_track_tag(&album_id, &filename, &tag)?;
+        ok_ordered(&render::album_tags(&tags))
     })
-    .await
+    .await?
 }
 
 // ------------------------------------------------------------- /api/tags
 
 pub async fn list_tags(State(st): State<AppState>) -> ApiResult {
-    with_conn(st, None, |conn, _| track_tags::list_tags(conn)).await
+    blocking(move || {
+        let tags = st.ops().tags().list_tags()?;
+        ok_ordered(&render::tag_counts(&tags))
+    })
+    .await?
 }
 
 pub async fn tracks_for_tag(
     State(st): State<AppState>,
     UrlPath(tag): UrlPath<String>,
 ) -> ApiResult {
-    with_conn(st, None, move |conn, _| {
-        track_tags::tracks_for_tag(conn, &tag)
+    blocking(move || {
+        let tracks = st.ops().tags().tracks_for_tag(&tag)?;
+        ok_ordered(&render::tag_tracks(&tracks))
     })
-    .await
+    .await?
 }
 
 // ------------------------------------------------------------- vocabulary
 
 pub async fn list_vocabulary(State(st): State<AppState>) -> ApiResult {
-    with_conn(st, None, |conn, _| vocabulary::list_vocabulary(conn)).await
+    blocking(move || {
+        let v = st.ops().tags().list_vocabulary()?;
+        ok_ordered(&render::vocabulary(&v))
+    })
+    .await?
 }
 
 pub async fn add_vocabulary_entry(State(st): State<AppState>, body: Bytes) -> ApiResult {
@@ -242,18 +212,16 @@ pub async fn add_vocabulary_entry(State(st): State<AppState>, body: Bytes) -> Ap
     let sort_order = f.opt_int("sort_order");
     f.finish()?;
     let tag = tag.unwrap_or_default();
-    let guard = st.begin_work()?;
-    with_conn(st, Some(guard), move |conn, now| {
-        vocabulary::add_vocabulary_entry(
-            conn,
-            now,
+    blocking(move || {
+        let v = st.ops().tags().add_vocabulary_entry(
             &tag,
             Some(&description),
             color.as_deref(),
             sort_order,
-        )
+        )?;
+        ok_ordered(&render::vocabulary(&v))
     })
-    .await
+    .await?
 }
 
 pub async fn patch_vocabulary_entry(
@@ -266,17 +234,16 @@ pub async fn patch_vocabulary_entry(
     let color = f.opt_str("color");
     let sort_order = f.opt_int("sort_order");
     f.finish()?;
-    let guard = st.begin_work()?;
-    with_conn(st, Some(guard), move |conn, _| {
-        vocabulary::patch_vocabulary_entry(
-            conn,
+    blocking(move || {
+        let v = st.ops().tags().patch_vocabulary_entry(
             &tag,
             description.as_deref(),
             color.as_deref(),
             sort_order,
-        )
+        )?;
+        ok_ordered(&render::vocabulary(&v))
     })
-    .await
+    .await?
 }
 
 pub async fn rename_vocabulary_entry(
@@ -288,11 +255,11 @@ pub async fn rename_vocabulary_entry(
     let new_tag = f.req_str("new_tag");
     f.finish()?;
     let new_tag = new_tag.unwrap_or_default();
-    let guard = st.begin_work()?;
-    with_conn(st, Some(guard), move |conn, _| {
-        vocabulary::rename_vocabulary_entry(conn, &tag, &new_tag)
+    blocking(move || {
+        let r = st.ops().tags().rename_vocabulary_entry(&tag, &new_tag)?;
+        ok_ordered(&render::renamed(&r))
     })
-    .await
+    .await?
 }
 
 pub async fn merge_vocabulary_entry(
@@ -304,11 +271,11 @@ pub async fn merge_vocabulary_entry(
     let into_tag = f.req_str("into_tag");
     f.finish()?;
     let into_tag = into_tag.unwrap_or_default();
-    let guard = st.begin_work()?;
-    with_conn(st, Some(guard), move |conn, _| {
-        vocabulary::merge_vocabulary_entry(conn, &tag, &into_tag)
+    blocking(move || {
+        let m = st.ops().tags().merge_vocabulary_entry(&tag, &into_tag)?;
+        ok_ordered(&render::merged(&m))
     })
-    .await
+    .await?
 }
 
 pub async fn delete_vocabulary_entry(
@@ -320,20 +287,20 @@ pub async fn delete_vocabulary_entry(
     let mut p = Params::default();
     let strip = p.query_bool(&q, "strip_from_tracks", false);
     p.finish()?;
-    let guard = st.begin_work()?;
-    with_conn(st, Some(guard), move |conn, _| {
-        vocabulary::delete_vocabulary_entry(conn, &tag, strip)
+    blocking(move || {
+        let d = st.ops().tags().delete_vocabulary_entry(&tag, strip)?;
+        ok_ordered(&render::deleted(&d))
     })
-    .await
+    .await?
 }
 
 pub async fn promote_orphan_tag(
     State(st): State<AppState>,
     UrlPath(tag): UrlPath<String>,
 ) -> ApiResult {
-    let guard = st.begin_work()?;
-    with_conn(st, Some(guard), move |conn, now| {
-        vocabulary::promote_orphan_tag(conn, now, &tag)
+    blocking(move || {
+        let v = st.ops().tags().promote_orphan_tag(&tag)?;
+        ok_ordered(&render::vocabulary(&v))
     })
-    .await
+    .await?
 }

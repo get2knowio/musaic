@@ -3,6 +3,10 @@
 //! drove the Python app's
 //! real routes through TestClient; two runs byte-identical).
 //!
+//! Moved here from `musaic-services/tests` when the services began to return
+//! typed results: the body is now built by `musaic_api::render::tags` and an
+//! error's status by `ApiError::from(OpError)`; every assertion is the old one.
+//!
 //! Every service-layer step is replayed in order on the same evolving state:
 //! response status and body (parsed JSON), the `track_tags` and
 //! `tag_vocabulary` rows, every album directory's sidecar text and dot-files,
@@ -11,7 +15,7 @@
 //! drop_snapshot, then the golden's `extra_steps` the same way.
 //!
 //! Differences are allowed only as the enumerated deltas of
-//! tests/deltas/tags_vocab.rs (case-only / identical rename, Missing album,
+//! musaic-services/tests/deltas/tags_vocab.rs (shared with tags_vocab_http.rs) (case-only / identical rename, Missing album,
 //! filenames that are not FLACs of the album, one Unicode case fold), each
 //! used exactly once; after a step whose state differs the world adopts the
 //! Python app's recorded state (checked) so later steps start where the Python app's
@@ -21,19 +25,22 @@
 //! lookups, the 400 / 409 refusals, the sidecar rewrite after tag
 //! mutations, and drop_snapshot keeping everything.
 
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
-#[path = "deltas/tags_vocab.rs"]
+#[path = "../../musaic-services/tests/deltas/tags_vocab.rs"]
 mod tv_deltas;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use common::{Norm, build_album, connect, event_json, recording_bus};
+use musaic_api::http::ApiError;
+use musaic_api::render::tags as render;
 use musaic_db::Db;
 use musaic_scan::{TrackOrder, py_resolve};
 use musaic_services::track_tags::{self, TagEnv};
 use musaic_services::vocabulary;
-use musaic_services::{HttpError, Json, ScanDeps, ScanService, StartScan};
+use musaic_services::{Json, OpError, ScanDeps, ScanService, StartScan};
 use rusqlite::Connection;
 use serde_json::{Value, json};
 
@@ -222,14 +229,19 @@ fn sort_album_lists(mut v: Value) -> Value {
     v
 }
 
-/// Run one golden step through the service layer.
+/// The body of a tags answer: what the operation's typed result renders to.
+fn album_body(t: track_tags::AlbumTags) -> Json {
+    render::album_tags(&musaic_app::ops::tags::AlbumTags::from(t))
+}
+
+/// Run one golden step through the service layer and render the answer.
 fn dispatch(
     w: &World,
     conn: &mut Connection,
     lib: Option<&str>,
     op: &str,
     a: &Value,
-) -> Result<Json, HttpError> {
+) -> Result<Json, OpError> {
     let album = |a: &Value| w.id(s(a, "album"));
     let mut env = TagEnv {
         conn,
@@ -238,17 +250,22 @@ fn dispatch(
         now: NOW,
     };
     match op {
-        "get_album_tags" => track_tags::get_album_tags(&mut env, &album(a)),
+        "get_album_tags" => track_tags::get_album_tags(&mut env, &album(a)).map(album_body),
         "add_album_tag" => {
             let f = a["filenames"].as_array().map(|_| strings(&a["filenames"]));
             track_tags::add_album_tag(&mut env, &album(a), s(a, "tag"), f.as_deref())
+                .map(album_body)
         }
-        "remove_album_tag" => track_tags::remove_album_tag(&mut env, &album(a), s(a, "tag")),
+        "remove_album_tag" => {
+            track_tags::remove_album_tag(&mut env, &album(a), s(a, "tag")).map(album_body)
+        }
         "add_track_tag" => {
             track_tags::add_track_tag(&mut env, &album(a), s(a, "filename"), s(a, "tag"))
+                .map(album_body)
         }
         "remove_track_tag" => {
             track_tags::remove_track_tag(&mut env, &album(a), s(a, "filename"), s(a, "tag"))
+                .map(album_body)
         }
         "replace_album_tags" => {
             let pairs: Vec<(String, Vec<String>)> = a["track_tags"]
@@ -257,11 +274,13 @@ fn dispatch(
                 .iter()
                 .map(|p| (p[0].as_str().unwrap().to_string(), strings(&p[1])))
                 .collect();
-            track_tags::replace_album_tags(&mut env, &album(a), &pairs)
+            track_tags::replace_album_tags(&mut env, &album(a), &pairs).map(album_body)
         }
-        "list_tags" => track_tags::list_tags(env.conn),
-        "tracks_for_tag" => track_tags::tracks_for_tag(env.conn, s(a, "tag")),
-        "list_vocabulary" => vocabulary::list_vocabulary(env.conn),
+        "list_tags" => track_tags::list_tags(env.conn).map(|t| render::tag_counts(&t)),
+        "tracks_for_tag" => {
+            track_tags::tracks_for_tag(env.conn, s(a, "tag")).map(|t| render::tag_tracks(&t))
+        }
+        "list_vocabulary" => vocabulary::list_vocabulary(env.conn).map(|v| render::vocabulary(&v)),
         "add_vocabulary_entry" => vocabulary::add_vocabulary_entry(
             env.conn,
             NOW,
@@ -269,26 +288,32 @@ fn dispatch(
             opt_s(a, "description"),
             opt_s(a, "color"),
             a["sort_order"].as_i64(),
-        ),
+        )
+        .map(|v| render::vocabulary(&v)),
         "patch_vocabulary_entry" => vocabulary::patch_vocabulary_entry(
             env.conn,
             s(a, "tag"),
             opt_s(a, "description"),
             opt_s(a, "color"),
             a["sort_order"].as_i64(),
-        ),
+        )
+        .map(|v| render::vocabulary(&v)),
         "rename_vocabulary_entry" => {
             vocabulary::rename_vocabulary_entry(env.conn, s(a, "tag"), s(a, "new_tag"))
+                .map(|r| render::renamed(&r))
         }
         "merge_vocabulary_entry" => {
             vocabulary::merge_vocabulary_entry(env.conn, s(a, "tag"), s(a, "into_tag"))
+                .map(|m| render::merged(&m))
         }
         "delete_vocabulary_entry" => vocabulary::delete_vocabulary_entry(
             env.conn,
             s(a, "tag"),
             a["strip_from_tracks"].as_bool().unwrap(),
-        ),
-        "promote_orphan_tag" => vocabulary::promote_orphan_tag(env.conn, NOW, s(a, "tag")),
+        )
+        .map(|d| render::deleted(&d)),
+        "promote_orphan_tag" => vocabulary::promote_orphan_tag(env.conn, NOW, s(a, "tag"))
+            .map(|v| render::vocabulary(&v)),
         other => panic!("unknown op {other}"),
     }
 }
@@ -456,7 +481,10 @@ fn replay_step(
     let res = dispatch(w, conn, lib, s(st, "op"), &st["args"]);
     let (status, body) = match res {
         Ok(j) => (200, j.to_value()),
-        Err(e) => (e.status, json!({"detail": e.detail})),
+        Err(e) => {
+            let e = ApiError::from(e);
+            (e.status, json!({"detail": e.detail}))
+        }
     };
     let (want, adopt) = tracker.expected(
         section,

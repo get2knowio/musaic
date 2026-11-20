@@ -3,11 +3,12 @@
 //! `services/albums.py` helpers they use: `resolve_album_dict`,
 //! `list_album_filenames`, `track_count_for`, `persist_track_tags_sidecar`).
 //!
-//! Each function returns the route's response body or the [`HttpError`] the
-//! route raises, with the Python app's status and detail text, in its
-//! check order (the album is resolved before the tag is validated, so an
-//! unknown album with a blank tag is a 404). Request-body validation (422)
-//! belongs to the HTTP layer. No bus event is published by any of these, as
+//! Each function returns a typed result or the [`OpError`] the route's refusal
+//! becomes (`NotFound` 404, `NoLibrary` / `Conflict` 409, `Rejected` 400,
+//! `Internal` 500, with the Python app's detail text), in its check order (the
+//! album is resolved before the tag is validated, so an unknown album with a
+//! blank tag is a 404). The response bodies are built by the HTTP face from
+//! these results. Request-body validation (422) belongs to the HTTP layer. No bus event is published by any of these, as
 //! in the Python app. After every mutation the album's track-tag sidecar is
 //! rewritten from the database (an empty set deletes it); a failed write is
 //! ignored, as the Python app logs and carries on.
@@ -42,7 +43,8 @@ use musaic_db::track_tags as db;
 use musaic_scan::TrackOrder;
 use rusqlite::Connection;
 
-use crate::apply::{HttpError, ResolvedAlbum, refuse_missing};
+use crate::apply::ResolvedAlbum;
+use crate::error::OpError;
 use crate::json::Json;
 
 /// What the tag routes need.
@@ -55,28 +57,77 @@ pub struct TagEnv<'a> {
     pub now: &'a str,
 }
 
-fn err(status: u16, detail: impl Into<String>) -> HttpError {
-    HttpError {
-        status,
-        detail: detail.into(),
+/// A refusal of the request's content (the routes' 400).
+pub(crate) fn rejected(message: impl Into<String>) -> OpError {
+    OpError::Rejected {
+        message: message.into(),
+        details: None,
     }
 }
 
-pub(crate) fn db_err(e: impl std::fmt::Display) -> HttpError {
-    err(500, e.to_string())
+/// A refusal because of the current state (the routes' 409).
+pub(crate) fn conflict(message: impl Into<String>) -> OpError {
+    OpError::Conflict {
+        message: message.into(),
+        details: None,
+    }
+}
+
+/// A database failure: the routes answer the plain-text 500.
+pub(crate) fn db_err(e: impl std::fmt::Display) -> OpError {
+    OpError::internal(e)
+}
+
+/// One album's tags: each track's tags by file name, and the tags every
+/// track has.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlbumTags {
+    pub album_id: String,
+    pub track_tags: BTreeMap<String, Vec<String>>,
+    pub album_tags: Vec<String>,
+}
+
+/// Every tag in use with the number of track rows carrying it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagCounts {
+    pub tags: Vec<(String, i64)>,
+}
+
+/// The tracks carrying one tag (the tag as the lookup took it, blanks
+/// stripped).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TagTracks {
+    pub tag: String,
+    pub tracks: Vec<TaggedTrack>,
+}
+
+/// One track row carrying a tag.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaggedTrack {
+    pub album_id: String,
+    pub file_name: String,
 }
 
 /// `services.albums.resolve_album_dict`: 409 without a library; the cached
-/// row (Missing rows included); else a live walk; else 404.
+/// row (Missing rows included); else a live walk; else 404. A database
+/// failure is the plain-text 500 here (`Internal`), not the body-carrying
+/// `Failed` the library routes answer.
 pub fn resolve_album_dict(
     conn: &Connection,
     library_dir: Option<&str>,
     album_id: &str,
     order: TrackOrder,
-) -> Result<ResolvedAlbum, HttpError> {
+) -> Result<ResolvedAlbum, OpError> {
     let (id, path, json) =
-        crate::library_ops::resolve_album_dict(conn, library_dir, album_id, order)?;
+        crate::library_ops::resolve_album_dict(conn, library_dir, album_id, order)
+            .map_err(OpError::failed_as_internal)?;
     Ok(ResolvedAlbum { id, path, json })
+}
+
+/// [`crate::apply::refuse_missing`] with a failed database read as the
+/// plain-text 500 (`Internal`), as the tag, analyze and rename routes answer it.
+pub(crate) fn refuse_missing(conn: &Connection, album_id: &str) -> Result<(), OpError> {
+    crate::apply::refuse_missing(conn, album_id).map_err(OpError::failed_as_internal)
 }
 
 /// `list_album_filenames`: the album's FLAC basenames (musaic-scan listing).
@@ -109,36 +160,20 @@ pub fn persist_track_tags_sidecar(conn: &Connection, album_id: &str, album_path:
     }
 }
 
-fn tag_map_json(map: &BTreeMap<String, Vec<String>>) -> Json {
-    Json::Obj(
-        map.iter()
-            .map(|(f, tags)| {
-                (
-                    f.clone(),
-                    Json::Arr(tags.iter().map(|t| Json::from(t.as_str())).collect()),
-                )
-            })
-            .collect(),
-    )
-}
-
-/// The body of `GET /api/albums/{id}/tags` for an already resolved album.
+/// The tags of an already resolved album.
 fn album_tags_body(
     conn: &Connection,
     album_id: &str,
     album: &ResolvedAlbum,
-) -> Result<Json, HttpError> {
+) -> Result<AlbumTags, OpError> {
     let track_tags = db::album_track_tags(conn, album_id).map_err(db_err)?;
     let album_tags =
         db::album_tag_intersection(conn, album_id, track_count_for(album)).map_err(db_err)?;
-    Ok(Json::obj([
-        ("album_id", Json::from(album_id)),
-        ("track_tags", tag_map_json(&track_tags)),
-        (
-            "album_tags",
-            Json::Arr(album_tags.into_iter().map(Json::Str).collect()),
-        ),
-    ]))
+    Ok(AlbumTags {
+        album_id: album_id.to_string(),
+        track_tags,
+        album_tags,
+    })
 }
 
 /// The refusal text for a filename that is not a FLAC of the album.
@@ -155,12 +190,12 @@ fn check_filenames<'n>(
     album: &ResolvedAlbum,
     names: impl IntoIterator<Item = &'n str>,
     keep: impl Fn(&str) -> bool,
-) -> Result<(), HttpError> {
+) -> Result<(), OpError> {
     let listed = list_album_filenames(&album.path);
     for n in names {
         let plain = !n.contains('/') && !n.contains(std::path::MAIN_SEPARATOR);
         if !(plain && listed.iter().any(|l| l == n)) && !keep(n) {
-            return Err(err(400, bad_filename_detail(n)));
+            return Err(rejected(bad_filename_detail(n)));
         }
     }
     Ok(())
@@ -168,28 +203,32 @@ fn check_filenames<'n>(
 
 /// The lookup every mutation starts with: the album (404 / 409 as
 /// `resolve_album_dict`), then the refusal of a Missing album.
-fn resolve_for_mutation(env: &TagEnv<'_>, album_id: &str) -> Result<ResolvedAlbum, HttpError> {
+fn resolve_for_mutation(env: &TagEnv<'_>, album_id: &str) -> Result<ResolvedAlbum, OpError> {
     let album = resolve_album_dict(env.conn, env.library_dir, album_id, env.order)?;
     refuse_missing(env.conn, album_id)?;
     Ok(album)
 }
 
-fn require_tag(tag: &str) -> Result<&str, HttpError> {
+fn require_tag(tag: &str) -> Result<&str, OpError> {
     let t = strip(tag);
     if t.is_empty() {
-        Err(err(400, "tag is required"))
+        Err(rejected("tag is required"))
     } else {
         Ok(t)
     }
 }
 
 /// `GET /api/albums/{album_id}/tags`.
-pub fn get_album_tags(env: &mut TagEnv<'_>, album_id: &str) -> Result<Json, HttpError> {
+pub fn get_album_tags(env: &mut TagEnv<'_>, album_id: &str) -> Result<AlbumTags, OpError> {
     let album = resolve_album_dict(env.conn, env.library_dir, album_id, env.order)?;
     album_tags_body(env.conn, album_id, &album)
 }
 
-fn finish(env: &mut TagEnv<'_>, album_id: &str, album: &ResolvedAlbum) -> Result<Json, HttpError> {
+fn finish(
+    env: &mut TagEnv<'_>,
+    album_id: &str,
+    album: &ResolvedAlbum,
+) -> Result<AlbumTags, OpError> {
     persist_track_tags_sidecar(env.conn, album_id, &album.path);
     album_tags_body(env.conn, album_id, album)
 }
@@ -200,7 +239,7 @@ pub fn replace_album_tags(
     env: &mut TagEnv<'_>,
     album_id: &str,
     track_tags: &[(String, Vec<String>)],
-) -> Result<Json, HttpError> {
+) -> Result<AlbumTags, OpError> {
     let album = resolve_for_mutation(env, album_id)?;
     check_filenames(
         &album,
@@ -222,7 +261,7 @@ pub fn add_album_tag(
     album_id: &str,
     tag: &str,
     filenames: Option<&[String]>,
-) -> Result<Json, HttpError> {
+) -> Result<AlbumTags, OpError> {
     let album = resolve_for_mutation(env, album_id)?;
     let tag = require_tag(tag)?;
     let names: Vec<String> = match filenames {
@@ -230,7 +269,7 @@ pub fn add_album_tag(
         _ => list_album_filenames(&album.path),
     };
     if names.is_empty() {
-        return Err(err(409, "album has no tracks"));
+        return Err(conflict("album has no tracks"));
     }
     check_filenames(&album, names.iter().map(String::as_str), |_| false)?;
     db::add_album_tag(env.conn, album_id, tag, &names, env.now).map_err(db_err)?;
@@ -242,7 +281,7 @@ pub fn remove_album_tag(
     env: &mut TagEnv<'_>,
     album_id: &str,
     tag: &str,
-) -> Result<Json, HttpError> {
+) -> Result<AlbumTags, OpError> {
     let album = resolve_for_mutation(env, album_id)?;
     let tag = require_tag(tag)?;
     db::remove_album_tag(env.conn, album_id, tag).map_err(db_err)?;
@@ -255,7 +294,7 @@ pub fn add_track_tag(
     album_id: &str,
     filename: &str,
     tag: &str,
-) -> Result<Json, HttpError> {
+) -> Result<AlbumTags, OpError> {
     let album = resolve_for_mutation(env, album_id)?;
     let tag = require_tag(tag)?;
     check_filenames(&album, [filename], |_| false)?;
@@ -270,7 +309,7 @@ pub fn remove_track_tag(
     album_id: &str,
     filename: &str,
     tag: &str,
-) -> Result<Json, HttpError> {
+) -> Result<AlbumTags, OpError> {
     let album = resolve_for_mutation(env, album_id)?;
     let tag = require_tag(tag)?;
     let conn: &Connection = env.conn;
@@ -282,34 +321,24 @@ pub fn remove_track_tag(
 }
 
 /// `GET /api/tags`.
-pub fn list_tags(conn: &Connection) -> Result<Json, HttpError> {
-    let tags = db::list_all_tags(conn).map_err(db_err)?;
-    Ok(Json::obj([(
-        "tags",
-        Json::Arr(
-            tags.into_iter()
-                .map(|(t, n)| Json::obj([("tag", Json::Str(t)), ("count", Json::Int(n))]))
-                .collect(),
-        ),
-    )]))
+pub fn list_tags(conn: &Connection) -> Result<TagCounts, OpError> {
+    Ok(TagCounts {
+        tags: db::list_all_tags(conn).map_err(db_err)?,
+    })
 }
 
 /// `GET /api/tags/{tag}/tracks`.
-pub fn tracks_for_tag(conn: &Connection, tag: &str) -> Result<Json, HttpError> {
+pub fn tracks_for_tag(conn: &Connection, tag: &str) -> Result<TagTracks, OpError> {
     let tag = require_tag(tag)?;
-    let tracks = db::find_tracks_with_tag(conn, tag).map_err(db_err)?;
-    Ok(Json::obj([
-        ("tag", Json::from(tag)),
-        (
-            "tracks",
-            Json::Arr(
-                tracks
-                    .into_iter()
-                    .map(|(a, f)| {
-                        Json::obj([("album_id", Json::Str(a)), ("filename", Json::Str(f))])
-                    })
-                    .collect(),
-            ),
-        ),
-    ]))
+    Ok(TagTracks {
+        tag: tag.to_string(),
+        tracks: db::find_tracks_with_tag(conn, tag)
+            .map_err(db_err)?
+            .into_iter()
+            .map(|(album_id, file_name)| TaggedTrack {
+                album_id,
+                file_name,
+            })
+            .collect(),
+    })
 }
