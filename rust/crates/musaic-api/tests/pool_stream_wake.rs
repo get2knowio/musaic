@@ -105,7 +105,7 @@ fn change(st: &AppState, completed: usize) -> String {
         completed,
         ..PoolState::default()
     };
-    let frame = s.sse_frame();
+    let frame = musaic_api::render::system::pool_frame(&s);
     st.pool().set_state(s);
     st.pool().changed().set();
     frame

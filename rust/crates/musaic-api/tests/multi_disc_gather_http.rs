@@ -20,8 +20,11 @@ use axum::http::Request;
 use common::{call, no_key_fingerprinting, send};
 use musaic_api::{AppState, Network, router};
 use musaic_events::{Event, Subscriber, Topic};
-use musaic_services::multi_disc_convert::{StopAt, convert};
+use musaic_services::multi_disc_convert::{ConvertProgress, StopAt, convert};
 use serde_json::{Value, json};
+
+/// A conversion's progress callback, as a test hooks into it.
+type Progress = Arc<dyn Fn(&ConvertProgress) + Send + Sync>;
 
 const CHECK: &str = "multi-disc-layout";
 
@@ -284,14 +287,18 @@ impl World {
         id: i64,
         digest: &str,
         stop: Option<StopAt>,
-        progress: Option<Arc<dyn Fn(Value) + Send + Sync>>,
+        progress: Option<Progress>,
     ) -> Value {
         let mut conn = self.conn();
+        let report = |p: ConvertProgress| {
+            if let Some(f) = &progress {
+                f(&p)
+            }
+        };
         self.st
             .app()
-            .with_convert_env(&mut conn, |env| {
+            .with_convert_env_reporting(&mut conn, &report, |env| {
                 env.stop_at = stop;
-                env.progress = progress;
                 convert(env, id, digest)
             })
             .unwrap()
@@ -1431,8 +1438,8 @@ async fn a_name_appearing_in_the_destination_stops_the_moves() {
     let p = w.preview(id).await;
     let intruder = w.lib.join(D1).join("05 - B2.flac");
     let at = intruder.clone();
-    let progress: Arc<dyn Fn(Value) + Send + Sync> = Arc::new(move |v: Value| {
-        if v["step"] == json!("write_tags") && v["done"] == v["total"] && !at.exists() {
+    let progress: Progress = Arc::new(move |p: &ConvertProgress| {
+        if p.step == "write_tags" && p.done == p.total && !at.exists() {
             std::fs::write(&at, b"someone else's file").unwrap();
         }
     });
@@ -1532,8 +1539,8 @@ async fn a_file_held_open_fails_its_move_and_resumes() {
     let slot: Arc<Mutex<Option<std::fs::File>>> = Arc::default();
     let s2 = Arc::clone(&slot);
     let h2 = held.clone();
-    let progress: Arc<dyn Fn(Value) + Send + Sync> = Arc::new(move |v: Value| {
-        if v["step"] == json!("write_tags") && v["done"] == v["total"] {
+    let progress: Progress = Arc::new(move |p: &ConvertProgress| {
+        if p.step == "write_tags" && p.done == p.total {
             let mut s = s2.lock().unwrap();
             if s.is_none() {
                 // FILE_SHARE_READ only: no delete, no rename.
@@ -1569,7 +1576,7 @@ async fn the_pool_and_the_sweep_stay_away_while_it_runs() {
     let seen: Arc<Mutex<Vec<(bool, bool)>>> = Arc::default();
     let s2 = Arc::clone(&seen);
     let app = w.st.app().clone();
-    let progress: Arc<dyn Fn(Value) + Send + Sync> = Arc::new(move |_| {
+    let progress: Progress = Arc::new(move |_| {
         s2.lock()
             .unwrap()
             .push((app.pool().is_paused(), app.sweeper().is_suspended()));

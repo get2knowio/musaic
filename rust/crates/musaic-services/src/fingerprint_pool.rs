@@ -9,7 +9,8 @@
 //! (recorded from the Python app's own module). Kept from it:
 //!
 //! * the state record, its key order, and its values at every change
-//!   ([`PoolState::to_json`], `GET /api/fingerprint-pool/status`);
+//!   ([`PoolState`]; the body of `GET /api/fingerprint-pool/status` in that
+//!   order is `musaic-api`'s `render::system::pool_state`);
 //! * statuses `idle | running | done | cancelled | unavailable`; a call
 //!   while running returns the running state and starts nothing;
 //!   "unavailable" stamps `started_at` then `completed_at`, fills
@@ -21,8 +22,9 @@
 //!   which reproduces the `asyncio.Event` the Python app's SSE handler waits on
 //!   (it stays set until a waiter clears it, so a stream opened after a
 //!   change sends the state twice: once on connect, once at once);
-//! * [`PoolState::sse_frame`] is `sse_event("state", get_state())`; the
-//!   stream's keepalive is [`KEEPALIVE_FRAME`] after [`KEEPALIVE_AFTER`].
+//! * the stream's frame, `sse_event("state", get_state())`, is rendered by the
+//!   HTTP face (`musaic-api` `render::system`); its keepalive is
+//!   [`KEEPALIVE_FRAME`] after [`KEEPALIVE_AFTER`].
 //!
 //! Decided changes:
 //!
@@ -55,7 +57,6 @@ use rusqlite::Connection;
 
 use crate::clock::Clock;
 use crate::fingerprint::CancelToken;
-use crate::json::Json;
 
 /// The pause between albums (`await asyncio.sleep(0.5)`).
 pub const INTER_ALBUM_SLEEP: Duration = Duration::from_millis(500);
@@ -112,33 +113,6 @@ impl Default for PoolState {
             completed_at: None,
             skip_reason: None,
         }
-    }
-}
-
-impl PoolState {
-    /// `get_state()` in the Python app's key order (the body of
-    /// `GET /api/fingerprint-pool/status`).
-    pub fn to_json(&self) -> Json {
-        Json::obj([
-            ("status", Json::from(self.status.as_str())),
-            ("library_dir", Json::from(self.library_dir.clone())),
-            ("total", Json::from(self.total)),
-            ("completed", Json::from(self.completed)),
-            ("errors", Json::from(self.errors)),
-            (
-                "current_album_id",
-                Json::from(self.current_album_id.clone()),
-            ),
-            ("started_at", Json::from(self.started_at.clone())),
-            ("completed_at", Json::from(self.completed_at.clone())),
-            ("skip_reason", Json::from(self.skip_reason.clone())),
-        ])
-    }
-
-    /// `sse_event("state", state)`: one frame of
-    /// `GET /api/fingerprint-pool/stream`.
-    pub fn sse_frame(&self) -> String {
-        format!("event: state\ndata: {}\n\n", self.to_json().dumps())
     }
 }
 

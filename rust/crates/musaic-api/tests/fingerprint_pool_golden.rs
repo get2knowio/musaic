@@ -25,6 +25,9 @@
 //!   tests below; not in the Python app's records, where every lookup it made
 //!   completed).
 
+// Shared with musaic-services' fingerprint goldens; this one moved here when the
+// pool's body and frame moved to `render::system` (#315).
+#[path = "../../musaic-services/tests/fp_common/mod.rs"]
 mod fp_common;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -32,6 +35,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use fp_common::*;
+use musaic_api::render::system::{pool_frame, pool_state};
 use musaic_net::AcoustIdClient;
 use musaic_services::fingerprint::{CancelToken, FingerprintEnv, fingerprint_album};
 use musaic_services::fingerprint_pool::{
@@ -87,7 +91,7 @@ fn snapshot_listener(pool: &FingerprintPool) -> Arc<Mutex<Vec<PoolState>>> {
 }
 
 fn state_json(lib: Option<&Lib>, s: &PoolState) -> Value {
-    let v = s.to_json().to_value();
+    let v = pool_state(s).to_value();
     lib.map_or(v.clone(), |l| l.norm_value(&v))
 }
 
@@ -181,13 +185,13 @@ fn idle_state_status_and_first_frame() {
     let g = pool_golden();
     let pool = FingerprintPool::new();
     let s = pool.state();
-    assert_eq!(s.to_json().to_value(), g["idle"]["status_route"]);
-    let keys: Vec<String> = match s.to_json() {
+    assert_eq!(pool_state(&s).to_value(), g["idle"]["status_route"]);
+    let keys: Vec<String> = match pool_state(&s) {
         musaic_services::Json::Obj(p) => p.into_iter().map(|(k, _)| k).collect(),
         _ => unreachable!(),
     };
     assert_eq!(json!(keys), g["keys_in_order"]);
-    assert_eq!(json!(s.sse_frame()), g["idle"]["stream_first_frame"]);
+    assert_eq!(json!(pool_frame(&s)), g["idle"]["stream_first_frame"]);
     assert_eq!(json!(KEEPALIVE_FRAME), g["stream"]["keepalive"]);
     assert_eq!(
         json!(KEEPALIVE_AFTER.as_secs_f64()),
@@ -239,7 +243,7 @@ fn unavailable_matches_the_python_app() {
             sc["status_route"],
             "{name}"
         );
-        assert_eq!(json!(pool.state().sse_frame()), sc["sse_frame"], "{name}");
+        assert_eq!(json!(pool_frame(&pool.state())), sc["sse_frame"], "{name}");
     }
 }
 
@@ -271,10 +275,10 @@ fn stream_on_connect_after_change_sends_state_twice() {
         want["event_set_before_connect"]
     );
     // The handler: one frame on connect, then wait (30 s) / clear / frame.
-    let mut frames = vec![pool.state().sse_frame()];
+    let mut frames = vec![pool_frame(&pool.state())];
     if pool.changed().wait_timeout(Duration::from_secs(2)) {
         pool.changed().clear();
-        frames.push(pool.state().sse_frame());
+        frames.push(pool_frame(&pool.state()));
     }
     assert_eq!(json!(frames), want["frames"]);
     assert_eq!(json!(pool.changed().is_set()), want["event_set_after"]);

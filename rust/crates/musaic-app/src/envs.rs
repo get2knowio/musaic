@@ -72,7 +72,7 @@ impl App {
 
     /// [`with_convert_env`](Self::with_convert_env) with the conversion's
     /// typed progress reported to `on_progress`, on the calling thread.
-    pub(crate) fn with_convert_env_reporting<R>(
+    pub fn with_convert_env_reporting<R>(
         &self,
         conn: &mut Connection,
         on_progress: &dyn Fn(ConvertProgress),
@@ -103,7 +103,6 @@ impl App {
             trash: &trash,
             pool: Some(&self.0.pool),
             sweeper: Some(&self.0.sweeper),
-            progress: None,
             on_progress,
         };
         f(&mut env)
