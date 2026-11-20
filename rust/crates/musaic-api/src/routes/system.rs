@@ -7,17 +7,16 @@ use std::path::{Component, Path, PathBuf};
 
 use axum::extract::{OriginalUri, Path as UrlPath, State};
 use axum::http::Method;
-use musaic_services::Json;
-use musaic_services::fingerprint_pool::KEEPALIVE_FRAME;
 
 use crate::files;
 use crate::http::{ApiError, ApiResult, ok_ordered};
+use crate::render::system as render;
 use crate::sse;
 use crate::state::AppState;
 
 /// `GET /api/health`: touches nothing.
-pub async fn health() -> ApiResult {
-    ok_ordered(&Json::obj([("status", Json::from("ok"))]))
+pub async fn health(State(st): State<AppState>) -> ApiResult {
+    ok_ordered(&render::health(st.ops().system().health()))
 }
 
 /// `GET /api/library-events/stream`: `ready` first, then every bus event as
@@ -25,17 +24,18 @@ pub async fn health() -> ApiResult {
 /// connection is registered before the response is returned and dropped
 /// (unregistered) as soon as the client goes away.
 pub async fn library_events_stream(State(st): State<AppState>) -> ApiResult {
-    let mut conn = st.0.relay.connect();
+    let mut events = st.ops().system().library_events();
     let (tx, resp) = sse::channel(&st, 8);
-    let ping = st.0.ping_interval;
+    let ping = st.ping_interval();
     tokio::spawn(async move {
-        if !tx.send(musaic_events::ready_frame()).await {
+        if !tx.send(render::library_ready()).await {
             return;
         }
         loop {
             tokio::select! {
-                m = conn.recv() => {
-                    if !tx.send(m.frame()).await { return; }
+                m = events.recv() => {
+                    let Some(m) = m else { return };
+                    if !tx.send(render::library_event_frame(&m)).await { return; }
                 }
                 _ = tokio::time::sleep(ping) => {
                     if !tx.send(sse::PING).await { return; }
@@ -49,43 +49,37 @@ pub async fn library_events_stream(State(st): State<AppState>) -> ApiResult {
 
 /// `GET /api/fingerprint-pool/status`: `fingerprint_pool.get_state()`.
 pub async fn fingerprint_pool_status(State(st): State<AppState>) -> ApiResult {
-    ok_ordered(&st.0.pool.state().to_json())
+    ok_ordered(&render::pool_state(&st.ops().system().pool_status()))
 }
 
 /// `GET /api/fingerprint-pool/stream` (musaic/api/library.py:161-193): the
-/// state on connect, then the state again after each pool change, or
-/// [`KEEPALIVE_FRAME`] after `ping_interval` (30 s) without one.
+/// state on connect, then the state again after each pool change, or the
+/// keepalive frame after `ping_interval` (30 s) without one.
 ///
 /// One wake-up per connection. The
 /// Python app's connections share one `asyncio.Event`: a set wakes the waiters
 /// of that moment, the first to run clears it, so a connection busy sending
 /// misses that change, and a connection opened while it is still set sends
 /// the state twice. Here each connection subscribes to the pool's change
-/// counter (`state.rs`) before it reads the first state: every change after
-/// that wakes this connection once (changes that arrive while it sends are
-/// coalesced into one frame with the newest state), and changes before it
-/// connected are already reflected in its first frame. The pool's own event
-/// is no longer cleared by a stream.
+/// counter (`ops::system::System::pool_feed`) before it reads the first state:
+/// every change after that wakes this connection once (changes that arrive
+/// while it sends are coalesced into one frame with the newest state), and
+/// changes before it connected are already reflected in its first frame. The
+/// pool's own event is no longer cleared by a stream.
 pub async fn fingerprint_pool_stream(State(st): State<AppState>) -> ApiResult {
     let (tx, resp) = sse::channel(&st, 2);
-    let ping = st.0.ping_interval;
+    let ping = st.ping_interval();
     // Subscribed before the state is read: a change in between is sent
     // (as an extra frame), never lost.
-    let mut changes = st.0.pool_changes.subscribe();
-    let first = st.0.pool.state().sse_frame();
+    let mut feed = st.ops().system().pool_feed();
     tokio::spawn(async move {
-        if !tx.send(first).await {
-            return;
-        }
         loop {
             let frame = tokio::select! {
-                r = changes.changed() => {
-                    if r.is_err() {
-                        return;
-                    }
-                    st.0.pool.state().sse_frame()
-                }
-                _ = tokio::time::sleep(ping) => KEEPALIVE_FRAME.to_string(),
+                s = feed.changed() => match s {
+                    Some(s) => render::pool_frame(&s),
+                    None => return,
+                },
+                _ = tokio::time::sleep(ping) => render::POOL_KEEPALIVE.to_string(),
                 _ = tx.closed() => return,
             };
             if !tx.send(frame).await {
@@ -122,7 +116,7 @@ fn contained(dir: &Path, rel: &str) -> Option<PathBuf> {
 
 /// `GET /`.
 pub async fn spa_root(State(st): State<AppState>) -> ApiResult {
-    match &st.0.frontend_dir {
+    match st.frontend_dir() {
         Some(d) => index(d),
         None => Err(ApiError::not_found()),
     }
@@ -135,7 +129,7 @@ pub async fn spa_fallback(State(st): State<AppState>, UrlPath(full): UrlPath<Str
     if full.starts_with("api/") {
         return Err(ApiError::not_found());
     }
-    let Some(dir) = st.0.frontend_dir.clone() else {
+    let Some(dir) = st.frontend_dir().map(Path::to_path_buf) else {
         return Err(ApiError::not_found());
     };
     if let Some(rest) = full.strip_prefix("assets/") {
