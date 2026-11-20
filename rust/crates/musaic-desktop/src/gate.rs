@@ -38,7 +38,7 @@
 //!   `reveal_item_in_dir`, called from Rust). The page sends an album
 //!   **id**, never a path: the folder is looked up here the way
 //!   `GET /api/albums/{id}/tracks` finds it (musaic-api
-//!   `resolve_album_dict`: the configured library's cached row, else a
+//!   `ops().library().album_folder`: the configured library's cached row, else a
 //!   live walk of the library), so the page
 //!   can only reveal an album folder of the configured library or the
 //!   trash. 204 when shown; 404 for an unknown id or a folder that is not on
@@ -372,15 +372,15 @@ fn refusal(status: StatusCode, msg: &str) -> Refusal {
 /// The album's folder, looked up as `GET /api/albums/{id}/tracks` does; why
 /// not when there is none.
 fn album_folder(app: &AppState, album_id: &str) -> Result<PathBuf, Refusal> {
-    let conn = musaic_api::state::open_conn(app.db_path())
-        .map_err(|_| refusal(StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error"))?;
-    let (_, path, _) = musaic_api::routes::library::resolve_album_dict(app, &conn, album_id)
-        .map_err(|e| {
-            let status =
-                StatusCode::from_u16(e.status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR);
-            refusal(status, e.detail.as_str().unwrap_or("Album not found"))
-        })?;
-    let path = PathBuf::from(path);
+    let path = app.ops().library().album_folder(album_id).map_err(|e| {
+        let e = musaic_api::http::ApiError::from(e);
+        match StatusCode::from_u16(e.status) {
+            Ok(status) if status != StatusCode::INTERNAL_SERVER_ERROR => {
+                refusal(status, e.detail.as_str().unwrap_or("Album not found"))
+            }
+            _ => refusal(StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error"),
+        }
+    })?;
     if !path.is_dir() {
         return Err(refusal(
             StatusCode::NOT_FOUND,
