@@ -12,7 +12,9 @@ use std::sync::Arc;
 use common::{connect, flac_bytes, fresh_db, recording_bus};
 use musaic_events::Bus;
 use musaic_scan::TrackOrder;
-use musaic_services::apply::{ApplyEnv, ApplyRequest, CoverSource, apply_album_changes};
+use musaic_services::apply::{
+    ApplyEnv, ApplyEvent, ApplyRequest, CoverSource, apply_album_changes,
+};
 use musaic_services::scan::{ScanDeps, ScanService, StartScan};
 use rusqlite::Connection;
 
@@ -126,8 +128,8 @@ impl World {
         };
         let mut errors = Vec::new();
         apply_album_changes(&mut env, &req, &mut |it| {
-            if it.event == "error" {
-                errors.push(it.data);
+            if let ApplyEvent::Error { detail } = it {
+                errors.push(detail);
             }
             ControlFlow::Continue(())
         });

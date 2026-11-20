@@ -1,3 +1,8 @@
+//! (Moved here from `musaic-services/tests` when the fixes began to return
+//! typed results and events: the bodies and frames compared below are
+//! `musaic_api::render::fixes`' rendering of them, and a refusal's status and
+//! text are `ApiError::from(OpError)`'s. Every assertion is the old one.)
+//!
 //! The check fix actions replayed against the Python app's record
 //! (testdata/golden/services/check_fixes.json, written by
 //! a generator that drove the Python app's
@@ -51,8 +56,9 @@
 //! BulkBatchCompleted per bulk run, the rename glue, the trash, tags
 //! following renames, and the unreachable-album refusal at the endpoint.
 
-#[path = "deltas/check_fixes.rs"]
+#[path = "../../musaic-services/tests/deltas/check_fixes.rs"]
 mod cf_deltas;
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
 
 use std::collections::{BTreeMap, HashMap};
@@ -61,6 +67,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use common::{Norm, build_album, connect, event_json, recording_bus};
+use musaic_api::http::ApiError;
+use musaic_api::render::fixes as render;
 use musaic_checks::checks::track_gaps::MbTrack;
 use musaic_checks::{CheckEnv, Fact, Resolution, ResolutionSource, ScopeKind, TrackMatch};
 use musaic_db::Db;
@@ -68,9 +76,9 @@ use musaic_fsops::rename::PlanEntry;
 use musaic_scan::{TrackOrder, py_resolve};
 use musaic_services::check_fixes::{
     self, Anchor, CoverMatch, FingerprintFailure, Fingerprinted, FixEnv, FixOutcome, FixSources,
-    TracklistMatch,
+    QuickFixEvent, TracklistMatch,
 };
-use musaic_services::{HttpError, Json, NoCovers, ScanDeps, ScanService, StartScan};
+use musaic_services::{NoCovers, OpError, ScanDeps, ScanService, StartScan};
 use rusqlite::Connection;
 use serde_json::{Value, json};
 
@@ -530,7 +538,7 @@ fn check_fixes_replay_the_python_app() {
             Some(c) if st["op"] == json!("quick_fix_all") => open_rows(env.conn, c),
             _ => Vec::new(),
         };
-        let res: Result<Value, HttpError> = match st["op"].as_str().unwrap() {
+        let res: Result<Value, OpError> = match st["op"].as_str().unwrap() {
             "fix_finding" => check_fixes::fix_finding(
                 &mut env,
                 a["check_id"].as_str().unwrap(),
@@ -538,7 +546,7 @@ fn check_fixes_replay_the_python_app() {
                 a["hint"].as_str().unwrap(),
             )
             .map(|o| match o {
-                FixOutcome::Done(r) => w.nv(&r.to_json().to_value()),
+                FixOutcome::Done(r) => w.nv(&render::fix_body(&r).to_value()),
                 // The host's queue (emulated): one active job per album.
                 FixOutcome::NeedsAiJob(req) => {
                     let album = w.n(&req.album_id);
@@ -565,19 +573,18 @@ fn check_fixes_replay_the_python_app() {
                     new: d["new"].as_str().unwrap().into(),
                 });
                 check_fixes::apply_filename_rename(&mut env, fid("finding_id"), &plan, dr.as_ref())
-                    .map(|j| w.nv(&j.to_value()))
-                    .map_err(|e| e.error)
+                    .map(|j| w.nv(&render::rename_body(&j).to_value()))
             }
             "delete_duplicate_file" => check_fixes::delete_duplicate_file(
                 &mut env,
                 fid("finding_id"),
                 a["filename"].as_str().unwrap(),
             )
-            .map(|j| w.nv(&j.to_value())),
+            .map(|j| w.nv(&render::delete_body(&j).to_value())),
             "apply_cluster_sort" => {
                 sweep = true;
                 check_fixes::apply_cluster_sort(&mut env, fid("finding_id"), a["sort_value"].as_str().unwrap())
-                    .map(|j| w.nv(&j.to_value()))
+                    .map(|j| w.nv(&render::sort_body(&j).to_value()))
             }
             "quick_fix_all" => {
                 sweep = a["check_id"] == json!("inconsistent-artist-sort");
@@ -587,15 +594,10 @@ fn check_fixes_replay_the_python_app() {
                     a["check_id"].as_str().unwrap(),
                     &mut || {},
                     &mut |mut item| {
-                        if let Json::Obj(pairs) = &mut item.data {
-                            for (k, v) in pairs.iter_mut() {
-                                if k == "finding_id"
-                                    && let Json::Int(i) = v {
-                                        *i = to_python_app[i];
-                                    }
-                            }
+                        if let QuickFixEvent::Progress { finding_id, .. } = &mut item {
+                            *finding_id = to_python_app[finding_id];
                         }
-                        frames.push_str(&item.sse_frame());
+                        frames.push_str(&render::quick_fix_frame(&item));
                         ControlFlow::Continue(())
                     },
                 )
@@ -647,7 +649,10 @@ fn check_fixes_replay_the_python_app() {
         }
         let (status, body) = match res {
             Ok(b) => (200, b),
-            Err(e) => (e.status, json!({"detail": e.detail})),
+            Err(e) => (
+                ApiError::from(e.clone()).status,
+                json!({"detail": e.message()}),
+            ),
         };
         let state = canon(&w.state(&conn, &ai_jobs));
         let mut want_status = st["status"].clone();
@@ -828,7 +833,7 @@ fn quick_fix_all_hooks_and_early_stop() {
     let mut between = 0;
     let mut items: Vec<String> = Vec::new();
     check_fixes::quick_fix_all(&mut env, "track-gaps", &mut || between += 1, &mut |it| {
-        items.push(it.event.to_string());
+        items.push(render::quick_fix_event_name(&it).to_string());
         ControlFlow::Continue(())
     })
     .unwrap();
@@ -841,7 +846,7 @@ fn quick_fix_all_hooks_and_early_stop() {
     let mut items = 0;
     check_fixes::quick_fix_all(&mut env, "no-cover-art", &mut || between += 1, &mut |it| {
         items += 1;
-        if it.event == "progress" && items == 3 {
+        if render::quick_fix_event_name(&it) == "progress" && items == 3 {
             ControlFlow::Break(())
         } else {
             ControlFlow::Continue(())
@@ -861,7 +866,7 @@ fn quick_fix_all_hooks_and_early_stop() {
     conn_resolve_all(env.conn, "duplicate-tracks");
     let mut evs = Vec::new();
     check_fixes::quick_fix_all(&mut env, "duplicate-tracks", &mut || {}, &mut |it| {
-        evs.push(it.event);
+        evs.push(render::quick_fix_event_name(&it));
         ControlFlow::Continue(())
     })
     .unwrap();
@@ -944,7 +949,10 @@ fn quick_fix_all_survives_a_panicking_fix() {
     assert!(n >= 2, "no-cover-art findings at setup");
     let mut items: Vec<(String, Value)> = Vec::new();
     check_fixes::quick_fix_all(&mut env, "no-cover-art", &mut || {}, &mut |it| {
-        items.push((it.event.to_string(), it.data.to_value()));
+        items.push((
+            render::quick_fix_event_name(&it).to_string(),
+            render::quick_fix_payload(&it).to_value(),
+        ));
         ControlFlow::Continue(())
     })
     .unwrap();
@@ -974,12 +982,13 @@ fn quick_fix_all_survives_a_panicking_fix() {
     let mut events: Vec<String> = Vec::new();
     let mut detail = Value::Null;
     check_fixes::quick_fix_all(&mut env, "no-cover-art", &mut || {}, &mut |it| {
-        events.push(it.event.to_string());
-        if it.event == "progress" {
+        let event = render::quick_fix_event_name(&it);
+        events.push(event.to_string());
+        if event == "progress" {
             panic!("injected: client sink");
         }
-        if it.event == "error" {
-            detail = it.data.to_value()["detail"].clone();
+        if event == "error" {
+            detail = render::quick_fix_payload(&it).to_value()["detail"].clone();
         }
         ControlFlow::Continue(())
     })
@@ -1306,7 +1315,7 @@ fn replay_section(name: &str, expected: &dyn Fn(&Value) -> Value) {
                 match check_fixes::fix_finding(&mut env, a["check_id"].as_str().unwrap(), fid, "")
                     .unwrap()
                 {
-                    FixOutcome::Done(r) => nv(&r.to_json().to_value()),
+                    FixOutcome::Done(r) => nv(&render::fix_body(&r).to_value()),
                     FixOutcome::NeedsAiJob(_) => panic!("{label}: no AI job expected"),
                 }
             }
@@ -1317,16 +1326,10 @@ fn replay_section(name: &str, expected: &dyn Fn(&Value) -> Value) {
                     a["check_id"].as_str().unwrap(),
                     &mut || {},
                     &mut |mut item| {
-                        if let Json::Obj(pairs) = &mut item.data {
-                            for (k, v) in pairs.iter_mut() {
-                                if k == "finding_id"
-                                    && let Json::Int(i) = v
-                                {
-                                    *i = to_python_app[i];
-                                }
-                            }
+                        if let QuickFixEvent::Progress { finding_id, .. } = &mut item {
+                            *finding_id = to_python_app[finding_id];
                         }
-                        frames.push_str(&item.sse_frame());
+                        frames.push_str(&render::quick_fix_frame(&item));
                         ControlFlow::Continue(())
                     },
                 )

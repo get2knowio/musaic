@@ -11,8 +11,8 @@
 //! | `POST .../inconsistent-artist-sort/findings/{id}/apply-sort` | [`apply_cluster_sort`] |
 //! | `GET .../duplicate-tracks/findings/{id}/canonical` | not here: a MusicBrainz recording lookup (musaic-net) |
 //!
-//! Each returns the route's body, or the [`HttpError`] the route raises with
-//! the Python app's status and detail text. Bus events are published on
+//! Each returns a typed result, or the [`OpError`] that says why it was
+//! refused (the route's status and detail text are `musaic-api`'s). Bus events are published on
 //! `env.bus` at the Python app's moments. Request-body validation (422) is
 //! the HTTP layer's.
 //!
@@ -74,7 +74,7 @@
 //!   only the findings that are gone as `fixed` (`still_open` for the rest).
 //!
 //! Golden: testdata/golden/services/check_fixes.json (recorded from the
-//! Python app); test: tests/golden_check_fixes.rs.
+//! Python app); test: musaic-api tests/golden_check_fixes.rs.
 
 use std::ops::ControlFlow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -88,24 +88,40 @@ use musaic_checks::{CheckEnv, FixKind};
 use musaic_db::findings::{self, FindingFilter, FindingRow};
 use musaic_events::{Bus, Event as BusEvent};
 use musaic_fsops::py_repr;
-use musaic_fsops::rename::{PlanEntry, RenameEnv, RenameOutcome};
+use musaic_fsops::rename::RenameEnv;
+/// What a rename plan holds and what carrying it out reports.
+pub use musaic_fsops::rename::{PlanEntry, RenameOutcome};
 use musaic_scan::{TrackOrder, py_resolve};
 use musaic_tags::{Suggestions, TrackSuggestions};
 use rusqlite::{Connection, OptionalExtension};
 use serde_json::Value;
 
-use crate::apply::{ApplyEnv, CoverSource, HttpError, apply_direct, missing_album_detail};
-use crate::json::Json;
+use crate::apply::{ApplyEnv, CoverSource, apply_direct, missing_album_detail};
+use crate::error::{Details, OpError, Refusal, Subject};
 
-fn err(status: u16, detail: impl Into<String>) -> HttpError {
-    HttpError {
-        status,
-        detail: detail.into(),
+/// A refusal of the request's content: the route's 400.
+fn rejected(message: impl Into<String>) -> OpError {
+    OpError::Rejected {
+        message: message.into(),
+        details: None,
     }
 }
 
-fn db_err(e: impl std::fmt::Display) -> HttpError {
-    err(500, e.to_string())
+fn db_err(e: impl std::fmt::Display) -> OpError {
+    OpError::internal(e)
+}
+
+fn finding_not_found(finding_id: i64) -> OpError {
+    OpError::NotFound {
+        what: Subject::Finding,
+        id: finding_id.to_string(),
+        message: "Finding not found".into(),
+    }
+}
+
+/// The text a quick fix reports for a failed lookup.
+fn op_text(e: OpError) -> String {
+    e.message().to_string()
 }
 
 /// The message of a fix or quick fix that was
@@ -313,15 +329,6 @@ impl FixResult {
             job_id: None,
         }
     }
-
-    /// The route body `{ok, message, job_id}`.
-    pub fn to_json(&self) -> Json {
-        Json::obj([
-            ("ok", Json::Bool(self.ok)),
-            ("message", Json::from(self.message.as_str())),
-            ("job_id", self.job_id.clone().map_or(Json::Null, Json::Str)),
-        ])
-    }
 }
 
 /// The AI job the Python app would enqueue (`jobs.enqueue(...)`).
@@ -348,32 +355,71 @@ pub enum FixOutcome {
     NeedsAiJob(AiJobRequest),
 }
 
-/// One quick-fix-all stream item: `(event, payload)` as the Python app's
-/// `sse_event` would frame it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct QuickFixItem {
-    pub event: &'static str,
-    pub data: Json,
+/// What became of one finding in a quick-fix-all run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuickFixOutcome {
+    /// The fix wrote what it could.
+    Fixed,
+    /// Attempted, and the fix did not apply (its message says why).
+    Skipped,
+    /// The fix failed or panicked.
+    Error,
+    /// Not attempted: the album is Missing, or the check has no quick fix.
+    NotApplicable,
 }
 
-impl QuickFixItem {
-    /// `services.sse.sse_event(name, data)`.
-    pub fn sse_frame(&self) -> String {
-        format!("event: {}\ndata: {}\n\n", self.event, self.data.dumps())
+impl QuickFixOutcome {
+    /// The word the Python app's progress item used.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            QuickFixOutcome::Fixed => "fixed",
+            QuickFixOutcome::Skipped => "skipped",
+            QuickFixOutcome::Error => "error",
+            QuickFixOutcome::NotApplicable => "not-applicable",
+        }
     }
+}
+
+/// How a quick-fix-all run came out: findings by outcome, after the check was
+/// rerun over the albums that were fixed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuickFixSummary {
+    pub total: usize,
+    /// Findings that are gone.
+    pub fixed: usize,
+    pub skipped: usize,
+    pub errors: usize,
+    pub not_applicable: usize,
+    /// Fixes that reported success but left their finding open.
+    pub still_open: usize,
+}
+
+/// One step of a quick-fix-all run: `Start`, one `Progress` per open finding,
+/// then `Done`. `Error` replaces whatever would have followed when the loop
+/// itself fails (a panic outside a single fix).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuickFixEvent {
+    Start {
+        total: usize,
+    },
+    Progress {
+        finding_id: i64,
+        outcome: QuickFixOutcome,
+        message: String,
+    },
+    Done(QuickFixSummary),
+    Error {
+        detail: String,
+    },
 }
 
 // ---------- shared lookups ----------
 
-fn finding_for(
-    conn: &Connection,
-    finding_id: i64,
-    check_id: &str,
-) -> Result<FindingRow, HttpError> {
+fn finding_for(conn: &Connection, finding_id: i64, check_id: &str) -> Result<FindingRow, OpError> {
     findings::get_finding(conn, finding_id)
         .map_err(db_err)?
         .filter(|f| f.check_id == check_id)
-        .ok_or_else(|| err(404, "Finding not found"))
+        .ok_or_else(|| finding_not_found(finding_id))
 }
 
 fn detail(f: &FindingRow) -> Option<Value> {
@@ -404,7 +450,7 @@ impl AlbumBrief {
     }
 }
 
-fn load_album(conn: &Connection, album_id: &str) -> Result<Option<AlbumBrief>, HttpError> {
+fn load_album(conn: &Connection, album_id: &str) -> Result<Option<AlbumBrief>, OpError> {
     conn.query_row(
         "SELECT path, title, dir_name FROM albums WHERE id = ?1",
         [album_id],
@@ -463,22 +509,19 @@ pub fn fix_finding(
     check_id: &str,
     finding_id: i64,
     user_hint: &str,
-) -> Result<FixOutcome, HttpError> {
+) -> Result<FixOutcome, OpError> {
     let f = finding_for(env.conn, finding_id, check_id)?;
     let Some(check) = env.checks.registry.get(&f.check_id) else {
-        return Err(err(
-            400,
-            format!(
-                "finding's check_id {} is not registered",
-                py_repr(&f.check_id)
-            ),
-        ));
+        return Err(rejected(format!(
+            "finding's check_id {} is not registered",
+            py_repr(&f.check_id)
+        )));
     };
     if check.meta().fix_kind == FixKind::None {
-        return Err(err(
-            400,
-            format!("check {} has no fix path", check.meta().id),
-        ));
+        return Err(rejected(format!(
+            "check {} has no fix path",
+            check.meta().id
+        )));
     }
     // A finding of a Missing album is not attempted.
     if let Some(since) = missing_album_of(env.conn, f.album_id.as_deref()) {
@@ -489,7 +532,7 @@ pub fn fix_finding(
     out
 }
 
-fn fix_one(env: &mut FixEnv<'_>, f: &FindingRow, hint: &str) -> Result<FixOutcome, HttpError> {
+fn fix_one(env: &mut FixEnv<'_>, f: &FindingRow, hint: &str) -> Result<FixOutcome, OpError> {
     let album_id = f.album_id.as_deref();
     match f.check_id.as_str() {
         "duplicate-tracks" => Ok(done(false, DUPLICATES_STUB)),
@@ -500,10 +543,9 @@ fn fix_one(env: &mut FixEnv<'_>, f: &FindingRow, hint: &str) -> Result<FixOutcom
         "unidentified-album" => unidentified_fix(env, album_id, hint),
         "no-cover-art" => cover_fix(env, album_id, hint),
         "track-gaps" => gaps_fix(env, album_id, hint),
-        other => Err(err(
-            500,
-            format!("Check {other} declared a fix_kind but has no fix()"),
-        )),
+        other => Err(OpError::internal(format!(
+            "Check {other} declared a fix_kind but has no fix()"
+        ))),
     }
 }
 
@@ -535,15 +577,11 @@ pub fn try_quick_fix_finding(
     Ok(r)
 }
 
-fn http_to_string(e: HttpError) -> String {
-    e.detail
-}
-
 // ---------- tags-out-of-sync ----------
 
 /// `tags_out_of_sync._load_album` (musaic/checks/tags_out_of_sync.py:601),
 /// path included, so per-track artist drift is part of the fix.
-fn tags_row(conn: &Connection, album_id: &str) -> Result<Option<(TagsRow, AlbumBrief)>, HttpError> {
+fn tags_row(conn: &Connection, album_id: &str) -> Result<Option<(TagsRow, AlbumBrief)>, OpError> {
     conn.query_row(
         "SELECT id, dir_name, title, artist, album_artist, year, genre, album_artist_sort, \
                 artist_sort, album_sort, is_compilation, mb_release_group_mbid, path \
@@ -629,7 +667,7 @@ fn tags_fix(
     env: &mut FixEnv<'_>,
     album_id: Option<&str>,
     hint: &str,
-) -> Result<FixOutcome, HttpError> {
+) -> Result<FixOutcome, OpError> {
     let Some(album_id) = album_id else {
         return Ok(done(false, "No album to fix"));
     };
@@ -680,7 +718,7 @@ fn tags_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Fix
     let Some(album_id) = album_id else {
         return Ok(None);
     };
-    let Some((row, _)) = tags_row(env.conn, album_id).map_err(http_to_string)? else {
+    let Some((row, _)) = tags_row(env.conn, album_id).map_err(op_text)? else {
         return Ok(None);
     };
     let d = tags_sync::compute_diffs(env.conn, env.checks.resolver.as_ref(), &row);
@@ -696,7 +734,7 @@ fn tags_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Fix
 
 // ---------- unidentified-album ----------
 
-fn has_fingerprints(conn: &Connection, album_id: &str) -> Result<bool, HttpError> {
+fn has_fingerprints(conn: &Connection, album_id: &str) -> Result<bool, OpError> {
     conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM track_fingerprints WHERE album_id = ?1)",
         [album_id],
@@ -782,7 +820,7 @@ fn unidentified_fix(
     env: &mut FixEnv<'_>,
     album_id: Option<&str>,
     hint: &str,
-) -> Result<FixOutcome, HttpError> {
+) -> Result<FixOutcome, OpError> {
     let Some(album_id) = album_id else {
         return Ok(done(false, "No album to identify"));
     };
@@ -817,11 +855,11 @@ fn unidentified_quick(
     let Some(album_id) = album_id else {
         return Ok(None);
     };
-    let Some(album) = load_album(env.conn, album_id).map_err(http_to_string)? else {
+    let Some(album) = load_album(env.conn, album_id).map_err(op_text)? else {
         return Ok(None);
     };
     let mut fp_message = String::new();
-    if !has_fingerprints(env.conn, album_id).map_err(http_to_string)? {
+    if !has_fingerprints(env.conn, album_id).map_err(op_text)? {
         let path = album.path.clone().unwrap_or_default();
         fp_message = try_fingerprint(env, album_id, &path).message;
     }
@@ -852,7 +890,7 @@ fn cover_fix(
     env: &mut FixEnv<'_>,
     album_id: Option<&str>,
     hint: &str,
-) -> Result<FixOutcome, HttpError> {
+) -> Result<FixOutcome, OpError> {
     let Some(album_id) = album_id else {
         return Ok(done(false, "No album to fix"));
     };
@@ -878,10 +916,7 @@ fn cover_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Fi
     let Some(album_id) = album_id else {
         return Ok(None);
     };
-    if load_album(env.conn, album_id)
-        .map_err(http_to_string)?
-        .is_none()
-    {
+    if load_album(env.conn, album_id).map_err(op_text)?.is_none() {
         return Ok(None);
     }
     Ok(Some(cover_try_mb(env, album_id).unwrap_or_else(|| {
@@ -972,7 +1007,7 @@ fn gaps_fix(
     env: &mut FixEnv<'_>,
     album_id: Option<&str>,
     hint: &str,
-) -> Result<FixOutcome, HttpError> {
+) -> Result<FixOutcome, OpError> {
     let Some(album_id) = album_id else {
         return Ok(done(false, "No album to fix"));
     };
@@ -999,7 +1034,7 @@ fn gaps_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Fix
     let Some(album_id) = album_id else {
         return Ok(None);
     };
-    let Some(album) = load_album(env.conn, album_id).map_err(http_to_string)? else {
+    let Some(album) = load_album(env.conn, album_id).map_err(op_text)? else {
         // Unlike the other checks, track-gaps reports this as a skip.
         return Ok(Some(FixResult::new(false, "Album not found in cache")));
     };
@@ -1043,26 +1078,41 @@ fn artist_sort_quick(env: &mut FixEnv<'_>, f: &FindingRow) -> FixResult {
     }
 }
 
+/// What an artist-sort bulk apply did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SortResult {
+    /// At least one album was written.
+    pub ok: bool,
+    /// Albums written.
+    pub applied: usize,
+    /// Members of the cluster that name an album.
+    pub cluster_size: usize,
+    pub distinct_albums: usize,
+    /// The value written, as stripped.
+    pub sort_value: String,
+    pub message: String,
+}
+
 /// `POST /api/checks/inconsistent-artist-sort/findings/{finding_id}/apply-sort`.
 pub fn apply_cluster_sort(
     env: &mut FixEnv<'_>,
     finding_id: i64,
     sort_value: &str,
-) -> Result<Json, HttpError> {
+) -> Result<SortResult, OpError> {
     let f = finding_for(env.conn, finding_id, "inconsistent-artist-sort")?;
     let sort_value = musaic_core::pycompat::strip(sort_value);
     if sort_value.is_empty() {
-        return Err(err(400, "sort_value is required"));
+        return Err(rejected("sort_value is required"));
     }
     if sort_value.chars().count() > 200 {
-        return Err(err(400, "sort_value too long (max 200 chars)"));
+        return Err(rejected("sort_value too long (max 200 chars)"));
     }
     let members: Vec<Value> = detail(&f)
         .and_then(|d| d.get("members").cloned())
         .and_then(|m| m.as_array().cloned())
         .unwrap_or_default();
     if members.is_empty() {
-        return Err(err(400, "Finding has no cluster members"));
+        return Err(rejected("Finding has no cluster members"));
     }
     let normalized: Vec<Value> = members
         .iter()
@@ -1079,7 +1129,7 @@ pub fn apply_cluster_sort(
         })
         .collect();
     if normalized.is_empty() {
-        return Err(err(400, "Cluster members missing album_id"));
+        return Err(rejected("Cluster members missing album_id"));
     }
     let plan = artist_sort::plan_cluster_sort(&normalized, sort_value);
     let applied = run_sort_writes(env, &plan);
@@ -1090,21 +1140,18 @@ pub fn apply_cluster_sort(
             other => other.to_string(),
         })
         .collect();
-    Ok(Json::obj([
-        ("ok", Json::Bool(applied > 0)),
-        ("applied", Json::from(applied)),
-        ("cluster_size", Json::from(normalized.len())),
-        ("distinct_albums", Json::from(distinct.len())),
-        ("sort_value", Json::from(sort_value)),
-        (
-            "message",
-            Json::Str(format!(
-                "Wrote sort={} to {applied} of {} album(s) in the cluster.",
-                py_repr(sort_value),
-                distinct.len()
-            )),
+    Ok(SortResult {
+        ok: applied > 0,
+        applied,
+        cluster_size: normalized.len(),
+        distinct_albums: distinct.len(),
+        sort_value: sort_value.to_string(),
+        message: format!(
+            "Wrote sort={} to {applied} of {} album(s) in the cluster.",
+            py_repr(sort_value),
+            distinct.len()
         ),
-    ]))
+    })
 }
 
 // ---------- quick-fix-all ----------
@@ -1143,10 +1190,14 @@ pub fn quick_fix_all(
     env: &mut FixEnv<'_>,
     check_id: &str,
     between: &mut dyn FnMut(),
-    sink: &mut dyn FnMut(QuickFixItem) -> ControlFlow<()>,
-) -> Result<(), HttpError> {
+    sink: &mut dyn FnMut(QuickFixEvent) -> ControlFlow<()>,
+) -> Result<(), OpError> {
     if env.checks.registry.get(check_id).is_none() {
-        return Err(err(404, format!("Unknown check_id: {}", py_repr(check_id))));
+        return Err(OpError::NotFound {
+            what: Subject::Check,
+            id: check_id.to_string(),
+            message: format!("Unknown check_id: {}", py_repr(check_id)),
+        });
     }
     let ids: Vec<i64> = findings::list_findings(
         env.conn,
@@ -1168,12 +1219,7 @@ pub fn quick_fix_all(
     }));
     if let Err(p) = run {
         let detail = format!("panic: {}", panic_text(p.as_ref()));
-        let _ = catch_unwind(AssertUnwindSafe(|| {
-            sink(QuickFixItem {
-                event: "error",
-                data: Json::obj([("detail", Json::from(detail))]),
-            })
-        }));
+        let _ = catch_unwind(AssertUnwindSafe(|| sink(QuickFixEvent::Error { detail })));
     }
     if total > 0 {
         env.bus.publish(&BusEvent::BulkBatchCompleted);
@@ -1252,16 +1298,11 @@ fn quick_fix_loop(
     check_id: &str,
     ids: &[i64],
     between: &mut dyn FnMut(),
-    sink: &mut dyn FnMut(QuickFixItem) -> ControlFlow<()>,
+    sink: &mut dyn FnMut(QuickFixEvent) -> ControlFlow<()>,
 ) {
     let total = ids.len();
     {
-        if sink(QuickFixItem {
-            event: "start",
-            data: Json::obj([("total", Json::from(total))]),
-        })
-        .is_break()
-        {
+        if sink(QuickFixEvent::Start { total }).is_break() {
             return;
         }
         let (mut fixed, mut skipped, mut errors, mut na) = (0usize, 0usize, 0usize, 0usize);
@@ -1283,39 +1324,45 @@ fn quick_fix_loop(
             let (outcome, message) = match attempt {
                 Err(since) => {
                     na += 1;
-                    ("not-applicable", missing_album_not_applicable(&since))
+                    (
+                        QuickFixOutcome::NotApplicable,
+                        missing_album_not_applicable(&since),
+                    )
                 }
                 Ok(Err(p)) => {
                     errors += 1;
-                    ("error", format!("panic: {}", panic_text(p.as_ref())))
+                    (
+                        QuickFixOutcome::Error,
+                        format!("panic: {}", panic_text(p.as_ref())),
+                    )
                 }
                 Ok(Ok(r)) => match r {
                     Err(e) => {
                         errors += 1;
-                        ("error", e)
+                        (QuickFixOutcome::Error, e)
                     }
                     Ok(None) => {
                         na += 1;
-                        ("not-applicable", "Check has no quick-fix path".to_string())
+                        (
+                            QuickFixOutcome::NotApplicable,
+                            "Check has no quick-fix path".to_string(),
+                        )
                     }
                     Ok(Some(r)) if r.ok => {
                         fixed += 1;
                         applied.push((*fid, album.clone()));
-                        ("fixed", r.message)
+                        (QuickFixOutcome::Fixed, r.message)
                     }
                     Ok(Some(r)) => {
                         skipped += 1;
-                        ("skipped", r.message)
+                        (QuickFixOutcome::Skipped, r.message)
                     }
                 },
             };
-            let item = QuickFixItem {
-                event: "progress",
-                data: Json::obj([
-                    ("finding_id", Json::Int(*fid)),
-                    ("outcome", Json::from(outcome)),
-                    ("message", Json::Str(message)),
-                ]),
+            let item = QuickFixEvent::Progress {
+                finding_id: *fid,
+                outcome,
+                message,
             };
             if sink(item).is_break() {
                 return;
@@ -1325,85 +1372,18 @@ fn quick_fix_loop(
         // success but left its finding open is `still_open`.
         let still_open = still_open_after_fix(env, check_id, &applied).len();
         fixed -= still_open;
-        let _ = sink(QuickFixItem {
-            event: "done",
-            data: Json::obj([
-                ("total", Json::from(total)),
-                ("fixed", Json::from(fixed)),
-                ("skipped", Json::from(skipped)),
-                ("errors", Json::from(errors)),
-                ("not_applicable", Json::from(na)),
-                ("still_open", Json::from(still_open)),
-            ]),
-        });
+        let _ = sink(QuickFixEvent::Done(QuickFixSummary {
+            total,
+            fixed,
+            skipped,
+            errors,
+            not_applicable: na,
+            still_open,
+        }));
     }
 }
 
 // ---------- filename-mismatch apply ----------
-
-/// `execute_renames`' dict, as the route returns it.
-pub fn rename_outcome_json(o: &RenameOutcome) -> Json {
-    let mut pairs: Vec<(String, Json)> = vec![
-        ("ok".into(), Json::Bool(o.ok)),
-        ("message".into(), Json::from(o.message.as_str())),
-        ("renamed".into(), Json::from(o.renamed)),
-    ];
-    if o.already_renamed {
-        pairs.push(("already_renamed".into(), Json::Bool(true)));
-    }
-    // Only when there is something to say, so the body stays the Python
-    // app's otherwise.
-    if !o.skipped.is_empty() {
-        pairs.push((
-            "skipped".into(),
-            Json::Arr(
-                o.skipped
-                    .iter()
-                    .map(|e| {
-                        Json::obj([
-                            ("old", Json::from(e.old.as_str())),
-                            ("new", Json::from(e.new.as_str())),
-                            ("reason", Json::from(e.reason.as_str())),
-                        ])
-                    })
-                    .collect(),
-            ),
-        ));
-    }
-    // Only when the rename needs a note, so a clean result keeps its shape:
-    // a stable code and the sentence to show the user (`message` is the
-    // technical text).
-    if let (Some(r), Some(u)) = (o.reason, &o.user_message) {
-        pairs.push(("reason_code".into(), Json::from(r.code())));
-        pairs.push(("user_message".into(), Json::from(u.as_str())));
-    }
-    if let Some(d) = &o.detail {
-        pairs.push((
-            "errors".into(),
-            Json::Arr(d.errors.iter().map(|e| Json::from(e.as_str())).collect()),
-        ));
-        pairs.push(("dir_renamed".into(), Json::Bool(d.dir_renamed)));
-        pairs.push(("new_album_id".into(), Json::from(d.new_album_id.as_str())));
-        pairs.push((
-            "dir_migration".into(),
-            match d.dir_migration {
-                Some(m) => Json::obj([
-                    ("albums", Json::from(m.albums)),
-                    ("track_fingerprints", Json::from(m.track_fingerprints)),
-                    ("track_tags", Json::from(m.track_tags)),
-                    ("check_findings", Json::from(m.check_findings)),
-                    ("ai_jobs", Json::from(m.ai_jobs)),
-                    (
-                        "album_blocked_mb_release_groups",
-                        Json::from(m.album_blocked_mb_release_groups),
-                    ),
-                ]),
-                None => Json::Obj(Vec::new()),
-            },
-        ));
-    }
-    Json::Obj(pairs)
-}
 
 /// `POST /api/checks/filename-mismatch/findings/{finding_id}/apply`: 404 for
 /// an unknown finding, 400 without an album or with neither a plan nor a
@@ -1416,17 +1396,18 @@ pub fn apply_filename_rename(
     finding_id: i64,
     plan: &[PlanEntry],
     dir_rename: Option<&PlanEntry>,
-) -> Result<Json, RenameApplyError> {
+) -> Result<RenameOutcome, OpError> {
     let f = finding_for(env.conn, finding_id, "filename-mismatch")?;
     let album_id = f
         .album_id
         .clone()
         .filter(|a| !a.is_empty())
-        .ok_or_else(|| err(400, "Finding has no album"))?;
+        .ok_or_else(|| rejected("Finding has no album"))?;
     if plan.is_empty() && dir_rename.is_none() {
-        return Err(err(400, "plan or dir_rename is required").into());
+        return Err(rejected("plan or dir_rename is required"));
     }
-    crate::apply::refuse_missing(env.conn, &album_id)?;
+    // The route answered a failed read of the album with the plain-text 500.
+    crate::track_tags::refuse_missing(env.conn, &album_id)?;
     let now = (env.now)();
     let renv = RenameEnv {
         library_dir: env.library_dir,
@@ -1447,37 +1428,59 @@ pub fn apply_filename_rename(
         } else {
             out.message.clone()
         };
-        let mut e = RenameApplyError::from(err(409, msg));
-        if let (Some(r), Some(u)) = (out.reason, &out.user_message) {
-            e.extra = vec![
-                ("reason_code".into(), r.code().into()),
-                ("user_message".into(), u.clone()),
-            ];
-        }
-        return Err(e);
+        // The rename code's own code and sentence ride beside `message`.
+        let details = match (out.reason, &out.user_message) {
+            (Some(r), Some(u)) => Some(Details::Refusal(Box::new(Refusal {
+                reason_code: r.code().to_string(),
+                user_message: u.clone(),
+                blockers: Vec::new(),
+                digest: None,
+            }))),
+            _ => None,
+        };
+        return Err(OpError::Conflict {
+            message: msg,
+            details,
+        });
     }
-    Ok(rename_outcome_json(&out))
-}
-
-/// A refusal of the rename apply: the usual `detail` plus, for a refusal
-/// the rename code explains, extra top-level body keys (`reason_code`,
-/// `user_message`) that sit beside `detail` and leave it untouched.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RenameApplyError {
-    pub error: HttpError,
-    pub extra: Vec<(String, String)>,
-}
-
-impl From<HttpError> for RenameApplyError {
-    fn from(error: HttpError) -> Self {
-        RenameApplyError {
-            error,
-            extra: Vec::new(),
-        }
-    }
+    Ok(out)
 }
 
 // ---------- delete-duplicate ----------
+
+/// What a duplicate delete did: the file went to the trash.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateDeleted {
+    pub message: String,
+    /// Where the file is now; `None` when it was already gone.
+    pub trashed_to: Option<String>,
+}
+
+/// The checks crate's refusal as the operation's error.
+fn refusal_of(
+    r: duplicate_tracks::HttpRefusal,
+    finding_id: i64,
+    album_id: Option<&str>,
+) -> OpError {
+    match r.status {
+        404 if r.detail.starts_with("Album ") => OpError::NotFound {
+            what: Subject::Album,
+            id: album_id.unwrap_or_default().to_string(),
+            message: r.detail,
+        },
+        404 => OpError::NotFound {
+            what: Subject::Finding,
+            id: finding_id.to_string(),
+            message: r.detail,
+        },
+        400 => rejected(r.detail),
+        409 => OpError::Conflict {
+            message: r.detail,
+            details: None,
+        },
+        _ => OpError::internal(r.detail),
+    }
+}
 
 /// `POST /api/checks/duplicate-tracks/findings/{finding_id}/delete-file`.
 ///
@@ -1495,7 +1498,7 @@ pub fn delete_duplicate_file(
     env: &mut FixEnv<'_>,
     finding_id: i64,
     filename: &str,
-) -> Result<Json, HttpError> {
+) -> Result<DuplicateDeleted, OpError> {
     let finding = findings::get_finding(env.conn, finding_id).map_err(db_err)?;
     let library = env.resolved_library().unwrap_or_default();
     let stamp = env.trash_stamp;
@@ -1507,7 +1510,13 @@ pub fn delete_duplicate_file(
         filename,
         stamp,
     )
-    .map_err(|r| err(r.status, r.detail))?;
+    .map_err(|r| {
+        refusal_of(
+            r,
+            finding_id,
+            finding.as_ref().and_then(|f| f.album_id.as_deref()),
+        )
+    })?;
     let album_id = finding
         .and_then(|f| f.album_id)
         .expect("trash_duplicate_file checked the album");
@@ -1551,14 +1560,8 @@ pub fn delete_duplicate_file(
     if rescanned.is_err() {
         env.bus.publish(&tags_changed());
     }
-    Ok(Json::obj([
-        ("ok", Json::Bool(true)),
-        ("message", Json::Str(trashed.message)),
-        (
-            "trashed_to",
-            trashed
-                .trashed_to
-                .map_or(Json::Null, |p| Json::Str(p.to_string_lossy().into_owned())),
-        ),
-    ]))
+    Ok(DuplicateDeleted {
+        message: trashed.message,
+        trashed_to: trashed.trashed_to.map(|p| p.to_string_lossy().into_owned()),
+    })
 }
