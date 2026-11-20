@@ -45,7 +45,7 @@ use musaic_net::{
 use rusqlite::Connection;
 use serde_json::Value;
 
-use crate::{HttpError, Json};
+use crate::error::{OpError, Subject};
 
 /// `@lru_cache(maxsize=2048)` (mb_lookup.py:537).
 pub const CACHE_MAXSIZE: usize = 2048;
@@ -126,9 +126,23 @@ impl RecordingCanonicalCache {
 }
 
 /// Why there is no title: a stable code for the UI plus a plain sentence.
-struct Reason {
-    code: &'static str,
-    text: String,
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reason {
+    pub code: &'static str,
+    pub text: String,
+}
+
+/// What MusicBrainz says the duplicate cluster's recording is called, or why
+/// it says nothing. A title and its artist come together, with no reason; no
+/// title has a reason. The face renders it (the HTTP face as
+/// `{title, artist, mbid, reason, reason_code}`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalRecording {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    /// The recording MBID looked up, `None` when the cluster has none.
+    pub mbid: Option<String>,
+    pub reason: Option<Reason>,
 }
 
 fn body(
@@ -136,15 +150,14 @@ fn body(
     artist: Option<&str>,
     mbid: Option<&str>,
     reason: Option<Reason>,
-) -> Json {
-    let s = |v: Option<&str>| v.map_or(Json::Null, |v| Json::Str(v.to_owned()));
-    Json::obj([
-        ("title", s(title)),
-        ("artist", s(artist)),
-        ("mbid", s(mbid)),
-        ("reason", s(reason.as_ref().map(|r| r.text.as_str()))),
-        ("reason_code", s(reason.as_ref().map(|r| r.code))),
-    ])
+) -> CanonicalRecording {
+    let s = |v: Option<&str>| v.map(str::to_owned);
+    CanonicalRecording {
+        title: s(title),
+        artist: s(artist),
+        mbid: s(mbid),
+        reason,
+    }
 }
 
 /// The reason code of the no-MBID answer.
@@ -184,11 +197,8 @@ pub const NO_MBID_REASON: &str = "no recording MBID for this cluster";
 /// health.py:254-260.
 pub const NO_RECORDING_REASON: &str = "MusicBrainz didn't return a recording for that MBID";
 
-fn internal(detail: impl Into<String>) -> HttpError {
-    HttpError {
-        status: 500,
-        detail: detail.into(),
-    }
+fn internal(detail: impl std::fmt::Display) -> OpError {
+    OpError::internal(detail)
 }
 
 /// `duplicate_finding_canonical(finding_id)` (health.py:224-265). Errors:
@@ -202,12 +212,13 @@ pub fn duplicate_finding_canonical<T: Transport>(
     finding_id: i64,
     mb: &MusicBrainzClient<T>,
     cache: &RecordingCanonicalCache,
-) -> Result<Json, HttpError> {
+) -> Result<CanonicalRecording, OpError> {
     let finding = get_finding(conn, finding_id).map_err(|e| internal(e.to_string()))?;
     let Some(finding) = finding.filter(|f| f.check_id == CHECK_ID) else {
-        return Err(HttpError {
-            status: 404,
-            detail: "Finding not found".into(),
+        return Err(OpError::NotFound {
+            what: Subject::Finding,
+            id: finding_id.to_string(),
+            message: "Finding not found".into(),
         });
     };
     // `finding.get("detail") or {}`: unreadable JSON is None (runner.py:84-88).

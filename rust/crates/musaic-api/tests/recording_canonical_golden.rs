@@ -1,5 +1,6 @@
 //! `GET /api/checks/duplicate-tracks/findings/{id}/canonical` as the
-//! services operation, against the Python app's answers in
+//! operation and its rendering (`musaic_api::render::checks::canonical`),
+//! against the Python app's answers in
 //! testdata/golden/checks/recording_canonical.json
 //! (recorded from the Python app's
 //! route over a copy of testdata/db/v16-synthetic-offline.db, MusicBrainz
@@ -14,12 +15,19 @@
 //! transport's own error text), with the deliberate changes (only
 //! found / 404 are remembered; a malformed 200 is "no answer"
 //! and a warning) applied by tests/deltas/recording_canonical.rs.
+//!
+//! Moved here from `musaic-services/tests` when the service began to return a
+//! typed `CanonicalRecording`: the body is now built by
+//! `musaic_api::render::checks` and an error's status by `ApiError::from(OpError)`;
+//! every assertion is the old one.
 
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 
 use base64::Engine as _;
+use musaic_api::http::ApiError;
+use musaic_api::render::checks as render;
 use musaic_net::{
     MusicBrainzClient, ReplayTransport, Request, Response, Transport, TransportError,
 };
@@ -29,7 +37,7 @@ use musaic_services::recording_canonical::{
 };
 use serde_json::Value;
 
-#[path = "deltas/recording_canonical.rs"]
+#[path = "../../musaic-services/tests/deltas/recording_canonical.rs"]
 mod deltas;
 
 fn golden() -> Value {
@@ -138,8 +146,9 @@ fn every_recorded_step_is_reproduced() {
             )
             .unwrap();
         }
-        let (got, lines) =
-            musaic_log::capture(|| duplicate_finding_canonical(&conn, id, &mb, &cache));
+        let (got, lines) = musaic_log::capture(|| {
+            duplicate_finding_canonical(&conn, id, &mb, &cache).map(|c| render::canonical(&c))
+        });
         let want = &s["response"];
         match got {
             Ok(body) => {
@@ -160,13 +169,14 @@ fn every_recorded_step_is_reproduced() {
                 assert_eq!(at.len(), 5, "{label}");
             }
             Err(e) => {
+                let e = ApiError::from(e);
                 assert_eq!(
                     want["status"].as_u64(),
                     Some(e.status as u64),
                     "{label}: {e:?}"
                 );
                 if e.status != 500 {
-                    assert_eq!(want["json"]["detail"], e.detail.as_str(), "{label}");
+                    assert_eq!(want["json"]["detail"], e.detail, "{label}");
                 }
             }
         }
@@ -362,8 +372,8 @@ fn failures_are_asked_again_definitive_answers_are_kept() {
         .unwrap();
         musaic_log::capture(|| {
             duplicate_finding_canonical(&conn, dup, &mb, &cache)
-                .map(|b| b.to_value())
-                .map_err(|e| e.status)
+                .map(|c| render::canonical(&c).to_value())
+                .map_err(|e| ApiError::from(e).status)
         })
     };
     let no_recording = |mbid: &str| {
@@ -465,7 +475,8 @@ fn each_lookup_outcome_has_its_own_reason() {
             rusqlite::params![serde_json::json!({"recording_mbid": mbid}).to_string(), dup],
         )
         .unwrap();
-        let body = duplicate_finding_canonical(&conn, dup, &mb, &cache).unwrap();
+        let body =
+            render::canonical(&duplicate_finding_canonical(&conn, dup, &mb, &cache).unwrap());
         let v = body.to_value();
         (
             v["reason_code"].as_str().map(str::to_owned),
@@ -504,8 +515,7 @@ fn each_lookup_outcome_has_its_own_reason() {
         rusqlite::params![dup],
     )
     .unwrap();
-    let v = duplicate_finding_canonical(&conn, dup, &mb, &cache)
-        .unwrap()
+    let v = render::canonical(&duplicate_finding_canonical(&conn, dup, &mb, &cache).unwrap())
         .to_value();
     assert_eq!(v["reason_code"], "no_mbid");
     assert_eq!(v["reason"], "no recording MBID for this cluster");
