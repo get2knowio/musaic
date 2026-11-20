@@ -19,10 +19,18 @@ musaic-scan = { path = "../musaic-scan" }
 musaic-secrets = { path = "../musaic-secrets" }
 musaic-services = { path = "../musaic-services" }
 rusqlite.workspace = true
+# Only `src/ops/record.rs` names it (the settings document keeps its stored key order).
+serde_json.workspace = true
 thiserror.workspace = true
 # The watch channels the streams subscribe to (pool, checks, jobs,
 # shutdown); no runtime.
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", features = ["sync", "macros"] }
+
+[dev-dependencies]
+# A provider with a backend behind it, for the fixes that fall through to a job.
+musaic-ai = { path = "../musaic-ai", features = ["replay"] }
+musaic-testdata = { path = "../musaic-testdata" }
+tempfile.workspace = true
 
 [lints]
 workspace = true
