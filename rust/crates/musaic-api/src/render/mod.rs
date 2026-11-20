@@ -53,6 +53,7 @@ mod tests {
     #[test]
     fn statuses_follow_the_variant() {
         let nf = OpError::NotFound {
+            details: None,
             what: Subject::Job,
             id: "j".into(),
             message: "Job not found".into(),

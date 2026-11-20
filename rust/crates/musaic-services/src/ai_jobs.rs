@@ -45,6 +45,7 @@ fn conflict(message: String) -> OpError {
 
 fn job_not_found(job_id: &str) -> OpError {
     OpError::NotFound {
+        details: None,
         what: Subject::Job,
         id: job_id.to_string(),
         message: "Job not found".to_string(),
@@ -84,6 +85,7 @@ pub fn album_for_job(
     match crate::sources::cached_album(conn, library_dir, album_id)? {
         Some(row) => Ok(row),
         None => Err(OpError::NotFound {
+            details: None,
             what: Subject::Album,
             id: album_id.to_string(),
             message: format!("Album {} not in cache; rescan first", repr(album_id)),

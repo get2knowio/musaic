@@ -25,6 +25,7 @@ use crate::host_log::HostLog;
 
 fn not_found(id: i64) -> OpError {
     OpError::NotFound {
+        details: None,
         what: Subject::Finding,
         id: id.to_string(),
         message: "Finding not found".into(),

@@ -289,6 +289,7 @@ impl Refusal {
                 },
                 id: finding_id.to_string(),
                 message,
+                details,
             },
             409 => OpError::Conflict { message, details },
             _ => OpError::Failed { message, details },
@@ -1012,6 +1013,18 @@ mod tests {
         std::fs::write(tmp.path().join("Cafe\u{301}.flac"), b"x").unwrap();
         assert!(listed_as(tmp.path(), "Caf\u{e9}.flac").is_some());
         assert!(listed_as(tmp.path(), "cafe.flac").is_none());
+    }
+
+    #[test]
+    fn a_not_found_refusal_keeps_its_own_code() {
+        for code in ["not_found", "album_not_found", "some_future_code"] {
+            let e = Refusal::new(404, code, "gone").into_op_error(7);
+            assert!(matches!(e, OpError::NotFound { .. }), "{e:?}");
+            match e.details() {
+                Some(crate::error::Details::Refusal(r)) => assert_eq!(r.reason_code, code),
+                other => panic!("{code}: no refusal details: {other:?}"),
+            }
+        }
     }
 
     #[test]

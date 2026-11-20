@@ -216,6 +216,7 @@ pub fn duplicate_finding_canonical<T: Transport>(
     let finding = get_finding(conn, finding_id).map_err(|e| internal(e.to_string()))?;
     let Some(finding) = finding.filter(|f| f.check_id == CHECK_ID) else {
         return Err(OpError::NotFound {
+            details: None,
             what: Subject::Finding,
             id: finding_id.to_string(),
             message: "Finding not found".into(),

@@ -459,6 +459,7 @@ impl Apply<'_> {
             let conn = musaic_db::open_connection(self.app.db_path())?;
             let job =
                 musaic_db::ai_jobs::get_job(&conn, job_id)?.ok_or_else(|| OpError::NotFound {
+                    details: None,
                     what: Subject::Job,
                     id: job_id.to_string(),
                     message: "Job not found".into(),
@@ -481,6 +482,7 @@ impl Apply<'_> {
             match musaic_db::albums::album_row_missing_since(&conn, album_id)? {
                 None => {
                     return Err(OpError::NotFound {
+                        details: None,
                         what: Subject::Album,
                         id: album_id.to_string(),
                         message: ALBUM_NOT_FOUND.into(),
@@ -540,6 +542,7 @@ impl Apply<'_> {
 
 fn no_cover(id: &str, message: &str) -> OpError {
     OpError::NotFound {
+        details: None,
         what: Subject::Cover,
         id: id.to_string(),
         message: message.to_string(),

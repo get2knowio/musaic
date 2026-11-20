@@ -340,6 +340,7 @@ pub fn resolve_album(
             json: album_to_json(&a),
         }),
         None => Err(OpError::NotFound {
+            details: None,
             what: Subject::Album,
             id: album_id.to_string(),
             message: "Album not found (try rescanning the library)".to_string(),

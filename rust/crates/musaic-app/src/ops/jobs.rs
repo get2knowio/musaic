@@ -111,6 +111,7 @@ impl Jobs<'_> {
     /// One job. `NotFound` for an unknown id.
     pub fn get(&self, job_id: &str) -> Result<Job, OpError> {
         ai_jobs::get_job(&self.conn()?, job_id)?.ok_or_else(|| OpError::NotFound {
+            details: None,
             what: super::error::Subject::Job,
             id: job_id.to_string(),
             message: "Job not found".to_string(),

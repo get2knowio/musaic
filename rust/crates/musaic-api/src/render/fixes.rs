@@ -175,8 +175,8 @@ pub fn convert_progress_frame(p: &ConvertProgress) -> String {
 
 /// The status and body of a conversion (or abandon) refusal: `detail` and the
 /// keys its details carry (`reason_code`, `user_message`, and `blockers` or the
-/// fresh `digest`). A refusal the conversion code raises without typed details
-/// (an unknown finding or album) carries the code its subject names.
+/// fresh `digest`), a 404 included. A `NotFound` without details (a plain
+/// lookup before the conversion code runs) carries the code its subject names.
 pub fn refusal(e: &OpError) -> (u16, Value) {
     let mut m = Map::new();
     m.insert("detail".into(), json!(e.message()));

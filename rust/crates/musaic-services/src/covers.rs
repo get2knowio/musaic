@@ -199,6 +199,7 @@ pub fn thumb_path(
 /// The album has no cover to serve ([`NO_COVER`]).
 pub fn no_cover(album_id: &str) -> crate::error::OpError {
     crate::error::OpError::NotFound {
+        details: None,
         what: crate::error::Subject::Cover,
         id: album_id.to_string(),
         message: NO_COVER.to_string(),
