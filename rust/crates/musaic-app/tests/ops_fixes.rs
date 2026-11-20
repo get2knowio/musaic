@@ -242,7 +242,9 @@ fn an_unknown_check_is_not_found_before_any_event() {
         calls += 1;
         Listening::Yes
     }) {
-        Err(OpError::NotFound { what, id, message }) => {
+        Err(OpError::NotFound {
+            what, id, message, ..
+        }) => {
             assert_eq!(what, Subject::Check);
             assert_eq!(id, "no-such-check");
             assert_eq!(message, "Unknown check_id: 'no-such-check'");

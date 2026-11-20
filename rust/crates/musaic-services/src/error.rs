@@ -83,6 +83,9 @@ pub enum OpError {
         what: Subject,
         id: String,
         message: String,
+        /// Why, when the refusal explains itself (a multi-disc conversion's
+        /// `reason_code` and sentence); `None` for a plain lookup.
+        details: Option<Details>,
     },
     /// A restore is running, or work is and a restore was asked for.
     Busy {
@@ -148,6 +151,7 @@ impl OpError {
     pub fn details(&self) -> Option<&Details> {
         match self {
             OpError::Rejected { details, .. }
+            | OpError::NotFound { details, .. }
             | OpError::Conflict { details, .. }
             | OpError::Failed { details, .. } => details.as_ref(),
             _ => None,

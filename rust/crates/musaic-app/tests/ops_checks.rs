@@ -84,7 +84,9 @@ fn list_and_get_read_typed_records() {
 fn an_unknown_check_is_not_found() {
     let (app, _s) = common::app();
     match app.ops().checks().get("no-such-check") {
-        Err(OpError::NotFound { what, id, message }) => {
+        Err(OpError::NotFound {
+            what, id, message, ..
+        }) => {
             assert_eq!(what, Subject::Check);
             assert_eq!(id, "no-such-check");
             assert_eq!(message, "Unknown check_id: 'no-such-check'");

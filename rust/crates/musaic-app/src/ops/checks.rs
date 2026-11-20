@@ -105,6 +105,7 @@ impl Checks<'_> {
         )? {
             Some(doc) => Ok(CheckDetailRecord::new(doc)),
             None => Err(OpError::NotFound {
+                details: None,
                 what: Subject::Check,
                 id: check_id.to_string(),
                 message: runner::RunError::UnknownCheck(check_id.to_string()).to_string(),

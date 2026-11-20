@@ -113,6 +113,7 @@ fn db_err(e: impl std::fmt::Display) -> OpError {
 
 fn finding_not_found(finding_id: i64) -> OpError {
     OpError::NotFound {
+        details: None,
         what: Subject::Finding,
         id: finding_id.to_string(),
         message: "Finding not found".into(),
@@ -1194,6 +1195,7 @@ pub fn quick_fix_all(
 ) -> Result<(), OpError> {
     if env.checks.registry.get(check_id).is_none() {
         return Err(OpError::NotFound {
+            details: None,
             what: Subject::Check,
             id: check_id.to_string(),
             message: format!("Unknown check_id: {}", py_repr(check_id)),
@@ -1464,11 +1466,13 @@ fn refusal_of(
 ) -> OpError {
     match r.status {
         404 if r.detail.starts_with("Album ") => OpError::NotFound {
+            details: None,
             what: Subject::Album,
             id: album_id.unwrap_or_default().to_string(),
             message: r.detail,
         },
         404 => OpError::NotFound {
+            details: None,
             what: Subject::Finding,
             id: finding_id.to_string(),
             message: r.detail,

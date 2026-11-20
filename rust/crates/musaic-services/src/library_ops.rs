@@ -40,6 +40,7 @@ pub fn no_library() -> OpError {
 
 fn album_not_found(album_id: &str, message: String) -> OpError {
     OpError::NotFound {
+        details: None,
         what: Subject::Album,
         id: album_id.to_string(),
         message,
