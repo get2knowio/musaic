@@ -1,3 +1,8 @@
+//! (Moved here from `musaic-services/tests` when the analysis began to report
+//! typed events: the SSE items compared below are `musaic_api::render::analyze`'s
+//! rendering of them, and a refusal's status is `ApiError::from(OpError)`'s.
+//! Every assertion is the old one.)
+//!
 //! The analyze stream against testdata/golden/services/analyze.json, recorded
 //! by a generator that drove the Python app's own
 //! `POST /api/albums/{id}/analyze/stream` with real librosa / pyloudnorm.
@@ -32,6 +37,7 @@
 //! DSP tolerances (+/-0.1 dB ReplayGain, +/-2 BPM) are not needed: on
 //! these files the Rust values produce the Python app's tag strings exactly.
 
+#[path = "../../musaic-services/tests/common/mod.rs"]
 mod common;
 
 use std::ops::ControlFlow;
@@ -39,12 +45,14 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use common::*;
+use musaic_api::http::ApiError;
+use musaic_api::render::analyze as render;
 use musaic_scan::TrackOrder;
+use musaic_services::OpError;
 use musaic_services::analyze::{
-    AnalysisKind, AnalyzeEnv, AnalyzeOutcome, AnalyzeRequest, Analyzer, DspAnalyzer, analyze_album,
-    resolve_album,
+    AnalysisKind, AnalyzeEnv, AnalyzeEvent, AnalyzeOutcome, AnalyzeRequest, Analyzer, DspAnalyzer,
+    analyze_album, resolve_album,
 };
-use musaic_services::apply::ApplyItem;
 use serde_json::{Value, json};
 
 fn golden() -> &'static Value {
@@ -139,7 +147,7 @@ fn mask_mtime(body: &str) -> String {
 
 struct Run {
     /// The router's refusal, if any.
-    refused: Option<musaic_services::HttpError>,
+    refused: Option<OpError>,
     /// Its detail with the library root as `<LIB>`.
     refused_detail_normalized: String,
     items: Vec<Value>,
@@ -254,10 +262,12 @@ fn run(sc: &Value, analyzer: &dyn Analyzer) -> Option<Run> {
     };
     let mut items = Vec::new();
     let mut sse = String::new();
-    let outcome = analyze_album(&mut env, &req, &mut |item: ApplyItem| {
-        sse.push_str(&item.sse_frame());
-        items.push(json!({"event": item.event, "data": item.data.to_value(),
-            "bus_events_so_far": log.lock().unwrap().len()}));
+    let outcome = analyze_album(&mut env, &req, &mut |item: AnalyzeEvent| {
+        sse.push_str(&render::frame(&item));
+        items.push(
+            json!({"event": render::event_name(&item), "data": render::payload(&item).to_value(),
+            "bus_events_so_far": log.lock().unwrap().len()}),
+        );
         if stop_at == Some(items.len()) {
             ControlFlow::Break(())
         } else {
@@ -288,7 +298,7 @@ fn run(sc: &Value, analyzer: &dyn Analyzer) -> Option<Run> {
     Some(Run {
         refused_detail_normalized: refused
             .as_ref()
-            .map(|e| musaic_testdata::replace_root(&e.detail, &norm.lib, "<LIB>"))
+            .map(|e| musaic_testdata::replace_root(e.message(), &norm.lib, "<LIB>"))
             .unwrap_or_default(),
         refused,
         items: items.iter().map(|i| norm.value(i)).collect(),
@@ -604,7 +614,7 @@ fn check(id: &str) {
     if want["status"] == 409 {
         // The router refuses; the pipeline refused as well.
         let e = r.refused.as_ref().expect("refused");
-        assert_eq!(e.status, 409, "{id}");
+        assert_eq!(ApiError::from(e.clone()).status, 409, "{id}");
         let want_detail = if sc["mark_missing"] == true {
             musaic_services::apply::missing_album_detail(MISSING_SINCE_SEED)
         } else {
@@ -780,11 +790,13 @@ fn router_lookup_refusals() {
     let lib = lib.to_string_lossy().into_owned();
     let e =
         resolve_album(&conn, Some(&lib), "0123456789abcdef", TrackOrder::DiscTrack).unwrap_err();
+    let e = ApiError::from(e);
     assert_eq!(json!(e.status), case("unknown-album")["status"]);
-    assert_eq!(json!(e.detail), case("unknown-album")["json"]["detail"]);
+    assert_eq!(e.detail, case("unknown-album")["json"]["detail"]);
     let e = resolve_album(&conn, None, "0123456789abcdef", TrackOrder::DiscTrack).unwrap_err();
+    let e = ApiError::from(e);
     assert_eq!(json!(e.status), case("no-library")["status"]);
-    assert_eq!(json!(e.detail), case("no-library")["json"]["detail"]);
+    assert_eq!(e.detail, case("no-library")["json"]["detail"]);
     let bad = case("bad-what");
     assert_eq!(bad["status"], 422);
     assert_eq!(

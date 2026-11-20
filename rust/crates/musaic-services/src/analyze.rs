@@ -4,8 +4,10 @@
 //!
 //! # Shape
 //!
-//! [`analyze_album`] hands the sink one [`ApplyItem`] per item the Python app's
-//! generator yields, in its order and with its payloads:
+//! [`analyze_album`] hands the sink one typed [`AnalyzeEvent`] per item the
+//! Python app's generator yields, in its order and with its payloads (the HTTP
+//! face renders each as the Python app's SSE item; the names and keys below are
+//! that wire form):
 //!
 //! ```text
 //! start         {what, file_count}
@@ -90,8 +92,10 @@ use musaic_scan::{TrackOrder, py_resolve};
 use rusqlite::Connection;
 
 use crate::albums::{self, album_to_json};
-use crate::apply::{ApplyItem, HttpError, ResolvedAlbum, missing_album_detail, refuse_missing};
-use crate::json::Json;
+use crate::apply::{ResolvedAlbum, missing_album_detail};
+use crate::error::{OpError, Subject};
+use crate::library_ops::no_library;
+use crate::track_tags::{conflict, refuse_missing};
 
 /// `AnalysisKind`: the request body's `what`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -213,6 +217,69 @@ pub struct AnalyzeRequest {
     pub what: AnalysisKind,
 }
 
+/// What one file's step came to.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FileResult {
+    /// The tempo was measured and written. `bpm` is rounded to two decimals.
+    Bpm { bpm: f64, warnings: Vec<String> },
+    /// The track's gain and peak were measured and written.
+    ReplayGain {
+        track_gain: String,
+        track_peak: String,
+        warnings: Vec<String>,
+    },
+    /// The analysis or the tag write failed; the text is the failure.
+    Failed { error: String },
+}
+
+/// How many files a finished run analysed, and how many went wrong.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnalyzeSummary {
+    pub what: AnalysisKind,
+    pub analyzed_count: usize,
+    pub errors: usize,
+}
+
+/// One step of a run, in the order they happen: `Started`, then per file
+/// `FileStarted` and `FileDone`, then (ReplayGain, when an album gain exists)
+/// `AlbumDone`, `UpdatedAlbum` (when the folder could be read again), and last
+/// `Done`, the terminal event. A run with no FLAC is `Started`, `Done`.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AnalyzeEvent {
+    Started {
+        what: AnalysisKind,
+        file_count: usize,
+    },
+    FileStarted {
+        index: usize,
+        file_name: String,
+        path: String,
+    },
+    FileDone {
+        index: usize,
+        file_name: String,
+        result: FileResult,
+    },
+    /// The album gain and peak were written to every file that got a track
+    /// gain. `warnings` name what a rewritten file could not keep.
+    AlbumDone {
+        album_gain: String,
+        album_peak: String,
+        warnings: Vec<String>,
+    },
+    /// The album as a scan reads it now (the row was upserted when a library
+    /// folder is set).
+    UpdatedAlbum(Box<musaic_core::Album>),
+    Done(AnalyzeSummary),
+}
+
+impl AnalyzeEvent {
+    /// The run's last event.
+    pub fn is_terminal(&self) -> bool {
+        matches!(self, AnalyzeEvent::Done(_))
+    }
+}
+
 /// Everything the pipeline touches besides the album directory.
 pub struct AnalyzeEnv<'a> {
     pub conn: &'a mut Connection,
@@ -231,42 +298,33 @@ pub enum AnalyzeOutcome {
     /// The sink returned `Break` (or panicked) and was not called again; the
     /// run itself went to completion.
     Stopped,
-    /// The album's row is Missing; nothing was read, written or
-    /// handed out. The router answers this before streaming.
-    Refused(HttpError),
+    /// The album's row is Missing or its folder cannot be listed; nothing was
+    /// read, written or handed out.
+    Refused(OpError),
     /// The Python app raised inside the stream (the album directory cannot be
     /// listed); no item was produced. The text is the exception's `str()`,
     /// for the log: the client sees the response end without a final frame.
     Aborted(String),
 }
 
-/// `services.albums.resolve_album_dict` as the analyze router uses it: 409
-/// without a configured library; the cached row, refused with 409 when it is
-/// Missing or its directory cannot be listed; else a
-/// live walk of the library; else 404.
+/// `services.albums.resolve_album_dict` as the analyze router uses it: no
+/// library folder is `NoLibrary`; the cached row, refused (`Conflict`) when it
+/// is Missing or its directory cannot be listed; else a live walk of the
+/// library; else `NotFound`. A database failure is `Internal`.
 pub fn resolve_album(
     conn: &Connection,
     library_dir: Option<&str>,
     album_id: &str,
     order: TrackOrder,
-) -> Result<ResolvedAlbum, HttpError> {
+) -> Result<ResolvedAlbum, OpError> {
     let Some(lib) = library_dir.filter(|l| !l.is_empty()) else {
-        return Err(HttpError {
-            status: 409,
-            detail: "No library directory configured".into(),
-        });
+        return Err(no_library());
     };
     let resolved = py_resolve(Path::new(lib)).to_string_lossy().into_owned();
-    let cached = albums::load_snapshot(conn, &resolved).map_err(|e| HttpError {
-        status: 500,
-        detail: e.to_string(),
-    })?;
+    let cached = albums::load_snapshot(conn, &resolved).map_err(OpError::internal)?;
     if let Some(row) = cached.into_iter().find(|r| r.id() == album_id) {
         if let Some(since) = row.missing_since.as_deref().filter(|s| !s.is_empty()) {
-            return Err(HttpError {
-                status: 409,
-                detail: missing_album_detail(since),
-            });
+            return Err(conflict(missing_album_detail(since)));
         }
         refuse_unreachable(Path::new(&row.album.path))?;
         return Ok(ResolvedAlbum {
@@ -281,9 +339,10 @@ pub fn resolve_album(
             path: a.path.clone(),
             json: album_to_json(&a),
         }),
-        None => Err(HttpError {
-            status: 404,
-            detail: "Album not found (try rescanning the library)".into(),
+        None => Err(OpError::NotFound {
+            what: Subject::Album,
+            id: album_id.to_string(),
+            message: "Album not found (try rescanning the library)".to_string(),
         }),
     }
 }
@@ -301,30 +360,27 @@ pub fn unreachable_album_detail(album_dir: &Path, why: &dyn std::fmt::Display) -
     )
 }
 
-fn refuse_unreachable(album_dir: &Path) -> Result<(), HttpError> {
+fn refuse_unreachable(album_dir: &Path) -> Result<(), OpError> {
     std::fs::read_dir(album_dir)
         .map(|_| ())
-        .map_err(|e| HttpError {
-            status: 409,
-            detail: unreachable_album_detail(album_dir, &e),
-        })
+        .map_err(|e| conflict(unreachable_album_detail(album_dir, &e)))
 }
 
 /// Hands items to the sink until it stops reading (the run goes on either
 /// way). A panic in the sink counts as `Break`.
 struct Forward<'s> {
-    sink: &'s mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+    sink: &'s mut dyn FnMut(AnalyzeEvent) -> ControlFlow<()>,
     gone: bool,
 }
 
 impl Forward<'_> {
-    fn emit(&mut self, event: &'static str, data: Json) {
+    fn emit(&mut self, event: AnalyzeEvent) {
         if self.gone {
             return;
         }
         let sink = &mut *self.sink;
         self.gone = !matches!(
-            catch_unwind(AssertUnwindSafe(|| sink(ApplyItem { event, data }))),
+            catch_unwind(AssertUnwindSafe(|| sink(event))),
             Ok(ControlFlow::Continue(()))
         );
     }
@@ -345,18 +401,6 @@ fn write_tags(path: &Path, updates: &[(&str, &str)]) -> Result<Vec<String>, Stri
         .map_err(|e| tag_error_text(&e, path))
 }
 
-/// Adds `warnings` to a `file_done` / `album_done` payload, only when there
-/// are any (the event is the Python app's otherwise).
-fn with_warnings(mut item: Json, warnings: Vec<String>) -> Json {
-    if !warnings.is_empty() {
-        item.set(
-            "warnings",
-            Json::Arr(warnings.into_iter().map(Json::from).collect()),
-        );
-    }
-    item
-}
-
 fn tag_error_text(e: &io::Error, path: &Path) -> String {
     py_os_error_text(e, path)
 }
@@ -366,20 +410,12 @@ fn round2(x: f64) -> f64 {
     format!("{x:.2}").parse().unwrap_or(x)
 }
 
-fn file_done_error(index: usize, filename: &str, error: String) -> Json {
-    Json::obj([
-        ("index", Json::from(index)),
-        ("filename", Json::from(filename)),
-        ("error", Json::from(error)),
-    ])
-}
-
 /// Run one analysis, handing every item to `sink` as it happens. See the
 /// module docs for the sequence, the stop rule and the Missing-album case.
 pub fn analyze_album(
     env: &mut AnalyzeEnv<'_>,
     req: &AnalyzeRequest,
-    sink: &mut dyn FnMut(ApplyItem) -> ControlFlow<()>,
+    sink: &mut dyn FnMut(AnalyzeEvent) -> ControlFlow<()>,
 ) -> AnalyzeOutcome {
     if let Err(refusal) = refuse_missing(env.conn, &req.album_id) {
         return AnalyzeOutcome::Refused(refusal);
@@ -411,22 +447,16 @@ fn run(
     }
     let flacs: Vec<PathBuf> = musaic_scan::list_flacs(album_dir);
 
-    fwd.emit(
-        "start",
-        Json::obj([
-            ("what", Json::from(what)),
-            ("file_count", Json::from(flacs.len())),
-        ]),
-    );
+    fwd.emit(AnalyzeEvent::Started {
+        what: req.what,
+        file_count: flacs.len(),
+    });
     if flacs.is_empty() {
-        fwd.emit(
-            "done",
-            Json::obj([
-                ("what", Json::from(what)),
-                ("analyzed_count", Json::from(0usize)),
-                ("errors", Json::from(0usize)),
-            ]),
-        );
+        fwd.emit(AnalyzeEvent::Done(AnalyzeSummary {
+            what: req.what,
+            analyzed_count: 0,
+            errors: 0,
+        }));
         return Ok(());
     }
 
@@ -438,29 +468,22 @@ fn run(
     let mut failed = vec![false; flacs.len()];
 
     for (index, path) in flacs.iter().enumerate() {
-        let filename = path
+        let file_name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        fwd.emit(
-            "file_started",
-            Json::obj([
-                ("index", Json::from(index)),
-                ("filename", Json::from(filename.as_str())),
-                ("path", Json::from(path.to_string_lossy().into_owned())),
-            ]),
-        );
-        let done = match req.what {
+        fwd.emit(AnalyzeEvent::FileStarted {
+            index,
+            file_name: file_name.clone(),
+            path: path.to_string_lossy().into_owned(),
+        });
+        let done: Result<FileResult, String> = match req.what {
             AnalysisKind::Bpm => env.analyzer.bpm(path).and_then(|bpm| {
                 let warnings = write_tags(path, &[("bpm", &musaic_bpm::format_bpm_tag(bpm))])?;
-                Ok(with_warnings(
-                    Json::obj([
-                        ("index", Json::from(index)),
-                        ("filename", Json::from(filename.as_str())),
-                        ("bpm", Json::from(round2(bpm))),
-                    ]),
+                Ok(FileResult::Bpm {
+                    bpm: round2(bpm),
                     warnings,
-                ))
+                })
             }),
             AnalysisKind::ReplayGain => env.analyzer.loudness(path).and_then(|(lufs, peak)| {
                 let gain = format_gain(REPLAYGAIN_REFERENCE_LUFS, lufs);
@@ -479,29 +502,29 @@ fn run(
                     .info
                     .length();
                 rg_tracks.push((duration, lufs, peak));
-                Ok(with_warnings(
-                    Json::obj([
-                        ("index", Json::from(index)),
-                        ("filename", Json::from(filename.as_str())),
-                        ("replaygain_track_gain", Json::from(gain)),
-                        ("replaygain_track_peak", Json::from(peak_str)),
-                    ]),
+                Ok(FileResult::ReplayGain {
+                    track_gain: gain,
+                    track_peak: peak_str,
                     warnings,
-                ))
+                })
             }),
         };
-        let item = match done {
-            Ok(j) => {
+        let result = match done {
+            Ok(r) => {
                 analyzed_count += 1;
-                j
+                r
             }
-            Err(e) => {
+            Err(error) => {
                 errors += 1;
                 failed[index] = true;
-                file_done_error(index, &filename, e)
+                FileResult::Failed { error }
             }
         };
-        fwd.emit("file_done", item);
+        fwd.emit(AnalyzeEvent::FileDone {
+            index,
+            file_name,
+            result,
+        });
     }
 
     // Album-level ReplayGain, written to every listed FLAC whose track step
@@ -526,16 +549,11 @@ fn run(
                 Err(_) => errors += 1,
             }
         }
-        fwd.emit(
-            "album_done",
-            with_warnings(
-                Json::obj([
-                    ("replaygain_album_gain", Json::from(agg.album_gain.as_str())),
-                    ("replaygain_album_peak", Json::from(agg.album_peak.as_str())),
-                ]),
-                album_warnings,
-            ),
-        );
+        fwd.emit(AnalyzeEvent::AlbumDone {
+            album_gain: agg.album_gain.clone(),
+            album_peak: agg.album_peak.clone(),
+            warnings: album_warnings,
+        });
     }
 
     // Rescan this album, upsert, hand out the scanner dict.
@@ -548,7 +566,7 @@ fn run(
             musaic_db::albums::upsert_album(env.conn, &lib, &(env.now)(), &fresh)
                 .map_err(|e| e.to_string())?;
         }
-        fwd.emit("updated_album", album_to_json(&fresh));
+        fwd.emit(AnalyzeEvent::UpdatedAlbum(Box::new(fresh)));
     }
 
     // Published only once the generator is resumed after updated_album.
@@ -559,13 +577,10 @@ fn run(
         });
     }
 
-    fwd.emit(
-        "done",
-        Json::obj([
-            ("what", Json::from(what)),
-            ("analyzed_count", Json::from(analyzed_count)),
-            ("errors", Json::from(errors)),
-        ]),
-    );
+    fwd.emit(AnalyzeEvent::Done(AnalyzeSummary {
+        what: req.what,
+        analyzed_count,
+        errors,
+    }));
     Ok(())
 }
