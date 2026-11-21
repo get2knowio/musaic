@@ -25,7 +25,8 @@ writes it after `local_addr`. The write goes like this:
 
 1. Create `agent-instance.json.tmp-<pid>`: mode 0600 on Unix. On Windows, before anything
    is written to it, replace its DACL with one ACE granting the current user full control
-   and turn inheritance off (`icacls /inheritance:r /grant:r *<SID>:F`, research R13), then
+   and turn inheritance off (`icacls <dir> /restore <aclfile>` with the SDDL
+   `D:P(A;;FA;;;<SID>)`, research R13), then
    read the DACL back and check it as the reader does. If that fails, the temp file is
    removed and no descriptor is written.
 2. Write the body and fsync the file.

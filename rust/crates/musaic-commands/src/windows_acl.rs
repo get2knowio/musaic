@@ -99,9 +99,20 @@ pub fn parse_saved_dacl(bytes: &[u8]) -> Option<String> {
     utf16.or_else(|| dacl_line(std::str::from_utf8(bytes).ok()?))
 }
 
+/// The contents of an `icacls /restore` file that gives `file_name` (in the
+/// folder the restore runs on) exactly one protected ACE: full control for
+/// `user_sid`. The same layout `icacls /save` writes: UTF-16LE, the file name
+/// on one line and its SDDL on the next.
+pub fn restore_file(file_name: &str, user_sid: &str) -> Vec<u8> {
+    format!("{file_name}\r\nD:P(A;;FA;;;{user_sid})\r\n")
+        .encode_utf16()
+        .flat_map(u16::to_le_bytes)
+        .collect()
+}
+
 #[cfg(windows)]
 mod os {
-    use std::ffi::{OsStr, OsString};
+    use std::ffi::OsStr;
     use std::io;
     use std::path::{Path, PathBuf};
     use std::process::{Command, Stdio};
@@ -172,24 +183,39 @@ mod os {
         super::parse_saved_dacl(&result?).ok_or_else(|| io::Error::other("icacls saved no DACL"))
     }
 
-    /// Replace the file's DACL with one ACE, full control for the current
-    /// user, and stop it inheriting from its folder; then read it back and
-    /// check it as the reader will.
+    /// Replace the file's whole DACL with one protected ACE, full control for
+    /// the current user; then read it back and check it as the reader will.
+    ///
+    /// `icacls /inheritance:r /grant:r` is not enough: a file created by an
+    /// elevated process in a folder with no inheritable ACEs gets explicit
+    /// ACEs from the token's default DACL (Administrators, SYSTEM), which
+    /// neither switch removes. `/restore` sets the exact SDDL instead.
     pub fn restrict_to_current_user(path: &Path) -> io::Result<()> {
         let sid = current_user_sid()?;
-        let mut grant = OsString::from("*");
-        grant.push(&sid);
-        grant.push(":F");
-        run(
-            "icacls.exe",
-            &[
-                path.as_os_str(),
-                OsStr::new("/inheritance:r"),
-                OsStr::new("/grant:r"),
-                &grant,
-                OsStr::new("/Q"),
-            ],
-        )?;
+        let dir = path
+            .parent()
+            .ok_or_else(|| io::Error::other("the descriptor has no folder"))?;
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or_else(|| io::Error::other("the descriptor name is not Unicode"))?;
+        let mut rnd = [0u8; 8];
+        getrandom::fill(&mut rnd).map_err(|e| io::Error::other(e.to_string()))?;
+        let acl_file =
+            std::env::temp_dir().join(format!(".musaic-acl-{}.txt", crate::auth::hex_encode(&rnd)));
+        let result = std::fs::write(&acl_file, super::restore_file(name, &sid)).and_then(|_| {
+            run(
+                "icacls.exe",
+                &[
+                    dir.as_os_str(),
+                    OsStr::new("/restore"),
+                    acl_file.as_os_str(),
+                    OsStr::new("/Q"),
+                ],
+            )
+        });
+        let _ = std::fs::remove_file(&acl_file);
+        result?;
         super::check_dacl(&dacl_sddl(path)?, &sid).map_err(io::Error::other)
     }
 
@@ -212,6 +238,22 @@ mod tests {
     use super::*;
 
     const ME: &str = "S-1-5-21-1004336348-1177238915-682003330-1001";
+
+    #[test]
+    fn the_restore_file_sets_exactly_an_owner_only_dacl() {
+        let bytes = restore_file("agent-instance.json.tmp-42", ME);
+        let text = String::from_utf16(
+            &bytes
+                .chunks_exact(2)
+                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        assert!(text.starts_with("agent-instance.json.tmp-42\r\n"), "{text}");
+        let dacl = parse_saved_dacl(&bytes).unwrap();
+        assert_eq!(dacl, format!("D:P(A;;FA;;;{ME})"));
+        assert_eq!(check_dacl(&dacl, ME), Ok(()));
+    }
 
     #[test]
     fn an_owner_only_protected_dacl_is_accepted() {

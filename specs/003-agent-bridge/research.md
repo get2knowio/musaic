@@ -259,8 +259,12 @@ Checked against main `00113c9b` and the published MCP documentation, 2026-11-20.
   `%SystemRoot%\System32` by absolute path, without a shell, with arguments as a vector
   and without a console window (`musaic-commands/src/windows_acl.rs`).
   - **Writer**: the temp file is created, then, before anything is written to it,
-    `icacls <tmp> /inheritance:r /grant:r *<user SID>:F` removes inheritance and every
-    other ACE, leaving full control for the current user alone. The DACL is read back and
+    `icacls <dir> /restore <aclfile>` sets its DACL to exactly `D:P(A;;FA;;;<user SID>)`:
+    protected, with full control for the current user alone. (`/inheritance:r /grant:r`
+    was tried first and is not enough. A file that an elevated process creates in a folder
+    with no inheritable ACEs gets explicit ACEs, Administrators and SYSTEM, from the
+    token's default DACL, and neither switch removes them. Windows CI showed `BA` left
+    behind.) The DACL is read back and
     checked as the reader will; a failure removes the temp file and the descriptor is not
     written. The rename keeps the DACL.
   - **Reader**: `icacls <file> /save <temp>` writes the DACL as SDDL (UTF-16LE), which is
