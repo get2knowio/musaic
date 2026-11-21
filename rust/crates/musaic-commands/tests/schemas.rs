@@ -245,3 +245,67 @@ fn the_catalog_states_what_is_not_offered() {
             .any(|t| t.id.contains("approve") || t.id.contains("policy"))
     );
 }
+
+/// MCP hosts warn on a `format` JSON Schema 2020-12 does not define, such as
+/// the integer widths schemars emits (#356).
+#[test]
+fn schemas_use_only_standard_formats() {
+    for t in &REGISTRY {
+        for (side, s) in [
+            ("input", (t.input_schema)()),
+            ("output", (t.output_schema)()),
+        ] {
+            walk(&s, &mut |v| {
+                if let Some(Value::String(f)) = v.get("format") {
+                    assert!(
+                        musaic_commands::STANDARD_FORMATS.contains(&f.as_str()),
+                        "{} {side}: format {f:?} in {v}",
+                        t.id
+                    );
+                }
+            });
+        }
+    }
+}
+
+fn is_integer(v: &Value) -> bool {
+    match v.get("type") {
+        Some(Value::String(s)) => s == "integer",
+        Some(Value::Array(a)) => a.contains(&json!("integer")),
+        _ => false,
+    }
+}
+
+/// Dropping `uint32` must not lose the bound: every integer in the contract
+/// is unsigned, so each carries a non-negative `minimum`.
+#[test]
+fn unsigned_integers_keep_a_lower_bound() {
+    let mut seen = 0;
+    for t in &REGISTRY {
+        for (side, s) in [
+            ("input", (t.input_schema)()),
+            ("output", (t.output_schema)()),
+        ] {
+            walk(&s, &mut |v| {
+                if is_integer(v) {
+                    seen += 1;
+                    let min = v.get("minimum").and_then(Value::as_f64);
+                    assert!(min.is_some_and(|m| m >= 0.0), "{} {side}: {v}", t.id);
+                }
+            });
+        }
+    }
+    assert!(seen > 0);
+    assert_eq!(REGISTRY[1].id, "musaic_library_list");
+    let out = (REGISTRY[1].output_schema)();
+    assert_eq!(out["properties"]["total"]["minimum"], json!(0));
+    let mut track_count = false;
+    walk(&out, &mut |v| {
+        if let Some(tc) = v.get("properties").and_then(|p| p.get("trackCount")) {
+            assert_eq!(tc["minimum"], json!(0));
+            assert!(tc.get("format").is_none());
+            track_count = true;
+        }
+    });
+    assert!(track_count);
+}

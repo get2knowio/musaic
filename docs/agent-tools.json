@@ -264,7 +264,6 @@
             ]
           },
           "limit": {
-            "format": "uint32",
             "maximum": 100,
             "minimum": 1,
             "type": [
@@ -307,7 +306,6 @@
                 "type": "string"
               },
               "trackCount": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": "integer"
               },
@@ -344,7 +342,6 @@
             ]
           },
           "total": {
-            "format": "uint32",
             "minimum": 0,
             "type": "integer"
           }
@@ -398,7 +395,6 @@
                 "type": "string"
               },
               "discCount": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": "integer"
               },
@@ -421,7 +417,6 @@
                 "type": "string"
               },
               "trackCount": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": "integer"
               },
@@ -454,7 +449,6 @@
                 ]
               },
               "discNumber": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": [
                   "integer",
@@ -462,7 +456,6 @@
                 ]
               },
               "durationSeconds": {
-                "format": "double",
                 "type": [
                   "number",
                   "null"
@@ -484,7 +477,6 @@
                 ]
               },
               "trackNumber": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": [
                   "integer",
@@ -581,7 +573,6 @@
           "ResolvedField": {
             "properties": {
               "confidence": {
-                "format": "double",
                 "type": "number"
               },
               "source": {
@@ -680,7 +671,6 @@
             ]
           },
           "limit": {
-            "format": "uint32",
             "maximum": 100,
             "minimum": 1,
             "type": [
@@ -1555,7 +1545,6 @@
                 "type": "boolean"
               },
               "findings": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": "integer"
               }
@@ -1570,17 +1559,14 @@
           "Counts": {
             "properties": {
               "done": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": "integer"
               },
               "failed": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": "integer"
               },
               "total": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": "integer"
               }
@@ -1654,7 +1640,6 @@
                 ]
               },
               "scanAlbums": {
-                "format": "uint32",
                 "minimum": 0,
                 "type": [
                   "integer",

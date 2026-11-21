@@ -70,7 +70,55 @@ impl std::fmt::Debug for ToolDef {
 }
 
 fn schema<T: schemars::JsonSchema>() -> Value {
-    serde_json::to_value(schemars::schema_for!(T)).expect("a schema is JSON")
+    let mut v = serde_json::to_value(schemars::schema_for!(T)).expect("a schema is JSON");
+    standard_formats_only(&mut v);
+    v
+}
+
+/// The `format` values JSON Schema 2020-12 defines; any other is dropped.
+pub const STANDARD_FORMATS: [&str; 19] = [
+    "date-time",
+    "date",
+    "time",
+    "duration",
+    "email",
+    "idn-email",
+    "hostname",
+    "idn-hostname",
+    "ipv4",
+    "ipv6",
+    "uri",
+    "uri-reference",
+    "iri",
+    "iri-reference",
+    "uuid",
+    "uri-template",
+    "json-pointer",
+    "relative-json-pointer",
+    "regex",
+];
+
+/// schemars annotates numbers with their Rust width (`uint32`, `double`, …),
+/// which is not a 2020-12 format and which MCP hosts warn about. Drop every
+/// non-standard `format`; an unsigned width keeps its lower bound as
+/// `minimum: 0` (schemars adds it, but a field without one gets it here).
+fn standard_formats_only(v: &mut Value) {
+    match v {
+        Value::Object(m) => {
+            if let Some(Value::String(f)) = m.get("format")
+                && !STANDARD_FORMATS.contains(&f.as_str())
+            {
+                let unsigned = f.starts_with("uint");
+                m.remove("format");
+                if unsigned && !m.contains_key("minimum") && !m.contains_key("exclusiveMinimum") {
+                    m.insert("minimum".into(), Value::from(0));
+                }
+            }
+            m.values_mut().for_each(standard_formats_only);
+        }
+        Value::Array(a) => a.iter_mut().for_each(standard_formats_only),
+        _ => {}
+    }
 }
 
 use PermissionKind::*;
