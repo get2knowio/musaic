@@ -59,7 +59,10 @@ fn round_trip_and_own_removal() {
         let sid = windows_acl::current_user_sid().unwrap();
         assert_eq!(windows_acl::check_dacl(&sddl, &sid), Ok(()));
         assert_eq!(sddl.matches('(').count(), 1, "{sddl}");
-        assert!(sddl.contains(&sid), "{sddl}");
+        // SDDL writes the built-in Administrator (RID 500, which CI runners use)
+        // as the alias LA rather than by SID.
+        let alias_ok = sid.ends_with("-500") && sddl.contains(";;;LA)");
+        assert!(sddl.contains(&sid) || alias_ok, "{sddl}");
     }
     // No temp file is left behind.
     let names: Vec<_> = std::fs::read_dir(dir.path())
