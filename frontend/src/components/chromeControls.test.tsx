@@ -129,12 +129,23 @@ describe("sidebar", () => {
     expect(screen.getByRole("button", { name: /Missing art/ }).className).toContain("bg-accent-soft");
   });
 
-  it("counts every running job in the activity tooltip", () => {
-    sidebarAt("/library", [
+  it("leaves running jobs to the Activity control: Review's entry counts decisions only", () => {
+    const jobs: Partial<Job>[] = [
       { id: "1", status: "running" },
       { id: "2", status: "running" },
       { id: "3", status: "queued" },
-    ]);
-    expect(screen.getByLabelText("2 running, 1 queued")).toBeInTheDocument();
+    ];
+    sidebarAt("/library", jobs);
+    const review = screen.getByRole("link", { name: /Review/ });
+    expect(review.querySelector("[data-badge]")).toBeNull();
+    expect(screen.queryByLabelText(/running/)).toBeNull();
+    render(
+      <QueryClientProvider client={client(jobs)}>
+        <MemoryRouter initialEntries={["/library"]}>
+          <Titlebar />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByRole("button", { name: /^Activity: 2 jobs running/ })).toBeInTheDocument();
   });
 });

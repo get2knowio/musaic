@@ -1,6 +1,7 @@
 //! The `scan` operations with no HTTP in scope: a scan of the synthetic library
 //! followed through typed events, replay for a second subscriber, cancel, and
-//! the order of the guard and the library check.
+//! the order of the guard and the library check, and `follow`, which never
+//! starts a scan.
 
 mod common;
 
@@ -10,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use musaic_app::App;
 use musaic_app::ops::OpError;
-use musaic_app::ops::scan::{CancelOutcome, ScanEvent, ScanStatus};
+use musaic_app::ops::scan::{CancelOutcome, ScanEvent, ScanFollow, ScanStatus};
 use musaic_events::{Event, Subscriber, Topic};
 use musaic_services::gate::Busy;
 
@@ -203,4 +204,81 @@ fn rescan_checks_the_library_after_the_guard_and_starts_a_forced_scan() {
         "{events:?}"
     );
     guard_released(&app);
+}
+
+fn following(f: ScanFollow) -> Vec<ScanEvent> {
+    match f {
+        ScanFollow::Following(sub) => sub.collect(),
+        ScanFollow::Idle(s) => panic!("expected a scan to follow, got idle: {s:?}"),
+    }
+}
+
+#[test]
+fn follow_with_no_scan_since_startup_is_idle_and_starts_none() {
+    let (app, s) = common::app_quiet_pool(|b| b);
+    common::configure(&app, &s);
+    match app.ops().scan().follow() {
+        ScanFollow::Idle(state) => assert_eq!(state.status, ScanStatus::Idle),
+        ScanFollow::Following(_) => panic!("nothing runs: there is nothing to follow"),
+    }
+    // Asked again a moment later: still nothing started, no guard taken.
+    std::thread::sleep(Duration::from_millis(50));
+    assert_eq!(app.ops().scan().status().status, ScanStatus::Idle);
+    assert!(matches!(app.ops().scan().follow(), ScanFollow::Idle(_)));
+    assert_eq!(app.gate().snapshot(), (0, false));
+    assert_eq!(app.ops().library().list_albums(false).unwrap().count(), 0);
+}
+
+#[test]
+fn follow_after_a_scan_ended_replays_it_and_starts_no_other() {
+    let (app, s) = common::app_quiet_pool(|b| b);
+    common::configure(&app, &s);
+    let first: Vec<ScanEvent> = app.ops().scan().subscribe(false).unwrap().collect();
+    guard_released(&app);
+    let ended = app.ops().scan().status();
+    assert_eq!(ended.status, ScanStatus::Done);
+    let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let c2 = Arc::clone(&completed);
+    app.bus().register(
+        Topic::Event,
+        Subscriber::from_fn(move |ev| {
+            if let Event::LibraryScanCompleted { .. } = ev {
+                c2.fetch_add(1, Ordering::SeqCst);
+            }
+            Ok(())
+        }),
+    );
+    // The late follower learns how the scan ended, from its own buffer.
+    let replay = following(app.ops().scan().follow());
+    assert_eq!(replay, first, "the same scan, replayed");
+    assert!(matches!(replay.last(), Some(ScanEvent::Done(_))));
+    // And no scan was started by following.
+    std::thread::sleep(Duration::from_millis(50));
+    let after = app.ops().scan().status();
+    assert_eq!(after.status, ScanStatus::Done);
+    assert_eq!(after.started_at, ended.started_at, "no new scan");
+    assert_eq!(completed.load(Ordering::SeqCst), 0, "no new scan");
+    assert_eq!(app.gate().snapshot(), (0, false));
+}
+
+#[test]
+fn follow_joins_a_running_scan_from_its_first_event() {
+    let (app, s, park) = parking_app();
+    common::configure(&app, &s);
+    let first = app.ops().scan().subscribe(false).unwrap();
+    eventually("the first album", || app.ops().scan().status().scanned >= 1);
+    let follower = app.ops().scan().follow();
+    park.store(false, Ordering::SeqCst);
+    let a: Vec<ScanEvent> = first.collect();
+    let b = following(follower);
+    assert_eq!(a, b, "the follower sees the running scan, from its start");
+    assert_eq!(terminals(&b), 1);
+    guard_released(&app);
+}
+
+#[test]
+fn follow_is_not_refused_while_a_restore_guard_is_held() {
+    let (app, _s) = common::app();
+    let _restore = common::hold_restore(&app);
+    assert!(matches!(app.ops().scan().follow(), ScanFollow::Idle(_)));
 }

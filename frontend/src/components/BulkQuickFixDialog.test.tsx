@@ -4,12 +4,16 @@
  * a plain-language reason for each one that was not fixed.
  */
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }) }));
 
+import ActivityPanel from "@/components/ActivityPanel";
 import { BulkQuickFixDialog, RESULT_ROW_LIMIT } from "@/components/BulkQuickFixDialog";
+import { openActivityPanel, resetActivityPanel } from "@/lib/activityPanel";
+import { resetBulkRuns } from "@/lib/bulkRuns";
 import type { Album, Finding } from "@/lib/types";
 
 const finding = (id: number): Finding => ({
@@ -157,5 +161,149 @@ describe("bulk fix results list", () => {
     );
     const list = await screen.findByTestId("bulk-results");
     expect(list.textContent).toMatch(/1 of these did not fully resolve their finding and is still open/);
+  });
+});
+
+/**
+ * A run whose stream the test feeds by hand: `push` sends SSE blocks,
+ * `end` closes the response (without `done` unless one was pushed).
+ */
+function liveRun(total: number) {
+  const enc = new TextEncoder();
+  let ctrl!: ReadableStreamDefaultController<Uint8Array>;
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      ctrl = c;
+    },
+  });
+  const aborted = vi.fn();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_url: string, init?: RequestInit) => {
+      init?.signal?.addEventListener("abort", () => {
+        aborted();
+        try {
+          ctrl.error(Object.assign(new Error("aborted"), { name: "AbortError" }));
+        } catch {
+          /* already closed */
+        }
+      });
+      return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+    }),
+  );
+  const ids = Array.from({ length: total }, (_, i) => i + 1);
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  qc.setQueryData(["findings"], ids.map(finding));
+  qc.setQueryData(["albums-snapshot"], ids.map(album));
+  qc.setQueryData(["jobs"], []);
+  qc.setQueryData(["check-sweep-status"], { status: "idle", total: 0, completed: 0, current_check: null, started_at: null, completed_at: null });
+  qc.setQueryData(["fingerprint-pool-status"], { status: "idle", library_dir: null, total: 0, completed: 0, errors: 0, current_album_id: null, started_at: null, completed_at: null, skip_reason: null });
+  qc.setQueryData(["jobs", "queueState"], { paused: false, max_parallel: 1, running: 0, queued: 0 });
+  const onClose = vi.fn();
+  const view = render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter>
+        <BulkQuickFixDialog
+          open
+          onClose={onClose}
+          checkId="tags-out-of-sync"
+          checkLabel="Tags"
+          bulkActionLabel="Apply canonical values"
+          fixKind="deterministic"
+          totalFindings={total}
+        />
+        <ActivityPanel />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+  return {
+    push: (event: string, data: unknown) =>
+      act(async () => {
+        ctrl.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        await new Promise((r) => setTimeout(r, 0));
+      }),
+    end: () =>
+      act(async () => {
+        ctrl.close();
+        await new Promise((r) => setTimeout(r, 0));
+      }),
+    aborted,
+    onClose,
+    view,
+  };
+}
+
+describe("stopping or losing a bulk run keeps what it did (#186)", () => {
+  beforeEach(() => {
+    resetBulkRuns();
+    resetActivityPanel();
+  });
+
+  it("Stop after one completed item: the partial outcome stays, Close is separate, Activity keeps it", async () => {
+    const run = liveRun(3);
+    await run.push("start", { total: 3 });
+    await run.push("progress", { finding_id: 1, outcome: "fixed", message: "Wrote 1 album field(s)" });
+    await screen.findByText("Processing 1 of 3");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
+    expect(run.aborted).toHaveBeenCalled();
+    // Still open, with the summary: confirmed vs. not known.
+    const partial = await waitFor(() => document.querySelector("[data-bulk-partial]") as HTMLElement);
+    expect(partial.textContent).toMatch(/Stopped after 1 of 3/);
+    expect(partial.textContent).toMatch(/fixes made stay made/);
+    expect(partial.textContent).toMatch(/other 2 have no confirmed outcome/);
+    expect(run.onClose).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByTestId("bulk-results")).getByRole("button", { name: /Fixed \(1\)/ }));
+    expect(screen.getByText("Artist 1 – Title 1")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
+
+    // Dismissed, the summary is still in Activity.
+    run.view.unmount();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <ActivityPanel />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    act(() => openActivityPanel());
+    const panel = await screen.findByRole("dialog", { name: "Activity" });
+    const card = panel.querySelector('[data-activity^="bulk-"]') as HTMLElement;
+    expect(card.querySelector("[data-activity-state]")!.getAttribute("data-activity-state")).toBe("stopped");
+    fireEvent.click(within(card).getByRole("button", { name: "Show results (1)" }));
+    fireEvent.click(within(card).getByRole("button", { name: /Fixed \(1\)/ }));
+    // The result links to its album.
+    expect(within(card).getByRole("link", { name: "Artist 1 – Title 1" })).toHaveAttribute("href", "/library/album-1");
+  });
+
+  it("normal completion: completed, every outcome listed", async () => {
+    const run = liveRun(2);
+    await run.push("start", { total: 2 });
+    await run.push("progress", { finding_id: 1, outcome: "fixed", message: "Wrote 1 album field(s)" });
+    await run.push("progress", { finding_id: 2, outcome: "skipped", message: "x" });
+    await run.push("done", counts({ total: 2, fixed: 1, skipped: 1 }));
+    await screen.findByTestId("bulk-results");
+    expect(document.body.textContent).toMatch(/Resolved 1 of 2 findings/);
+    expect(document.querySelector("[data-bulk-partial]")).toBeNull();
+  });
+
+  it("an interrupted stream says what is confirmed and that the rest is not known", async () => {
+    const run = liveRun(3);
+    await run.push("start", { total: 3 });
+    await run.push("progress", { finding_id: 1, outcome: "fixed", message: "Wrote 1 album field(s)" });
+    await run.end();
+    const partial = await waitFor(() => document.querySelector("[data-bulk-partial]") as HTMLElement);
+    expect(partial.textContent).toMatch(/connection to the run was lost after 1 of 3/);
+    expect(partial.textContent).toMatch(/other 2 have no confirmed outcome/);
+    expect(screen.getByTestId("bulk-results")).toBeInTheDocument();
+  });
+
+  it("closing the dialog mid-run does not stop the run", async () => {
+    const run = liveRun(2);
+    await run.push("start", { total: 2 });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(run.onClose).toHaveBeenCalled();
+    expect(run.aborted).not.toHaveBeenCalled();
   });
 });

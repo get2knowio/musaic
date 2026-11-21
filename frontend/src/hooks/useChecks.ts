@@ -211,6 +211,8 @@ export function streamQuickFixAll(
     onProgress?: (p: QuickFixProgress) => void;
     onDone?: (summary: QuickFixSummary) => void;
     onError?: (detail: string) => void;
+    /** The response ended (with or without a `done`); not after an abort. */
+    onClosed?: () => void;
   },
 ): () => void {
   // Browser EventSource only supports GET. We need a POST. fetch() with
@@ -250,6 +252,7 @@ export function streamQuickFixAll(
           parseBlock(block, callbacks);
         }
       }
+      callbacks.onClosed?.();
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       callbacks.onError?.((e as Error).message);

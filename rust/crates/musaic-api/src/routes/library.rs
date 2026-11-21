@@ -15,7 +15,7 @@ use axum::extract::{Path as UrlPath, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::Response;
 use musaic_app::ops::library::{CoverImage, CoverSize};
-use musaic_app::ops::scan::ScanPoll;
+use musaic_app::ops::scan::{ScanFollow, ScanPoll, ScanSubscription};
 
 use crate::files;
 use crate::http::{ApiResult, blocking, ok_ordered, ok_value};
@@ -106,8 +106,31 @@ pub async fn scan_stream(State(st): State<AppState>, q: Q) -> ApiResult {
     let force = p.query_bool(&q, "force", false);
     p.finish()?;
     // Every subscriber replays the current scan's buffer from 0.
-    let mut sub = st.ops().scan().subscribe(force)?;
-    let (tx, resp) = sse::channel(&st, 16);
+    let sub = st.ops().scan().subscribe(force)?;
+    Ok(stream_scan(&st, sub))
+}
+
+/// `GET /api/scan/follow` (not a route of the Python app): the scan stream
+/// for a reader that only watches. It never starts a scan: a running scan is
+/// streamed as on `/api/scan/stream`, the last one (already ended) is
+/// replayed to its terminal event, and with no scan since startup the
+/// stream is one `idle` event carrying the scan state, then closes.
+pub async fn scan_follow(State(st): State<AppState>) -> ApiResult {
+    match st.ops().scan().follow() {
+        ScanFollow::Following(sub) => Ok(stream_scan(&st, sub)),
+        ScanFollow::Idle(state) => {
+            // One frame into an empty channel of one; dropping the sender
+            // then ends the stream.
+            let (tx, resp) = sse::channel(&st, 1);
+            let _ = tx.try_send_frame(render::scan_idle_frame(&state));
+            Ok(resp)
+        }
+    }
+}
+
+/// Frame a scan subscription onto an SSE response.
+fn stream_scan(st: &AppState, mut sub: ScanSubscription) -> Response {
+    let (tx, resp) = sse::channel(st, 16);
     // Until the scan is over or the client is gone (the scan keeps running):
     // poll every 200 ms, asking `is_closed` between events.
     tokio::task::spawn_blocking(move || {
@@ -127,7 +150,7 @@ pub async fn scan_stream(State(st): State<AppState>, q: Q) -> ApiResult {
             }
         }
     });
-    Ok(resp)
+    resp
 }
 
 pub async fn rescan(State(st): State<AppState>) -> ApiResult {

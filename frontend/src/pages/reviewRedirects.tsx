@@ -1,5 +1,6 @@
 import { Navigate, useLocation, useParams } from "react-router-dom";
 
+import { activitySearch } from "@/lib/activityPanel";
 import { legacyAttentionSearch, reviewUrl } from "@/lib/reviewLinks";
 
 /**
@@ -8,8 +9,9 @@ import { legacyAttentionSearch, reviewUrl } from "@/lib/reviewLinks";
  * older build never ends on an empty or missing page.
  *
  *  - `/health`, `/health/:checkId` (the old Health page): the check filter;
- *  - `/jobs`, `/jobs/:jobId`, `/jobs?job=<id>` (the old Jobs page): the job,
- *    highlighted where it now lives;
+ *  - `/jobs` (the old Jobs page): the Activity panel's jobs, over Review;
+ *  - `/jobs/:jobId`, `/jobs?job=<id>`: the job, highlighted where it now
+ *    lives (Review, or the Activity panel);
  *  - `/attention?…` (Needs attention): `legacyAttentionSearch`.
  */
 export function HealthRedirect() {
@@ -21,7 +23,9 @@ export function JobsRedirect() {
   const { jobId } = useParams<{ jobId?: string }>();
   const { search } = useLocation();
   const job = jobId ?? new URLSearchParams(search).get("job") ?? undefined;
-  return <Navigate replace to={reviewUrl({ job })} />;
+  // One job: Review lists it if it asks something of the user, else opens
+  // Activity at it. The job list itself is Activity's.
+  return <Navigate replace to={job ? reviewUrl({ job }) : `/review?${activitySearch("jobs")}`} />;
 }
 
 export function AttentionRedirect() {

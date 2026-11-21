@@ -18,6 +18,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
+import { noteStreamLive, trackEventSource } from "@/lib/streamHealth";
+
 import { JOBS_QUERY_KEY, QUEUE_STATE_QUERY_KEY } from "./useJobs";
 import type { QueueState } from "@/lib/api";
 import type { Job } from "@/lib/types";
@@ -48,8 +50,10 @@ export function useJobsStream() {
 
   useEffect(() => {
     const es = new EventSource("/api/ai/jobs/stream");
+    trackEventSource("jobs", es);
 
     es.addEventListener("jobs", (ev) => {
+      noteStreamLive("jobs");
       let payload: { jobs: Job[]; queue_state?: QueueState };
       try {
         payload = JSON.parse((ev as MessageEvent).data);

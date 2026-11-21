@@ -13,7 +13,7 @@
  *     on ChecksRerunFinished, ["findings"], ["checks"], ["check"]
  *   useChecksStream keeps what the bus does not carry: the live state of a
  *     running check (the ["checks"] summary on every run start / end),
- *     ignore / unignore (no bus event), and the sweep progress pill.
+ *     ignore / unignore (no bus event), and the sweep progress (Activity).
  *
  * The check reruns a mutation triggers run on a background thread, so the
  * relay's event for the mutation reaches this hook BEFORE the rerun has

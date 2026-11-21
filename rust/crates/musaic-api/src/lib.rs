@@ -82,6 +82,11 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
     ),
     (
         "GET",
+        SCAN_FOLLOW_ROUTE,
+        "follow the running (or last) library scan without starting one, for the Activity panel (issue #332); not a route of the Python app",
+    ),
+    (
+        "GET",
         CHECK_SWEEP_ROUTE,
         "the background check sweep's progress (issue #187: every check runs on its own); not a route of the Python app",
     ),
@@ -151,6 +156,9 @@ pub const CHECK_SWEEP_ROUTE: &str = "/api/checks/sweep";
 
 /// `POST /api/scan/cancel` ([`EXTRA_ROUTES`]).
 pub const SCAN_CANCEL_ROUTE: &str = "/api/scan/cancel";
+
+/// `GET /api/scan/follow` ([`EXTRA_ROUTES`]).
+pub const SCAN_FOLLOW_ROUTE: &str = "/api/scan/follow";
 
 /// Registrations that are not routes of their own on the wire: each
 /// reproduces how Starlette routes a request the Python app has no route for
@@ -240,6 +248,8 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         .route("/api/scan/rescan", post(library::rescan))
         // Not a Python app route: cancel a running scan ([`EXTRA_ROUTES`]).
         .route(SCAN_CANCEL_ROUTE, post(library::scan_cancel))
+        // Not a Python app route: watch a scan, never start one ([`EXTRA_ROUTES`]).
+        .route(SCAN_FOLLOW_ROUTE, get(library::scan_follow))
         .route(
             "/api/albums/{album_id}",
             get(library::get_album).delete(library::delete_album),

@@ -11,6 +11,7 @@ import {
   useResumeQueue,
   useRetryJob,
 } from "@/hooks/useJobs";
+import { fmtRelative } from "@/lib/relativeTime";
 import type { Job, JobStatus } from "@/lib/types";
 
 /** Pending delete action — drives the confirmation modal. */
@@ -308,7 +309,7 @@ export function DeleteConfirmDialog({
   );
 }
 
-function StatusPill({ status, actedOnAction }: { status: Job["status"]; actedOnAction: Job["acted_on_action"] }) {
+export function StatusPill({ status, actedOnAction }: { status: Job["status"]; actedOnAction: Job["acted_on_action"] }) {
   if (status === "queued") {
     return (
       <span className="inline-flex items-center gap-1.5 mono text-[11px] text-fg-3">
@@ -351,15 +352,4 @@ export function jobTypeLabel(t: Job["job_type"]): string {
     case "cover":          return "Cover art";
     case "metadata+cover": return "Metadata + cover";
   }
-}
-
-function fmtRelative(iso: string): string {
-  if (!iso) return "—";
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return iso;
-  const diffSec = (Date.now() - t) / 1000;
-  if (diffSec < 60) return "just now";
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-  return `${Math.floor(diffSec / 86400)}d ago`;
 }

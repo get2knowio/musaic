@@ -14,6 +14,7 @@ import type {
   JobStatus,
   JobType,
   ScanCancelResponse,
+  ScanStatusResponse,
   TracksResponse,
 } from "./types";
 import { errorDetailText } from "./errors";
@@ -152,6 +153,11 @@ export function clearAlbumMbAnchor(
 
 export function rescanLibrary(): Promise<{ status: string; library_dir: string }> {
   return request("/api/scan/rescan", { method: "POST" });
+}
+
+/** The scan's state now (one read; its progress arrives on the scan stream). */
+export function getScanStatus(): Promise<ScanStatusResponse> {
+  return request<ScanStatusResponse>("/api/scan/status");
 }
 
 /** Ask the running scan to stop; nothing it read is saved. */

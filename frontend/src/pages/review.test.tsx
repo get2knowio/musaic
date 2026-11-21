@@ -15,6 +15,9 @@ import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from "rea
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import ReviewPage from "@/pages/Review";
+import ActivityPanel from "@/components/ActivityPanel";
+import { useActivityLinks } from "@/hooks/useActivityLinks";
+import { resetActivityPanel } from "@/lib/activityPanel";
 import { AttentionRedirect, HealthRedirect, JobsRedirect } from "@/pages/reviewRedirects";
 import { legacyAttentionSearch, reviewUrl } from "@/lib/reviewLinks";
 import Sidebar from "@/components/Sidebar";
@@ -88,6 +91,12 @@ function client(f: Finding[] = findings, j: Job[] = jobs, checks: CheckSummary[]
   return qc;
 }
 
+/** What App mounts for the Activity panel: the panel and its `?activity=` links. */
+function ActivityHost() {
+  useActivityLinks();
+  return <ActivityPanel />;
+}
+
 function Where() {
   const l = useLocation();
   return <div data-testid="where">{l.pathname + l.search}</div>;
@@ -104,6 +113,7 @@ function renderAt(url: string, qc = client()) {
       <MemoryRouter initialEntries={[url]}>
         <Sidebar />
         <Where />
+        <ActivityHost />
         <Routes>
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/attention" element={<AttentionRedirect />} />
@@ -140,6 +150,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   sessionStorage.clear();
+  resetActivityPanel();
 });
 
 describe("the acceptance example", () => {
@@ -244,9 +255,8 @@ describe("All open", () => {
       "Failed jobs1",
       "Track gaps3",
       "No cover art1",
-      "In progress1",
-      "Job history1",
       "Ignored findings",
+      "Jobs in progress and history",
     ]);
     expect(current()).toEqual(["All open6"]);
     expect(summary()).toBe("6 items · 2 albums");
@@ -372,18 +382,16 @@ describe("a check-wide bulk command", () => {
   });
 });
 
-describe("activity, until the Activity panel", () => {
-  it("jobs in progress and job history keep their lists, uncounted", () => {
+describe("jobs in progress and job history are in the Activity panel", () => {
+  it("the rail opens Activity over Review; the jobs stay uncounted", async () => {
     renderAt("/review");
-    pick("In progress");
-    expect(where()).toBe("/review?show=running");
-    expect(screen.getByText("Album running")).toBeTruthy();
-    expect(summary()).toBe("6 items · 2 albums");
-    pick("Job history");
-    expect(where()).toBe("/review?show=history");
-    expect(screen.getByText("Album done")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Clear 1 acted-on" })).toBeTruthy();
     expect(badge()).toBe("6");
+    pick("Jobs in progress and history");
+    const panel = await screen.findByRole("dialog", { name: "Activity" });
+    expect(where()).toBe("/review");
+    expect(within(panel).getByText("Album running")).toBeTruthy();
+    expect(within(panel).getByText("Album done")).toBeTruthy();
+    expect(summary()).toBe("6 items · 2 albums");
   });
 });
 
@@ -395,16 +403,12 @@ describe("old links", () => {
     ["/attention?view=other", "/review"],
     ["/attention?jobs=proposed", "/review?kind=proposed"],
     ["/attention?jobs=failed", "/review?kind=failed"],
-    ["/attention?jobs=running", "/review?show=running"],
-    ["/attention?jobs=finished", "/review?show=history"],
     ["/attention?list=ignored", "/review?show=ignored"],
     ["/attention?job=failed", "/review?job=failed"],
     ["/attention?check=track-gaps&ignored=1", "/review?check=track-gaps&ignored=1"],
     ["/health", "/review"],
     ["/health/track-gaps", "/review?check=track-gaps"],
-    ["/jobs", "/review"],
-    ["/jobs/done", "/review?job=done"],
-    ["/jobs?job=done", "/review?job=done"],
+    ["/jobs/failed", "/review?job=failed"],
   ]) {
     it(`${from} lands on ${to}`, async () => {
       renderAt(from);
@@ -412,11 +416,40 @@ describe("old links", () => {
     });
   }
 
+  // Jobs in progress and job history moved to the Activity panel: their
+  // old addresses open it over Review, at the section (and job) they named.
+  for (const [from, section, job] of [
+    ["/attention?jobs=running", "jobs", null],
+    ["/attention?jobs=finished", "history", null],
+    ["/review?show=running", "jobs", null],
+    ["/review?show=history", "history", null],
+    ["/jobs", "jobs", null],
+    ["/jobs/done", "history", "done"],
+    ["/jobs?job=done", "history", "done"],
+    ["/review?job=running", "jobs", "running"],
+  ] as const) {
+    it(`${from} opens Activity at ${section}${job ? ` with ${job} marked` : ""}`, async () => {
+      renderAt(from);
+      const panel = await screen.findByRole("dialog", { name: "Activity" });
+      await waitFor(() => expect(where()).toBe("/review"));
+      // Over All open (the page behind the modal panel is hidden from roles).
+      const behind = document.querySelector('nav[aria-label="Filters"] [aria-current="true"]');
+      expect(behind?.textContent).toBe("All open6");
+      await waitFor(() =>
+        expect(document.activeElement).toBe(panel.querySelector(`[data-activity-section="${section}"]`)),
+      );
+      if (job) {
+        expect(panel.querySelector(`[data-activity-job="${job}"]`)!.getAttribute("data-current")).toBe("true");
+      }
+    });
+  }
+
   it("the translation of Needs attention's query string", () => {
-    expect(legacyAttentionSearch("?jobs=finished&job=x")).toBe("show=history&job=x");
+    expect(legacyAttentionSearch("?jobs=finished&job=x")).toBe("activity=history&job=x");
+    expect(legacyAttentionSearch("?jobs=running")).toBe("activity=jobs");
     expect(legacyAttentionSearch("?view=suggestions")).toBe("");
     expect(reviewUrl({ check: "track-gaps", album: "a1" })).toBe("/review?check=track-gaps&album=a1");
-    expect(reviewUrl({ show: "history", job: "j" })).toBe("/review?show=history&job=j");
+    expect(reviewUrl({ show: "ignored" })).toBe("/review?show=ignored");
   });
 
   it("?view=suggestions shows informational findings at once", async () => {
@@ -432,17 +465,6 @@ describe("old links", () => {
     expect(document.querySelector('[data-job-id="failed"]')!.className).toContain("bg-accent-soft");
   });
 
-  it("a linked finished job opens Job history with the job highlighted", async () => {
-    renderAt("/jobs?job=done");
-    await waitFor(() => expect(where()).toBe("/review?job=done"));
-    expect(current()).toEqual(["Job history1"]);
-    expect(document.querySelector('[data-job-id="done"]')!.className).toContain("bg-accent-soft");
-  });
-
-  it("a linked running job opens In progress", async () => {
-    renderAt("/review?job=running");
-    expect(current()).toEqual(["In progress1"]);
-  });
 });
 
 describe("Back from an album", () => {

@@ -109,21 +109,6 @@ export function usePriorCoverAttempts(albumId: string | null | undefined): Job[]
   }, [albumId, jobs]);
 }
 
-/**
- * Counts of in-flight jobs (running + queued behind it) for the sidebar
- * activity indicator. The serial worker means at most one is "running" at
- * any moment, but additional jobs may be queued.
- */
-export function useInFlightJobCounts(): { running: number; queued: number } {
-  const { data: jobs = [] } = useJobs();
-  let running = 0;
-  let queued = 0;
-  for (const j of jobs) {
-    if (j.status === "running") running++;
-    else if (j.status === "queued") queued++;
-  }
-  return { running, queued };
-}
 
 // ---- Mutations ----
 
