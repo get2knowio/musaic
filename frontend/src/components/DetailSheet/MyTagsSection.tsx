@@ -1,8 +1,10 @@
 import { Plus, Settings as SettingsIcon, Tag as TagIcon, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+
+import { RETURN_FOCUS_KEY, type SettingsLinkState } from "@/lib/settingsSections";
 
 import {
   addAlbumTag,
@@ -38,6 +40,21 @@ export default function MyTagsSection({ albumId, tracks }: MyTagsSectionProps) {
   const qc = useQueryClient();
   const tagsQuery = useAlbumTags(albumId);
   const vocabQuery = useVocabulary();
+  const location = useLocation();
+
+  // Back from Settings (its "Back to album" button): take focus here, where
+  // the user left off, instead of at the top of the page.
+  const regionRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let wanted = false;
+    try {
+      wanted = sessionStorage.getItem(RETURN_FOCUS_KEY) === "my-tags";
+      if (wanted) sessionStorage.removeItem(RETURN_FOCUS_KEY);
+    } catch {
+      // No storage: no focus hand-off.
+    }
+    if (wanted) regionRef.current?.focus();
+  }, []);
 
   const onMutated = (next: AlbumTagsResponse) => {
     qc.setQueryData(["album-tags", albumId], next);
@@ -113,7 +130,13 @@ export default function MyTagsSection({ albumId, tracks }: MyTagsSectionProps) {
 
   return (
     <Section id="my-tags" title="My Tags" meta={meta}>
-      <div className="px-4 py-3 space-y-2.5">
+      <div
+        ref={regionRef}
+        tabIndex={-1}
+        role="group"
+        aria-label="My Tags"
+        className="px-4 py-3 space-y-2.5 outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      >
         {/* Album-level chips */}
         <div className="flex flex-wrap items-center gap-1.5">
           {albumTags.length === 0 && partialTags.length === 0 && !vocabularyEmpty && (
@@ -155,7 +178,12 @@ export default function MyTagsSection({ albumId, tracks }: MyTagsSectionProps) {
               <SettingsIcon className="w-3.5 h-3.5 mt-0.5 shrink-0 text-fg-4" />
               <div>
                 You haven't defined any tags yet. Add a few in{" "}
-                <Link to="/settings" className="text-accent hover:underline">
+                <Link
+                  to={{ pathname: "/settings", hash: "#tags" }}
+                  // Where to come back to: Settings offers "Back to album".
+                  state={{ returnTo: location.pathname + location.search } satisfies SettingsLinkState}
+                  className="text-accent hover:underline"
+                >
                   Settings → My Tags
                 </Link>
                 {" "}— that approved list is what the picker draws from.

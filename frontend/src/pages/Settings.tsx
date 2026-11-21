@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import {
   AlertTriangle,
+  ArrowLeft,
   Check,
   Cpu,
   Disc3,
@@ -13,7 +14,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import {
+  RETURN_FOCUS_KEY,
+  SETTINGS_SECTIONS,
+  focusSection,
+  sectionForHash,
+  type SettingsLinkState,
+} from "@/lib/settingsSections";
 import { ACOUSTID_KEY_HASH } from "@/components/AcoustidPrompt";
 import { useFingerprintPoolStatus } from "@/hooks/useFingerprintPoolStatus";
 import { fingerprintStatusLine } from "@/lib/fingerprintStatus";
@@ -46,33 +54,123 @@ export default function SettingsPage() {
   // one notice stands in for them (lib/aiGating.ts).
   const ai = useAiStatus();
   const noAiBackend = ai.known && !ai.anyReady;
+  // A link to a section (/settings#tags) scrolls to it and focuses its
+  // control, the way "#acoustid-key" does for the AcoustID field. The
+  // location key is a dependency so choosing the same link again repeats it.
+  const { hash, key, state } = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const id = sectionForHash(hash);
+    if (id) focusSection(id);
+  }, [hash, key]);
+  const returnTo = (state as SettingsLinkState | null)?.returnTo;
+  const backToAlbum = () => {
+    try {
+      sessionStorage.setItem(RETURN_FOCUS_KEY, "my-tags");
+    } catch {
+      // Without storage the album still opens; focus just stays at its top.
+    }
+    // The album's own history entry is the one just below this one, so going
+    // back restores its browse / review context exactly (the album route's
+    // filter, search and where it was opened from).
+    navigate(-1);
+  };
   return (
     <div className="flex-1 overflow-y-auto px-6 py-6">
       <div className="max-w-2xl">
+        {returnTo && (
+          <button
+            type="button"
+            onClick={backToAlbum}
+            className="mb-3 h-7 px-2 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1.5"
+          >
+            <ArrowLeft className="w-3 h-3" /> Back to album
+          </button>
+        )}
         <h1 className="text-lg font-semibold mb-1">Settings</h1>
-        <p className="text-sm text-fg-3 mb-6">
+        <p className="text-sm text-fg-3 mb-3">
           {noAiBackend
             ? "Tune how Musaic talks to MusicBrainz and AcoustID."
-            : "Tune how Musaic talks to your AI provider, MusicBrainz, AcoustID, and FireCrawl."}
+            : "Tune how Musaic talks to your AI provider, MusicBrainz, AcoustID, and FireCrawl."}{" "}
+          Jump to the task you are here for:
         </p>
+        <SettingsIndex />
         <KeyStorageNotices />
-        <GroupHeader>Library</GroupHeader>
-        <LibrarySection />
-        <GroupHeader>Tagging</GroupHeader>
-        <MyTagsSettingsPanel />
-        <GroupHeader>Files</GroupHeader>
-        <FilenameTemplatesPanel />
-        <GroupHeader>AI</GroupHeader>
-        {noAiBackend ? <AIUnavailableSection /> : <AIBackendSection />}
-        {/* The AI worker card (parallel jobs, queue status) only
-            when a provider can run. */}
-        {!noAiBackend && <AISection />}
-        <GroupHeader>External services</GroupHeader>
-        <FingerprintSection />
-        {!noAiBackend && <FireCrawlSection />}
-        <GroupHeader>Database</GroupHeader>
-        <BackupPanel />
+        <SettingsSection id="library-folder" title="Library folder">
+          <LibrarySection />
+        </SettingsSection>
+        <SettingsSection id="tags" title="Tags">
+          <MyTagsSettingsPanel />
+        </SettingsSection>
+        <SettingsSection id="file-naming" title="File naming">
+          <FilenameTemplatesPanel />
+        </SettingsSection>
+        <SettingsSection id="matching-integrations" title="Matching & integrations">
+          {noAiBackend ? <AIUnavailableSection /> : <AIBackendSection />}
+          {/* The AI worker card (parallel jobs, queue status) only
+              when a provider can run. */}
+          {!noAiBackend && <AISection />}
+          <FingerprintSection />
+          {!noAiBackend && <FireCrawlSection />}
+        </SettingsSection>
+        <SettingsSection id="backup-restore" title="Backup & restore">
+          <BackupPanel />
+        </SettingsSection>
       </div>
+    </div>
+  );
+}
+
+/** A compact, keyboard-reachable list of links, one per Settings task. */
+function SettingsIndex() {
+  const { state } = useLocation();
+  return (
+    <nav aria-label="Settings sections" className="mb-6">
+      <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+        {SETTINGS_SECTIONS.map((s) => (
+          <li key={s.id}>
+            {/* replace: moving around the page does not add history entries,
+                so "Back to album" still lands on the album's entry. */}
+            <Link
+              to={{ hash: `#${s.id}` }}
+              replace
+              state={state}
+              className="text-accent hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-sm"
+            >
+              {s.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+/** One task's group: a stable anchor (id = URL hash) that can take focus. */
+function SettingsSection({
+  id,
+  title,
+  children,
+}: {
+  id: string;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      id={id}
+      tabIndex={-1}
+      role="group"
+      aria-labelledby={`${id}-heading`}
+      className="scroll-mt-4 outline-none focus-visible:ring-2 focus-visible:ring-accent/40 rounded-md"
+    >
+      <h2
+        id={`${id}-heading`}
+        className="mono text-[11px] uppercase tracking-[0.08em] text-fg-4 mb-2 mt-1"
+      >
+        {title}
+      </h2>
+      {children}
     </div>
   );
 }
@@ -137,14 +235,6 @@ function AIUnavailableSection() {
 function saveFailed(what: string, e: unknown) {
   const reason = errorText(e, "");
   toast.error(what, reason ? { description: reason } : undefined);
-}
-
-function GroupHeader({ children }: { children: React.ReactNode }) {
-  return (
-    <h2 className="mono text-[11px] uppercase tracking-[0.08em] text-fg-4 mb-2 mt-1 first-of-type:mt-0">
-      {children}
-    </h2>
-  );
 }
 
 /**

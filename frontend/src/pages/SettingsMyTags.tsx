@@ -161,6 +161,7 @@ export default function MyTagsSettingsPanel() {
           <input
             ref={inputRef}
             type="text"
+            data-settings-focus
             placeholder="New tag (e.g. Cocktail Hour)"
             value={draft}
             disabled={add.isPending}
