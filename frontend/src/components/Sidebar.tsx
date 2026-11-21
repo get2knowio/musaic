@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useJobs, useInFlightJobCounts } from "@/hooks/useJobs";
-import { attentionBadgeText, useAttention } from "@/hooks/useAttention";
+import { attentionBadge, attentionBadgeText, useAttention } from "@/hooks/useAttention";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useRememberedLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
 import { FILTERS, buildNeedsAttentionSet, isValidFilterKey, type FilterKey } from "@/lib/filters";
@@ -13,7 +13,7 @@ interface NavItem {
   label: string;
   icon: typeof Disc3;
   count?: number;
-  badge?: { text: string; tone: "accent" | "warn" | "err"; title?: string };
+  badge?: { text: string; tone: "accent" | "warn" | "err"; title?: string; uncertain?: boolean };
   /** A second, quieter number after the badge; `title` starts with it. */
   quiet?: { text: string; title: string };
   /** Show a pulsing dot to indicate background activity (e.g. AI job running). */
@@ -96,18 +96,15 @@ export default function Sidebar() {
   // (open warn/error findings plus proposed and failed jobs), then the
   // suggestions (informational findings), quieter. Finished jobs and
   // ignored findings are in neither.
+  // A source that failed makes the first number a lower bound ("2+", or
+  // "?" with nothing known), never a confident zero.
   const suggestions = attention.infoFindings.length;
+  const badge = attentionBadge(attention);
   const attentionItem: NavItem = {
     to: "/attention",
     label: "Needs attention",
     icon: AlertCircle,
-    badge: attention.count > 0
-      ? {
-          text: attentionBadgeText(attention.count, attention.countIsLowerBound),
-          tone: "warn",
-          title: `${attentionBadgeText(attention.count, attention.countIsLowerBound)} to decide`,
-        }
-      : undefined,
+    badge: badge ? { ...badge, tone: "warn" } : undefined,
     quiet: suggestions > 0
       ? {
           text: attentionBadgeText(suggestions, attention.countIsLowerBound),
@@ -230,6 +227,7 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
           className={
             (item.activity ? "" : "ml-auto ") +
             "mono text-[10.5px] tabular-nums px-1.5 py-0.5 rounded-full font-semibold " +
+            (item.badge.uncertain ? "border border-dashed border-current " : "") +
             (item.badge.tone === "accent"
               ? "bg-accent text-accent-fg"
               : item.badge.tone === "warn"

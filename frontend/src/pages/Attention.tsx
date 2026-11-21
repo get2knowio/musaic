@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { BulkQuickFixDialog } from "@/components/BulkQuickFixDialog";
 import { FindingRow } from "@/components/FindingRow";
+import { SourceNotice } from "@/components/SourceNotice";
 import {
   DeleteConfirmDialog,
   JobRow,
@@ -451,7 +452,11 @@ export default function AttentionPage() {
         <AlertCircle className="w-3.5 h-3.5 text-accent" />
         <h1 className="font-medium">Needs attention</h1>
         <span className="text-fg-3" aria-live="polite">
-          <b className={`font-medium tabular-nums ${attention.count > 0 ? "text-warn" : "text-ok"}`}>
+          <b
+            className={`font-medium tabular-nums ${
+              attention.count > 0 ? "text-warn" : attention.allClear ? "text-ok" : "text-fg-2"
+            }`}
+          >
             {attention.count}
             {plus}
           </b>{" "}
@@ -465,9 +470,27 @@ export default function AttentionPage() {
       </div>
 
       <PausedBanner aiReady={ai.ready} />
+      <SourceNotice
+        sources={[attention.sources.findings, attention.sources.jobs]}
+        className="mx-4 mt-3 mb-1"
+      />
 
       {attention.isLoading && nothingAtAll ? (
         <div className="px-4 py-8 text-center text-fg-3 text-sm">Loading…</div>
+      ) : nothingAtAll && !attention.complete ? (
+        // A source failed or has not answered: an empty page here is not
+        // an all-clear.
+        <div className="px-8 py-16 text-center">
+          <h2 className="text-md font-medium mb-1.5">
+            {attention.degraded ? "Review data isn't available" : "Loading…"}
+          </h2>
+          {attention.degraded && (
+            <p className="text-sm text-fg-3 max-w-md mx-auto">
+              Nothing is listed because part of it could not be loaded, not because nothing needs attention.
+              Retry above.
+            </p>
+          )}
+        </div>
       ) : nothingAtAll ? (
         <div className="px-8 py-16 text-center">
           <CheckCircle2 className="w-9 h-9 mx-auto mb-3 text-ok" />

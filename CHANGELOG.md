@@ -199,6 +199,14 @@ Security.
 
 ### Fixed
 
+- A findings or jobs request that failed no longer reads as "Nothing needs attention"
+  ([#323](https://github.com/get2knowio/musaic/issues/323)). The all-clear shows only when
+  both have answered; when one fails, what did load stays listed, a notice names what is
+  missing (or out of date, when a refresh failed and the last answer is kept) with a Retry
+  for it, and the sidebar badge becomes a lower bound ("2+", or "?" when nothing is known).
+  The Library page likewise tells a settings request that failed (Retry) from a library with
+  no folder set (setup) and a folder that is not there, such as a disconnected drive
+  (recovery: try again, or choose another folder).
 - The Rename files dialog no longer closes on a rename that was refused, only partly done,
   or that skipped files it could not find. It stays open and says what happened: which files
   were left alone, whether the album folder was renamed, and whether any file changed.
