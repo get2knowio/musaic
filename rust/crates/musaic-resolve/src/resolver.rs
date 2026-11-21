@@ -238,15 +238,22 @@ impl Resolver {
         }
     }
 
-    /// What the memo holds for `album_id`, without resolving anything: no
-    /// database, no network, no lock but the memo's. `None` when nothing is
-    /// memoized (never resolved in this run, or invalidated by a change).
-    pub fn memoized(&self, album_id: &str) -> Option<Arc<AlbumResolution>> {
-        let memo = self.memo.lock().unwrap_or_else(PoisonError::into_inner);
-        memo.iter()
-            .filter(|((a, _), _)| a == album_id)
-            .min_by(|(k1, _), (k2, _)| k1.cmp(k2))
-            .map(|(_, v)| v.clone())
+    /// What the memo holds for the album as it is now, without resolving
+    /// anything: the entry under the key [`Resolver::resolve`] would look up
+    /// (album id and [`content_hash`] of the album's current row and files,
+    /// read from `albums`), never one memoized for an earlier content of the
+    /// album. No anchor store, no network, no lock but the memo's. `None`
+    /// when the album is not in the cache or nothing is memoized for its
+    /// current content (never resolved in this run, invalidated by a change,
+    /// or resolved before its content changed).
+    pub fn memoized(
+        &self,
+        albums: &dyn AlbumSource,
+        album_id: &str,
+    ) -> Option<Arc<AlbumResolution>> {
+        let album = albums.album(album_id)?;
+        let filenames = albums.filenames(&album);
+        self.memo_get(&(album_id.to_owned(), content_hash(&album, &filenames)))
     }
 
     fn memo_get(&self, key: &MemoKey) -> Option<Arc<AlbumResolution>> {

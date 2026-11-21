@@ -441,7 +441,10 @@ pub fn list_albums(
 /// The resolution the resolver already holds for the album, without
 /// resolving: no fingerprinting, no network, no work guard and no database
 /// write (the agent read tools' accessor, FR-053). The album must be a row of
-/// the configured library (`NotFound`); `None` when nothing is memoized.
+/// the configured library (`NotFound`); `None` when nothing is memoized for
+/// the album's current content ([`musaic_resolve::Resolver::memoized`]: its
+/// row and file names as a resolve would read them, so an entry memoized
+/// before the album changed is never reported).
 pub fn stored_album_resolution(
     conn: &Connection,
     library_dir: Option<&str>,
@@ -452,7 +455,7 @@ pub fn stored_album_resolution(
         return Err(no_library());
     }
     match crate::sources::cached_album(conn, library_dir, album_id).map_err(OpError::failed)? {
-        Some(_) => Ok(resolver.memoized(album_id)),
+        Some(_) => Ok(resolver.memoized(&crate::sources::DbAlbums { conn, library_dir }, album_id)),
         None => Err(album_not_found(album_id, "Album not found".to_string())),
     }
 }

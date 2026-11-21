@@ -342,6 +342,51 @@ fn concurrent_resolves_of_one_album_compute_once() {
 }
 
 // ---------------------------------------------------------------------------
+// The stored-only read of the memo.
+
+/// `memoized` answers for the album as it is now: after its content changes
+/// (a file added, so another content hash) the entry memoized for the old
+/// content is never reported, though it is still in the memo; the next
+/// resolve's entry is.
+#[test]
+fn memoized_reports_only_the_entry_for_the_current_content() {
+    let world = World::new();
+    let net = Net::new();
+    net.search(ARTIST, ALBUM, &search_body(vec![album_hit(80)]));
+    net.browse(RG_ALBUM, &album_listing());
+    net.cover_ok(RG_ALBUM);
+    let resolver = Resolver::new();
+    assert!(
+        resolver.memoized(&world, ALBUM_ID).is_none(),
+        "never resolved"
+    );
+
+    let first = resolve(&resolver, &world, &net, &NoPrints, "");
+    let held = resolver.memoized(&world, ALBUM_ID).expect("memoized");
+    assert!(Arc::ptr_eq(&held, &first.resolution));
+
+    world
+        .tracks
+        .lock()
+        .unwrap()
+        .push(flac("06 - Bonus.flac", "6", 60.0));
+    assert!(
+        resolver.memoized(&world, ALBUM_ID).is_none(),
+        "the old content's entry is not the album's resolution"
+    );
+
+    let second = resolve(&resolver, &world, &net, &NoPrints, "");
+    assert!(!second.from_memo, "a new content hash is a new resolve");
+    let held = resolver.memoized(&world, ALBUM_ID).expect("memoized");
+    assert!(Arc::ptr_eq(&held, &second.resolution));
+    assert!(!Arc::ptr_eq(&held, &first.resolution));
+
+    // An album that left the cache has no resolution, whatever the memo holds.
+    *world.album.lock().unwrap() = None;
+    assert!(resolver.memoized(&world, ALBUM_ID).is_none());
+}
+
+// ---------------------------------------------------------------------------
 // Title similarity (the fingerprint vote's third tie-break).
 
 /// `difflib.SequenceMatcher(None, a, b).ratio()` = 2 * M / (len(a) +

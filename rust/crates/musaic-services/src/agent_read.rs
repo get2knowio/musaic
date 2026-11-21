@@ -328,8 +328,8 @@ fn fact(f: &Option<musaic_resolve::FieldFact>) -> Option<ResolvedField> {
 }
 
 /// The stored resolution of an album, or `not_resolved`. `stored` is what the
-/// resolver's memo holds ([`musaic_resolve::Resolver::memoized`]); nothing is
-/// resolved here.
+/// resolver's memo holds for the album's current content
+/// ([`musaic_resolve::Resolver::memoized`]); nothing is resolved here.
 pub fn resolution_output(stored: Option<Arc<AlbumResolution>>) -> ResolutionGetOutput {
     let Some(r) = stored.filter(|r| r.anchor.is_some() || r.canonical_title.is_some()) else {
         return ResolutionGetOutput {
