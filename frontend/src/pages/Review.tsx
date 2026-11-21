@@ -267,6 +267,20 @@ export default function ReviewPage() {
 
   const highlightKey = linkedJobId ? jobKey(linkedJobId) : returned?.view === key ? returned.item : null;
 
+  // ... and, once listed, focused again: its album link (the way the user
+  // left), else its first control, so the keyboard picks up where it was.
+  const refocused = useRef(false);
+  const returnedItem = returned?.view === key ? returned.item : null;
+  useEffect(() => {
+    if (refocused.current || !ready || !returnedItem) return;
+    const row = scroller.current?.querySelector(`[data-review-item="${CSS.escape(returnedItem)}"]`);
+    if (!row) return;
+    refocused.current = true;
+    const target =
+      row.querySelector<HTMLElement>('a[href^="/library/"]') ?? row.querySelector<HTMLElement>("a[href], button");
+    target?.focus({ preventScroll: true });
+  }, [ready, returnedItem]);
+
   // A deep-linked job is brought into view once it is on the page.
   const linkedPresent = !!linked;
   useEffect(() => {

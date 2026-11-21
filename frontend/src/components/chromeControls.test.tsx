@@ -118,15 +118,17 @@ describe("sidebar", () => {
     expect(settings.querySelector("kbd")).toHaveTextContent(",");
   });
 
-  it("lights one entry: Library without a filter, the filter when one is set", () => {
+  it("lights one entry: the current collection under Library (All albums without a filter)", () => {
     const a = sidebarAt("/library");
-    expect(screen.getByRole("link", { name: "Library" }).className).toContain("bg-accent-soft");
-    expect(screen.getByRole("button", { name: /All albums/ }).className).not.toContain("bg-accent-soft");
+    expect(screen.getByRole("link", { name: "Library" }).className).not.toContain("bg-accent-soft");
+    expect(screen.getByRole("link", { name: /All albums/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /All albums/ }).className).toContain("bg-accent-soft");
     a.unmount();
 
     sidebarAt("/library?filter=missing-art");
     expect(screen.getByRole("link", { name: "Library" }).className).not.toContain("bg-accent-soft");
-    expect(screen.getByRole("button", { name: /Missing art/ }).className).toContain("bg-accent-soft");
+    expect(screen.getByRole("link", { name: /All albums/ })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: /Missing artwork/ }).className).toContain("bg-accent-soft");
   });
 
   it("leaves running jobs to the Activity control: Review's entry counts decisions only", () => {

@@ -1,12 +1,19 @@
 import { Disc3, Inbox, Settings as SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
-import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, NavLink, useLocation, useSearchParams } from "react-router-dom";
 
 import { useJobs } from "@/hooks/useJobs";
 import { reviewBadge, useReview } from "@/hooks/useReview";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useRememberedLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
-import { FILTERS, buildNeedsAttentionSet, isValidFilterKey, type FilterKey } from "@/lib/filters";
+import {
+  FILTERS,
+  FILTERS_BY_KEY,
+  buildNeedsAttentionSet,
+  isValidFilterKey,
+  type FilterKey,
+} from "@/lib/filters";
+import { collectionName, collectionUrl, type LibraryCollection } from "@/lib/libraryLinks";
 
 interface NavItem {
   to?: string;
@@ -23,45 +30,21 @@ export default function Sidebar() {
   const isLibrary = location.pathname.startsWith("/library");
   const isReview = location.pathname.startsWith("/review");
 
-  const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
+  const [params] = useSearchParams();
   const activeFilter: FilterKey | null = isValidFilterKey(params.get("filter"))
     ? (params.get("filter") as FilterKey)
     : null;
+  const current: LibraryCollection | null = isLibrary ? activeFilter ?? "all" : null;
 
-  // The Library nav item should bring the user back to the same filter /
-  // search / open album they had when they last left the library. The URL
-  // is the source of truth for view state; we just remember the most recent
-  // /library URL in sessionStorage and target it from the nav link.
+  // Library resumes the last browsing state (collection, search, open
+  // album, sort, view): the URL is the source of truth for view state, and
+  // the most recent /library URL is remembered in sessionStorage.
   const rememberedLibraryUrl = useRememberedLibraryUrl();
+  // The collections nested under it start from that state too (search,
+  // sort and view kept, the inspector closed); All albums is the reset.
+  const base = isLibrary ? location.pathname + location.search : rememberedLibraryUrl;
 
-  // Toggle a filter chip. Clicking the currently-active filter clears it;
-  // clicking from /review or /settings navigates BACK to the remembered library
-  // URL with the filter applied — but strip any open-album segment so a
-  // filter click doesn't surprise the user by re-opening a detail sheet.
-  // Other view state (search query, view mode) IS preserved.
-  const onFilterClick = (key: FilterKey | null) => {
-    if (!isLibrary) {
-      const remembered = new URL(rememberedLibraryUrl, window.location.origin);
-      const next = new URLSearchParams(remembered.search);
-      if (key === null) next.delete("filter");
-      else next.set("filter", key);
-      const qs = next.toString();
-      // Drop the /:albumId segment if present — filter clicks shouldn't
-      // re-open a sheet the user already closed earlier.
-      navigate(`/library${qs ? `?${qs}` : ""}`);
-      return;
-    }
-    const next = new URLSearchParams(params);
-    if (key === null || key === activeFilter) {
-      next.delete("filter");
-    } else {
-      next.set("filter", key);
-    }
-    setParams(next, { replace: true });
-  };
-
-  // Live counts for filter chips
+  // Live counts for the collections
   const { data: albums = [] } = useAlbumsSnapshot();
   const { data: jobs = [] } = useJobs();
   const needsAttention = useMemo(() => buildNeedsAttentionSet(jobs), [jobs]);
@@ -103,50 +86,48 @@ export default function Sidebar() {
     (j) => j.status === "completed" || j.status === "failed",
   ).length;
 
-  const filterTooltip = (key: FilterKey): string | undefined => {
+  const collectionTooltip = (key: LibraryCollection): string => {
+    const n = counts[key];
+    const albumsText = `${n} album${n === 1 ? "" : "s"}`;
     if (key === "needs-review") {
-      const albums = counts["needs-review"];
-      return `${albums} album${albums === 1 ? "" : "s"} · ${needsReviewJobCount} job${needsReviewJobCount === 1 ? "" : "s"} awaiting review`;
+      return `${albumsText} · ${needsReviewJobCount} job${needsReviewJobCount === 1 ? "" : "s"} awaiting review`;
     }
-    return undefined;
+    return albumsText;
   };
 
   return (
     <nav className="border-r border-line bg-panel-2 px-2.5 py-3 flex flex-col gap-1 text-sm overflow-y-auto">
       <SectionLabel>Workspace</SectionLabel>
-      {/* Library item targets the remembered URL so the user lands back on
-          their last filter / search / open album when returning from /review. */}
+      {/* Library targets the remembered URL so the user lands back on their
+          last collection / search / open album when returning from /review. */}
       <WorkspaceItem
         item={{ to: rememberedLibraryUrl, label: "Library", icon: Disc3 }}
-        active={isLibrary && activeFilter === null}
-      />
-      <WorkspaceItem item={reviewItem} active={isReview} />
-
-      <SectionLabel>Filters</SectionLabel>
-      <FilterChipRow
-        label="All albums"
-        dotColor="var(--accent)"
-        count={counts.all}
-        // Never highlighted: with no filter the Library item above is the
-        // highlighted one, so the two do not light up together.
         active={false}
-        onClick={() => onFilterClick(null)}
+        section={isLibrary}
       />
-      {FILTERS.filter(
-        // With no job waiting the jobs filter would be a permanent 0 (always,
-        // in a build with no model), so it is shown only when it lists something.
-        (f) => f.key !== "needs-review" || counts[f.key] > 0 || activeFilter === f.key,
-      ).map((f) => (
-        <FilterChipRow
-          key={f.key}
-          label={f.label}
-          dotColor={f.dotColor}
-          count={counts[f.key]}
-          title={filterTooltip(f.key)}
-          active={isLibrary && activeFilter === f.key}
-          onClick={() => onFilterClick(f.key)}
-        />
-      ))}
+      <ul aria-label="Library collections" className="flex flex-col gap-0.5 pl-3.5">
+        {(["all", ...FILTERS.map((f) => f.key)] as LibraryCollection[])
+          .filter(
+            // With no job waiting the jobs collection would be a permanent 0
+            // (always, in a build with no model), so it is shown only when
+            // it lists something.
+            (c) => c !== "needs-review" || counts[c] > 0 || current === c,
+          )
+          .map((c) => (
+            <li key={c}>
+              <CollectionLink
+                to={collectionUrl(c, base)}
+                replace={isLibrary}
+                label={collectionName(c)}
+                dotColor={c === "all" ? "var(--accent)" : FILTERS_BY_KEY[c].dotColor}
+                count={counts[c]}
+                title={collectionTooltip(c)}
+                current={current === c}
+              />
+            </li>
+          ))}
+      </ul>
+      <WorkspaceItem item={reviewItem} active={isReview} />
 
       <div className="flex-1" />
 
@@ -178,7 +159,16 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
+function WorkspaceItem({
+  item,
+  active,
+  section = false,
+}: {
+  item: NavItem;
+  active: boolean;
+  /** The current page is in this item's section (its collections show which). */
+  section?: boolean;
+}) {
   const Icon = item.icon;
   const content = (
     <div className="flex items-center gap-2.5 w-full">
@@ -232,44 +222,53 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
     "flex items-center h-7 px-2.5 rounded relative transition";
   const activeClasses = active
     ? "bg-accent-soft text-accent font-medium before:content-[''] before:absolute before:-left-2.5 before:top-1 before:bottom-1 before:w-0.5 before:bg-accent before:rounded"
+    : section
+    ? "text-fg font-medium hover:bg-bg-3 cursor-pointer"
     : "text-fg-2 hover:bg-bg-3 hover:text-fg cursor-pointer";
 
   if (item.to) {
     return (
-      <NavLink to={item.to} className={`${baseClasses} ${activeClasses}`}>
+      // A plain Link: `active` is decided here, and on the Library the
+      // current collection, not Library itself, is the current page.
+      <Link to={item.to} aria-current={active ? "page" : undefined} className={`${baseClasses} ${activeClasses}`}>
         {content}
-      </NavLink>
+      </Link>
     );
   }
   return <div className={`${baseClasses} ${activeClasses}`}>{content}</div>;
 }
 
-function FilterChipRow({
-  label, dotColor, count, active, onClick, title,
+/** One collection nested under Library: its name and its count in albums. */
+function CollectionLink({
+  to, replace, label, dotColor, count, current, title,
 }: {
+  to: string;
+  replace: boolean;
   label: string;
   dotColor: string;
-  count?: number;
-  active: boolean;
-  onClick: () => void;
+  count: number;
+  current: boolean;
   title?: string;
 }) {
   return (
-    <button
-      onClick={onClick}
+    <Link
+      to={to}
+      replace={replace}
       title={title}
+      aria-current={current ? "page" : undefined}
       className={
         "flex items-center gap-2.5 h-7 px-2.5 rounded-sm text-sm transition " +
-        (active
+        (current
           ? "bg-accent-soft text-accent font-medium"
           : "text-fg-3 hover:bg-bg-3 hover:text-fg")
       }
     >
-      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} />
+      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: dotColor }} aria-hidden />
       <span className="truncate">{label}</span>
-      {count !== undefined && (
-        <span className="ml-auto mono text-xs text-fg-4 tabular-nums">{count}</span>
-      )}
-    </button>
+      <span className="ml-auto mono text-xs text-fg-4 tabular-nums">
+        {count}
+        <span className="sr-only"> {count === 1 ? "album" : "albums"}</span>
+      </span>
+    </Link>
   );
 }

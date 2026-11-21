@@ -14,6 +14,14 @@ import {
 } from "@/components/DetailSheet/panelFocus";
 import { panelFillsRow } from "@/components/DetailSheet/layout";
 import { albumOpenedFrom } from "@/hooks/useRememberedLibraryUrl";
+import { useChecks } from "@/hooks/useChecks";
+import { reviewViewName } from "@/lib/reviewLinks";
+import {
+  allAlbumsUrl,
+  clearFilterUrl,
+  clearSearchUrl,
+  collectionName,
+} from "@/lib/libraryLinks";
 import LibraryPathForm from "@/components/LibraryPathForm";
 import { libraryPathHelp } from "@/lib/desktop";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
@@ -24,7 +32,6 @@ import {
   applyFilter,
   buildNeedsAttentionSet,
   isValidFilterKey,
-  FILTERS_BY_KEY,
   type FilterKey,
 } from "@/lib/filters";
 import { parseSort, sortAlbums } from "@/lib/albumSort";
@@ -91,11 +98,14 @@ export default function LibraryPage() {
   // Apply filter chip first, then text search, then sort. Sort runs
   // last so it operates on the smallest list.
   const sortKey = parseSort(params.get("sort"));
-  const filtered = useMemo(() => {
-    const afterFilter = applyFilter(albums, filterKey, needsAttention);
-    const afterSearch = filterAlbums(afterFilter, query);
-    return sortAlbums(afterSearch, sortKey);
-  }, [albums, query, filterKey, needsAttention, sortKey]);
+  const inCollection = useMemo(
+    () => applyFilter(albums, filterKey, needsAttention),
+    [albums, filterKey, needsAttention],
+  );
+  const filtered = useMemo(
+    () => sortAlbums(filterAlbums(inCollection, query), sortKey),
+    [inCollection, query, sortKey],
+  );
 
   // Skeletons during a fresh scan: how many slots we expect that haven't arrived.
   const skeletonCount =
@@ -119,9 +129,15 @@ export default function LibraryPage() {
   // and the grid stays mounted (scroll position, state) but inert.
   const panelCoversGrid = !!openId && panelFillsRow(rowWidth, GRID_MIN_WIDTH);
 
-  // Close: back to the page the album was opened from (Health, Jobs, …),
-  // else to the library with the same filters. Focus goes to the album's
+  // Close: back to the page the album was opened from (a Review list,
+  // Settings, …), which says so ("Back to Track gaps"), else to the library
+  // with the same filters (a direct album link). Focus goes to the album's
   // tile, or to <main> when leaving the page or the tile is filtered out.
+  const openedFrom = albumId ? albumOpenedFrom(location.key) : null;
+  const { data: checks = [] } = useChecks();
+  const returnLabel = openedFrom
+    ? `Back to ${originName(openedFrom, (id) => checks.find((c) => c.meta.id === id)?.meta.label ?? id)}`
+    : undefined;
   const closePanel = useCallback(() => {
     if (!albumId) return;
     if (albumOpenedFrom(location.key)) {
@@ -234,10 +250,11 @@ export default function LibraryPage() {
     <>
       <FilterBar
         totalCount={albums.length}
-        shownCount={query || filterKey ? filtered.length : undefined}
+        collectionCount={inCollection.length}
+        shownCount={query ? filtered.length : undefined}
         libraryDir={libraryDir}
         scannedAt={scan.scannedAt}
-        activeFilterLabel={filterKey ? FILTERS_BY_KEY[filterKey].label : undefined}
+        activeFilterLabel={filterKey ? collectionName(filterKey) : undefined}
       />
       <AcoustidPrompt scannedAt={scan.scannedAt} />
       <div ref={rowRef} className="relative flex-1 min-h-0 flex">
@@ -245,7 +262,11 @@ export default function LibraryPage() {
           {albums.length === 0 && scan.status === "done" ? (
             <EmptyLibrary />
           ) : filtered.length === 0 && (query || filterKey) ? (
-            <EmptyFilter query={query} filterKey={filterKey} />
+            <EmptyFilter
+              query={query}
+              filterKey={filterKey}
+              here={location.pathname + location.search}
+            />
           ) : view === "list" ? (
             <AlbumList
               albums={filtered}
@@ -265,6 +286,7 @@ export default function LibraryPage() {
             ref={panelRef}
             album={openAlbum}
             onClose={closePanel}
+            returnLabel={returnLabel}
             onAlbumUpdated={onAlbumUpdated}
             availableWidth={rowWidth}
             listMinWidth={GRID_MIN_WIDTH}
@@ -406,27 +428,64 @@ function EmptyLibrary() {
   );
 }
 
-function EmptyFilter({ query, filterKey }: { query: string; filterKey: FilterKey | null }) {
-  let title = "";
-  if (query && filterKey) {
-    title = `No ${FILTERS_BY_KEY[filterKey].label.toLowerCase()} match "${query}"`;
-  } else if (filterKey) {
-    title = `No albums match "${FILTERS_BY_KEY[filterKey].label}"`;
-  } else {
-    title = `No albums match "${query}"`;
-  }
+/**
+ * Nothing in this collection, or nothing matching the search: name what
+ * narrowed the list and offer the way out of each (Clear search, Clear
+ * filter), plus Show all albums, the full reset. Sort and view are kept.
+ */
+function EmptyFilter({ query, filterKey, here }: { query: string; filterKey: FilterKey | null; here: string }) {
+  const navigate = useNavigate();
+  const name = filterKey ? collectionName(filterKey) : null;
+  const title =
+    query && name
+      ? `Nothing in ${name} matches "${query}"`
+      : name
+        ? `No albums in ${name}`
+        : `No albums match "${query}"`;
+  // The open album (if any) stays open while only the search or the filter
+  // changes; Show all albums closes it too.
+  const go = (url: string) => navigate(url, { replace: true });
   return (
     <div className="grid place-items-center h-full text-center px-8 py-12">
       <div className="max-w-md">
         <h3 className="text-md font-medium mb-1.5">{title}</h3>
-        <p className="text-sm text-fg-3">
-          {filterKey
-            ? "Try a different filter from the sidebar, or clear it via 'All albums'."
-            : "Try a different search term, or clear the search to see everything."}
-        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+          {query && (
+            <button type="button" className={EMPTY_ACTION} onClick={() => go(keepAlbum(here, clearSearchUrl(here)))}>
+              Clear search
+            </button>
+          )}
+          {query && filterKey && (
+            <button type="button" className={EMPTY_ACTION} onClick={() => go(keepAlbum(here, clearFilterUrl(here)))}>
+              Clear filter
+            </button>
+          )}
+          <button type="button" className={EMPTY_ACTION} onClick={() => go(allAlbumsUrl(here))}>
+            Show all albums
+          </button>
+        </div>
       </div>
     </div>
   );
+}
+
+const EMPTY_ACTION =
+  "h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+/** `next` (a /library URL) on the album route `here` is on, if any. */
+function keepAlbum(here: string, next: string): string {
+  const path = here.split("?")[0];
+  return path === "/library" ? next : next.replace(/^\/library/, path);
+}
+
+/** The name of the page an album was opened from, for "Back to …". */
+function originName(from: string, checkLabel: (id: string) => string): string {
+  const q = from.indexOf("?");
+  const pathname = q >= 0 ? from.slice(0, q) : from;
+  const search = q >= 0 ? from.slice(q) : "";
+  if (pathname.startsWith("/review")) return reviewViewName(search, checkLabel) ?? "Review";
+  if (pathname.startsWith("/settings")) return "Settings";
+  return "previous page";
 }
 
 // ---------- scroll persistence ----------
