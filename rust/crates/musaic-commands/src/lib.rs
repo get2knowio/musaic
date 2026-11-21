@@ -9,6 +9,8 @@ pub mod descriptor;
 pub mod errors;
 pub mod kinds;
 pub mod tools;
+#[cfg(any(windows, test))]
+pub mod windows_acl;
 
 pub use call::{ToolCall, ToolOutput, parse_call};
 pub use errors::{ToolError, ToolErrorCode};

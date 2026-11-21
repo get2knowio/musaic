@@ -99,9 +99,12 @@ your library and propose changes, through the bundled `musaic-cli`. The rules, i
   to let `musaic-cli` read the entry.
 - **The descriptor** `<config>/agent-instance.json` holds no credential (the app's port,
   instance id and process id). The CLI refuses it if it is a symlink, not a regular file,
-  owned by someone else, readable by others (Unix), or names a host other than
-  `127.0.0.1`. On Windows the file relies on the per-user profile directory's inherited
-  permissions rather than an explicit ACL; this is tracked as a follow-up.
+  owned by someone else, readable by others, or names a host other than `127.0.0.1`. On
+  Unix it is mode 0600. On Windows the app gives it an explicit access control list that
+  does not inherit from the folder and grants only the current user, and the CLI refuses
+  one that inherits, grants anyone else (SYSTEM aside), or cannot be read. Both set and
+  read the list with the system's own `icacls.exe` and `whoami.exe` (run from
+  `System32`, no shell), since the code uses no `unsafe` Win32 calls.
 
 ### Outbound requests
 

@@ -102,7 +102,7 @@ marked "(amended at plan time)".
 | The apply pipeline takes no file backups. Its safety comes from temp-file renames and preserving rewrites. | `musaic-services/src/apply.rs`, `musaic-fsops/src/fsutil.rs:59` | FR-038 now says "existing apply safety" rather than "backups". Adding backups is not this feature's job. |
 | Checks runs and analysis have no cancel. A tag write that has started cannot be stopped. | `musaic-app/src/ops/checks.rs:145`, `ops/analyze.rs:95-117` | FR-043: cancellation is cooperative at item boundaries (between albums and between checks). An apply can be cancelled only while it waits for approval. |
 | Reading a resolution can fingerprint and call MusicBrainz, and holds the work guard while it does. | `musaic-app/src/ops/library.rs:232-235` | FR-053: `musaic_resolution_get` reads only what is stored. It does no network work and takes no work guard, and reports "not resolved yet" when nothing is stored. |
-| There is no Windows ACL code anywhere, and `unsafe` is forbidden. | workspace | FR-018: on Windows the descriptor relies on the per-user profile directory's inherited ACL, with a follow-up issue filed. The descriptor holds no credential, and mutual proof (FR-020) protects against a spoofed endpoint. |
+| There is no Windows ACL code anywhere, and `unsafe` is forbidden. | workspace | FR-018: on Windows the descriptor relies on the per-user profile directory's inherited ACL, with a follow-up issue filed (since resolved by issue #346: an explicit owner-only DACL, research R13). The descriptor holds no credential, and mutual proof (FR-020) protects against a spoofed endpoint. |
 | Approval cards cannot outlive the operation handles and tokens that would act on them. | — | FR-034: cards are persisted for history and audit, and a restart expires every pending card ("app restarted"). Durable delegation that survives a restart belongs to the next feature. |
 
 ### Session 2026-11-20 (user decision: before-image of agent changes)
@@ -355,10 +355,13 @@ against expectations.
   format version, a fresh instance id, the app version, supported protocol profiles, the
   numeric loopback port and the PID, and no credential.
 - **FR-018**: The descriptor MUST be written atomically with owner-only permissions and
-  removed at shutdown. On Windows it relies on the per-user profile directory's inherited
-  ACL; an explicit ACL is a filed follow-up (amended at plan time).
+  removed at shutdown. On Windows owner-only means an explicit DACL that does not inherit
+  from the folder and grants access to the current user alone (amended at plan time, and
+  again for issue #346, which replaced the reliance on the profile directory's inherited
+  ACL).
 - **FR-019**: The CLI MUST reject a descriptor that is a symlink, owned by another user,
-  accessible to others, of an unknown format version, or naming a non-loopback endpoint.
+  accessible to others (on Windows: a DACL that inherits, or that grants anyone but the
+  current user or SYSTEM, or one the CLI cannot read), of an unknown format version, or naming a non-loopback endpoint.
 - **FR-020**: The CLI MUST treat the PID as a hint only and MUST confirm the instance's
   identity before it sends anything derived from the pairing secret; a stale descriptor
   (no answer, or a different instance) yields `APP_NOT_RUNNING`.

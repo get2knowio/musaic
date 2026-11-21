@@ -134,3 +134,9 @@ the MCP profiles the server speaks (`mcp-2026-07-28`, `mcp-2025-11-25`) and the 
 (none). It prints no secret and makes no tool call but `capabilities`. Exit code 0 means
 healthy, 1 means a problem was found. For the other commands: 0 success, 2 a tool error,
 3 a transport error (app not running and similar), 64 usage.
+
+The descriptor (`<config>/agent-instance.json`) is `invalid` when someone else could read
+it. On Unix the app writes it with mode 0600. On Windows the app gives it an access
+control list that grants only you and does not inherit from the folder, using the
+system's `icacls.exe`; the CLI refuses one that inherits, grants anyone else (SYSTEM
+aside), or whose list it cannot read. Quitting and reopening Musaic writes a fresh one.

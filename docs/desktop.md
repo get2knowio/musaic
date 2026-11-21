@@ -59,7 +59,9 @@ the server drains for up to 3 seconds (then remaining connections are aborted),
 the application shuts down (a running library scan cancelled, so it saves nothing
 and starts nothing, and waited for; fingerprint pool joined, job worker stopped,
 the threads of agent operations asked to stop at their next item and joined) and
-the instance file and the agent descriptor are removed. No child processes are ever spawned.
+the instance file and the agent descriptor are removed. No child processes are ever spawned,
+except, on Windows, the system's `whoami.exe` and `icacls.exe`, run briefly and without a
+window to give the agent descriptor its owner-only access control list.
 
 ### Quitting while work runs
 
@@ -245,7 +247,7 @@ Corrections… and Add Cover… / Change Cover….
 | Database, settings (including the theme and tile size), logs, thumbnails, trash, window state, the record of each multi-disc conversion (`conversions/`, one JSON file each; kept outside the database so a restore does not lose it) | the config dir: `--config-dir`, else `MUSAIC_CONFIG_DIR`, else `~/.musaic` (Windows: `%USERPROFILE%\.musaic`) |
 | API keys | the OS keyring, service name `musaic` |
 | Agent pairing secrets (one per pairing, plus an index of the active pairing ids; no key is ever written to a file) | the OS keyring, service name `musaic-agent`, account `<config dir id>:<pairing id>` (a development run with in-memory secrets writes `<config>/agent-dev-credentials/<pairing id>` at mode 0600 instead) |
-| Where an agent's CLI finds the running app (`{instanceId, port, pid, ...}`; holds no credential; written at start, removed at teardown only if it still names this instance) | `<config>/agent-instance.json`, mode 0600 |
+| Where an agent's CLI finds the running app (`{instanceId, port, pid, ...}`; holds no credential; written at start, removed at teardown only if it still names this instance) | `<config>/agent-instance.json`, mode 0600 (Windows: an access control list for the current user alone, not inherited) |
 | The before-image of every change an agent made (prior tag values, names, and byte-for-byte copies of the cover sidecars and embedded pictures a cover change replaced); kept 90 days, then pruned at start-up | `<config>/agent-changes/<change id>/` |
 | Web view storage (HTTP cache, and a copy of the theme and tile size used only for the first paint; the web view's address changes on every launch, so nothing there is kept from one launch to the next) | managed by the platform's webview, outside the config dir: macOS `~/Library/WebKit/io.get2know.musaic` and `~/Library/Caches/io.get2know.musaic`; Windows `%LOCALAPPDATA%\io.get2know.musaic\`; Linux `~/.local/share/io.get2know.musaic/` |
 

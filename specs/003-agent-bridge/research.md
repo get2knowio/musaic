@@ -250,6 +250,39 @@ Checked against main `00113c9b` and the published MCP documentation, 2026-11-20.
 
 ## R13. Windows descriptor ACL
 
-- **Decision**: no explicit ACL; see the plan's Complexity Tracking. The CLI still checks
-  that the descriptor is a regular file, not a reparse point or symlink, and that its
-  endpoint is loopback. A follow-up issue covers an explicit ACL.
+- **Decision** (amended for issue #346): the descriptor gets an explicit owner-only DACL,
+  set and read with the system's own tools, `icacls.exe` and `whoami.exe`, run from
+  `%SystemRoot%\System32` by absolute path, without a shell, with arguments as a vector
+  and without a console window (`musaic-commands/src/windows_acl.rs`).
+  - **Writer**: the temp file is created, then, before anything is written to it,
+    `icacls <tmp> /inheritance:r /grant:r *<user SID>:F` removes inheritance and every
+    other ACE, leaving full control for the current user alone. The DACL is read back and
+    checked as the reader will; a failure removes the temp file and the descriptor is not
+    written. The rename keeps the DACL.
+  - **Reader**: `icacls <file> /save <temp>` writes the DACL as SDDL (UTF-16LE), which is
+    the same in every display language, unlike icacls's normal output. The CLI refuses the
+    descriptor (`DESCRIPTOR_INVALID`) unless the DACL is protected (`D:P…`, no inheritance)
+    and every ACE that grants access names the current user or SYSTEM. Deny ACEs are
+    allowed. SYSTEM is tolerated because it can read any file anyway and some backup and
+    endpoint tools add it; Administrators, Users, Authenticated Users, Everyone, CREATOR
+    OWNER and OWNER RIGHTS are refused. A null DACL is refused. If the user's SID or the
+    DACL cannot be learned, the descriptor is refused (fail closed).
+  - **Current user**: `whoami /user /fo csv /nh`, whose SID column is locale-independent.
+    The file owner is not used, because an elevated process's files are owned by
+    Administrators. SDDL writes the built-in Administrator account (RID 500) as `LA`,
+    which is accepted for that user only.
+- **Rationale**: the workspace forbids `unsafe` in our code, so the Win32 security APIs
+  are reachable only through a crate with safe wrappers. None is maintained:
+  `windows-permissions` (MIT, safe wrappers for `GetNamedSecurityInfo` /
+  `SetNamedSecurityInfo` and SDDL, about 1 M downloads) and `windows-acl` (MIT) were last
+  released in 2021 and sit on `winapi` 0.3; `windows-security` was last released in 2022
+  and is barely used; `winsafe` (MIT, maintained) has token and SID calls but no DACL
+  read or write; `windows` / `windows-sys` (Microsoft) are raw bindings whose calls are
+  all `unsafe`; `sddl` is GPL-3.0. A system tool that ships with every Windows release
+  needs no new dependency and no review of third-party `unsafe` code.
+- **Alternatives considered**: PowerShell `Get-Acl` / `Set-Acl` (slow to start, subject to
+  execution policy and profile loading); parsing icacls's display output (account names
+  are localised); owner-of-a-probe-file for the user (wrong when elevated).
+- **Cost**: the reader runs two short processes (`whoami`, `icacls`) per descriptor read,
+  the writer three per app start; both are well under the 2 s `hello` budget. On Unix
+  nothing changes (mode 0600, owner uid check).

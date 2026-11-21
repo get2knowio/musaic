@@ -47,8 +47,9 @@ pub fn path(dir: &Path) -> PathBuf {
     dir.join(FILE_NAME)
 }
 
-/// Write the descriptor atomically: a temp file (mode 0600 on Unix), fsync,
-/// rename, and fsync of the directory on Unix.
+/// Write the descriptor atomically: a temp file (mode 0600 on Unix; on
+/// Windows an explicit DACL for the current user alone, set before anything
+/// is written to it), fsync, rename, and fsync of the directory on Unix.
 pub fn write_atomic_owner_only(dir: &Path, d: &Descriptor) -> std::io::Result<()> {
     let tmp = dir.join(format!("{FILE_NAME}.tmp-{}", std::process::id()));
     let body = serde_json::to_vec_pretty(d).map_err(std::io::Error::other)?;
@@ -61,6 +62,10 @@ pub fn write_atomic_owner_only(dir: &Path, d: &Descriptor) -> std::io::Result<()
     }
     let result = (|| {
         let mut f = opts.open(&tmp)?;
+        // The handle keeps the access it was opened with, so the write below
+        // still works once the DACL is replaced; the rename keeps the DACL.
+        #[cfg(windows)]
+        crate::windows_acl::restrict_to_current_user(&tmp)?;
         f.write_all(&body)?;
         f.sync_all()?;
         drop(f);
@@ -188,6 +193,7 @@ pub fn read_validated(dir: &Path) -> Result<Descriptor, DescriptorError> {
         if meta.file_attributes() & 0x400 != 0 {
             return Err(DescriptorError::Invalid("it is a reparse point".into()));
         }
+        crate::windows_acl::check_file(&p).map_err(DescriptorError::Invalid)?;
     }
     if meta.len() > MAX_BYTES {
         return Err(DescriptorError::Invalid("it is too large".into()));

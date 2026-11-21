@@ -30,6 +30,8 @@ fn write_raw(dir: &std::path::Path, body: &str) {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600)).unwrap();
     }
+    #[cfg(windows)]
+    musaic_commands::windows_acl::restrict_to_current_user(&p).unwrap();
 }
 
 #[test]
@@ -49,6 +51,15 @@ fn round_trip_and_own_removal() {
             .permissions()
             .mode();
         assert_eq!(mode & 0o777, 0o600);
+    }
+    #[cfg(windows)]
+    {
+        use musaic_commands::windows_acl;
+        let sddl = windows_acl::dacl_sddl(&descriptor::path(dir.path())).unwrap();
+        let sid = windows_acl::current_user_sid().unwrap();
+        assert_eq!(windows_acl::check_dacl(&sddl, &sid), Ok(()));
+        assert_eq!(sddl.matches('(').count(), 1, "{sddl}");
+        assert!(sddl.contains(&sid), "{sddl}");
     }
     // No temp file is left behind.
     let names: Vec<_> = std::fs::read_dir(dir.path())
@@ -131,6 +142,68 @@ fn a_descriptor_in_a_read_only_dir_is_still_owner_checked_and_read() {
     std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
     assert_eq!(read.unwrap(), sample());
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
+// Windows: the system's own icacls changes the ACL the way a user or another
+// program would.
+#[cfg(windows)]
+fn icacls(path: &std::path::Path, args: &[&str]) {
+    let exe = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+        .join("System32")
+        .join("icacls.exe");
+    let st = std::process::Command::new(exe)
+        .arg(path)
+        .args(args)
+        .status()
+        .unwrap();
+    assert!(st.success(), "icacls {args:?}");
+}
+
+#[cfg(windows)]
+#[test]
+fn the_written_acl_is_owner_only_and_not_inherited() {
+    use musaic_commands::windows_acl;
+    let dir = tempfile::tempdir().unwrap();
+    descriptor::write_atomic_owner_only(dir.path(), &sample()).unwrap();
+    let sddl = windows_acl::dacl_sddl(&descriptor::path(dir.path())).unwrap();
+    assert!(sddl.starts_with("D:P"), "{sddl}");
+    assert!(!sddl.contains(";ID;"), "{sddl}");
+    assert_eq!(
+        windows_acl::check_dacl(&sddl, &windows_acl::current_user_sid().unwrap()),
+        Ok(())
+    );
+}
+
+#[cfg(windows)]
+#[test]
+fn an_acl_granting_everyone_or_users_is_refused() {
+    for who in ["*S-1-1-0:R", "*S-1-5-32-545:R", "*S-1-5-11:R"] {
+        let dir = tempfile::tempdir().unwrap();
+        descriptor::write_atomic_owner_only(dir.path(), &sample()).unwrap();
+        icacls(&descriptor::path(dir.path()), &["/grant", who]);
+        assert!(
+            invalid(descriptor::read_validated(dir.path())).contains("allow other users"),
+            "{who}"
+        );
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn an_inherited_acl_is_refused() {
+    // A file written the ordinary way inherits the folder's ACL.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        descriptor::path(dir.path()),
+        serde_json::to_string(&sample()).unwrap(),
+    )
+    .unwrap();
+    assert!(invalid(descriptor::read_validated(dir.path())).contains("inherits"));
+    // So does one whose inheritance is turned back on.
+    let dir = tempfile::tempdir().unwrap();
+    descriptor::write_atomic_owner_only(dir.path(), &sample()).unwrap();
+    icacls(&descriptor::path(dir.path()), &["/inheritance:e"]);
+    assert!(invalid(descriptor::read_validated(dir.path())).contains("inherits"));
 }
 
 #[test]

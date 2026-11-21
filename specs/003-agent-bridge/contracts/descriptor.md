@@ -23,8 +23,12 @@ The desktop app writes the descriptor after its loopback server is bound, at
 `musaic-desktop/src/lib.rs` `boot` next to `lock.publish`. The standalone `musaic-api`
 writes it after `local_addr`. The write goes like this:
 
-1. Write `agent-instance.json.tmp-<pid>` with mode 0600 on Unix.
-2. fsync the file.
+1. Create `agent-instance.json.tmp-<pid>`: mode 0600 on Unix. On Windows, before anything
+   is written to it, replace its DACL with one ACE granting the current user full control
+   and turn inheritance off (`icacls /inheritance:r /grant:r *<SID>:F`, research R13), then
+   read the DACL back and check it as the reader does. If that fails, the temp file is
+   removed and no descriptor is written.
+2. Write the body and fsync the file.
 3. Rename it into place.
 4. fsync the directory, on Unix.
 
@@ -40,6 +44,8 @@ The CLI refuses the descriptor, and maps each refusal to an error code, in this 
 | File absent | `APP_NOT_RUNNING` |
 | Path is a symlink (lstat) or not a regular file | `DESCRIPTOR_INVALID` |
 | Unix: owner uid ≠ current euid (or the euid cannot be learned), or mode has group/other bits | `DESCRIPTOR_INVALID` |
+| Windows: a reparse point | `DESCRIPTOR_INVALID` |
+| Windows: the current user's SID or the file's DACL cannot be learned; the DACL is null or inherits from the folder (not `D:P…`); or an allow ACE names anyone but the current user or SYSTEM (deny ACEs are allowed) | `DESCRIPTOR_INVALID` |
 | Larger than 4 KiB, not JSON, unknown fields, `formatVersion` ≠ 1 | `DESCRIPTOR_INVALID` |
 | `host` ≠ `127.0.0.1`, or `port` outside 1..65535 | `DESCRIPTOR_INVALID` |
 | Connection refused, or `hello` times out (2 s) | `APP_NOT_RUNNING` (stale) |
