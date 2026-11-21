@@ -1,4 +1,4 @@
-import { AlertTriangle, CheckCircle2, CloudOff, Loader2, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, CloudOff, Loader2, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -43,6 +43,9 @@ export interface AlbumPanelProps {
   album: Album;
   /** Close the panel (the owner decides where that leads). */
   onClose: () => void;
+  /** Where closing leads, when not to the list beside it ("Back to Track
+   *  gaps"): shown as the panel's return action. */
+  returnLabel?: string;
   /** Called when an apply rewrote the album, so the owner can update its list. */
   onAlbumUpdated?: (album: Album) => void;
   /** Width of the row the panel is docked in, when known. */
@@ -72,6 +75,7 @@ export const ALBUM_PANEL_ID = "album-panel";
 export default function AlbumPanel({
   album,
   onClose,
+  returnLabel,
   onAlbumUpdated,
   availableWidth = null,
   listMinWidth = 320,
@@ -168,6 +172,7 @@ export default function AlbumPanel({
         album={album}
         onAlbumUpdated={onAlbumUpdated}
         onClose={onClose}
+        returnLabel={returnLabel}
         headingId={headingId}
         headingRef={headingRef}
       />
@@ -179,12 +184,14 @@ function SheetBody({
   album,
   onAlbumUpdated,
   onClose,
+  returnLabel,
   headingId,
   headingRef,
 }: {
   album: Album;
   onAlbumUpdated?: (a: Album) => void;
   onClose: () => void;
+  returnLabel?: string;
   headingId: string;
   headingRef: Ref<HTMLHeadingElement>;
 }) {
@@ -429,7 +436,21 @@ function SheetBody({
       {/* Panel head */}
       <div className="flex items-center justify-between gap-2 px-4 h-11 border-b border-line shrink-0">
         <div className="flex items-center gap-1.5 mono text-xs text-fg-3 min-w-0">
-          <span aria-hidden="true">Library</span>
+          {returnLabel ? (
+            // Opened from another page: say where closing leads.
+            <button
+              type="button"
+              onClick={onClose}
+              data-panel-return=""
+              className="inline-flex items-center gap-1 h-7 px-1.5 -ml-1.5 rounded text-accent hover:bg-bg-3 shrink-0 max-w-[60%] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              title={`${returnLabel} (Esc)`}
+            >
+              <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{returnLabel}</span>
+            </button>
+          ) : (
+            <span aria-hidden="true">Library</span>
+          )}
           <span className="text-fg-4" aria-hidden="true">▸</span>
           <h2
             id={headingId}
@@ -447,7 +468,7 @@ function SheetBody({
           onClick={onClose}
           className="w-8 h-8 shrink-0 grid place-items-center text-fg-3 hover:text-fg hover:bg-bg-3 rounded transition"
           aria-label="Close album panel"
-          title="Close (Esc)"
+          title={returnLabel ? `Close: ${returnLabel.replace(/^Back/, "back")} (Esc)` : "Close (Esc)"}
         >
           <X className="w-4 h-4" />
         </button>

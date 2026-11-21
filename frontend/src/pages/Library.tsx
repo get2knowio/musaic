@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 
 import FilterBar from "@/components/FilterBar";
 import AcoustidPrompt from "@/components/AcoustidPrompt";
+import FirstScanReport from "@/components/FirstScanReport";
 import TileGrid from "@/components/TileGrid";
 import AlbumList from "@/components/AlbumList";
 import AlbumPanel from "@/components/DetailSheet";
@@ -14,9 +15,18 @@ import {
 } from "@/components/DetailSheet/panelFocus";
 import { panelFillsRow } from "@/components/DetailSheet/layout";
 import { albumOpenedFrom } from "@/hooks/useRememberedLibraryUrl";
+import { useChecks } from "@/hooks/useChecks";
+import { reviewViewName } from "@/lib/reviewLinks";
+import {
+  allAlbumsUrl,
+  clearFilterUrl,
+  clearSearchUrl,
+  collectionName,
+} from "@/lib/libraryLinks";
 import LibraryPathForm from "@/components/LibraryPathForm";
-import { libraryPathHelp } from "@/lib/desktop";
+import { hasNativeFolderPicker, libraryPathHelp } from "@/lib/desktop";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
+import { useElementWidth } from "@/hooks/useElementWidth";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScanStream } from "@/hooks/useScanStream";
 import { useJobs, useActiveJobAlbumMap } from "@/hooks/useJobs";
@@ -24,7 +34,6 @@ import {
   applyFilter,
   buildNeedsAttentionSet,
   isValidFilterKey,
-  FILTERS_BY_KEY,
   type FilterKey,
 } from "@/lib/filters";
 import { parseSort, sortAlbums } from "@/lib/albumSort";
@@ -45,7 +54,7 @@ export default function LibraryPage() {
   usePageTitle("Library");
   const config = useLibraryConfig();
   const enabled = config.data?.exists === true;
-  const { albums: scannedAlbums, scan, libraryDir, snapshotSyncs } = useScanStream({ enabled });
+  const { albums: scannedAlbums, scan, libraryDir, rescan, snapshotSyncs } = useScanStream({ enabled });
 
   // Local overrides from apply flow — when the sheet emits an updated album,
   // we splice it into the scanned list so the tile reflects the change without
@@ -91,11 +100,14 @@ export default function LibraryPage() {
   // Apply filter chip first, then text search, then sort. Sort runs
   // last so it operates on the smallest list.
   const sortKey = parseSort(params.get("sort"));
-  const filtered = useMemo(() => {
-    const afterFilter = applyFilter(albums, filterKey, needsAttention);
-    const afterSearch = filterAlbums(afterFilter, query);
-    return sortAlbums(afterSearch, sortKey);
-  }, [albums, query, filterKey, needsAttention, sortKey]);
+  const inCollection = useMemo(
+    () => applyFilter(albums, filterKey, needsAttention),
+    [albums, filterKey, needsAttention],
+  );
+  const filtered = useMemo(
+    () => sortAlbums(filterAlbums(inCollection, query), sortKey),
+    [inCollection, query, sortKey],
+  );
 
   // Skeletons during a fresh scan: how many slots we expect that haven't arrived.
   const skeletonCount =
@@ -119,9 +131,15 @@ export default function LibraryPage() {
   // and the grid stays mounted (scroll position, state) but inert.
   const panelCoversGrid = !!openId && panelFillsRow(rowWidth, GRID_MIN_WIDTH);
 
-  // Close: back to the page the album was opened from (Health, Jobs, …),
-  // else to the library with the same filters. Focus goes to the album's
+  // Close: back to the page the album was opened from (a Review list,
+  // Settings, …), which says so ("Back to Track gaps"), else to the library
+  // with the same filters (a direct album link). Focus goes to the album's
   // tile, or to <main> when leaving the page or the tile is filtered out.
+  const openedFrom = albumId ? albumOpenedFrom(location.key) : null;
+  const { data: checks = [] } = useChecks();
+  const returnLabel = openedFrom
+    ? `Back to ${originName(openedFrom, (id) => checks.find((c) => c.meta.id === id)?.meta.label ?? id)}`
+    : undefined;
   const closePanel = useCallback(() => {
     if (!albumId) return;
     if (albumOpenedFrom(location.key)) {
@@ -234,18 +252,24 @@ export default function LibraryPage() {
     <>
       <FilterBar
         totalCount={albums.length}
-        shownCount={query || filterKey ? filtered.length : undefined}
+        collectionCount={inCollection.length}
+        shownCount={query ? filtered.length : undefined}
         libraryDir={libraryDir}
         scannedAt={scan.scannedAt}
-        activeFilterLabel={filterKey ? FILTERS_BY_KEY[filterKey].label : undefined}
+        activeFilterLabel={filterKey ? collectionName(filterKey) : undefined}
       />
+      <FirstScanReport albumCount={albums.length} onScanAgain={() => void rescan()} />
       <AcoustidPrompt scannedAt={scan.scannedAt} />
       <div ref={rowRef} className="relative flex-1 min-h-0 flex">
         <ScrollPersistedArea ref={gridRef} inert={panelCoversGrid} storageKey={`mm.library.scroll.${view}`}>
           {albums.length === 0 && scan.status === "done" ? (
-            <EmptyLibrary />
+            <EmptyLibrary dir={libraryDir ?? config.data.library_dir} />
           ) : filtered.length === 0 && (query || filterKey) ? (
-            <EmptyFilter query={query} filterKey={filterKey} />
+            <EmptyFilter
+              query={query}
+              filterKey={filterKey}
+              here={location.pathname + location.search}
+            />
           ) : view === "list" ? (
             <AlbumList
               albums={filtered}
@@ -265,6 +289,7 @@ export default function LibraryPage() {
             ref={panelRef}
             album={openAlbum}
             onClose={closePanel}
+            returnLabel={returnLabel}
             onAlbumUpdated={onAlbumUpdated}
             availableWidth={rowWidth}
             listMinWidth={GRID_MIN_WIDTH}
@@ -278,12 +303,15 @@ export default function LibraryPage() {
 // ---------- empty / placeholder views ----------
 
 /**
- * The path entry sits here (native folder picker in the
- * desktop window, text field in a browser) instead of a link to Settings.
- * A saved, existing directory flips the config query, this page renders
- * the grid, and its scan stream opens straight away (useScanStream).
+ * The path entry sits here instead of a link to Settings. In the desktop
+ * window the native picker is the one primary action (choosing saves and
+ * starts the scan; there is no Save step), with a typed path a link away;
+ * in a browser the text field is the way in. A saved, existing directory
+ * flips the config query, this page renders the grid, and its scan stream
+ * opens straight away (useScanStream).
  */
 function NoLibraryConfigured() {
+  const native = hasNativeFolderPicker();
   return (
     <LibraryShell icon={<Disc3 className="w-9 h-9" />} title="Configure your library">
       <p className="text-md text-fg-3 leading-relaxed">
@@ -291,16 +319,22 @@ function NoLibraryConfigured() {
         Subfolders with FLAC files are treated as albums.
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
-        <LibraryPathForm initial="" inputClassName="w-80 max-w-full" />
+        <LibraryPathForm
+          initial=""
+          inputClassName="w-80 max-w-full"
+          pickerLabel="Choose music folder…"
+          manual={native ? "on-request" : "shown"}
+        />
       </div>
-      <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
+      {!native && <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>}
     </LibraryShell>
   );
 }
 
 /** A folder is configured but is not there now: most often a drive that
  *  is not connected. Nothing in the library is touched; once the folder is
- *  back, Try again shows it. */
+ *  back, Try again shows it. Reconnecting is the lead; choosing another
+ *  folder is a separate, secondary action (Change folder…). */
 function LibraryFolderUnreachable({
   dir,
   retrying,
@@ -323,11 +357,17 @@ function LibraryFolderUnreachable({
       <div className="mt-5">
         <RetryButton retrying={retrying} onRetry={onRetry} label="Try again" />
       </div>
-      <p className="text-sm text-fg-3 mt-6 mb-2">Or choose a different folder:</p>
+      <p className="text-sm text-fg-3 mt-6 mb-2">The library has moved for good?</p>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <LibraryPathForm initial={dir} inputClassName="w-80 max-w-full" />
+        <LibraryPathForm
+          initial={dir}
+          inputClassName="w-80 max-w-full"
+          pickerLabel="Change folder…"
+          pickerEmphasis="secondary"
+          manual="on-request"
+          manualLabel={hasNativeFolderPicker() ? "Enter a path manually" : "Change folder…"}
+        />
       </div>
-      <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
     </LibraryShell>
   );
 }
@@ -392,41 +432,98 @@ function LibraryShell({
   );
 }
 
-function EmptyLibrary() {
+/** The folder is there and the scan finished, but found no album: offer
+ *  another folder right here (the picker in the desktop window, the path
+ *  field in a browser). */
+function EmptyLibrary({ dir }: { dir: string | null }) {
+  const native = hasNativeFolderPicker();
   return (
     <div className="grid place-items-center h-full text-center px-8 py-16">
       <div className="max-w-md">
-        <h3 className="text-lg font-semibold mb-2">No FLAC files found</h3>
-        <p className="text-sm text-fg-3">
-          The configured library directory exists but contains no folders with
-          FLAC files. Check the path in Settings.
+        <h3 className="text-lg font-semibold mb-2">No FLAC albums in this folder</h3>
+        <p className="text-sm text-fg-3 leading-relaxed">
+          {dir ? (
+            <>
+              Musaic looked through <code className="mono text-fg-2 break-all">{dir}</code> and found no
+              folders with FLAC files.
+            </>
+          ) : (
+            "Musaic found no folders with FLAC files in the library folder."
+          )}{" "}
+          Each album should be a folder of .flac files somewhere inside it.
         </p>
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+          <LibraryPathForm
+            initial={dir ?? ""}
+            inputClassName="w-80 max-w-full"
+            pickerLabel="Choose another folder…"
+            manual="on-request"
+            manualLabel={native ? "Enter a path manually" : "Choose another folder…"}
+          />
+        </div>
       </div>
     </div>
   );
 }
 
-function EmptyFilter({ query, filterKey }: { query: string; filterKey: FilterKey | null }) {
-  let title = "";
-  if (query && filterKey) {
-    title = `No ${FILTERS_BY_KEY[filterKey].label.toLowerCase()} match "${query}"`;
-  } else if (filterKey) {
-    title = `No albums match "${FILTERS_BY_KEY[filterKey].label}"`;
-  } else {
-    title = `No albums match "${query}"`;
-  }
+/**
+ * Nothing in this collection, or nothing matching the search: name what
+ * narrowed the list and offer the way out of each (Clear search, Clear
+ * filter), plus Show all albums, the full reset. Sort and view are kept.
+ */
+function EmptyFilter({ query, filterKey, here }: { query: string; filterKey: FilterKey | null; here: string }) {
+  const navigate = useNavigate();
+  const name = filterKey ? collectionName(filterKey) : null;
+  const title =
+    query && name
+      ? `Nothing in ${name} matches "${query}"`
+      : name
+        ? `No albums in ${name}`
+        : `No albums match "${query}"`;
+  // The open album (if any) stays open while only the search or the filter
+  // changes; Show all albums closes it too.
+  const go = (url: string) => navigate(url, { replace: true });
   return (
     <div className="grid place-items-center h-full text-center px-8 py-12">
       <div className="max-w-md">
         <h3 className="text-md font-medium mb-1.5">{title}</h3>
-        <p className="text-sm text-fg-3">
-          {filterKey
-            ? "Try a different filter from the sidebar, or clear it via 'All albums'."
-            : "Try a different search term, or clear the search to see everything."}
-        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+          {query && (
+            <button type="button" className={EMPTY_ACTION} onClick={() => go(keepAlbum(here, clearSearchUrl(here)))}>
+              Clear search
+            </button>
+          )}
+          {query && filterKey && (
+            <button type="button" className={EMPTY_ACTION} onClick={() => go(keepAlbum(here, clearFilterUrl(here)))}>
+              Clear filter
+            </button>
+          )}
+          <button type="button" className={EMPTY_ACTION} onClick={() => go(allAlbumsUrl(here))}>
+            Show all albums
+          </button>
+        </div>
       </div>
     </div>
   );
+}
+
+const EMPTY_ACTION =
+  "h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+/** `next` (a /library URL) on the album route `here` is on, if any. */
+function keepAlbum(here: string, next: string): string {
+  const path = here.split("?")[0];
+  return path === "/library" ? next : next.replace(/^\/library/, path);
+}
+
+/** The name of the page an album was opened from, for "Back to …". */
+function originName(from: string, checkLabel: (id: string) => string): string {
+  const q = from.indexOf("?");
+  const pathname = q >= 0 ? from.slice(0, q) : from;
+  const search = q >= 0 ? from.slice(q) : "";
+  if (pathname.startsWith("/review")) return reviewViewName(search, checkLabel) ?? "Review";
+  if (pathname.startsWith("/settings")) return "Settings";
+  return "previous page";
 }
 
 // ---------- scroll persistence ----------
@@ -484,26 +581,6 @@ function ScrollPersistedArea({
       {children}
     </div>
   );
-}
-
-// ---------- layout ----------
-
-/** A callback ref and the element's current width (null until measured). */
-function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, number | null] {
-  const [width, setWidth] = useState<number | null>(null);
-  const observer = useRef<ResizeObserver | null>(null);
-  const ref = useCallback((el: T | null) => {
-    observer.current?.disconnect();
-    observer.current = null;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    setWidth(el.getBoundingClientRect().width);
-    observer.current = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w !== undefined) setWidth(w);
-    });
-    observer.current.observe(el);
-  }, []);
-  return [ref, width];
 }
 
 // ---------- filtering ----------

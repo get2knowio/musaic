@@ -11,23 +11,29 @@ import {
 } from "@/lib/albumSort";
 
 interface FilterBarProps {
+  /** Albums in the library. */
   totalCount: number;
+  /** Albums in the current collection (defaults to the library's). */
+  collectionCount?: number;
+  /** Albums the search leaves of the collection, while searching. */
   shownCount?: number;
   libraryDir: string | null;
   scannedAt: string | null;
+  /** The current collection's name; none is All albums. */
   activeFilterLabel?: string;
 }
 
 /**
- * Strip above the tile grid: stats on the left, sort/filter chips on the right.
+ * Strip above the tile grid: the current collection and its count on the
+ * left, the sort on the right.
  *
  * Sort selection is URL-driven (`?sort=<field>-<dir>`) so it survives reloads
  * and stays in sync with the rest of the navigation state (`view`, `filter`).
  */
 export default function FilterBar({
-  totalCount, shownCount, libraryDir, scannedAt, activeFilterLabel,
+  totalCount, collectionCount, shownCount, libraryDir, scannedAt, activeFilterLabel,
 }: FilterBarProps) {
-  const filtered = shownCount !== undefined && shownCount !== totalCount;
+  const searched = shownCount !== undefined && shownCount !== (collectionCount ?? totalCount);
   const [params, setParams] = useSearchParams();
   const sortKey = parseSort(params.get("sort"));
 
@@ -49,29 +55,33 @@ export default function FilterBar({
     setParams(p, { replace: true });
   };
 
+  // The current collection and its count in albums: "All albums 120", or
+  // "Missing artwork 12 of 120 albums" with a way back to All albums.
+  const inCollection = collectionCount ?? totalCount;
   return (
-    <div className="flex items-center gap-2.5 px-4 h-[var(--filterbar-h)] border-b border-line bg-panel-2 text-sm shrink-0">
-      <span className="mono text-fg-3">
-        <b className="text-fg font-medium tabular-nums">{totalCount}</b> albums
-      </span>
-      {activeFilterLabel && (
-        <>
-          <span className="text-fg-4 mono text-xs">·</span>
-          <span className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-xs">
-            <span className="mono">filter:</span> {activeFilterLabel}
-            <button
-              type="button"
-              onClick={clearFilter}
-              className="w-4 h-4 grid place-items-center rounded-full hover:bg-accent/20 transition"
-              title="Clear filter"
-              aria-label="Clear filter"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
-        </>
+    <div className="flex items-center gap-2.5 px-4 h-[var(--filterbar-h)] border-b border-line bg-panel-2 text-sm shrink-0 min-w-0">
+      {activeFilterLabel ? (
+        <span className="inline-flex items-center gap-1 h-6 pl-2 pr-1 rounded-full bg-accent-soft text-accent border border-accent/30 text-xs shrink-0">
+          <span data-collection-name>{activeFilterLabel}</span>
+          <button
+            type="button"
+            onClick={clearFilter}
+            className="w-4 h-4 grid place-items-center rounded-full hover:bg-accent/20 transition"
+            title="Clear filter"
+            aria-label="Clear filter"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </span>
+      ) : (
+        <span data-collection-name className="text-fg font-medium shrink-0">All albums</span>
       )}
-      {filtered && (
+      <span className="mono text-fg-3 shrink-0" data-collection-count>
+        <b className="text-fg font-medium tabular-nums">{inCollection}</b>
+        {activeFilterLabel ? ` of ${totalCount}` : ""}{" "}
+        {(activeFilterLabel ? totalCount : inCollection) === 1 ? "album" : "albums"}
+      </span>
+      {searched && (
         <>
           <span className="text-fg-4 mono text-xs">·</span>
           <span className="mono text-fg-3 tabular-nums">{shownCount} shown</span>

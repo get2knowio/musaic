@@ -87,8 +87,9 @@ export default function Tile({ album, activeJob }: TileProps) {
           className="absolute top-2 right-2 inline-flex items-center gap-1 mono text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-warn-soft text-warn border border-warn/40 shadow"
           title={`Album dir not seen on disk since ${formatMissingDate(album.missing_since!)}`}
         >
-          <CloudOff className="w-3 h-3" />
-          Missing
+          <CloudOff className="w-3 h-3" aria-hidden />
+          Folder missing
+          <span className="sr-only">, not seen on disk since {formatMissingDate(album.missing_since!)}</span>
         </span>
       )}
       <div className={`p-2.5 min-h-[64px] ${isMissing ? "opacity-60" : ""}`}>

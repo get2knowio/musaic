@@ -93,7 +93,7 @@ describe("library path entry", () => {
   it("browser: the empty state has the text field (no Settings link, no picker) and saving scans at once", async () => {
     renderLibrary();
     expect(screen.queryByText("Set library directory in Settings")).toBeNull();
-    expect(screen.queryByRole("button", { name: /Choose folder/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Choose .*folder/ })).toBeNull();
     expect(screen.getByText(BROWSER_HELP)).toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("textbox", { name: "Library directory path" }), {
@@ -112,7 +112,7 @@ describe("library path entry", () => {
     (window as { __musaicDesktop?: unknown }).__musaicDesktop = Object.freeze({ folderPicker: true });
     renderLibrary();
     expect(screen.queryByText(BROWSER_HELP)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose music folder…" }));
 
     await waitFor(() => expect(scanStreams().length).toBe(1));
     const order = calls.filter((c) => c.method === "POST").map((c) => c.url);
@@ -127,7 +127,7 @@ describe("library path entry", () => {
       return json({ path: null });
     });
     renderLibrary();
-    fireEvent.click(screen.getByRole("button", { name: "Choose folder…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose music folder…" }));
     await waitFor(() => expect(calls.some((c) => c.url === "/__musaic/dialog/folder")).toBe(true));
     await new Promise((r) => setTimeout(r, 20));
     expect(calls.some((c) => c.url === "/api/config")).toBe(false);

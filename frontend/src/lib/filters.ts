@@ -16,21 +16,24 @@ export interface FilterDef {
   matches: (album: Album, needsAttention: Set<string>) => boolean;
 }
 
+// Sidebar order. The labels name what is missing (#185: "Missing" and
+// "Missing art" side by side read as the same thing).
 export const FILTERS: FilterDef[] = [
   {
-    // Albums with a job whose result is waiting (proposed changes, or a
-    // failure). Named for the jobs so it is not read as the album count of
-    // Review, which counts findings too.
-    key: "needs-review",
-    label: "Jobs to review",
-    dotColor: "var(--warn)",
-    matches: (album, needsAttention) => needsAttention.has(album.id),
-  },
-  {
     key: "missing-art",
-    label: "Missing art",
+    label: "Missing artwork",
     dotColor: "var(--err)",
     matches: (album) => !album.has_embedded_cover && !album.cover_file,
+  },
+  {
+    // v15 — albums the scanner doesn't see on disk right now. The
+    // row + cached metadata persist; the user can either wait for
+    // the album to return (transient mount issue) or remove the
+    // album from the library explicitly via the detail sheet.
+    key: "missing",
+    label: "Missing folders",
+    dotColor: "var(--warn)",
+    matches: (album) => !!album.missing_since,
   },
   {
     key: "compilations",
@@ -39,14 +42,13 @@ export const FILTERS: FilterDef[] = [
     matches: (album) => album.is_compilation,
   },
   {
-    // v15 — albums the scanner doesn't see on disk right now. The
-    // row + cached metadata persist; the user can either wait for
-    // the album to return (transient mount issue) or remove the
-    // album from the library explicitly via the detail sheet.
-    key: "missing",
-    label: "Missing",
+    // Albums with a job whose result is waiting (proposed changes, or a
+    // failure). Named for the jobs so it is not read as the album count of
+    // Review, which counts findings too.
+    key: "needs-review",
+    label: "Jobs to review",
     dotColor: "var(--warn)",
-    matches: (album) => !!album.missing_since,
+    matches: (album, needsAttention) => needsAttention.has(album.id),
   },
 ];
 

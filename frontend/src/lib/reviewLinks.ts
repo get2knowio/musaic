@@ -38,6 +38,25 @@ export function reviewUrl(
 }
 
 /**
+ * What a Review URL's query string shows, in the words its rail uses:
+ * a check's label, "Proposed changes", "Failed jobs", "Ignored findings";
+ * null for All open (with or without an album filter), which is just
+ * "Review". Jobs in progress and history are in Activity, not Review.
+ * For return links ("Back to …").
+ */
+export function reviewViewName(search: string, checkLabel: (id: string) => string): string | null {
+  const p = new URLSearchParams(search);
+  const show = p.get("show");
+  if (show === "ignored") return "Ignored findings";
+  const check = p.get("check");
+  if (check) return checkLabel(check);
+  const kind = p.get("kind");
+  if (kind === "proposed") return "Proposed changes";
+  if (kind === "failed") return "Failed jobs";
+  return null;
+}
+
+/**
  * Needs attention's query string, as Review reads it. `check`, `job`,
  * `album` and `ignored` mean the same. `jobs=proposed|failed` (a job list)
  * becomes that type filter; `jobs=running|finished` opens the Activity

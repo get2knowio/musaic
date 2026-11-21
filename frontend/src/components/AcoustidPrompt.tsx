@@ -32,7 +32,7 @@ export default function AcoustidPrompt({ scannedAt }: { scannedAt: string | null
       aria-label="Improve matching"
       className="flex items-start gap-3 px-4 py-2.5 border-b border-line bg-panel-2"
     >
-      <Fingerprint className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+      <Fingerprint className="w-4 h-4 text-fg-3 shrink-0 mt-0.5" />
       <p className="flex-1 text-sm text-fg-2 leading-relaxed">
         <span className="font-medium text-fg">Improve matching: add an AcoustID key.</span>{" "}
         With a key, Musaic can match albums by their audio when names and tags are not enough.
@@ -41,7 +41,9 @@ export default function AcoustidPrompt({ scannedAt }: { scannedAt: string | null
       <button
         type="button"
         onClick={() => navigate(`/settings${ACOUSTID_KEY_HASH}`)}
-        className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition whitespace-nowrap"
+        // Optional: a secondary action, so the scan's own next step (Review
+        // findings) stays the one primary button on the page.
+        className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition whitespace-nowrap"
       >
         Add a key in Settings
       </button>

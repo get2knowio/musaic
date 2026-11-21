@@ -8,8 +8,9 @@
  *   1. Watches location changes and saves the current /library URL into
  *      sessionStorage whenever the user is on a library route.
  *   2. Exposes the most-recently-saved URL via `useRememberedLibraryUrl()`,
- *      so the Sidebar's "Library" link can restore the user to the same view
- *      they had before they navigated away.
+ *      so the Sidebar's "Library" link resumes the same view (collection,
+ *      search, open album, sort, tiles/list) they had before they navigated
+ *      away. "All albums" is the reset (`lib/libraryLinks.ts`).
  *   3. Notes when an album was opened from another page (Health, Jobs, a
  *      toast), so closing the album panel can go back there instead of to
  *      the library (`albumOpenedFrom`).
@@ -42,11 +43,11 @@ function isAlbumPath(pathname: string): boolean {
 export function useTrackLibraryUrl(): void {
   const location = useLocation();
   const navigationType = useNavigationType();
-  const previous = useRef<{ pathname: string; key: string } | null>(null);
+  const previous = useRef<{ pathname: string; search: string; key: string } | null>(null);
 
   useEffect(() => {
     const before = previous.current;
-    previous.current = { pathname: location.pathname, key: location.key };
+    previous.current = { pathname: location.pathname, search: location.search, key: location.key };
     if (!isLibraryPath(location.pathname)) return;
     const url = location.pathname + location.search;
 
@@ -57,7 +58,7 @@ export function useTrackLibraryUrl(): void {
       if (navigationType === "PUSH" && !isLibraryPath(before.pathname)) {
         // The Sidebar's Library link restoring the remembered view is a
         // return to the library, not an album opened from elsewhere.
-        if (url !== readSaved()) recordOpenedFrom(location.key, before.pathname);
+        if (url !== readSaved()) recordOpenedFrom(location.key, before.pathname + before.search);
       } else if (navigationType === "REPLACE" && isAlbumPath(before.pathname)) {
         // Swapping albums replaces the entry; keep where it came from.
         const from = albumOpenedFrom(before.key);
@@ -100,17 +101,19 @@ export function useRememberedLibraryUrl(): string {
 }
 
 /**
- * The pathname of the page an album route's history entry was opened from,
- * when that was not the library; null otherwise.
+ * The address (pathname and query string) of the page an album route's
+ * history entry was opened from, when that was not the library; null
+ * otherwise. The query string names the view to return to ("Back to Track
+ * gaps"); entries recorded before it was kept hold the pathname alone.
  */
 export function albumOpenedFrom(locationKey: string): string | null {
   return readOpenedFromMap()[locationKey] ?? null;
 }
 
-function recordOpenedFrom(locationKey: string, pathname: string): void {
+function recordOpenedFrom(locationKey: string, from: string): void {
   const map = readOpenedFromMap();
   delete map[locationKey];
-  map[locationKey] = pathname;
+  map[locationKey] = from;
   const keys = Object.keys(map);
   for (const k of keys.slice(0, Math.max(0, keys.length - OPENED_FROM_LIMIT))) delete map[k];
   try {
