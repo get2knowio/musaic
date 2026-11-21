@@ -2277,3 +2277,144 @@ fn shutdown_joins_the_worker_threads_and_refuses_new_ones() {
     let report = w.app.shutdown();
     assert!(report.scan_stopped);
 }
+
+/// An approved start whose authority went away after its card was made: the
+/// operation ends Failed with FORBIDDEN, no work ran, and the activity log
+/// records the refusal and no start (`start_still_allowed`).
+fn assert_refused_start(w: &AgentWorld, pairing: &str, op: &str, tool: &str) {
+    let snap = w.app.0.agent.operation_any(op).expect("the operation");
+    assert_eq!(
+        snap.state,
+        musaic_commands::tools::operation::OperationState::Failed
+    );
+    assert_eq!(
+        snap.error.as_ref().map(|e| e.code),
+        Some(ToolErrorCode::Forbidden),
+        "{:?}",
+        snap.error
+    );
+    assert!(snap.result.is_none(), "no work ran: {:?}", snap.result);
+    assert_eq!(snap.counts, Default::default());
+    let act = w.app.ops().agent().activity(pairing).unwrap();
+    assert!(
+        act.iter()
+            .any(|a| a.tool == tool && a.outcome == "refused:FORBIDDEN"),
+        "{act:?}"
+    );
+    assert!(
+        !act.iter().any(|a| a.tool == tool && a.outcome == "started"),
+        "{act:?}"
+    );
+}
+
+#[test]
+fn approving_a_start_after_the_pairing_was_revoked_starts_nothing() {
+    let w = agent_world_scanned();
+    let id = w
+        .pair("revoked", &[K::LibraryRead, K::ComputeScan])
+        .pairing
+        .id;
+    let p = w.login(&id);
+    let caps = out_json(w.call(&p, "musaic_capabilities", json!({})));
+    let root = caps["configuredRoots"][0]["rootId"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let checks = out_json(w.call(
+        &p,
+        "musaic_checks_start",
+        json!({"checkIds": ["track-gaps"], "idempotencyKey": "key-revoked-chk1"}),
+    ));
+    let scan = out_json(w.call(
+        &p,
+        "musaic_scan_start",
+        json!({"configuredRootId": root, "idempotencyKey": "key-revoked-scn1"}),
+    ));
+    for h in [&checks, &scan] {
+        assert_eq!(h["state"], "awaiting_approval", "{h}");
+    }
+    // The revoke lands between the card being read and the start. It is
+    // written straight to the database so the card is still pending when the
+    // user approves it (the revoke operation also denies waiting cards).
+    let conn = musaic_db::open_connection(w.app.db_path()).unwrap();
+    assert!(musaic_db::agent::revoke_pairing(&conn, &id, &w.app.now_iso()).unwrap());
+    let scan_before = w.app.ops().scan().status();
+    for (h, tool) in [
+        (&checks, "musaic_checks_start"),
+        (&scan, "musaic_scan_start"),
+    ] {
+        w.app
+            .ops()
+            .agent()
+            .decide_approval(h["approvalId"].as_str().unwrap(), true)
+            .unwrap();
+        assert_refused_start(&w, &id, h["operationId"].as_str().unwrap(), tool);
+    }
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(w.app.ops().scan().status(), scan_before, "no scan started");
+}
+
+#[test]
+fn approving_a_start_after_its_kind_turned_to_refuse_starts_nothing() {
+    let w = agent_world_scanned();
+    let id = w.pair("refused", COMPUTE).pairing.id;
+    let p = w.login(&id);
+    let a = w
+        .app
+        .ops()
+        .library()
+        .list_albums(false)
+        .unwrap()
+        .albums
+        .remove(0);
+    let before = files_digest(a.path());
+    let analysis = out_json(w.call(
+        &p,
+        "musaic_analysis_start",
+        json!({"albumIds": [a.id()], "kinds": ["replaygain"], "idempotencyKey": "key-refused-ana1"}),
+    ));
+    let checks = out_json(w.call(
+        &p,
+        "musaic_checks_start",
+        json!({"checkIds": ["no-cover-art"], "idempotencyKey": "key-refused-chk1"}),
+    ));
+    for h in [&analysis, &checks] {
+        assert_eq!(h["state"], "awaiting_approval", "{h}");
+    }
+    // Turning a kind to Refuse leaves the waiting cards pending.
+    w.app
+        .ops()
+        .agent()
+        .set_policy(
+            &id,
+            &[
+                (K::TagsWrite, Decision::Refuse),
+                (K::ComputeScan, Decision::Refuse),
+            ],
+        )
+        .unwrap();
+    for (h, tool) in [
+        (&analysis, "musaic_analysis_start"),
+        (&checks, "musaic_checks_start"),
+    ] {
+        w.app
+            .ops()
+            .agent()
+            .decide_approval(h["approvalId"].as_str().unwrap(), true)
+            .unwrap();
+        assert_refused_start(&w, &id, h["operationId"].as_str().unwrap(), tool);
+        // The agent reads the same through its own tool.
+        let op = out_json(w.call(
+            &p,
+            "musaic_operation_get",
+            json!({"operationId": h["operationId"]}),
+        ));
+        assert_eq!(
+            (op["state"].as_str(), op["error"]["code"].as_str()),
+            (Some("failed"), Some("FORBIDDEN")),
+            "{op}"
+        );
+    }
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(files_digest(a.path()), before, "no analysis wrote tags");
+}
