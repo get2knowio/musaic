@@ -256,7 +256,7 @@ impl Used {
     }
 }
 
-/// The Python app's `after` plus this build's v16 -> v20 steps, enumerated:
+/// The Python app's `after` plus this build's v16 -> v21 steps, enumerated:
 ///
 /// * D1: `schema_version` 16 -> [`SCHEMA_VERSION`];
 /// * D2: `track_fingerprints` gains
@@ -273,6 +273,8 @@ impl Used {
 /// * D7 (v20): `albums` gains `track_discs_json` and `tag_disc_total`, NULL
 ///   on every existing row, after the Python app's columns; its SQL is the
 ///   Python app's with them spliced in (checked separately, as D2's);
+/// * D8 (v21): the six `agent_*` tables (empty), their primary-key indexes
+///   and two named indexes, appended after D6's rows;
 /// * D4: `journal_mode` is `wal` on both sides (no delta; listed
 ///   so a change shows up here);
 /// * D5: the v14 step leaves an ignored
@@ -298,7 +300,7 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
     // three.
     let om = ours["sqlite_master"].as_array().unwrap();
     let tm = theirs["sqlite_master"].as_array().unwrap();
-    assert_eq!(om.len(), tm.len() + 5, "v{v} sqlite_master length");
+    assert_eq!(om.len(), tm.len() + 5 + 13, "v{v} sqlite_master length");
     for (o, t) in om.iter().zip(tm) {
         if t[1] == "track_fingerprints" && t[0] == "table" {
             assert_eq!(o.as_array().unwrap()[..3], t.as_array().unwrap()[..3]);
@@ -319,7 +321,7 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         "sqlite_autoindex_fingerprint_rejects_1"
     );
     used.hit("D3");
-    let d6: Vec<(&str, &str, &str)> = om[tm.len() + 2..]
+    let d6: Vec<(&str, &str, &str)> = om[tm.len() + 2..tm.len() + 5]
         .iter()
         .map(|r| {
             (
@@ -343,18 +345,54 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         "v{v} D6"
     );
     used.hit("D6");
+    let d8: Vec<&str> = om[tm.len() + 5..]
+        .iter()
+        .map(|r| r[1].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        d8,
+        [
+            "agent_pairings",
+            "sqlite_autoindex_agent_pairings_1",
+            "agent_policies",
+            "sqlite_autoindex_agent_policies_1",
+            "agent_proposals",
+            "sqlite_autoindex_agent_proposals_1",
+            "agent_approvals",
+            "sqlite_autoindex_agent_approvals_1",
+            "idx_agent_approvals_state",
+            "agent_changes",
+            "sqlite_autoindex_agent_changes_1",
+            "agent_activity",
+            "idx_agent_activity_pairing",
+        ],
+        "v{v} D8"
+    );
+    used.hit("D8");
 
     // Tables.
     let ot = ours["tables"].as_object().unwrap();
     let tt = theirs["tables"].as_object().unwrap();
     let mut names: Vec<&String> = ot.keys().collect();
-    names.retain(|n| *n != "fingerprint_rejects" && *n != "check_inputs");
+    names.retain(|n| {
+        *n != "fingerprint_rejects" && *n != "check_inputs" && !n.starts_with("agent_")
+    });
     let mut their_names: Vec<&String> = tt.keys().collect();
     names.sort();
     their_names.sort();
     assert_eq!(names, their_names, "v{v} tables");
     assert_eq!(ot["fingerprint_rejects"]["rows"], json!([]));
     assert_eq!(ot["check_inputs"]["rows"], json!([]));
+    for agent in [
+        "agent_pairings",
+        "agent_policies",
+        "agent_proposals",
+        "agent_approvals",
+        "agent_changes",
+        "agent_activity",
+    ] {
+        assert_eq!(ot[agent]["rows"], json!([]), "v{v} {agent}");
+    }
     for (name, t) in tt {
         let o = &ot[name];
         if name == "schema_version" {
@@ -474,7 +512,7 @@ fn every_old_version_ends_where_the_python_ends_plus_this_builds_deltas() {
         seen_v14_stamp |= ours.to_string().contains(PLACEHOLDER);
     }
     for k in [
-        "D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6", "D7-sql", "D7-rows",
+        "D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6", "D7-sql", "D7-rows", "D8",
     ] {
         assert!(used.0.contains_key(k), "delta {k} never exercised");
     }

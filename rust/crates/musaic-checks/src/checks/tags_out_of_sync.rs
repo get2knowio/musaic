@@ -593,6 +593,7 @@ impl Check for TagsOutOfSync {
             .collect::<rusqlite::Result<_>>()?
         };
         for row in &rows {
+            ctx.checkpoint()?;
             let diffs = compute_diffs(ctx.conn, ctx.env.resolver.as_ref(), row);
             // A resolver told to stop answers with refusals that look like
             // "no resolution"; nothing from it is recorded.

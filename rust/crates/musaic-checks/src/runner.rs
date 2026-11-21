@@ -139,6 +139,33 @@ pub fn run_check(
     scope_kind: ScopeKind,
     album_ids: Option<&[String]>,
 ) -> Result<RunRow, RunError> {
+    run_check_cancellable(
+        conn,
+        env,
+        check_id,
+        library_path,
+        scope_kind,
+        album_ids,
+        None,
+    )
+}
+
+/// [`run_check`], stopped between albums once `cancel` is set: the check sees
+/// it at its next [`CheckCtx::checkpoint`] and the run ends `failed` with
+/// "check run cancelled". The findings it emitted before stopping stay and are
+/// counted in `issue_count`; nothing is auto-resolved and no inputs are
+/// recorded, for the albums it looked at or the ones it did not get to, so
+/// the background sweep evaluates them all again. A check that finishes
+/// before it next looks at the flag completes as usual.
+pub fn run_check_cancellable(
+    conn: &Connection,
+    env: &CheckEnv,
+    check_id: &str,
+    library_path: &str,
+    scope_kind: ScopeKind,
+    album_ids: Option<&[String]>,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<RunRow, RunError> {
     let check = env
         .registry
         .get(check_id)
@@ -200,7 +227,7 @@ pub fn run_check(
         let mut seen: HashSet<i64> = HashSet::new();
         // Rows this run inserted: candidates for inheriting an ignore.
         let mut created: Vec<(i64, Option<String>)> = Vec::new();
-        let ctx = CheckCtx::new(conn, env);
+        let ctx = CheckCtx::new(conn, env).with_cancel(cancel);
         let mut emit = |f: Finding| -> Result<(), CheckError> {
             let detail = f.detail.as_ref().map(PyJson::dumps);
             let now = env.clock.now_iso();

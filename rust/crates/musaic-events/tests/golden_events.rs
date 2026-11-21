@@ -164,13 +164,17 @@ fn payloads_match_python_bytes() {
 ///   settings written, for the background check sweep;
 /// * `ChecksRerunFinished` (issue #204): a batch of check runs finished and
 ///   its findings are written. The findings notify and the sweep wake ignore
-///   it, so only the relay acts on it.
+///   it, so only the relay acts on it;
+/// * `AgentStateChanged` (the agent bridge): a pairing, an approval card or an
+///   agent's activity changed. Treated like `ChecksRerunFinished`: only the
+///   relay acts on it.
 ///
 /// Every other kind must match the recording.
 const ADDED_KINDS: &[EventKind] = &[
     EventKind::LibraryScanStopped,
     EventKind::SettingsChanged,
     EventKind::ChecksRerunFinished,
+    EventKind::AgentStateChanged,
 ];
 
 /// Deliberate addition (issue #187): the background check sweep's

@@ -222,6 +222,17 @@ jobs:
           (cd rust && cargo fetch --locked)
           python scripts/desktop_notices.py --target "${{ matrix.target }}"
 
+      # The agent CLI travels inside each installer as a Tauri externalBin
+      # (tauri.bundle.conf.json names it; plain cargo builds do not need it).
+      - name: Build the agent CLI sidecar
+        run: |
+          (cd rust && cargo build --release --locked -p musaic-cli --target "${{ matrix.target }}")
+          mkdir -p rust/crates/musaic-desktop/binaries
+          ext=""
+          if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
+          cp "rust/target/${{ matrix.target }}/release/musaic-cli$ext" \
+             "rust/crates/musaic-desktop/binaries/musaic-cli-${{ matrix.target }}$ext"
+
       - name: Build and bundle (unsigned)
         working-directory: rust/crates/musaic-desktop
         env:

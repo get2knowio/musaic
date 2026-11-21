@@ -88,7 +88,6 @@ use musaic_checks::{CheckEnv, FixKind};
 use musaic_db::findings::{self, FindingFilter, FindingRow};
 use musaic_events::{Bus, Event as BusEvent};
 use musaic_fsops::py_repr;
-use musaic_fsops::rename::RenameEnv;
 /// What a rename plan holds and what carrying it out reports.
 pub use musaic_fsops::rename::{PlanEntry, RenameOutcome};
 use musaic_scan::{TrackOrder, py_resolve};
@@ -97,7 +96,7 @@ use rusqlite::{Connection, OptionalExtension};
 use serde_json::Value;
 
 use crate::apply::{ApplyEnv, CoverSource, apply_direct, missing_album_detail};
-use crate::error::{Details, OpError, Refusal, Subject};
+use crate::error::{OpError, Subject};
 
 /// A refusal of the request's content: the route's 400.
 fn rejected(message: impl Into<String>) -> OpError {
@@ -1408,44 +1407,21 @@ pub fn apply_filename_rename(
     if plan.is_empty() && dir_rename.is_none() {
         return Err(rejected("plan or dir_rename is required"));
     }
-    // The route answered a failed read of the album with the plain-text 500.
-    crate::track_tags::refuse_missing(env.conn, &album_id)?;
+    // The route answered a failed read of the album with the plain-text 500;
+    // the Missing album is refused before anything is touched.
     let now = (env.now)();
-    let renv = RenameEnv {
-        library_dir: env.library_dir,
-        now: &now,
-        track_order: env.track_order,
-    };
-    let out = musaic_fsops::rename::execute_renames(env.conn, &renv, &album_id, plan, dir_rename);
-    if let Some(ev) = &out.album_renamed {
-        env.bus.publish(&BusEvent::AlbumRenamed {
-            old_album_id: ev.old_album_id.clone(),
-            new_album_id: ev.new_album_id.clone(),
-        });
-    }
-    let dir_renamed = out.detail.as_ref().is_some_and(|d| d.dir_renamed);
-    if !out.ok && out.renamed == 0 && !dir_renamed {
-        let msg = if out.message.is_empty() {
-            "Rename failed".to_string()
-        } else {
-            out.message.clone()
-        };
-        // The rename code's own code and sentence ride beside `message`.
-        let details = match (out.reason, &out.user_message) {
-            (Some(r), Some(u)) => Some(Details::Refusal(Box::new(Refusal {
-                reason_code: r.code().to_string(),
-                user_message: u.clone(),
-                blockers: Vec::new(),
-                digest: None,
-            }))),
-            _ => None,
-        };
-        return Err(OpError::Conflict {
-            message: msg,
-            details,
-        });
-    }
-    Ok(out)
+    crate::library_ops::rename_album_with_plan(
+        crate::library_ops::RenameParts {
+            conn: env.conn,
+            bus: env.bus,
+            library_dir: env.library_dir,
+            now: &now,
+            track_order: env.track_order,
+        },
+        &album_id,
+        plan,
+        dir_rename,
+    )
 }
 
 // ---------- delete-duplicate ----------

@@ -54,6 +54,9 @@
 //!   keys moved into the OS keyring): their outcome, logging, timed retries and the
 //!   gated retry / shutdown attempts.
 
+pub mod agent_changes;
+pub mod agent_proposal;
+pub mod agent_read;
 pub mod ai_jobs;
 pub mod albums;
 pub mod analyze;

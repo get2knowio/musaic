@@ -1,0 +1,20 @@
+[package]
+name = "musaic-mcp"
+description = "The MCP adapter over the agent tool registry: serves tools over stdio in the 2026-07-28 and 2025-11-25 profiles"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+musaic-commands = { path = "../musaic-commands" }
+rmcp = { version = "=3.11.0", default-features = false, features = ["server", "transport-io"] }
+tokio = { version = "1", features = ["rt", "io-std", "io-util", "macros"] }
+serde_json.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "io-std", "io-util", "macros", "time"] }
+jsonschema = { version = "0.33", default-features = false }

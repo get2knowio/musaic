@@ -198,6 +198,20 @@ fn the_extra_route_list_is_exactly_this() {
             // Deliberate additions: the theme and tile size, kept on the server.
             "GET /api/ui-prefs",
             "PUT /api/ui-prefs",
+            // Deliberate additions: the agent bridge (spec 003): the webview's
+            // management routes, and the agent CLI's own route family.
+            "GET /api/agent/pairings",
+            "POST /api/agent/pairings",
+            "DELETE /api/agent/pairings/{pairing_id}",
+            "PUT /api/agent/pairings/{pairing_id}/policy",
+            "GET /api/agent/pairings/{pairing_id}/activity",
+            "GET /api/agent/approvals",
+            "POST /api/agent/approvals/{approval_id}/approve",
+            "POST /api/agent/approvals/{approval_id}/deny",
+            "POST /__musaic/agent/v1/hello",
+            "POST /__musaic/agent/v1/exchange",
+            "GET /__musaic/agent/v1/tools",
+            "POST /__musaic/agent/v1/tools/{tool_id}",
         ]
     );
 }

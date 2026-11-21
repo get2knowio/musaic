@@ -193,6 +193,12 @@ jobs:
         working-directory: rust
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      # The generated tool catalog under docs/ must be the one the code makes.
+      - name: Agent tool catalog
+        id: catalog
+        working-directory: rust
+        run: cargo run -p musaic-cli --locked -- catalog --check
+
       # --no-fail-fast: run every test binary and report every failure, not
       # just the first failing binary's.
       - name: Test

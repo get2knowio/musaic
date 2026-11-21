@@ -16,7 +16,8 @@
 //!        ├─ BulkBatchCompleted()
 //!        ├─ LibraryScanStopped(reason, album_count)   (not in the Python app)
 //!        ├─ SettingsChanged(keys)                      (not in the Python app)
-//!        └─ ChecksRerunFinished(checks, failed, album_ids)   (not in the Python app)
+//!        ├─ ChecksRerunFinished(checks, failed, album_ids)   (not in the Python app)
+//!        └─ AgentStateChanged(what, ids)                (not in the Python app)
 //! ```
 //!
 //! `LibraryScanStopped` is new (deliberate change): a scan that ended
@@ -41,6 +42,14 @@
 //! `musaic_checks::RERUN_ALBUM_LIST_MAX`). Nothing subscribes to it but the
 //! relay: it never starts a rerun and never wakes the check sweep.
 //!
+//! `AgentStateChanged` is new too (deliberate change, the agent bridge):
+//! published when a pairing, an approval card or an agent's activity log
+//! changed, so the desktop refreshes Settings → Agents and the Review inbox.
+//! `what` is `pairings`, `approvals` or `activity`; `ids` are references
+//! (pairing or approval ids), never a secret, a token or an argument value.
+//! Like `ChecksRerunFinished` it is a report: no rerun subscriber, no check
+//! sweep wake and no findings notification; only the relay carries it.
+//!
 //! Here the concrete classes are one enum ([`Event`]); the two abstract
 //! classes become [`Topic::Event`] / [`Topic::AlbumScoped`], and
 //! [`EventKind::mro`] reproduces the method resolution order the bus walks.
@@ -48,6 +57,34 @@
 use std::fmt;
 
 use musaic_core::pycompat::json_string;
+
+/// Which agent state an [`Event::AgentStateChanged`] reports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum AgentWhat {
+    Pairings,
+    Approvals,
+    Activity,
+}
+
+impl AgentWhat {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            AgentWhat::Pairings => "pairings",
+            AgentWhat::Approvals => "approvals",
+            AgentWhat::Activity => "activity",
+        }
+    }
+
+    pub fn parse(s: &str) -> Option<AgentWhat> {
+        [
+            AgentWhat::Pairings,
+            AgentWhat::Approvals,
+            AgentWhat::Activity,
+        ]
+        .into_iter()
+        .find(|w| w.as_str() == s)
+    }
+}
 
 /// One published library event. Variant and field order follow the
 /// dataclass declarations; inherited `album_id` comes first, as in
@@ -96,6 +133,10 @@ pub enum Event {
         failed: Vec<String>,
         album_ids: Vec<String>,
     },
+    AgentStateChanged {
+        what: AgentWhat,
+        ids: Vec<String>,
+    },
 }
 
 /// The concrete event class, without its data.
@@ -113,6 +154,7 @@ pub enum EventKind {
     LibraryScanStopped,
     SettingsChanged,
     ChecksRerunFinished,
+    AgentStateChanged,
 }
 
 /// What a subscriber registers for: one concrete class, or one of the two
@@ -126,7 +168,7 @@ pub enum Topic {
 }
 
 impl EventKind {
-    pub const ALL: [EventKind; 12] = [
+    pub const ALL: [EventKind; 13] = [
         EventKind::AlbumTagsChanged,
         EventKind::AlbumCoverChanged,
         EventKind::AlbumRenamed,
@@ -139,6 +181,7 @@ impl EventKind {
         EventKind::LibraryScanStopped,
         EventKind::SettingsChanged,
         EventKind::ChecksRerunFinished,
+        EventKind::AgentStateChanged,
     ];
 
     /// The Python class name: the SSE `event:` name.
@@ -156,6 +199,7 @@ impl EventKind {
             EventKind::LibraryScanStopped => "LibraryScanStopped",
             EventKind::SettingsChanged => "SettingsChanged",
             EventKind::ChecksRerunFinished => "ChecksRerunFinished",
+            EventKind::AgentStateChanged => "AgentStateChanged",
         }
     }
 
@@ -173,6 +217,7 @@ impl EventKind {
                 | EventKind::LibraryScanStopped
                 | EventKind::SettingsChanged
                 | EventKind::ChecksRerunFinished
+                | EventKind::AgentStateChanged
         )
     }
 
@@ -203,6 +248,7 @@ impl EventKind {
             EventKind::LibraryScanStopped => plain!(LibraryScanStopped),
             EventKind::SettingsChanged => plain!(SettingsChanged),
             EventKind::ChecksRerunFinished => plain!(ChecksRerunFinished),
+            EventKind::AgentStateChanged => plain!(AgentStateChanged),
         }
     }
 }
@@ -295,6 +341,7 @@ impl Event {
             Event::LibraryScanStopped { .. } => EventKind::LibraryScanStopped,
             Event::SettingsChanged { .. } => EventKind::SettingsChanged,
             Event::ChecksRerunFinished { .. } => EventKind::ChecksRerunFinished,
+            Event::AgentStateChanged { .. } => EventKind::AgentStateChanged,
         }
     }
 
@@ -368,6 +415,9 @@ impl Event {
                 ("failed", StrList(failed)),
                 ("album_ids", StrList(album_ids)),
             ],
+            Event::AgentStateChanged { what, ids } => {
+                vec![("what", Str(what.as_str())), ("ids", StrList(ids))]
+            }
         }
     }
 
@@ -486,6 +536,16 @@ impl Event {
                 checks: list_or("checks", take("checks"))?,
                 failed: list_or("failed", take("failed"))?,
                 album_ids: list_or("album_ids", take("album_ids"))?,
+            },
+            EventKind::AgentStateChanged => Event::AgentStateChanged {
+                what: match take("what") {
+                    Some(ArgValue::Str(w)) => {
+                        AgentWhat::parse(&w).ok_or(FromFieldsError::WrongType("what"))?
+                    }
+                    None => return Err(FromFieldsError::Missing("what")),
+                    Some(_) => return Err(FromFieldsError::WrongType("what")),
+                },
+                ids: list_or("ids", take("ids"))?,
             },
         };
         if let Some((k, _)) = args.first() {

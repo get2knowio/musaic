@@ -29,6 +29,7 @@
 //! features that need one are off; writes fail with the error for the API to
 //! surface. There is no SQLite or file fallback.
 
+pub mod agent;
 pub mod migrate;
 pub mod store;
 pub mod view;

@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 musaic-bpm = { path = "../musaic-bpm" }
+musaic-commands = { path = "../musaic-commands" }
 musaic-checks = { path = "../musaic-checks" }
 musaic-core = { path = "../musaic-core" }
 musaic-db = { path = "../musaic-db" }
@@ -22,6 +23,8 @@ musaic-secrets = { path = "../musaic-secrets" }
 musaic-tags = { path = "../musaic-tags" }
 rusqlite.workspace = true
 same-file = "1"
+sha2 = "0.11"
+serde = { version = "1", features = ["derive"] }
 serde_json.workspace = true
 thiserror.workspace = true
 unicode-normalization = "0.1"
@@ -33,7 +36,6 @@ jpeg-encoder = "0.7"
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
 base64 = "0.23"
-sha2 = "0.11"
 tempfile.workspace = true
 
 [lints]

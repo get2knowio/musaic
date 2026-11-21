@@ -11,6 +11,7 @@ export const SETTINGS_SECTIONS = [
   { id: "file-naming", label: "File naming" },
   { id: "matching-integrations", label: "Matching & integrations" },
   { id: "backup-restore", label: "Backup & restore" },
+  { id: "agents", label: "Assistants" },
 ] as const;
 
 export type SettingsSectionId = (typeof SETTINGS_SECTIONS)[number]["id"];

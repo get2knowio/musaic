@@ -184,10 +184,8 @@ pub fn check_album(
     template: &str,
     row: &RenamePlanRow,
 ) -> Result<Vec<RenameEntry>, RenderError> {
-    let mut renames = Vec::new();
-    let mut seen_targets: std::collections::HashMap<String, String> = Default::default();
     // Every FLAC in the folder; the ones left out of the plan keep their
-    // names (see below).
+    // names (see `render_file_targets`).
     let mut all_names: Vec<String> = Vec::new();
     // Read once: the disc rule needs every file before any name is rendered.
     let mut files: Vec<(std::path::PathBuf, flacmeta::FlacMeta)> = Vec::new();
@@ -213,11 +211,65 @@ pub fn check_album(
         }
         ev
     });
-    for (flac, meta) in &files {
-        let tracknumber = first_tag(meta, "tracknumber");
-        let title = first_tag(meta, "title");
-        let artist = first_tag(meta, "artist");
-        let albumartist = first_tag(meta, "albumartist");
+    let targets: Vec<TargetFile> = files
+        .iter()
+        .map(|(flac, meta)| {
+            let tracknumber = first_tag(meta, "tracknumber");
+            let disc = if multi_disc {
+                flacmeta::file_disc(meta.values("discnumber"), meta.values("tracknumber"))
+                    .or(row.disc_number)
+            } else {
+                None
+            };
+            TargetFile {
+                name: file_name(flac),
+                tracknumber,
+                title: first_tag(meta, "title"),
+                artist: first_tag(meta, "artist"),
+                albumartist: first_tag(meta, "albumartist"),
+                disc,
+            }
+        })
+        .collect();
+    render_file_targets(&targets, &all_names, template, row)
+}
+
+/// One file as the filename template sees it: its listed name, the tags the
+/// template reads and the disc rule's answer for it (`None` outside a
+/// multi-disc set).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetFile {
+    pub name: String,
+    pub tracknumber: String,
+    pub title: String,
+    pub artist: String,
+    pub albumartist: String,
+    pub disc: Option<i64>,
+}
+
+/// The renames a set of files would need under `template`, from their tags as
+/// given (the tags on disc now, or the tags a proposed change would write):
+/// the shared core of [`check_album`] and the agent bridge's rename
+/// prediction. `all_names` are every FLAC of the folder; the ones left out of
+/// the plan (no title or track number, empty render) keep their names.
+pub fn render_file_targets(
+    files: &[TargetFile],
+    all_names: &[String],
+    template: &str,
+    row: &RenamePlanRow,
+) -> Result<Vec<RenameEntry>, RenderError> {
+    let mut renames = Vec::new();
+    let mut seen_targets: std::collections::HashMap<String, String> = Default::default();
+    for f in files {
+        let TargetFile {
+            name,
+            tracknumber,
+            title,
+            artist,
+            albumartist,
+            disc,
+        } = f;
+        let disc = *disc;
         if title.is_empty() || tracknumber.is_empty() {
             continue;
         }
@@ -225,12 +277,6 @@ pub fn check_album(
             artist.clone()
         } else {
             albumartist.clone()
-        };
-        let disc = if multi_disc {
-            flacmeta::file_disc(meta.values("discnumber"), meta.values("tracknumber"))
-                .or(row.disc_number)
-        } else {
-            None
         };
         // The disc part of a "2-05" track number is left out only where
         // `{disc}` renders it, or it would show twice. Under a pattern
@@ -240,23 +286,22 @@ pub fn check_album(
         let disc_renders =
             disc.is_some() && (template.contains("{disc}") || template.contains("{disc:"));
         let track_part = if disc_renders {
-            flacmeta::split_disc_track(&tracknumber).map_or(tracknumber.as_str(), |t| t.1)
+            flacmeta::split_disc_track(tracknumber).map_or(tracknumber.as_str(), |t| t.1)
         } else {
             tracknumber.as_str()
         };
         let tags = TrackTags {
-            title: &title,
-            artist: &artist,
-            albumartist: &albumartist,
+            title,
+            artist,
+            albumartist,
         };
         let rendered = render_track_stem(template, &tags, row, track_part, disc)?;
         if rendered.is_empty() {
             continue;
         }
         let expected = format!("{rendered}.flac");
-        let name = file_name(flac);
         // A normalisation-only difference is not a mismatch.
-        if same_nfc(&expected, &name) {
+        if same_nfc(&expected, name) {
             continue;
         }
         // Keyed as an insensitive volume compares names, so two targets
@@ -264,10 +309,10 @@ pub fn check_album(
         // `execute_renames` (which refuses them on every volume).
         let collides_with = seen_targets.insert(fold(&expected), name.clone());
         renames.push(RenameEntry {
-            filename: name,
+            filename: name.clone(),
             expected,
-            tracknumber,
-            title,
+            tracknumber: tracknumber.clone(),
+            title: title.clone(),
             artist: artist_value,
             collides_with,
         });
@@ -329,18 +374,43 @@ pub fn check_dir(
     template: &str,
     row: &RenamePlanRow,
 ) -> Result<Option<DirRename>, RenderError> {
-    let current = file_name(album_path);
+    dir_rename_for(&file_name(album_path), template, row)
+}
+
+/// [`check_dir`] for a folder known by its current name.
+pub fn dir_rename_for(
+    current: &str,
+    template: &str,
+    row: &RenamePlanRow,
+) -> Result<Option<DirRename>, RenderError> {
     let Some(rendered) = render_dir_name(template, row)? else {
         return Ok(None);
     };
     // A normalisation-only difference is not a mismatch.
-    if same_nfc(&rendered, &current) {
+    if same_nfc(&rendered, current) {
         return Ok(None);
     }
     Ok(Some(DirRename {
-        old: current,
+        old: current.to_string(),
         new: rendered,
     }))
+}
+
+/// The names an album would get under the user's templates, from tag values
+/// as given: the file renames and the folder rename, as [`derive_plan`]
+/// derives them from what is on disc, so a prediction made from the values a
+/// change would write agrees with the plan the rename then derives.
+pub fn render_targets(
+    templates: &Templates,
+    row: &RenamePlanRow,
+    files: &[TargetFile],
+    all_names: &[String],
+    current_dir_name: &str,
+) -> Result<(Vec<RenameEntry>, Option<DirRename>), RenderError> {
+    let (template, dir_template) = templates.for_row(row);
+    let renames = render_file_targets(files, all_names, template, row)?;
+    let dir = dir_rename_for(current_dir_name, dir_template, row)?;
+    Ok((renames, dir))
 }
 
 /// The album folder's name under the directory `template`, with the
@@ -453,4 +523,92 @@ pub fn summarize(dir_name: Option<&str>, renames: usize, has_dir_rename: bool) -
         return format!("Album dir {label} doesn't match the template");
     }
     format!("{} in {label} don't match the template", files(renames))
+}
+
+#[cfg(test)]
+mod render_targets_tests {
+    use super::*;
+
+    fn row() -> RenamePlanRow {
+        RenamePlanRow {
+            id: "0123456789abcdef".into(),
+            path: Some("/x/Old Name".into()),
+            dir_name: Some("Old Name".into()),
+            album_artist: Some("Artist".into()),
+            artist: Some("Artist".into()),
+            dir_artist: None,
+            title: Some("Album".into()),
+            year: Some("2001".into()),
+            is_compilation: false,
+            disc_number: None,
+            disc_total: None,
+        }
+    }
+
+    fn templates() -> Templates {
+        Templates {
+            filename_single: "{tracknumber:02} - {title}".into(),
+            filename_compilation: "{tracknumber:02} - {artist} - {title}".into(),
+            dir_single: "{albumartist} - {album} [FLAC]".into(),
+            dir_compilation: "Various Artists - {album} [FLAC]".into(),
+        }
+    }
+
+    fn file(name: &str, n: &str, title: &str) -> TargetFile {
+        TargetFile {
+            name: name.into(),
+            tracknumber: n.into(),
+            title: title.into(),
+            artist: "Artist".into(),
+            albumartist: "Artist".into(),
+            disc: None,
+        }
+    }
+
+    #[test]
+    fn targets_follow_the_values_given_not_the_disc() {
+        let files = [
+            file("a.flac", "1", "Song One"),
+            file("b.flac", "2", "Song Two"),
+        ];
+        let names: Vec<String> = files.iter().map(|f| f.name.clone()).collect();
+        let (renames, dir) =
+            render_targets(&templates(), &row(), &files, &names, "Old Name").unwrap();
+        assert_eq!(
+            renames
+                .iter()
+                .map(|r| (r.filename.as_str(), r.expected.as_str()))
+                .collect::<Vec<_>>(),
+            [
+                ("a.flac", "01 - Song One.flac"),
+                ("b.flac", "02 - Song Two.flac")
+            ]
+        );
+        assert_eq!(
+            dir,
+            Some(DirRename {
+                old: "Old Name".into(),
+                new: "Artist - Album [FLAC]".into()
+            })
+        );
+        // A file already named right, and a folder already named right, are no rename.
+        let ok = [file("01 - Song One.flac", "1", "Song One")];
+        let (renames, dir) = render_targets(
+            &templates(),
+            &row(),
+            &ok,
+            &["01 - Song One.flac".into()],
+            "Artist - Album [FLAC]",
+        )
+        .unwrap();
+        assert!(renames.is_empty() && dir.is_none());
+    }
+
+    #[test]
+    fn two_files_rendering_to_one_name_collide() {
+        let files = [file("a.flac", "1", "Same"), file("b.flac", "1", "Same")];
+        let names: Vec<String> = files.iter().map(|f| f.name.clone()).collect();
+        let (renames, _) = render_targets(&templates(), &row(), &files, &names, "x").unwrap();
+        assert_eq!(renames[1].collides_with.as_deref(), Some("a.flac"));
+    }
 }

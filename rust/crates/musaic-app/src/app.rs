@@ -94,6 +94,8 @@ pub enum StartupError {
 pub struct AppBuilder {
     config_dir: PathBuf,
     secrets: Option<SharedSecrets>,
+    agent_secrets: Option<SharedSecrets>,
+    agent_dev_credentials: bool,
     network: Network,
     clock: WallClock,
     subscribers: bool,
@@ -135,6 +137,8 @@ pub const SHUTDOWN_SCAN_WAIT: Duration = Duration::from_secs(15);
 /// its network request at once and ends after the batch of local checks in
 /// progress).
 pub const SHUTDOWN_SWEEP_WAIT: Duration = Duration::from_secs(5);
+/// How long [`App::shutdown`] waits for the threads of agent operations.
+pub const SHUTDOWN_AGENT_WAIT: Duration = Duration::from_secs(5);
 /// How long the final WAL checkpoint on shutdown waits for any connection
 /// still open (a scan or check rerun ending at the same moment).
 pub const SHUTDOWN_CHECKPOINT_WAIT: Duration = Duration::from_secs(5);
@@ -163,6 +167,8 @@ impl AppBuilder {
         AppBuilder {
             config_dir: config_dir.into(),
             secrets: None,
+            agent_secrets: None,
+            agent_dev_credentials: false,
             network: Network::Offline,
             clock: Arc::new(SystemTime::now),
             subscribers: true,
@@ -346,6 +352,21 @@ impl AppBuilder {
         self.secrets = Some(s);
         self
     }
+    /// Where agent pairing secrets are kept: the OS keyring under service
+    /// `musaic-agent` in a normal run, memory in a test or a development run.
+    pub fn agent_secrets(mut self, s: SharedSecrets) -> Self {
+        self.agent_secrets = Some(s);
+        self
+    }
+    /// Also write each new pairing's secret to
+    /// `<config dir>/agent-dev-credentials/<pairing id>` (mode 0600), for a
+    /// separate CLI process to read. Only for runs whose secrets are in memory
+    /// (`--dev-memory-secrets`, `--verification-memory-secrets`), which are
+    /// already limited to scratch directories.
+    pub fn agent_dev_credentials(mut self, on: bool) -> Self {
+        self.agent_dev_credentials = on;
+        self
+    }
     pub fn network(mut self, n: Network) -> Self {
         self.network = n;
         self
@@ -384,6 +405,16 @@ impl AppBuilder {
         let secrets: SharedSecrets = Arc::new(MaskingStore::new(
             self.secrets
                 .unwrap_or_else(|| Arc::new(musaic_secrets::MemoryStore::new())),
+            self.log_masks.clone(),
+        ));
+        // The pairing index (ids only, no secret) is written to the same store
+        // but not through the masks: a masked index would redact every log
+        // line naming the one active pairing, and add a mask per index state.
+        let agent_index_store: SharedSecrets = self
+            .agent_secrets
+            .unwrap_or_else(|| Arc::new(musaic_secrets::MemoryStore::new()));
+        let agent_secrets: SharedSecrets = Arc::new(MaskingStore::new(
+            agent_index_store.clone(),
             self.log_masks.clone(),
         ));
         let clock = self.clock.clone();
@@ -507,6 +538,7 @@ impl AppBuilder {
         let sweep_resolution = self.checks_resolution.clone();
         let network = self.network.clone();
 
+        let clock_for_agent = clock.clone();
         let state = App(Arc::new(AppInner {
             config,
             db_path,
@@ -543,6 +575,10 @@ impl AppBuilder {
             shutdown_pool_wait: self.shutdown_pool_wait,
             sweeper,
             sweep_changes,
+            agent: crate::agent::AgentHub::new(clock_for_agent),
+            agent_secrets,
+            agent_index_store,
+            agent_dev_credentials: self.agent_dev_credentials,
             ai: crate::ai::AiQueue::new(
                 self.ai_provider
                     .unwrap_or_else(|| Arc::new(musaic_ai::Unconfigured)),
@@ -576,6 +612,8 @@ impl AppBuilder {
         if startup_scrub == (ScrubOutcome::Pending { retry: true }) {
             state.schedule_key_scrub_retry();
         }
+        crate::agent::startup_housekeeping(&state);
+        crate::agent::start_expiry_ticker(&state);
         if self.check_sweep {
             let online = self
                 .sweep_network
@@ -668,6 +706,15 @@ pub struct AppInner {
     pub sweeper: CheckSweeper,
     /// Bumped on every sweep state change; one receiver per checks stream.
     pub sweep_changes: watch::Sender<u64>,
+    /// The agent bridge's per-run state (tokens, lockout, operations).
+    pub agent: crate::agent::AgentHub,
+    /// Agent pairing secrets (service `musaic-agent`), never the settings keys.
+    pub agent_secrets: SharedSecrets,
+    /// The same store without the log masks, for the pairing index only (it
+    /// holds ids, never a secret).
+    pub agent_index_store: SharedSecrets,
+    /// Write the dev credential file for each new pairing (scratch runs only).
+    pub agent_dev_credentials: bool,
 }
 
 /// The application (cheap to clone).
@@ -875,6 +922,14 @@ impl App {
                     "check sweep still busy after {} s; closing the database without waiting for it",
                     SHUTDOWN_SWEEP_WAIT.as_secs_f64()
                 ),
+            );
+        }
+        // Agent operations stop at their next item boundary; the scan one is
+        // cancelled through the scan's own cancel just below.
+        if !self.0.agent.stop_workers(SHUTDOWN_AGENT_WAIT) {
+            self.0.log.warn(
+                SHUTDOWN_TARGET,
+                "an agent operation is still finishing; closing without waiting for it",
             );
         }
         let scan_stopped = self.cancel_scan_and_wait(SHUTDOWN_SCAN_WAIT);

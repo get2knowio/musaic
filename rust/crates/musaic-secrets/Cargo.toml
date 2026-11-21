@@ -8,6 +8,7 @@ rust-version.workspace = true
 
 [dependencies]
 musaic-core = { path = "../musaic-core" }
+musaic-commands = { path = "../musaic-commands" }
 musaic-db = { path = "../musaic-db" }
 rusqlite.workspace = true
 serde_json.workspace = true

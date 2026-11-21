@@ -45,8 +45,9 @@ the UI's transport.
    (`shell/`), which shows start-up errors (`#error=…`). Shown runs restore the
    saved window size and position (see "Window state").
 4. On a background thread: build the application (`musaic-app`), bind the
-   loopback server, write the instance file, and navigate the window to the
-   one-time launch URL (see "Launch cookie").
+   loopback server, write the instance file and the agent descriptor
+   (`<config>/agent-instance.json`, see "Agent bridge"), and navigate the window
+   to the one-time launch URL (see "Launch cookie").
 5. Write the same rotating, secret-masking `<config>/server.log` as the server
    binary; the level comes from `MUSAIC_LOG_LEVEL`.
 
@@ -56,8 +57,9 @@ Closing the window, Cmd-Q, `AppHandle::exit`, SIGTERM / SIGINT / SIGHUP on Unix
 and Ctrl-C on Windows all end in Tauri's exit event: every SSE stream is ended,
 the server drains for up to 3 seconds (then remaining connections are aborted),
 the application shuts down (a running library scan cancelled, so it saves nothing
-and starts nothing, and waited for; fingerprint pool joined, job worker stopped) and
-the instance file is removed. No child processes are ever spawned.
+and starts nothing, and waited for; fingerprint pool joined, job worker stopped,
+the threads of agent operations asked to stop at their next item and joined) and
+the instance file and the agent descriptor are removed. No child processes are ever spawned.
 
 ### Quitting while work runs
 
@@ -242,11 +244,26 @@ Corrections… and Add Cover… / Change Cover….
 |---|---|
 | Database, settings (including the theme and tile size), logs, thumbnails, trash, window state, the record of each multi-disc conversion (`conversions/`, one JSON file each; kept outside the database so a restore does not lose it) | the config dir: `--config-dir`, else `MUSAIC_CONFIG_DIR`, else `~/.musaic` (Windows: `%USERPROFILE%\.musaic`) |
 | API keys | the OS keyring, service name `musaic` |
+| Agent pairing secrets (one per pairing, plus an index of the active pairing ids; no key is ever written to a file) | the OS keyring, service name `musaic-agent`, account `<config dir id>:<pairing id>` (a development run with in-memory secrets writes `<config>/agent-dev-credentials/<pairing id>` at mode 0600 instead) |
+| Where an agent's CLI finds the running app (`{instanceId, port, pid, ...}`; holds no credential; written at start, removed at teardown only if it still names this instance) | `<config>/agent-instance.json`, mode 0600 |
+| The before-image of every change an agent made (prior tag values, names, and byte-for-byte copies of the cover sidecars and embedded pictures a cover change replaced); kept 90 days, then pruned at start-up | `<config>/agent-changes/<change id>/` |
 | Web view storage (HTTP cache, and a copy of the theme and tile size used only for the first paint; the web view's address changes on every launch, so nothing there is kept from one launch to the next) | managed by the platform's webview, outside the config dir: macOS `~/Library/WebKit/io.get2know.musaic` and `~/Library/Caches/io.get2know.musaic`; Windows `%LOCALAPPDATA%\io.get2know.musaic\`; Linux `~/.local/share/io.get2know.musaic/` |
 
 A launch from Finder, the Start menu or a desktop launcher has no
 `MUSAIC_CONFIG_DIR`, so it opens `~/.musaic`. A database written by the Python
 version is backed up to `library.v16.before-rust.db` and then migrated in place.
+
+## Agent bridge
+
+The shell also serves a second route family on the same loopback port for an assistant's
+CLI: `/__musaic/agent/v1/*` (docs/agents.md, SECURITY.md "Agent access"). Its guard
+(`musaic-api/src/agent_guard.rs`) runs before the launch cookie and the Host / Origin
+check, which stay exactly as they were for every other path; `src/gate.rs` passes the
+prefix straight through. The server is started with connection info (peer and local
+address) so the guard can check both. `musaic-api`'s loopback server writes
+`agent-instance.json` once the port is bound and removes it when the server stops.
+The webview manages pairings and decides approvals through the ordinary `/api/agent/*`
+routes (launch cookie required), refreshed by the `AgentStateChanged` bus event.
 
 ## Options
 
@@ -305,6 +322,15 @@ Notes:
 - `tauri.bundle.conf.json` is merged over `tauri.conf.json` for bundling only:
   it adds `NOTICES.txt` to the resources, so plain `cargo build` / `cargo test`
   do not need the generated file.
+- `tauri.bundle.conf.json` also names the agent CLI as an `externalBin`
+  (`binaries/musaic-cli`). `scripts/package_macos.sh` and the release workflow build
+  `musaic-cli` for the target and copy it to
+  `rust/crates/musaic-desktop/binaries/musaic-cli-<triple>[.exe]` (gitignored) before
+  `cargo tauri build`; it lands at `Musaic.app/Contents/MacOS/musaic-cli` on macOS, next
+  to `Musaic.exe` on Windows and in `/usr/bin` for the deb (the AppImage holds it inside
+  the image, where `musaic-cli setup` refuses to register it: copy it out first). Only a
+  bundling build needs the file, so plain `cargo build` / `cargo test` stay green without
+  it.
 - `CI=true` makes the dmg step skip its Finder AppleScript (no window layout,
   no Automation prompt).
 - `cargo tauri build` rewrites the crate's `tauri-build` line in `Cargo.toml`;

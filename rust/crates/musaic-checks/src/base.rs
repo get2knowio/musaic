@@ -3,6 +3,7 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
 use rusqlite::Connection;
@@ -187,6 +188,12 @@ pub enum CheckError {
     /// nothing is auto-resolved and its inputs are not recorded.
     #[error("check run interrupted")]
     Interrupted,
+    /// The caller asked the run to stop ([`CheckCtx::checkpoint`], between
+    /// albums). Ends the run like [`CheckError::Interrupted`]: the findings
+    /// emitted so far stay, nothing is auto-resolved and no inputs are
+    /// recorded, so every album is evaluated again by a later run.
+    #[error("check run cancelled")]
+    Cancelled,
 }
 
 /// What a check's result for an album depends on, for the background
@@ -259,6 +266,8 @@ pub struct CheckCtx<'a> {
     pub env: &'a CheckEnv,
     /// Albums the run could not evaluate ([`CheckCtx::could_not_evaluate`]).
     pub(crate) unevaluated: RefCell<BTreeSet<String>>,
+    /// Set by the caller to stop the run at the next [`CheckCtx::checkpoint`].
+    cancel: Option<&'a AtomicBool>,
 }
 
 impl<'a> CheckCtx<'a> {
@@ -267,6 +276,25 @@ impl<'a> CheckCtx<'a> {
             conn,
             env,
             unevaluated: RefCell::default(),
+            cancel: None,
+        }
+    }
+
+    /// The same context, stopped at its next [`checkpoint`](Self::checkpoint)
+    /// once `cancel` is set.
+    pub fn with_cancel(mut self, cancel: Option<&'a AtomicBool>) -> Self {
+        self.cancel = cancel;
+        self
+    }
+
+    /// Called by a check before each album it looks at (never in the middle
+    /// of one): `Err(CheckError::Cancelled)` once the caller asked the run to
+    /// stop. A check passes the error on with `?`.
+    pub fn checkpoint(&self) -> Result<(), CheckError> {
+        if self.cancel.is_some_and(|c| c.load(Ordering::SeqCst)) {
+            Err(CheckError::Cancelled)
+        } else {
+            Ok(())
         }
     }
 
@@ -329,6 +357,10 @@ pub trait Check: Send + Sync {
     fn input_extras(&self, _ctx: &CheckCtx<'_>) -> Result<String, CheckError> {
         Ok(String::new())
     }
+    /// A check that looks at albums one at a time calls
+    /// [`CheckCtx::checkpoint`] before each, so a cancelled run stops
+    /// between albums; one that judges the library as a whole from the
+    /// database (a single pass in memory) need not.
     fn run(
         &self,
         ctx: &CheckCtx<'_>,

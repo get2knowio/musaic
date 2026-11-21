@@ -1,0 +1,1871 @@
+{
+  "contractVersion": "1",
+  "errorCodes": [
+    {
+      "code": "INVALID_INPUT",
+      "transport": false
+    },
+    {
+      "code": "NOT_FOUND",
+      "transport": false
+    },
+    {
+      "code": "MISSING_ALBUM",
+      "transport": false
+    },
+    {
+      "code": "STALE_REVISION",
+      "transport": false
+    },
+    {
+      "code": "PROPOSAL_EXPIRED",
+      "transport": false
+    },
+    {
+      "code": "DIGEST_MISMATCH",
+      "transport": false
+    },
+    {
+      "code": "FORBIDDEN",
+      "transport": false
+    },
+    {
+      "code": "DENIED",
+      "transport": false
+    },
+    {
+      "code": "APPROVAL_EXPIRED",
+      "transport": false
+    },
+    {
+      "code": "IDEMPOTENCY_CONFLICT",
+      "transport": false
+    },
+    {
+      "code": "CURSOR_STALE",
+      "transport": false
+    },
+    {
+      "code": "BUSY",
+      "transport": false
+    },
+    {
+      "code": "RESTORING",
+      "transport": false
+    },
+    {
+      "code": "NO_LIBRARY",
+      "transport": false
+    },
+    {
+      "code": "UNAVAILABLE",
+      "transport": false
+    },
+    {
+      "code": "INTERNAL",
+      "transport": false
+    },
+    {
+      "code": "APP_NOT_RUNNING",
+      "transport": true
+    },
+    {
+      "code": "DESCRIPTOR_INVALID",
+      "transport": true
+    },
+    {
+      "code": "NOT_PAIRED",
+      "transport": true
+    },
+    {
+      "code": "PAIRING_REVOKED",
+      "transport": true
+    },
+    {
+      "code": "INSTANCE_MISMATCH",
+      "transport": true
+    },
+    {
+      "code": "LOCKED_OUT",
+      "transport": true
+    },
+    {
+      "code": "PROFILE_UNSUPPORTED",
+      "transport": true
+    }
+  ],
+  "notOffered": [
+    "raw SQL",
+    "shell execution",
+    "arbitrary filesystem paths",
+    "reading or writing keys and secrets",
+    "trash or delete",
+    "database restore or backup download",
+    "settings changes",
+    "setting or changing agent permissions and policies, including approving its own requests"
+  ],
+  "tools": [
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "capabilities",
+      "description": "What this pairing may do: its scopes and policy, the contract version, the registry digest and the configured library roots. Start here.",
+      "id": "musaic_capabilities",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "title": "CapabilitiesInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "ConfiguredRoot": {
+            "description": "A library folder the app is configured with, by id and base name only.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "rootId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "rootId",
+              "name"
+            ],
+            "type": "object"
+          },
+          "Decision": {
+            "description": "A policy decision. The order is the strictness: `Refuse` is the strongest.",
+            "enum": [
+              "allow",
+              "ask",
+              "refuse"
+            ],
+            "type": "string"
+          },
+          "PermissionKind": {
+            "description": "What an agent may be allowed to do. A pairing's scope is a subset of these.",
+            "enum": [
+              "library.read",
+              "proposal.submit",
+              "compute.scan",
+              "compute.analyze",
+              "tags.write",
+              "covers.write",
+              "files.rename"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "appVersion": {
+            "type": "string"
+          },
+          "configuredRoots": {
+            "items": {
+              "$ref": "#/$defs/ConfiguredRoot"
+            },
+            "type": "array"
+          },
+          "contractVersion": {
+            "description": "Always \"1\".",
+            "type": "string"
+          },
+          "instanceId": {
+            "type": "string"
+          },
+          "policy": {
+            "additionalProperties": false,
+            "properties": {
+              "compute.analyze": {
+                "$ref": "#/$defs/Decision"
+              },
+              "compute.scan": {
+                "$ref": "#/$defs/Decision"
+              },
+              "covers.write": {
+                "$ref": "#/$defs/Decision"
+              },
+              "files.rename": {
+                "$ref": "#/$defs/Decision"
+              },
+              "library.read": {
+                "$ref": "#/$defs/Decision"
+              },
+              "proposal.submit": {
+                "$ref": "#/$defs/Decision"
+              },
+              "tags.write": {
+                "$ref": "#/$defs/Decision"
+              }
+            },
+            "type": "object"
+          },
+          "profiles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "registryDigest": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/$defs/PermissionKind"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "appVersion",
+          "contractVersion",
+          "registryDigest",
+          "instanceId",
+          "scopes",
+          "policy",
+          "profiles",
+          "configuredRoots"
+        ],
+        "title": "CapabilitiesOutput",
+        "type": "object"
+      },
+      "title": "Capabilities"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "library-list",
+      "description": "Page through the albums of the library, optionally filtered by a text query on the artist or title. Returns ids and display fields, never paths.",
+      "id": "musaic_library_list",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "format": "uint32",
+            "maximum": 100,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "query": {
+            "description": "Case-insensitive substring of the artist or the title.",
+            "maxLength": 200,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "title": "LibraryListInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "AlbumSummary": {
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "artist": {
+                "type": "string"
+              },
+              "hasCover": {
+                "type": "boolean"
+              },
+              "missing": {
+                "type": "boolean"
+              },
+              "title": {
+                "type": "string"
+              },
+              "trackCount": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "year": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "albumId",
+              "artist",
+              "title",
+              "trackCount",
+              "missing",
+              "hasCover"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/AlbumSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "LibraryListOutput",
+        "type": "object"
+      },
+      "title": "List albums"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "album-get",
+      "description": "One album: its tags, its tracks (file names and tags) and its revision, which a fix proposal is bound to.",
+      "id": "musaic_album_get",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "albumId": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "albumId"
+        ],
+        "title": "AlbumGetInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "AlbumDetail": {
+            "description": "The summary fields plus the folder's bare name, the stored tags and the\ndisc count. Never a path.",
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "artist": {
+                "type": "string"
+              },
+              "discCount": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "folderName": {
+                "type": "string"
+              },
+              "hasCover": {
+                "type": "boolean"
+              },
+              "missing": {
+                "type": "boolean"
+              },
+              "tags": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "title": {
+                "type": "string"
+              },
+              "trackCount": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "year": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "albumId",
+              "artist",
+              "title",
+              "trackCount",
+              "missing",
+              "hasCover",
+              "folderName",
+              "tags",
+              "discCount"
+            ],
+            "type": "object"
+          },
+          "Track": {
+            "properties": {
+              "artist": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "discNumber": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "durationSeconds": {
+                "format": "double",
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "fileName": {
+                "type": "string"
+              },
+              "tags": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "trackNumber": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "fileName",
+              "tags"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "album": {
+            "$ref": "#/$defs/AlbumDetail"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "tracks": {
+            "items": {
+              "$ref": "#/$defs/Track"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "album",
+          "tracks",
+          "revision"
+        ],
+        "title": "AlbumGetOutput",
+        "type": "object"
+      },
+      "title": "Get an album"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "resolution-get",
+      "description": "The metadata resolution already stored for an album. It never starts a lookup; with nothing stored it answers not_resolved.",
+      "id": "musaic_resolution_get",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "albumId": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "albumId"
+        ],
+        "title": "AlbumGetInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "ResolutionStatus": {
+            "enum": [
+              "resolved",
+              "not_resolved"
+            ],
+            "type": "string"
+          },
+          "ResolutionTrack": {
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "recordingMbid": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "fileName"
+            ],
+            "type": "object"
+          },
+          "ResolvedField": {
+            "properties": {
+              "confidence": {
+                "format": "double",
+                "type": "number"
+              },
+              "source": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "value",
+              "source",
+              "confidence"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "anchor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "coverCandidate": {
+            "type": "boolean"
+          },
+          "fields": {
+            "additionalProperties": {
+              "$ref": "#/$defs/ResolvedField"
+            },
+            "type": "object"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/$defs/ResolutionStatus"
+          },
+          "strategy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tracks": {
+            "items": {
+              "$ref": "#/$defs/ResolutionTrack"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "fields",
+          "coverCandidate",
+          "tracks",
+          "notes"
+        ],
+        "title": "ResolutionGetOutput",
+        "type": "object"
+      },
+      "title": "Get the stored resolution"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "findings-list",
+      "description": "Open health-check findings, by reference (check, album, severity, title), optionally for one album.",
+      "id": "musaic_findings_list",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "albumId": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cursor": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "limit": {
+            "format": "uint32",
+            "maximum": 100,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "title": "FindingsListInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "Finding": {
+            "description": "A finding by reference; the check-specific detail is left out because it\ncan hold paths.",
+            "properties": {
+              "albumId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "checkId": {
+                "type": "string"
+              },
+              "findingId": {
+                "type": "string"
+              },
+              "firstSeen": {
+                "type": "string"
+              },
+              "lastSeen": {
+                "type": "string"
+              },
+              "severity": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "findingId",
+              "checkId",
+              "severity",
+              "title",
+              "status",
+              "firstSeen",
+              "lastSeen"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/Finding"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "FindingsListOutput",
+        "type": "object"
+      },
+      "title": "List findings"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "fix-preview",
+      "description": "Validate a proposed change to one album's tags, cover or file names against its current revision and store it as a proposal. Writes nothing to the collection.",
+      "id": "musaic_fix_preview",
+      "inputSchema": {
+        "$defs": {
+          "CoverPatch": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "description": "The cover candidate of the stored resolution.",
+                "properties": {
+                  "source": {
+                    "const": "resolution",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "description": "A public `https` URL.",
+                "properties": {
+                  "source": {
+                    "const": "url",
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "url"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "ProposedPatch": {
+            "additionalProperties": false,
+            "properties": {
+              "cover": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/CoverPatch"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "rename": {
+                "description": "Only `true`: rename the files and folder to the template names.",
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "tags": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/TagsPatch"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "TagsPatch": {
+            "additionalProperties": false,
+            "description": "Tag changes: `null` clears a field.",
+            "properties": {
+              "album": {
+                "additionalProperties": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "description": "Album-level fields (`{FIELD: value|null}`).",
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "tracks": {
+                "additionalProperties": {
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "type": "object"
+                },
+                "description": "Track-level fields by file name, as `musaic_album_get` lists them.",
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "albumId": {
+            "pattern": "^[0-9a-f]{16}$",
+            "type": "string"
+          },
+          "baseRevision": {
+            "description": "The `revision` from `musaic_album_get`.",
+            "type": "string"
+          },
+          "proposedPatch": {
+            "$ref": "#/$defs/ProposedPatch"
+          }
+        },
+        "required": [
+          "albumId",
+          "baseRevision",
+          "proposedPatch"
+        ],
+        "title": "FixPreviewInput",
+        "type": "object"
+      },
+      "kinds": [
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "Effect": {
+            "enum": [
+              "writes_tags",
+              "writes_cover",
+              "renames_files",
+              "renames_folder",
+              "fetches_network"
+            ],
+            "type": "string"
+          },
+          "FixDiff": {
+            "properties": {
+              "cover": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "files": {
+                "items": {
+                  "$ref": "#/$defs/NameChange"
+                },
+                "type": "array"
+              },
+              "folder": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/NameChange"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tags": {
+                "items": {
+                  "$ref": "#/$defs/TagChange"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "tags",
+              "files"
+            ],
+            "type": "object"
+          },
+          "NameChange": {
+            "properties": {
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "from",
+              "to"
+            ],
+            "type": "object"
+          },
+          "PermissionKind": {
+            "description": "What an agent may be allowed to do. A pairing's scope is a subset of these.",
+            "enum": [
+              "library.read",
+              "proposal.submit",
+              "compute.scan",
+              "compute.analyze",
+              "tags.write",
+              "covers.write",
+              "files.rename"
+            ],
+            "type": "string"
+          },
+          "TagChange": {
+            "properties": {
+              "after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "before": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "field": {
+                "type": "string"
+              },
+              "scope": {
+                "description": "`album`, or a file name.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "scope",
+              "field"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "diff": {
+            "$ref": "#/$defs/FixDiff"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "effects": {
+            "items": {
+              "$ref": "#/$defs/Effect"
+            },
+            "type": "array"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/$defs/PermissionKind"
+            },
+            "type": "array"
+          },
+          "proposalId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalId",
+          "digest",
+          "diff",
+          "effects",
+          "kinds",
+          "expiresAt"
+        ],
+        "title": "FixPreviewOutput",
+        "type": "object"
+      },
+      "title": "Preview a fix"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "cliName": "fix-apply",
+      "description": "Apply a previewed proposal. Depending on the pairing's policy the change runs now or waits for the user to approve it in Musaic; poll musaic_operation_get.",
+      "id": "musaic_fix_apply",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "digest": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+            "type": "string"
+          },
+          "proposalId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposalId",
+          "digest",
+          "idempotencyKey"
+        ],
+        "title": "FixApplyInput",
+        "type": "object"
+      },
+      "kinds": [
+        "tags.write",
+        "covers.write",
+        "files.rename"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "ApplyResult": {
+            "properties": {
+              "albumIdAfter": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cover": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FileOutcome"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files": {
+                "items": {
+                  "$ref": "#/$defs/FileOutcome"
+                },
+                "type": "array"
+              },
+              "renamed": {
+                "description": "Whether the rename step ran and finished.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "files",
+              "renamed"
+            ],
+            "type": "object"
+          },
+          "FileOutcome": {
+            "description": "One file's outcome, by bare file name.",
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "fileName",
+              "status"
+            ],
+            "type": "object"
+          },
+          "FileStatus": {
+            "enum": [
+              "ok",
+              "failed",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "OperationState": {
+            "enum": [
+              "awaiting_approval",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "denied",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "The handle, plus the result once the apply has finished.",
+        "properties": {
+          "approvalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ApplyResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/$defs/OperationState"
+          }
+        },
+        "required": [
+          "operationId",
+          "state"
+        ],
+        "title": "FixApplyOutput",
+        "type": "object"
+      },
+      "title": "Apply a fix"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "scan-start",
+      "description": "Scan the configured library folder. Returns a handle; if a scan is already running the handle follows it.",
+      "id": "musaic_scan_start",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "configuredRootId": {
+            "description": "The `rootId` of an entry in `capabilities.configuredRoots`.",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configuredRootId",
+          "idempotencyKey"
+        ],
+        "title": "ScanStartInput",
+        "type": "object"
+      },
+      "kinds": [
+        "compute.scan"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "OperationState": {
+            "enum": [
+              "awaiting_approval",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "denied",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What a start tool returns: a handle to poll with `musaic_operation_get`.",
+        "properties": {
+          "approvalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/$defs/OperationState"
+          }
+        },
+        "required": [
+          "operationId",
+          "state"
+        ],
+        "title": "OperationHandle",
+        "type": "object"
+      },
+      "title": "Start a library scan"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "cliName": "checks-start",
+      "description": "Run health checks over some or all albums. Findings are written; no file is touched. Returns a handle.",
+      "id": "musaic_checks_start",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "albumIds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "checkIds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "ChecksStartInput",
+        "type": "object"
+      },
+      "kinds": [
+        "compute.scan"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "OperationState": {
+            "enum": [
+              "awaiting_approval",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "denied",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What a start tool returns: a handle to poll with `musaic_operation_get`.",
+        "properties": {
+          "approvalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/$defs/OperationState"
+          }
+        },
+        "required": [
+          "operationId",
+          "state"
+        ],
+        "title": "OperationHandle",
+        "type": "object"
+      },
+      "title": "Start health checks"
+    },
+    {
+      "annotations": {
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "analysis-start",
+      "description": "Measure BPM or ReplayGain for some albums and write the result to their tags. Returns a handle.",
+      "id": "musaic_analysis_start",
+      "inputSchema": {
+        "$defs": {
+          "AnalysisKind": {
+            "enum": [
+              "bpm",
+              "replaygain"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "albumIds": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/$defs/AnalysisKind"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "albumIds",
+          "kinds",
+          "idempotencyKey"
+        ],
+        "title": "AnalysisStartInput",
+        "type": "object"
+      },
+      "kinds": [
+        "compute.analyze",
+        "tags.write"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "OperationState": {
+            "enum": [
+              "awaiting_approval",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "denied",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "What a start tool returns: a handle to poll with `musaic_operation_get`.",
+        "properties": {
+          "approvalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/$defs/OperationState"
+          }
+        },
+        "required": [
+          "operationId",
+          "state"
+        ],
+        "title": "OperationHandle",
+        "type": "object"
+      },
+      "title": "Start analysis"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "operation-get",
+      "description": "The state, counts and result of an operation this pairing started.",
+      "id": "musaic_operation_get",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId"
+        ],
+        "title": "OperationGetInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "AnalysisItem": {
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "albumId",
+              "kind",
+              "status"
+            ],
+            "type": "object"
+          },
+          "ApplyResult": {
+            "properties": {
+              "albumIdAfter": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cover": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FileOutcome"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files": {
+                "items": {
+                  "$ref": "#/$defs/FileOutcome"
+                },
+                "type": "array"
+              },
+              "renamed": {
+                "description": "Whether the rename step ran and finished.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "files",
+              "renamed"
+            ],
+            "type": "object"
+          },
+          "CheckRunSummary": {
+            "properties": {
+              "checkId": {
+                "type": "string"
+              },
+              "failed": {
+                "type": "boolean"
+              },
+              "findings": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "checkId",
+              "findings",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "Counts": {
+            "properties": {
+              "done": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "done",
+              "total",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "FileOutcome": {
+            "description": "One file's outcome, by bare file name.",
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "fileName",
+              "status"
+            ],
+            "type": "object"
+          },
+          "FileStatus": {
+            "enum": [
+              "ok",
+              "failed",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "OperationResult": {
+            "description": "The result of a finished operation; only the part its tool produces is set.",
+            "properties": {
+              "analysis": {
+                "items": {
+                  "$ref": "#/$defs/AnalysisItem"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "apply": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ApplyResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checks": {
+                "items": {
+                  "$ref": "#/$defs/CheckRunSummary"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "scanAlbums": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "OperationState": {
+            "enum": [
+              "awaiting_approval",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "denied",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "ToolError": {
+            "description": "A failure a tool reports: `{code, message, details?}`. The message never\nholds a path, a secret or an argument value.",
+            "properties": {
+              "code": {
+                "$ref": "#/$defs/ToolErrorCode"
+              },
+              "details": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ToolErrorCode": {
+            "description": "A stable error code.",
+            "oneOf": [
+              {
+                "enum": [
+                  "INVALID_INPUT",
+                  "NOT_FOUND",
+                  "MISSING_ALBUM",
+                  "STALE_REVISION",
+                  "PROPOSAL_EXPIRED",
+                  "DIGEST_MISMATCH",
+                  "APPROVAL_EXPIRED",
+                  "IDEMPOTENCY_CONFLICT",
+                  "CURSOR_STALE",
+                  "BUSY",
+                  "RESTORING",
+                  "NO_LIBRARY",
+                  "UNAVAILABLE",
+                  "INTERNAL",
+                  "APP_NOT_RUNNING",
+                  "DESCRIPTOR_INVALID",
+                  "NOT_PAIRED",
+                  "PAIRING_REVOKED",
+                  "INSTANCE_MISMATCH",
+                  "LOCKED_OUT",
+                  "PROFILE_UNSUPPORTED"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "FORBIDDEN",
+                "description": "The scope or a Refuse policy denies it.",
+                "type": "string"
+              },
+              {
+                "const": "DENIED",
+                "description": "The user denied it.",
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "approvalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "counts": {
+            "$ref": "#/$defs/Counts"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ToolError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/OperationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "$ref": "#/$defs/OperationState"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "tool",
+          "state",
+          "counts"
+        ],
+        "title": "OperationGetOutput",
+        "type": "object"
+      },
+      "title": "Get an operation"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "operation-cancel",
+      "description": "Ask an operation this pairing started to stop. Honoured between items, and for an apply only while it waits for approval.",
+      "id": "musaic_operation_cancel",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "operationId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId"
+        ],
+        "title": "OperationCancelInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "Cancellation": {
+            "enum": [
+              "requested",
+              "not_cancellable",
+              "already_finished"
+            ],
+            "type": "string"
+          },
+          "OperationState": {
+            "enum": [
+              "awaiting_approval",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled",
+              "denied",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "cancellation": {
+            "$ref": "#/$defs/Cancellation"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/$defs/OperationState"
+          }
+        },
+        "required": [
+          "operationId",
+          "state",
+          "cancellation"
+        ],
+        "title": "OperationCancelOutput",
+        "type": "object"
+      },
+      "title": "Cancel an operation"
+    }
+  ]
+}

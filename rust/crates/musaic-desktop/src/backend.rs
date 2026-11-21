@@ -49,6 +49,14 @@ fn secrets(opts: &Options) -> SharedSecrets {
     }
 }
 
+fn agent_secrets(opts: &Options) -> SharedSecrets {
+    if opts.dev_memory_secrets {
+        Arc::new(musaic_secrets::MemoryStore::new())
+    } else {
+        Arc::new(musaic_secrets::agent::agent_keyring())
+    }
+}
+
 /// The same rotating `<config>/server.log` (5 MiB x 5, secret
 /// values masked) the server binary writes, level from `MUSAIC_LOG_LEVEL`
 /// (INFO when unset or unknown, as the binary's variable). Once per
@@ -99,6 +107,11 @@ pub fn build_state(opts: &Options, log: Option<&ProcessLog>) -> Result<AppState,
         // Loopback only: no extra host names.
         .allowed_hosts(AllowedHosts::none())
         .secrets(secrets(opts))
+        // Agent pairing secrets: the OS keyring under service `musaic-agent`;
+        // in memory (with a scratch-dir credential file for a separate CLI
+        // process) for a development run, which is limited to scratch dirs.
+        .agent_secrets(agent_secrets(opts))
+        .agent_dev_credentials(opts.dev_memory_secrets)
         .network(network(&opts.network))
         .frontend_dir(opts.frontend_dir.clone())
         // Every health check runs on its own (issue #187).

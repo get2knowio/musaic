@@ -52,7 +52,7 @@ function renderSettings(entry = "/settings") {
 }
 
 describe("Settings index", () => {
-  it("lists the five tasks as links in a named navigation", () => {
+  it("lists the six tasks as links in a named navigation", () => {
     renderSettings();
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     const links = within(nav).getAllByRole("link").map((a) => a.textContent);
@@ -62,6 +62,7 @@ describe("Settings index", () => {
       "File naming",
       "Matching & integrations",
       "Backup & restore",
+      "Assistants",
     ]);
     // Real links, so Tab reaches them and Enter follows them.
     for (const a of within(nav).getAllByRole("link")) expect(a).toHaveAttribute("href");
@@ -79,6 +80,8 @@ describe("Settings index", () => {
     expect(document.activeElement).toHaveProperty("tagName", "INPUT");
     go("Backup & restore");
     expect(screen.getByRole("button", { name: /Back up catalog database/ })).toHaveFocus();
+    go("Assistants");
+    expect(screen.getByRole("textbox", { name: "Assistant name" })).toHaveFocus();
     go("Library folder");
     expect(document.activeElement).toBe(document.getElementById("library-folder"));
     go("Matching & integrations");
@@ -103,7 +106,7 @@ describe("Settings index", () => {
 
   it("sections are named groups", () => {
     renderSettings();
-    for (const name of ["Library folder", "Tags", "File naming", "Matching & integrations", "Backup & restore"]) {
+    for (const name of ["Library folder", "Tags", "File naming", "Matching & integrations", "Backup & restore", "Assistants"]) {
       expect(screen.getByRole("group", { name })).toBeInTheDocument();
     }
   });

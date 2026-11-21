@@ -33,7 +33,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 |---|---|
 | `musaic-core` | Shared primitives: album ids (first 16 hex chars of the SHA-1 of the album's resolved path), config (`config.json`, config dir), the album-field accessors, Python-compatible string helpers the stored data depends on |
 | `musaic-log` | Small logging facade for the lower crates; `musaic-app` installs the sink that writes `server.log` |
-| `musaic-db` | Opens, creates and migrates the SQLite database (schema v20; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots, and for folding the rows of a multi-disc set into one (`merge.rs`) |
+| `musaic-db` | Opens, creates and migrates the SQLite database (schema v21; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots, and for folding the rows of a multi-disc set into one (`merge.rs`) |
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |
@@ -48,6 +48,9 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 | `musaic-ai` | The job queue: persistence, worker loop, the resolver synthesizer; a provider trait with no network provider in this build |
 | `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log; and the **operations surface**, `musaic_app::ops` (one module per group: system, library, scan, settings, database, tags, analyze, apply, checks, fixes, jobs), where every user-visible action lives with its guard, validation order, events and follow-up notifications (`docs/operations.md`) |
 | `musaic-api` | The HTTP face on axum, an adapter over `musaic_app::ops`: every `/api` route parses its request (`lax`), calls one operation and renders the result (`render/`) and the `OpError` status; also SSE framing, Host/Origin check, launch-cookie gate; and a standalone server binary (`musaic-api`) used for UI development |
+| `musaic-commands` | The agent tool contract, a leaf crate (no db, app, axum or tokio): the twelve typed tools and their schemas, permission kinds and `decide`, error codes, the pairing proofs, the descriptor, and the generated catalog (`docs/agent-tools.{json,md}`) |
+| `musaic-mcp` | The MCP adapter over the registry, on `rmcp` (pinned `=3.11.0`): stdio, both the 2026-07-28 and 2025-11-25 profiles |
+| `musaic-cli` | The bundled `musaic-cli`: the stdio MCP server, `call`, `doctor`, `setup`/`uninstall`, `catalog --check`. It must not link `musaic-db`, `rusqlite`, `musaic-app` or `musaic-api` (`tests/no_db_owner.rs`) |
 | `musaic-desktop` | The Tauri 2 shell: single-instance lock, loopback server, navigation lock, native dialogs, reveal in file manager, window state, quit handling |
 | `musaic-testdata` | Dev-only: locates public test data and the optional private test data |
 
@@ -108,6 +111,15 @@ make live MusicBrainz / AcoustID / Cover Art Archive requests. `musaic-api --hel
 every server flag.
 
 Never point a development run at `~/.musaic` or at a real music library; use a copy.
+
+### Agent tool catalog
+
+```bash
+cd rust
+cargo run -p musaic-cli -- catalog --check     # --write regenerates docs/agent-tools.{json,md}
+```
+
+CI runs the check; change a tool in `musaic-commands`, regenerate, commit both files.
 
 ### Packaging
 
@@ -179,7 +191,7 @@ the SSE relay). Callers never call those directly.
 - Event types: `rust/crates/musaic-events/src/event.rs` (`AlbumTagsChanged`,
   `AlbumCoverChanged`, `AlbumRenamed`, `AlbumMbAnchorSet`, `TrackFingerprinted`,
   `AlbumDeleted`, `AlbumMarkedMissing`, `LibraryScanCompleted`, `BulkBatchCompleted`,
-  `LibraryScanStopped`, `SettingsChanged`, `ChecksRerunFinished`). Only a scan that saved
+  `LibraryScanStopped`, `SettingsChanged`, `ChecksRerunFinished`, `AgentStateChanged`). Only a scan that saved
   its snapshot publishes `LibraryScanCompleted` (post-scan reruns, fingerprint pool
   kick-off); an aborted, cancelled or failed scan publishes `LibraryScanStopped(reason)`
   and starts nothing.
@@ -214,6 +226,11 @@ the SSE relay). Callers never call those directly.
 
 A merge of several album rows into one (rule 6) has no event of its own: it is
 `AlbumRenamed(old, survivor)` per merged row, under `in_bulk_run`.
+
+`AgentStateChanged(what, ids)` reports that a pairing, an approval card or an agent's
+activity changed (references only), so the UI refreshes Settings, Agents and the Review
+inbox. Like `ChecksRerunFinished` it is a report: no rerun subscriber, no sweep wake, no
+findings notify; only the relay carries it.
 
 New mutation → publish the right event. A direct call to the post-scan rerun outside the
 subscriber wiring is a smell.
@@ -347,6 +364,12 @@ but `mod.rs`) and `musaic-api/tests/operations_inventory.rs` (every route has a 
 one operation); `musaic-app/tests/ops_all_groups.rs` requires an ops test per group and
 `musaic-api/tests/stream_equivalence.rs` that the streams are the rendered events.
 
+The agent bridge follows the same rule: `/__musaic/agent/v1/*` and `/api/agent/*` are
+faces over `musaic_app::ops::agent` (the tool route parses with
+`musaic_commands::parse_call` and renders the typed `ToolOutput`; `ops/agent.rs` stays free
+of `serde_json`). The CLI is a client: it never links the database, so the app stays the
+database's only owner.
+
 ## Security posture (keep it)
 
 - The API binds `127.0.0.1` only. `musaic-api/src/host_check.rs` refuses requests whose
@@ -357,7 +380,13 @@ one operation); `musaic-app/tests/ops_all_groups.rs` requires an ops test per gr
 - Every remote image fetch goes through `musaic-net/src/preview.rs`
   (`check_public_url`): `https`, public host, re-checked on each redirect.
 - Keys live only in the OS keyring (`musaic-secrets`); nothing writes a key to SQLite or
-  to the log.
+  to the log. Agent pairing secrets live there too (service `musaic-agent`); the database
+  holds only a SHA-256 fingerprint of each.
+- The agent route family `/__musaic/agent/v1/*` has its own guard
+  (`musaic-api/src/agent_guard.rs`: loopback peer, exact Host, no Origin, JSON, 256 KiB,
+  bearer token; mutual HMAC proof at the handshake) and never accepts the launch cookie.
+  The launch gate and the Host / Origin check are unchanged for every other route. The
+  tools return no filesystem path. See `docs/agents.md`.
 
 See `SECURITY.md`.
 
@@ -365,7 +394,8 @@ See `SECURITY.md`.
 
 1. Add `rust/crates/musaic-checks/src/checks/<name>.rs` implementing `Check`
    (`musaic-checks/src/base.rs`: `meta()` and `run(ctx, scope, emit)`); export it from
-   `checks/mod.rs`.
+   `checks/mod.rs`. A check that looks at albums one at a time calls `ctx.checkpoint()?`
+   before each, so a cancelled run (an agent's) stops between albums.
 2. Add it to `Registry::default` in `musaic-checks/src/registry.rs` (order is display
    order).
 3. A fix, if any, goes in `musaic-services/src/check_fixes.rs`, and mutates through the

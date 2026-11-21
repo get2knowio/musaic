@@ -260,6 +260,7 @@ impl Check for DuplicateTracks {
             }
         }
         for (album_id, tracks) in &albums {
+            ctx.checkpoint()?;
             if tracks.len() < 2 {
                 continue;
             }

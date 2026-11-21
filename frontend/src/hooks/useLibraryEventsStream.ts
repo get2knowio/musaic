@@ -58,6 +58,9 @@
  *                                       open findings view refetches).
  *   SettingsChanged(keys)             → ["settings"], ["acoustid-prompt"],
  *                                       ["ui-prefs"]
+ *   AgentStateChanged(what, ids)      → ["agent", what] (pairings, approvals
+ *                                       or activity; prefix-matched, so every
+ *                                       state / pairing under it refetches)
  *   LibraryScanStopped(reason)        → ["albums-snapshot"] only: an
  *                                       aborted / cancelled / failed scan
  *                                       wrote no album, but a cancelled
@@ -80,11 +83,13 @@ import { ACOUSTID_PROMPT_QUERY_KEY } from "./useAcoustidPrompt";
 import { UI_PREFS_QUERY_KEY } from "./useUiPrefs";
 import { CHECKS_QUERY_KEY, FINDINGS_QUERY_KEY } from "./useChecks";
 import { SETTINGS_QUERY_KEY } from "./useJobs";
+import { AGENT_QUERY_KEY } from "./useAgents";
 
 type EventPayload = {
   album_id?: string;
   old_album_id?: string;
   new_album_id?: string;
+  what?: string;
 };
 
 export function useLibraryEventsStream() {
@@ -225,6 +230,13 @@ export function useLibraryEventsStream() {
       qc.invalidateQueries({ queryKey: ACOUSTID_PROMPT_QUERY_KEY });
       qc.invalidateQueries({ queryKey: UI_PREFS_QUERY_KEY });
     });
+    es.addEventListener("AgentStateChanged", (ev) => {
+      // A pairing, an approval or an activity record changed. `what` names
+      // the family; an unknown or missing one refreshes all of them.
+      const what = parse(ev as MessageEvent)?.what;
+      const known = what === "pairings" || what === "approvals" || what === "activity";
+      qc.invalidateQueries({ queryKey: known ? [...AGENT_QUERY_KEY, what] : AGENT_QUERY_KEY });
+    });
     es.addEventListener("LibraryScanStopped", () => {
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
     });
@@ -252,4 +264,5 @@ function resyncAllBusCaches(qc: QueryClient): void {
   qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
   qc.invalidateQueries({ queryKey: ["tracks"] });
   qc.invalidateQueries({ queryKey: ["album-resolution"] });
+  qc.invalidateQueries({ queryKey: AGENT_QUERY_KEY });
 }

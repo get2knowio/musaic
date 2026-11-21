@@ -86,6 +86,7 @@ function client(ready: boolean, jobs: Job[] = []): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["ai-providers"], providers(ready));
   qc.setQueryData(["jobs"], jobs);
+  qc.setQueryData(["agent", "approvals", "pending"], []);
   qc.setQueryData(["checks"], []);
   qc.setQueryData(["findings"], []);
   qc.setQueryData(["albums-snapshot"], [album]);

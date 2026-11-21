@@ -17,7 +17,9 @@ fn make_v19(cfg: &Path) {
     drop(musaic_db::Db::open_or_create(&p).unwrap());
     let c = Connection::open(&p).unwrap();
     c.execute_batch(
-        "ALTER TABLE albums DROP COLUMN tag_disc_total; \
+        "DROP TABLE agent_activity; DROP TABLE agent_changes; DROP TABLE agent_approvals; \
+         DROP TABLE agent_proposals; DROP TABLE agent_policies; DROP TABLE agent_pairings; \
+         ALTER TABLE albums DROP COLUMN tag_disc_total; \
          ALTER TABLE albums DROP COLUMN track_discs_json; \
          UPDATE schema_version SET version = 19; \
          INSERT INTO settings(key, value) VALUES ('acoustid_api_key', 'SECRET-KEY-VALUE'); \

@@ -13,6 +13,7 @@ name = "musaic-api"
 path = "src/main.rs"
 
 [dependencies]
+musaic-commands = { path = "../musaic-commands" }
 musaic-core = { path = "../musaic-core" }
 musaic-db = { path = "../musaic-db" }
 musaic-secrets = { path = "../musaic-secrets" }
