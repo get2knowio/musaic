@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Disc3 } from "lucide-react";
+import { Disc3, FolderX, RotateCcw, TriangleAlert } from "lucide-react";
 import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import FilterBar from "@/components/FilterBar";
@@ -200,8 +200,33 @@ export default function LibraryPage() {
     );
   }
 
-  if (!config.data?.exists) {
-    return <NoLibraryConfigured current={config.data?.library_dir ?? null} />;
+  // Three different answers, three different offers: the settings could
+  // not be read (retry; nothing is known about the library), no folder is
+  // set (setup), or the folder set is not there (recovery: reconnect the
+  // drive and try again, or choose another folder). A failed refresh with
+  // a last-known answer keeps using that answer.
+  if (!config.data) {
+    return (
+      <LibraryConfigUnavailable
+        detail={config.error instanceof Error ? config.error.message : null}
+        retrying={config.isFetching}
+        onRetry={() => void config.refetch()}
+      />
+    );
+  }
+
+  if (!config.data.library_dir) {
+    return <NoLibraryConfigured />;
+  }
+
+  if (!config.data.exists) {
+    return (
+      <LibraryFolderUnreachable
+        dir={config.data.library_dir}
+        retrying={config.isFetching}
+        onRetry={() => void config.refetch()}
+      />
+    );
   }
 
   // ---- Main view --------------------------------------------------------
@@ -260,28 +285,110 @@ export default function LibraryPage() {
  * A saved, existing directory flips the config query, this page renders
  * the grid, and its scan stream opens straight away (useScanStream).
  */
-function NoLibraryConfigured({ current }: { current: string | null }) {
+function NoLibraryConfigured() {
+  return (
+    <LibraryShell icon={<Disc3 className="w-9 h-9" />} title="Configure your library">
+      <p className="text-md text-fg-3 leading-relaxed">
+        Point Musaic at a folder containing your album directories.
+        Subfolders with FLAC files are treated as albums.
+      </p>
+      <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+        <LibraryPathForm initial="" inputClassName="w-80 max-w-full" />
+      </div>
+      <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
+    </LibraryShell>
+  );
+}
+
+/** A folder is configured but is not there now: most often a drive that
+ *  is not connected. Nothing in the library is touched; once the folder is
+ *  back, Try again shows it. */
+function LibraryFolderUnreachable({
+  dir,
+  retrying,
+  onRetry,
+}: {
+  dir: string;
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <LibraryShell icon={<FolderX className="w-9 h-9" />} title="Library folder not found">
+      <p className="text-md text-fg-3 leading-relaxed">
+        Musaic can't reach the library folder:{" "}
+        <code className="mono text-fg-2 break-all">{dir}</code>
+      </p>
+      <p className="text-sm text-fg-3 mt-2 leading-relaxed">
+        If it is on an external or network drive, connect the drive and try again. Your albums, tags and
+        findings are kept while the folder is away.
+      </p>
+      <div className="mt-5">
+        <RetryButton retrying={retrying} onRetry={onRetry} label="Try again" />
+      </div>
+      <p className="text-sm text-fg-3 mt-6 mb-2">Or choose a different folder:</p>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <LibraryPathForm initial={dir} inputClassName="w-80 max-w-full" />
+      </div>
+      <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
+    </LibraryShell>
+  );
+}
+
+/** The library settings could not be read: nothing is known about the
+ *  library, so neither setup nor recovery is offered. */
+function LibraryConfigUnavailable({
+  detail,
+  retrying,
+  onRetry,
+}: {
+  detail: string | null;
+  retrying: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <LibraryShell icon={<TriangleAlert className="w-9 h-9" />} title="Couldn't load the library settings">
+      <p className="text-md text-fg-3 leading-relaxed">
+        Musaic couldn't read which folder holds your library. Nothing has been changed.
+      </p>
+      {detail && <p className="text-xs text-fg-4 mt-2 mono break-all">{detail}</p>}
+      <div className="mt-5">
+        <RetryButton retrying={retrying} onRetry={onRetry} label="Retry" />
+      </div>
+    </LibraryShell>
+  );
+}
+
+function RetryButton({ retrying, onRetry, label }: { retrying: boolean; onRetry: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onRetry}
+      disabled={retrying}
+      className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5"
+    >
+      <RotateCcw className="w-3.5 h-3.5" />
+      {retrying ? "Checking…" : label}
+    </button>
+  );
+}
+
+function LibraryShell({
+  icon,
+  title,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="flex-1 grid place-items-center px-8 py-16 overflow-auto">
       <div className="max-w-lg text-center">
         <div className="w-20 h-20 rounded-full bg-bg-2 mx-auto mb-5 grid place-items-center text-fg-3">
-          <Disc3 className="w-9 h-9" />
+          {icon}
         </div>
-        <h2 className="text-xl font-semibold mb-2">Configure your library</h2>
-        <p className="text-md text-fg-3 leading-relaxed">
-          Point Musaic at a folder containing your album directories.
-          Subfolders with FLAC files are treated as albums.
-        </p>
-        {current && (
-          <p className="text-sm text-fg-3 mt-3">
-            The configured directory doesn't exist:{" "}
-            <code className="mono text-fg-2 break-all">{current}</code>
-          </p>
-        )}
-        <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
-          <LibraryPathForm initial={current ?? ""} inputClassName="w-80 max-w-full" />
-        </div>
-        <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
+        <h2 className="text-xl font-semibold mb-2">{title}</h2>
+        {children}
       </div>
     </div>
   );

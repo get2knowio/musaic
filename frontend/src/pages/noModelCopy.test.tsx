@@ -2,7 +2,7 @@
  * Copy that describes what happens without a model backend.
  * - Settings → AI worker → Queue status: a job that failed only because no
  *   AI backend is available does not pause the queue (other failures do).
- * - Needs attention → bulk identify dialog: albums the bulk pass can't match
+ * - Review → bulk identify dialog: albums the bulk pass can't match
  *   are not sent to the per-finding Fix "to escalate to AI" (that Fix
  *   answers ok:false with the not-available message in this build).
  */
@@ -14,7 +14,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import SettingsPage from "@/pages/Settings";
-import AttentionPage from "@/pages/Attention";
+import ReviewPage from "@/pages/Review";
 import type { AiProvidersResponse } from "@/lib/api";
 import type { CheckDetail, Finding } from "@/lib/types";
 
@@ -121,12 +121,12 @@ describe("no-model copy", () => {
   });
 
   for (const ready of [false, true]) {
-    it(`Needs attention: the identify dialog never offers AI escalation (provider ready: ${ready})`, () => {
+    it(`Review: the identify dialog never offers AI escalation (provider ready: ${ready})`, () => {
       render(
         <QueryClientProvider client={client(ready)}>
-          <MemoryRouter initialEntries={["/attention"]}>
+          <MemoryRouter initialEntries={[`/review?check=${detail.meta.id}`]}>
             <Routes>
-              <Route path="/attention" element={<AttentionPage />} />
+              <Route path="/review" element={<ReviewPage />} />
             </Routes>
           </MemoryRouter>
         </QueryClientProvider>,

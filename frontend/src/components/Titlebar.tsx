@@ -28,7 +28,7 @@ function readView(params: URLSearchParams): ViewMode {
 
 const ROUTE_LABELS: { match: (path: string) => boolean; label: string }[] = [
   { match: (p) => p === "/" || p.startsWith("/library"), label: "Library" },
-  { match: (p) => p.startsWith("/attention"), label: "Needs attention" },
+  { match: (p) => p.startsWith("/review"), label: "Review" },
   { match: (p) => p.startsWith("/settings"), label: "Settings" },
 ];
 

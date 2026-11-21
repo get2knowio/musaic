@@ -18,6 +18,8 @@ export function FindingRow({
   fixKind,
   album,
   siblings,
+  urgencyLabel,
+  checkLabel,
 }: {
   checkId: string;
   finding: Finding;
@@ -29,6 +31,11 @@ export function FindingRow({
    *  through to FindingFixButton so cluster-resolve dialogs can
    *  chain through them after each apply. */
   siblings: Finding[];
+  /** A short label for how pressing the finding is ("Warning"), where
+   *  rows of several kinds are listed together. */
+  urgencyLabel?: string;
+  /** The check's name, where rows of several checks are listed together. */
+  checkLabel?: string;
 }) {
   const unignoreMutation = useUnignoreFinding();
   const ai = useAiStatus();
@@ -100,6 +107,17 @@ export function FindingRow({
           )}
         </div>
         <div className="mono text-[11px] text-fg-4 mt-0.5 flex items-center gap-2 flex-wrap">
+          {urgencyLabel && (
+            <span data-urgency className={`font-medium ${sevClass}`}>
+              {urgencyLabel}
+            </span>
+          )}
+          {checkLabel && (
+            <>
+              <span className="text-fg-2">{checkLabel}</span>
+              <span>·</span>
+            </>
+          )}
           <span className="text-fg-3 normal-case tracking-normal">
             {finding.summary}
           </span>

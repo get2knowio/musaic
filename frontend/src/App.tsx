@@ -2,8 +2,8 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 
 import LibraryPage from "@/pages/Library";
-import AttentionPage from "@/pages/Attention";
-import { HealthRedirect, JobsRedirect } from "@/pages/attentionRedirects";
+import ReviewPage from "@/pages/Review";
+import { AttentionRedirect, HealthRedirect, JobsRedirect } from "@/pages/reviewRedirects";
 import SettingsPage from "@/pages/Settings";
 import Titlebar from "@/components/Titlebar";
 import Sidebar from "@/components/Sidebar";
@@ -51,7 +51,7 @@ export default function App() {
 
   // Save the user's last /library URL to sessionStorage so the Sidebar's
   // "Library" link can restore the same filter / search / open album when
-  // they come back from /attention, /settings, etc.
+  // they come back from /review, /settings, etc.
   useTrackLibraryUrl();
 
   return (
@@ -70,9 +70,11 @@ export default function App() {
             <Route path="/library" element={<LibraryPage />}>
               <Route path=":albumId" element={null} />
             </Route>
-            <Route path="/attention" element={<AttentionPage />} />
-            {/* The old Jobs and Health pages are part of Needs attention;
-                their links (including per-check and per-job deep links) land there. */}
+            <Route path="/review" element={<ReviewPage />} />
+            {/* Needs attention, and the old Jobs and Health pages before it,
+                are Review now; their links (including per-check and per-job
+                deep links) land there with the nearest filter. */}
+            <Route path="/attention" element={<AttentionRedirect />} />
             <Route path="/jobs" element={<JobsRedirect />} />
             <Route path="/jobs/:jobId" element={<JobsRedirect />} />
             <Route path="/health" element={<HealthRedirect />} />

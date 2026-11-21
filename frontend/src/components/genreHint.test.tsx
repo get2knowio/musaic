@@ -77,7 +77,7 @@ describe("suggestedGenre", () => {
   });
 });
 
-describe("Needs attention row", () => {
+describe("Review row", () => {
   it("shows the line, linking to the album, when the detail has the key", () => {
     const { container } = row(finding({ genre_available: "folk" }));
     expect(container.textContent).toMatch(LINE);

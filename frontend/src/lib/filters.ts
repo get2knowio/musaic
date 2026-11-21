@@ -20,7 +20,7 @@ export const FILTERS: FilterDef[] = [
   {
     // Albums with a job whose result is waiting (proposed changes, or a
     // failure). Named for the jobs so it is not read as the album count of
-    // "Needs attention", which counts findings too.
+    // Review, which counts findings too.
     key: "needs-review",
     label: "Jobs to review",
     dotColor: "var(--warn)",

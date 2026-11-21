@@ -14,7 +14,7 @@ import { displayArtist } from "@/lib/albumFields";
 import { plainReason, type BulkOutcome } from "@/lib/bulkFixReasons";
 import type { Album } from "@/lib/types";
 
-/** Rows listed per outcome group before "Show all N" (as on the Attention page). */
+/** Rows listed per outcome group before "Show all N" (as on the Review page). */
 export const RESULT_ROW_LIMIT = 50;
 
 /** One handled finding, as the closing list shows it. */
