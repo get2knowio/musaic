@@ -107,8 +107,19 @@ fn copy_dir(src: &Path, dst: &Path) {
 }
 
 /// Holds the restore gate: while it lives, work that writes is refused as busy.
+/// Background work a scan started (the fingerprint pass, a check rerun) is
+/// waited out first.
 pub fn hold_restore(app: &App) -> RestoreGuard {
-    app.gate().begin_restore().expect("no work is running")
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        match app.gate().begin_restore() {
+            Ok(g) => return g,
+            Err(_) if std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            Err(e) => panic!("no work is running: {e}"),
+        }
+    }
 }
 
 /// Waits until the fingerprint pass a finished scan starts has finished, so a
@@ -129,5 +140,160 @@ pub fn wait_for_fingerprints(app: &App) {
             "the fingerprint pass did not finish: {s:?}"
         );
         std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
+
+// ------------------------------------------------------------ agent bridge
+
+use std::sync::Mutex;
+use std::time::{Duration, SystemTime};
+
+use musaic_app::ops::agent::{AgentError, CreatedPairing, Principal};
+use musaic_commands::auth::{self, ExchangeRequest, client_proof, hex_decode, random_hex};
+use musaic_commands::{PermissionKind, ToolCall, ToolError, ToolOutput, parse_call};
+use musaic_secrets::MemoryStore;
+
+/// A scripted wall clock the agent tests move by hand.
+#[derive(Clone)]
+pub struct FakeClock(pub Arc<Mutex<SystemTime>>);
+
+impl FakeClock {
+    pub fn new() -> Self {
+        FakeClock(Arc::new(Mutex::new(
+            SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000),
+        )))
+    }
+
+    pub fn advance(&self, secs: u64) {
+        *self.0.lock().unwrap() += Duration::from_secs(secs);
+    }
+
+    pub fn wall(&self) -> musaic_app::app::WallClock {
+        let t = self.0.clone();
+        Arc::new(move || *t.lock().unwrap())
+    }
+}
+
+/// An app with a fake clock and an agent secrets store the test can read.
+pub struct AgentWorld {
+    pub app: App,
+    pub scratch: Scratch,
+    pub clock: FakeClock,
+    pub store: Arc<MemoryStore>,
+}
+
+pub fn agent_world() -> AgentWorld {
+    let clock = FakeClock::new();
+    let store = Arc::new(MemoryStore::new());
+    let (c2, s2) = (clock.clone(), store.clone());
+    let (app, scratch) = app_quiet_pool(move |b| b.clock(c2.wall()).agent_secrets(s2));
+    AgentWorld {
+        app,
+        scratch,
+        clock,
+        store,
+    }
+}
+
+/// An agent world whose library was configured and scanned.
+pub fn agent_world_scanned() -> AgentWorld {
+    let w = agent_world();
+    configure(&w.app, &w.scratch);
+    let n = w.app.ops().scan().subscribe(false).unwrap().count();
+    assert!(n > 2);
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
+    while w.app.gate().snapshot() != (0, false) {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // The pass a scan starts writes fingerprints on its own thread; a test
+    // that proves a read wrote nothing must not see those writes.
+    wait_for_fingerprints(&w.app);
+    w
+}
+
+pub fn config_id(app: &App) -> String {
+    let resolved = musaic_core::config::resolve_path(app.config_dir()).unwrap();
+    auth::config_dir_id(&resolved.to_string_lossy())
+}
+
+impl AgentWorld {
+    pub fn pair(&self, name: &str, scopes: &[PermissionKind]) -> CreatedPairing {
+        self.app
+            .ops()
+            .agent()
+            .create_pairing(name, scopes)
+            .expect("pairing created")
+    }
+
+    /// The handshake an honest client makes, then the principal of its token.
+    pub fn login(&self, pairing_id: &str) -> Principal {
+        let ops_agent = self.app.ops();
+        let agent = ops_agent.agent();
+        let hello = agent.hello();
+        let secret = hex_decode(
+            &musaic_secrets::agent::get_secret(
+                self.store.as_ref(),
+                &config_id(&self.app),
+                pairing_id,
+            )
+            .unwrap()
+            .expect("the secret is in the store"),
+        )
+        .unwrap();
+        let client_nonce = random_hex(16);
+        let proof = client_proof(
+            &secret,
+            pairing_id,
+            &hello.instance_id,
+            &hello.server_nonce,
+            &client_nonce,
+        );
+        let resp = agent
+            .exchange(&ExchangeRequest {
+                pairing_id: pairing_id.to_string(),
+                instance_id: hello.instance_id.clone(),
+                server_nonce: hello.server_nonce.clone(),
+                client_nonce: client_nonce.clone(),
+                client_proof: proof,
+            })
+            .expect("exchange succeeds");
+        assert!(auth::verify_server_proof(
+            &secret,
+            &resp.server_proof,
+            pairing_id,
+            &hello.instance_id,
+            &hello.server_nonce,
+            &client_nonce
+        ));
+        agent
+            .authenticate(&resp.token)
+            .expect("the token authenticates")
+    }
+
+    /// One tool call from a JSON body, as the HTTP route would parse it.
+    pub fn call(
+        &self,
+        p: &Principal,
+        tool: &str,
+        body: serde_json::Value,
+    ) -> Result<ToolOutput, ToolError> {
+        let call: ToolCall = parse_call(tool, body.to_string().as_bytes())?;
+        self.app.ops().agent().call_tool(p, call)
+    }
+}
+
+pub fn tool_code(e: &Result<ToolOutput, ToolError>) -> String {
+    match e {
+        Ok(_) => "ok".into(),
+        Err(e) => e.code.as_str().to_string(),
+    }
+}
+
+pub fn agent_err_code(e: &AgentError) -> String {
+    match e {
+        AgentError::Tool(t) => t.code.as_str().to_string(),
+        AgentError::Conflict { .. } => "CONFLICT".into(),
+        AgentError::Op(_) => "OP".into(),
     }
 }

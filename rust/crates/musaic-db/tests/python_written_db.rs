@@ -91,6 +91,7 @@ fn v16_is_backed_up_then_migrated() {
     let mut want = before.clone();
     want.push(("fingerprint_rejects".into(), 0));
     want.push(("check_inputs".into(), 0));
+    want.extend(agent_tables());
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     // Rows with a recording came from a completed lookup; the
@@ -349,6 +350,7 @@ fn v17_is_migrated_without_a_backup() {
     let mut want = before;
     want.push(("fingerprint_rejects".into(), 0));
     want.push(("check_inputs".into(), 0));
+    want.extend(agent_tables());
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     let (done, matched, impls): (i64, i64, i64) = db
@@ -425,6 +427,7 @@ fn v18_is_migrated_without_a_backup() {
     );
     let mut want = before;
     want.push(("check_inputs".into(), 0));
+    want.extend(agent_tables());
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     // The new index is there and covers the inputs query.
@@ -496,6 +499,21 @@ fn rows_of(c: &Connection, sql: &str) -> Vec<Vec<String>> {
     .collect()
 }
 
+/// The empty tables v21 adds (the agent bridge), as `table_counts` lists them.
+fn agent_tables() -> Vec<(String, i64)> {
+    [
+        "agent_activity",
+        "agent_approvals",
+        "agent_changes",
+        "agent_pairings",
+        "agent_policies",
+        "agent_proposals",
+    ]
+    .iter()
+    .map(|n| (n.to_string(), 0))
+    .collect()
+}
+
 /// A v19 database (the previous release's) is migrated in place to v20 with
 /// no backup file: every table keeps its rows, every album row keeps every
 /// value it had, the two new albums columns are NULL on every row ("not
@@ -536,11 +554,18 @@ fn v19_is_migrated_to_v20_without_a_backup() {
             backup: None
         }
     );
-    assert_eq!(SCHEMA_VERSION, 20);
-    assert_eq!(db.schema_version().unwrap(), 20);
+    assert_eq!(SCHEMA_VERSION, 21);
+    assert_eq!(db.schema_version().unwrap(), 21);
     assert!(musaic_db::existing_backup(dir.path()).is_none());
     let c = db.connection();
-    assert_eq!(table_counts(c), before, "no table added or emptied");
+    let mut want = before.clone();
+    want.extend(agent_tables());
+    want.sort();
+    assert_eq!(
+        table_counts(c),
+        want,
+        "no table emptied; v21 adds the agent tables"
+    );
     assert_eq!(
         rows_of(c, &format!("SELECT {old_cols} FROM albums ORDER BY rowid")),
         albums_before,
@@ -583,7 +608,7 @@ fn v19_is_migrated_to_v20_without_a_backup() {
 
     let fresh_dir = tempfile::tempdir().unwrap();
     let (fresh, _) = Db::open_or_create(fresh_dir.path().join("library.db")).unwrap();
-    assert_eq!(fresh.schema_version().unwrap(), 20);
+    assert_eq!(fresh.schema_version().unwrap(), 21);
     assert_eq!(cols(fresh.connection()), migrated_cols);
 }
 
@@ -633,4 +658,50 @@ fn rejects_follow_renames_and_deletes() {
         .query_row("SELECT COUNT(*) FROM fingerprint_rejects", [], |r| r.get(0))
         .unwrap();
     assert_eq!(n, 0);
+}
+
+/// A v20 database (the previous release's) gains the agent tables in place:
+/// no backup, every existing row kept, and a second open changes nothing.
+#[test]
+fn v20_is_migrated_to_v21_without_a_backup() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("library.db");
+    {
+        let (db, _) = Db::open_or_create(&path).unwrap();
+        let c = db.connection();
+        for t in [
+            "agent_activity",
+            "agent_approvals",
+            "agent_changes",
+            "agent_proposals",
+            "agent_policies",
+            "agent_pairings",
+        ] {
+            c.execute(&format!("DROP TABLE {t}"), []).unwrap();
+        }
+        c.execute("UPDATE schema_version SET version = 20", [])
+            .unwrap();
+        c.execute(
+            "INSERT INTO settings(key, value) VALUES ('kept', 'yes')",
+            [],
+        )
+        .ok();
+    }
+    let (db, opened) = Db::open(&path).unwrap();
+    assert_eq!(
+        opened,
+        Opened::Migrated {
+            from: 20,
+            backup: None
+        }
+    );
+    assert_eq!(db.schema_version().unwrap(), 21);
+    assert!(musaic_db::existing_backup(dir.path()).is_none());
+    let counts = table_counts(db.connection());
+    for (name, rows) in agent_tables() {
+        assert!(counts.contains(&(name.clone(), rows)), "{name}");
+    }
+    drop(db);
+    let (_, opened) = Db::open(&path).unwrap();
+    assert_eq!(opened, Opened::Current);
 }

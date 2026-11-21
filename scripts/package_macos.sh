@@ -30,6 +30,14 @@ HOST_TARGET="$(cd "$ROOT/rust" && rustc -vV | sed -n 's/^host: //p')"
 (cd "$ROOT/rust" && cargo fetch --locked)
 python3 "$ROOT/scripts/desktop_notices.py" --target "$HOST_TARGET"
 
+# 2b. The agent CLI, bundled beside the app as a Tauri externalBin
+# (Musaic.app/Contents/MacOS/musaic-cli). tauri.bundle.conf.json names it, so
+# only a bundling build needs this file; `cargo build` / `cargo test` do not.
+(cd "$ROOT/rust" && cargo build --release --locked -p musaic-cli --target "$HOST_TARGET")
+mkdir -p "$ROOT/rust/crates/musaic-desktop/binaries"
+cp "$ROOT/rust/target/$HOST_TARGET/release/musaic-cli" \
+   "$ROOT/rust/crates/musaic-desktop/binaries/musaic-cli-$HOST_TARGET"
+
 # 3. Release build + bundle. tauri.bundle.conf.json adds NOTICES.txt to the
 # resources; CI=true makes the dmg step skip its Finder AppleScript
 # (no window layout, no Automation prompt). Unsigned: tauri.conf.json has
@@ -47,4 +55,6 @@ env -u APPLE_CERTIFICATE -u APPLE_SIGNING_IDENTITY -u APPLE_ID -u APPLE_PASSWORD
     -u TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
     CI=true cargo tauri build --ci --bundles app,dmg --config tauri.bundle.conf.json
 
+test -x "$ROOT"/rust/target/release/bundle/macos/Musaic.app/Contents/MacOS/musaic-cli \
+  || { echo "the bundled musaic-cli is missing from Musaic.app" >&2; exit 1; }
 ls -d "$ROOT"/rust/target/release/bundle/macos/*.app "$ROOT"/rust/target/release/bundle/dmg/*.dmg

@@ -162,7 +162,27 @@ describe("useLibraryEventsStream", () => {
       ["albums-snapshot"],
       ["tracks"],
       ["album-resolution"],
+      ["agent"],
     ]);
+  });
+
+  it("AgentStateChanged invalidates only the named agent family", () => {
+    const { invalidate, remove, es } = setup();
+    es.emit("AgentStateChanged", { what: "approvals", ids: ["x"] });
+    es.emit("AgentStateChanged", { what: "pairings", ids: [] });
+    es.emit("AgentStateChanged", { what: "activity", ids: ["p1"] });
+    expect(keysOf(invalidate)).toEqual([
+      ["agent", "approvals"],
+      ["agent", "pairings"],
+      ["agent", "activity"],
+    ]);
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("AgentStateChanged with an unknown family refreshes every agent cache", () => {
+    const { invalidate, es } = setup();
+    es.emit("AgentStateChanged", { what: "other", ids: [] });
+    expect(keysOf(invalidate)).toEqual([["agent"]]);
   });
 
   it("SettingsChanged refreshes the settings, the AcoustID prompt and the UI preferences", () => {

@@ -148,6 +148,21 @@ pub struct RenameOutcome {
 }
 
 impl RenameOutcome {
+    /// An album that already matches its templates: nothing renamed, no error.
+    pub fn nothing_to_do() -> Self {
+        RenameOutcome {
+            ok: true,
+            message: "Nothing to rename".into(),
+            renamed: 0,
+            already_renamed: false,
+            skipped: Vec::new(),
+            detail: None,
+            album_renamed: None,
+            reason: None,
+            user_message: None,
+        }
+    }
+
     fn fail(message: impl Into<String>) -> Self {
         RenameOutcome {
             ok: false,

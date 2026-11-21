@@ -179,6 +179,14 @@ impl AppStateBuilder {
     pub fn secrets(self, s: SharedSecrets) -> Self {
         self.with(|b| b.secrets(s))
     }
+    /// [`AppBuilder::agent_secrets`].
+    pub fn agent_secrets(self, s: SharedSecrets) -> Self {
+        self.with(|b| b.agent_secrets(s))
+    }
+    /// [`AppBuilder::agent_dev_credentials`].
+    pub fn agent_dev_credentials(self, on: bool) -> Self {
+        self.with(|b| b.agent_dev_credentials(on))
+    }
     pub fn network(self, n: Network) -> Self {
         self.with(|b| b.network(n))
     }

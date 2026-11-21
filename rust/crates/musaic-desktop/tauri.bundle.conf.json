@@ -1,5 +1,6 @@
 {
   "bundle": {
+    "externalBin": ["binaries/musaic-cli"],
     "resources": {
       "../../../frontend/dist/": "frontend/",
       "../../target/desktop-notices/NOTICES.txt": "NOTICES.txt"

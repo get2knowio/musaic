@@ -1,3 +1,4 @@
+pub mod agent;
 pub mod analyze;
 pub mod apply;
 pub mod checks;

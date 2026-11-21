@@ -20,6 +20,7 @@ import ReviewPage from "@/pages/Review";
 import LibraryPage from "@/pages/Library";
 import Sidebar from "@/components/Sidebar";
 import { makeAlbum, makeJob } from "@/test/fixtures";
+import type { AgentApproval } from "@/lib/api";
 import type { AppConfig, CheckSummary, Finding, Job } from "@/lib/types";
 
 const summaries: CheckSummary[] = [
@@ -54,6 +55,22 @@ const gap: Finding = {
 };
 const failedJob: Job = makeJob({ id: "f1", status: "failed", album_id: "a1", album_title: "Album f1", error: "boom" });
 
+const pending: AgentApproval = {
+  id: "ap1",
+  pairingId: "p1",
+  pairingName: "Helper",
+  action: "fix_apply",
+  albumId: "a1",
+  albumLabel: "Here",
+  kinds: ["tags.write"],
+  state: "pending",
+  reason: null,
+  createdAt: "2026-01-01T00:00:00Z",
+  expiresAt: "2999-01-01T00:00:00Z",
+  decidedAt: null,
+  diff: { tags: [{ scope: "album", field: "title", before: "a", after: "b" }], files: [] },
+};
+
 /** What each endpoint answers: a body, or a failing status. */
 const answers: Record<string, unknown> = {};
 const FAIL = Symbol("fail");
@@ -82,13 +99,15 @@ afterEach(() => {
   sessionStorage.clear();
 });
 
-function client(seed: { findings?: Finding[]; jobs?: Job[] } = {}) {
+function client(seed: { findings?: Finding[]; jobs?: Job[]; approvals?: AgentApproval[] | null } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["checks"], summaries);
   qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["albums-snapshot"], [makeAlbum({ id: "a1", title: "Here" })]);
   if (seed.findings) qc.setQueryData(["findings"], seed.findings);
   if (seed.jobs) qc.setQueryData(["jobs"], seed.jobs);
+  // The assistant requests are answered (none) unless a test says otherwise.
+  if (seed.approvals !== null) qc.setQueryData(["agent", "approvals", "pending"], seed.approvals ?? []);
   return qc;
 }
 
@@ -155,6 +174,31 @@ describe("review sources", () => {
     expect(navLink().textContent).toBe("Review");
   });
 
+  it("assistant requests that fail to load are not an empty inbox", async () => {
+    answers["/api/checks/findings"] = { findings: [] };
+    answers["/api/ai/jobs"] = { jobs: [] };
+    answers["/api/agent/approvals"] = FAIL;
+    renderReview(client({ approvals: null }));
+    expect(await screen.findByText("Couldn't load assistant requests. What is shown may be incomplete.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Retry assistant requests" })).toBeTruthy();
+    expect(screen.queryByRole("heading", ALL_CLEAR)).toBeNull();
+    expect(navLink().textContent).toContain("?");
+    answers["/api/agent/approvals"] = [];
+    fireEvent.click(screen.getByRole("button", { name: "Retry assistant requests" }));
+    expect(await screen.findByRole("heading", ALL_CLEAR)).toBeTruthy();
+  });
+
+  it("a pending assistant request counts in the badge and is listed with Approve and Deny", async () => {
+    answers["/api/checks/findings"] = { findings: [] };
+    answers["/api/ai/jobs"] = { jobs: [] };
+    renderReview(client({ approvals: [pending] }));
+    expect(await screen.findByText("Helper wants to change tags for Here")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Approve/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Deny/ })).toBeTruthy();
+    expect(navLink().querySelector("[data-badge]")!.getAttribute("title")).toBe("1 item to review");
+    expect(screen.queryByRole("heading", ALL_CLEAR)).toBeNull();
+  });
+
   it("genuinely empty answers show the all-clear and no badge", async () => {
     answers["/api/checks/findings"] = { findings: [] };
     answers["/api/ai/jobs"] = { jobs: [] };
@@ -167,7 +211,8 @@ describe("review sources", () => {
   it("while nothing has answered it says loading, not all-clear", () => {
     answers["/api/checks/findings"] = PENDING;
     answers["/api/ai/jobs"] = PENDING;
-    renderReview(client());
+    answers["/api/agent/approvals"] = PENDING;
+    renderReview(client({ approvals: null }));
     expect(screen.getAllByText("Loading…").length).toBeGreaterThan(0);
     expect(navLink().textContent).toBe("Review");
     expect(screen.queryByRole("heading", ALL_CLEAR)).toBeNull();

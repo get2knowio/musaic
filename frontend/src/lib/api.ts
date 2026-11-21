@@ -969,4 +969,99 @@ export function coverUrl(album: Album, opts?: { size?: "thumb" | "full" }): stri
   return `/api/albums/${encodeURIComponent(album.id)}/cover${qs ? "?" + qs : ""}`;
 }
 
+// --- Agent pairings and approvals ---
+
+export const AGENT_KINDS = [
+  "library.read",
+  "proposal.submit",
+  "compute.scan",
+  "compute.analyze",
+  "tags.write",
+  "covers.write",
+  "files.rename",
+] as const;
+export type AgentKind = (typeof AGENT_KINDS)[number];
+export type AgentDecision = "allow" | "ask" | "refuse";
+
+export interface AgentPairing {
+  id: string;
+  name: string;
+  scopes: string[];
+  policy: Partial<Record<AgentKind, AgentDecision>>;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
+/** How to register a new pairing with an assistant; never carries a secret. */
+export interface AgentPairingCreated extends AgentPairing {
+  connect: { command: string; args: string[] };
+}
+
+export interface AgentActivityRecord {
+  at: string;
+  tool: string;
+  outcome: string;
+}
+
+export type AgentApprovalState = "pending" | "approved" | "denied" | "expired";
+export type AgentApprovalAction = "fix_apply" | "scan_start" | "checks_start" | "analysis_start";
+
+export interface AgentApprovalDiff {
+  tags: { scope: string; field: string; before: string | null; after: string | null }[];
+  cover?: string;
+  files: { from: string; to: string }[];
+  folder?: { from: string; to: string };
+}
+
+export interface AgentApproval {
+  id: string;
+  pairingId: string;
+  pairingName: string;
+  action: AgentApprovalAction;
+  albumId: string | null;
+  albumLabel: string | null;
+  kinds: string[];
+  state: AgentApprovalState;
+  reason: string | null;
+  createdAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  diff: AgentApprovalDiff | null;
+}
+
+export function listAgentPairings(): Promise<AgentPairing[]> {
+  return request("/api/agent/pairings");
+}
+
+export function createAgentPairing(body: { name: string; scopes: string[] }): Promise<AgentPairingCreated> {
+  return request("/api/agent/pairings", { method: "POST", body: JSON.stringify(body) });
+}
+
+export function revokeAgentPairing(id: string): Promise<AgentPairing> {
+  return request(`/api/agent/pairings/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function setAgentPolicy(
+  id: string,
+  policy: Partial<Record<AgentKind, AgentDecision>>,
+): Promise<AgentPairing> {
+  return request(`/api/agent/pairings/${encodeURIComponent(id)}/policy`, {
+    method: "PUT",
+    body: JSON.stringify(policy),
+  });
+}
+
+export function listAgentActivity(id: string): Promise<AgentActivityRecord[]> {
+  return request(`/api/agent/pairings/${encodeURIComponent(id)}/activity`);
+}
+
+export function listAgentApprovals(state: "pending" | "all"): Promise<AgentApproval[]> {
+  return request(`/api/agent/approvals?state=${state}`);
+}
+
+export function decideAgentApproval(id: string, decision: "approve" | "deny"): Promise<AgentApproval> {
+  return request(`/api/agent/approvals/${encodeURIComponent(id)}/${decision}`, { method: "POST" });
+}
+
 export { ApiError };

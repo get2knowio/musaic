@@ -11,7 +11,7 @@ and a handler must follow are in `specs/001-operations-without-http/contracts/`
 and the per-route inventory.
 
 Groups: `system`, `library`, `scan`, `settings`, `database`, `tags`, `analyze`, `apply`,
-`checks`, `fixes`, `jobs`.
+`checks`, `fixes`, `jobs`, `agent`.
 
 ## Placement decision
 
@@ -54,8 +54,8 @@ requirement FR-019.
 ## The inventory
 
 The table below has one row per row of `musaic_api::route_table()`, in registration order.
-**85 rows**: the 71 routes of the Python app, the 12 `EXTRA_ROUTES`, and 2 routing aliases
-(`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **81 rows are
+**98 rows**: the 71 routes of the Python app, the 25 `EXTRA_ROUTES`, and 2 routing aliases
+(`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **94 rows are
 operation-bearing** (each names exactly one operation, which `operations_inventory.rs`
 checks); 4 are HTTP face only (the two aliases and the two static-file routes).
 **11 rows are streamed**: the scan and its follow-only reader, 5 runs (apply, cover upload, analyze, quick-fix-all and
@@ -163,6 +163,18 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `GET` | `/api/albums/{album_id}/cover-preview` | apply | carries behaviour | album existence and Missing refusal; the cover address derived from the anchor; the fetch; a 404 from the archive means no cover. Stays HTTP: the response headers | `apply.album_cover_preview` | CoverPreview (bytes, mime) | NotFound, Conflict (Missing), Upstream, Internal | no | album (404), Missing (409), anchor URL (404), fetch (502, or 404 when the archive has none) |
 | `POST` | `/api/ai/queue/resume` | jobs | thin adapter | guard; notification (in the operation) | `jobs.resume_queue` | QueueState | Busy, Internal | no | guard, resume |
 | `GET` | `/api/ai/providers` | jobs | thin adapter | body construction | `jobs.providers` | ProviderList | Internal | no | default |
+| `GET` | `/api/agent/pairings` | agent | thin adapter | body construction (never a secret) | `agent.list_pairings` | list of PairingRecord (scopes and the effective decision per permission) | Internal | no | default |
+| `POST` | `/api/agent/pairings` | agent | carries behaviour | name and scope validation; the 20-pairing cap; the secret goes to the OS keyring (service `musaic-agent`) and is never returned; publishes `AgentStateChanged` | `agent.create_pairing` | CreatedPairing (the record and how to connect) | InvalidInput, Conflict (20 active), Unavailable, Internal | no | body, cap, secret stored, row written, publish |
+| `DELETE` | `/api/agent/pairings/{pairing_id}` | agent | carries behaviour | drops the pairing's tokens, deletes its keyring entry, denies the cards waiting on it; publishes `AgentStateChanged` | `agent.revoke_pairing` | PairingRecord | NotFound, Internal | no | pairing, revoke, tokens, secret, cards |
+| `PUT` | `/api/agent/pairings/{pairing_id}/policy` | agent | thin adapter | decision validation (a read or a preview cannot be Ask; a permission outside the scope cannot be set); publishes `AgentStateChanged` | `agent.set_policy` | PairingRecord | InvalidInput, NotFound, Internal | no | pairing, validation, write |
+| `GET` | `/api/agent/pairings/{pairing_id}/activity` | agent | thin adapter | body construction (tool, outcome, time; no argument values) | `agent.activity` | list of ActivityRecord (last 100) | NotFound, Internal | no | default |
+| `GET` | `/api/agent/approvals` | agent | thin adapter | body construction; the diff is a label only | `agent.list_approvals` | list of ApprovalRecord | Internal | no | query `state` (pending or all) |
+| `POST` | `/api/agent/approvals/{approval_id}/approve` | agent | carries behaviour | the decision happens once; an apply then runs under the work guard after revalidating everything (revision, files, expiry, pairing); a start spawns its worker; publishes `AgentStateChanged` | `agent.decide_approval` | ApprovalRecord | NotFound, Conflict (no longer pending), Internal | no | card, decision, revalidation, before-image, apply |
+| `POST` | `/api/agent/approvals/{approval_id}/deny` | agent | thin adapter | the decision happens once; nothing is written; publishes `AgentStateChanged` | `agent.decide_approval` | ApprovalRecord | NotFound, Conflict (no longer pending), Internal | no | card, decision |
+| `POST` | `/__musaic/agent/v1/hello` | agent | thin adapter | the agent route guard (loopback peer, exact Host, no Origin, JSON, 256 KiB) | `agent.hello` | HelloResponse (instance id, one-time nonce) | none | no | guard only |
+| `POST` | `/__musaic/agent/v1/exchange` | agent | thin adapter | mutual HMAC proof of the pairing secret; every failure is one `NOT_PAIRED`; lockout after 5 failures in a minute | `agent.exchange` | ExchangeResponse (token, scopes, server proof) | NotPaired, LockedOut | no | guard, lockout, nonce, instance, pairing, secret, proof |
+| `GET` | `/__musaic/agent/v1/tools` | agent | thin adapter | bearer token; the catalog is rendered by musaic-commands | `agent.list_tools` | RegistryInfo | NotPaired | no | guard, token |
+| `POST` | `/__musaic/agent/v1/tools/{tool_id}` | agent | carries behaviour | bearer token; the body is parsed by `musaic_commands::parse_call` in the route; scope and policy decide before anything runs; reads take no work guard; writes take the apply guard after revalidation and a recorded before-image | `agent.call_tool` | ToolOutput (typed per tool) | the contract's tool errors, rendered as `{ok:false, error}` with status 200 | no | guard, token, parse, authorization, then the tool's own order |
 | `GET` | `/` | HTTP face only | thin adapter | static file: `index.html` of the built UI; 404 without a UI dir | - | - | - | no | default |
 | `GET` | `/{*full_path}` | HTTP face only | carries behaviour | static files and the SPA fallback; refuses `api/` paths, contains the path under the UI dir, `/assets/*` 404s when missing | - | - | - | no | default |
 

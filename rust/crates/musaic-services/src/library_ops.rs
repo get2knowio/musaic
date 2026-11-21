@@ -438,6 +438,25 @@ pub fn list_albums(
     })
 }
 
+/// The resolution the resolver already holds for the album, without
+/// resolving: no fingerprinting, no network, no work guard and no database
+/// write (the agent read tools' accessor, FR-053). The album must be a row of
+/// the configured library (`NotFound`); `None` when nothing is memoized.
+pub fn stored_album_resolution(
+    conn: &Connection,
+    library_dir: Option<&str>,
+    resolver: &musaic_resolve::Resolver,
+    album_id: &str,
+) -> Result<Option<std::sync::Arc<musaic_resolve::AlbumResolution>>, OpError> {
+    if library_dir.is_none_or(str::is_empty) {
+        return Err(no_library());
+    }
+    match crate::sources::cached_album(conn, library_dir, album_id).map_err(OpError::failed)? {
+        Some(_) => Ok(resolver.memoized(album_id)),
+        None => Err(album_not_found(album_id, "Album not found".to_string())),
+    }
+}
+
 /// `GET /api/albums/{id}/resolution`: the album must resolve (409 / 404,
 /// [`resolve_album_dict`]); then the resolver's answer. `library_dir` is
 /// read once, for the lookup and the resolve alike. Tier 0c is reachable
@@ -460,4 +479,111 @@ pub fn album_resolution(
         .resolve(conn, lib.as_deref(), album_id, hint, force)
         .map_err(OpError::internal)?;
     Ok((*r).clone())
+}
+
+// ---------------------------------------------------------------- renames
+
+/// What the rename of an album needs besides its id.
+pub struct RenameParts<'a> {
+    pub conn: &'a mut Connection,
+    pub bus: &'a Bus,
+    /// `config.library_dir` as stored.
+    pub library_dir: Option<&'a str>,
+    pub now: &'a str,
+    pub track_order: TrackOrder,
+}
+
+/// Carry out a rename plan on an album and publish the `AlbumRenamed` it
+/// produced: the Missing album is refused (409) before anything is touched,
+/// and a call that renamed nothing is a `Conflict` carrying the rename
+/// code's own reason. The filename-mismatch fix and the agent bridge share
+/// this, so both publish the same events.
+pub fn rename_album_with_plan(
+    parts: RenameParts<'_>,
+    album_id: &str,
+    plan: &[musaic_fsops::rename::PlanEntry],
+    dir_rename: Option<&musaic_fsops::rename::PlanEntry>,
+) -> Result<musaic_fsops::rename::RenameOutcome, OpError> {
+    crate::track_tags::refuse_missing(parts.conn, album_id)?;
+    let renv = musaic_fsops::rename::RenameEnv {
+        library_dir: parts.library_dir,
+        now: parts.now,
+        track_order: parts.track_order,
+    };
+    let out = musaic_fsops::rename::execute_renames(parts.conn, &renv, album_id, plan, dir_rename);
+    if let Some(ev) = &out.album_renamed {
+        parts.bus.publish(&Event::AlbumRenamed {
+            old_album_id: ev.old_album_id.clone(),
+            new_album_id: ev.new_album_id.clone(),
+        });
+    }
+    let dir_renamed = out.detail.as_ref().is_some_and(|d| d.dir_renamed);
+    if !out.ok && out.renamed == 0 && !dir_renamed {
+        let msg = if out.message.is_empty() {
+            "Rename failed".to_string()
+        } else {
+            out.message.clone()
+        };
+        // The rename code's own code and sentence ride beside `message`.
+        let details = match (out.reason, &out.user_message) {
+            (Some(r), Some(u)) => Some(crate::error::Details::Refusal(Box::new(
+                crate::error::Refusal {
+                    reason_code: r.code().to_string(),
+                    user_message: u.clone(),
+                    blockers: Vec::new(),
+                    digest: None,
+                },
+            ))),
+            _ => None,
+        };
+        return Err(OpError::Conflict {
+            message: msg,
+            details,
+        });
+    }
+    Ok(out)
+}
+
+/// Rename an album's files and folder to the user's templates: the plan is
+/// derived now, from the files and the database
+/// ([`musaic_fsops::plan::derive_plan`]), and carried out by
+/// [`rename_album_with_plan`]. A Missing album is refused (`Conflict`); an
+/// album that already matches its templates is `Ok` with nothing renamed.
+pub fn rename_album_to_templates(
+    parts: RenameParts<'_>,
+    album_id: &str,
+) -> Result<musaic_fsops::rename::RenameOutcome, OpError> {
+    use musaic_fsops::rename::PlanEntry;
+    crate::track_tags::refuse_missing(parts.conn, album_id)?;
+    let plan = musaic_fsops::plan::derive_plan(parts.conn, album_id)
+        .map_err(OpError::failed)?
+        .ok_or_else(|| album_not_found(album_id, "Album not found".to_string()))?;
+    if let Some(e) = &plan.error {
+        return Err(OpError::Conflict {
+            message: e.clone(),
+            details: None,
+        });
+    }
+    if plan.album_missing {
+        return Err(OpError::Conflict {
+            message: "The album folder is not on disk".into(),
+            details: None,
+        });
+    }
+    if plan.is_empty() {
+        return Ok(musaic_fsops::rename::RenameOutcome::nothing_to_do());
+    }
+    let files: Vec<PlanEntry> = plan
+        .renames
+        .iter()
+        .map(|r| PlanEntry {
+            old: r.filename.clone(),
+            new: r.expected.clone(),
+        })
+        .collect();
+    let dir = plan.dir_rename.as_ref().map(|d| PlanEntry {
+        old: d.old.clone(),
+        new: d.new.clone(),
+    });
+    rename_album_with_plan(parts, album_id, &files, dir.as_ref())
 }

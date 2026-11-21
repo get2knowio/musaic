@@ -9,6 +9,7 @@
 //! followed by the same migrations, so a fresh file and a migrated one have
 //! identical schemas.
 
+pub mod agent;
 pub mod ai_jobs;
 pub mod albums;
 pub mod backup;
@@ -38,7 +39,7 @@ pub use musaic_core::album_id;
 pub use python_chain::OLDEST_SCHEMA_VERSION;
 
 /// Schema version this build reads and writes.
-pub const SCHEMA_VERSION: i64 = 20;
+pub const SCHEMA_VERSION: i64 = 21;
 /// Last schema version written by the Python app.
 pub const PYTHON_SCHEMA_VERSION: i64 = 16;
 

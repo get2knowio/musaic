@@ -238,6 +238,17 @@ impl Resolver {
         }
     }
 
+    /// What the memo holds for `album_id`, without resolving anything: no
+    /// database, no network, no lock but the memo's. `None` when nothing is
+    /// memoized (never resolved in this run, or invalidated by a change).
+    pub fn memoized(&self, album_id: &str) -> Option<Arc<AlbumResolution>> {
+        let memo = self.memo.lock().unwrap_or_else(PoisonError::into_inner);
+        memo.iter()
+            .filter(|((a, _), _)| a == album_id)
+            .min_by(|(k1, _), (k2, _)| k1.cmp(k2))
+            .map(|(_, v)| v.clone())
+    }
+
     fn memo_get(&self, key: &MemoKey) -> Option<Arc<AlbumResolution>> {
         self.memo
             .lock()

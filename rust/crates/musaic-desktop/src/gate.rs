@@ -263,6 +263,12 @@ fn with_csp(mut r: Response) -> Response {
 /// `router.layer(axum::middleware::from_fn_with_state(gate, guard))`.
 pub async fn guard(State(gate): State<Arc<Gate>>, req: Request, next: Next) -> Response {
     let path = req.uri().path().to_string();
+    // The agent route family has its own guard in musaic-api (loopback peer,
+    // exact Host, no Origin, a bearer token) and never takes the launch cookie:
+    // pass it straight through, untouched.
+    if path.starts_with(musaic_api::agent_guard::PREFIX) {
+        return next.run(req).await;
+    }
     if path == FOCUS_PATH {
         let ok = req.method() == Method::POST
             && gate.launch.host_is_self(req.headers())

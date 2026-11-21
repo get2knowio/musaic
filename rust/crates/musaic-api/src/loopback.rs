@@ -108,13 +108,17 @@ pub async fn serve_loopback(
         ),
         &bound,
     );
+    crate::agent_guard::publish_descriptor(&state, addr);
     let (tx, rx) = oneshot::channel::<()>();
     let task = tokio::spawn(async move {
-        axum::serve(listener, app)
-            .with_graceful_shutdown(async {
-                let _ = rx.await;
-            })
-            .await
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<crate::agent_guard::ConnInfo>(),
+        )
+        .with_graceful_shutdown(async {
+            let _ = rx.await;
+        })
+        .await
     });
     Ok(LoopbackServer {
         addr,
@@ -153,6 +157,7 @@ impl LoopbackServer {
                 }
             }
         }
+        crate::agent_guard::remove_descriptor(&self.state);
         let st = self.state.clone();
         let state_shutdown = tokio::task::spawn_blocking(move || st.shutdown())
             .await
