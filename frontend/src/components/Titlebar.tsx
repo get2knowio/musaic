@@ -1,29 +1,11 @@
-import { Grid, List, Loader2, Moon, RefreshCw, Search, Settings, Sun } from "lucide-react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { useState, useSyncExternalStore } from "react";
-import { toast } from "sonner";
+import { Check, ChevronDown, Keyboard, Loader2, RefreshCw } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { useLocation } from "react-router-dom";
+import { useState } from "react";
 
-import { setTheme } from "@/lib/theme";
-
-import { useLibraryConfig } from "@/hooks/useLibraryConfig";
-import {
-  COLUMN_MAX,
-  COLUMN_MIN,
-  setTileColumns,
-  useTileColumns,
-} from "@/hooks/useTileColumns";
-import {
-  getScanning,
-  subscribeScanning,
-  triggerRescan,
-} from "@/lib/rescanController";
+import { useCommands } from "@/hooks/useCommands";
+import type { CommandId } from "@/lib/commands";
 import ActivityButton from "./ActivityButton";
-
-type ViewMode = "tiles" | "list";
-
-function readView(params: URLSearchParams): ViewMode {
-  return params.get("view") === "list" ? "list" : "tiles";
-}
 
 const ROUTE_LABELS: { match: (path: string) => boolean; label: string }[] = [
   { match: (p) => p === "/" || p.startsWith("/library"), label: "Library" },
@@ -32,72 +14,48 @@ const ROUTE_LABELS: { match: (path: string) => boolean; label: string }[] = [
 ];
 
 /**
- * Titlebar — 36px tall, full-width chrome with brand, the current page name,
- * and (on Library only) search and the view toggle, then rescan, theme
- * toggle and settings. The library folder is shown once, in the Library
- * filter bar, not here.
+ * Titlebar — 36px tall, full-width chrome: brand, the current page name,
+ * the Activity control (all background progress), Rescan and the View menu.
+ * Library's own controls (search, sort, Tiles/List, tile size) sit together
+ * above the collection (FilterBar); Settings is the sidebar's destination.
+ *
+ * Every control runs a command of the registry (lib/commands.ts), the same
+ * one the macOS menu bar runs, so they are available at the same moments.
+ * The View menu is the window's own way to the commands of the native View
+ * and Help menus (Windows and Linux have no menu bar).
  *
  * Narrow windows: the header never makes the page wider than the window
- * (`min-w-0` lets the app grid shrink it). The location crumb and the search
- * box shrink first; below Tailwind's `lg` (1024 px) the tile-size slider is
- * hidden and Rescan shows only its icon. The Activity control truncates its
- * text.
- *
- * The Rescan button delegates to the Library page's `useScanStream.rescan`
- * via the rescanController module-level registry. When Library isn't
- * mounted, it falls back to a bare API call. Either way the Activity control
- * shows the scan's progress and the user stays on the page they are on.
+ * (`min-w-0` lets the app grid shrink it). The location crumb shrinks
+ * first; below Tailwind's `lg` (1024 px) Rescan shows only its icon. The
+ * Activity control truncates its text.
  */
 export default function Titlebar() {
-  const [params, setParams] = useSearchParams();
   const location = useLocation();
-  const onLibrary = location.pathname.startsWith("/library");
-  const query = params.get("q") ?? "";
-  const view = readView(params);
-  const config = useLibraryConfig();
-
-  const scanning = useSyncExternalStore(subscribeScanning, getScanning, getScanning);
+  const commands = useCommands();
+  const { state } = commands;
   const [rescanning, setRescanning] = useState(false);
 
-  const onSearchChange = (value: string) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set("q", value);
-    else next.delete("q");
-    setParams(next, { replace: true });
-  };
-
-  const setView = (next: ViewMode) => {
-    const p = new URLSearchParams(params);
-    // Default is tiles, so we omit the param when it's the default to keep
-    // URLs clean. ?view=list is sticky across navigation via the URL.
-    if (next === "list") p.set("view", "list");
-    else p.delete("view");
-    setParams(p, { replace: true });
-  };
-
   const onRescan = async () => {
-    if (rescanning || scanning) return;
+    if (rescanning) return;
     setRescanning(true);
     try {
       // Progress shows in the Activity control wherever the user is.
-      await triggerRescan();
-    } catch (err) {
-      const e = err as Error;
-      toast.error(e.message || "Couldn't start rescan");
+      await commands.run("library.rescan");
     } finally {
       setRescanning(false);
     }
   };
 
-  const crumb =
-    ROUTE_LABELS.find((r) => r.match(location.pathname))?.label ?? "";
+  const crumb = ROUTE_LABELS.find((r) => r.match(location.pathname))?.label ?? "";
 
-  const rescanDisabled = rescanning || scanning || !config.data?.exists;
-  const rescanTitle = !config.data?.exists
-    ? "Configure a library directory in Settings first"
-    : scanning || rescanning
-    ? "Scanning…"
-    : "Rescan the library";
+  const busy = state.scanning || rescanning;
+  const rescanDisabled = rescanning || !commands.enabled("library.rescan");
+  const rescanTitle =
+    state.library !== "available"
+      ? "Configure a library directory in Settings first"
+      : busy
+        ? "Scanning…"
+        : "Rescan the library";
 
   return (
     <header className="flex items-center gap-3 min-w-0 overflow-hidden h-[var(--titlebar-h)] px-3.5 border-b border-line bg-panel-2 select-none relative z-10">
@@ -118,123 +76,75 @@ export default function Titlebar() {
           one control that opens the Activity panel over this page. */}
       <ActivityButton />
 
-      {/* Search and the view toggle only act on the Library page, so they
-          only show there. Search writes ?q=… to the URL for Library to filter. */}
-      {onLibrary && (
-      <div className="flex items-center gap-2 bg-panel border border-line rounded-md px-2.5 h-8 w-80 min-w-32 shrink focus-within:border-accent focus-within:shadow-[0_0_0_2px_var(--accent-soft)] transition">
-        <Search className="w-3.5 h-3.5 text-fg-3 shrink-0" />
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Filter albums and artists…"
-          aria-keyshortcuts="/"
-          className="bg-transparent border-0 outline-0 flex-1 min-w-0 text-sm placeholder:text-fg-4"
-        />
-        <kbd className="mono text-xs text-fg-3 border border-line bg-bg-2 px-1.5 py-0.5 rounded-sm shrink-0">/</kbd>
-      </div>
-      )}
-
-      {/* Tile-size slider — only meaningful when viewing the Library
-          tile grid. List view ignores the column count, so we hide
-          rather than disable to keep the chrome tight. */}
-      {onLibrary && view === "tiles" && <TileColumnsSlider />}
-
-      {/* View toggle */}
-      {onLibrary && (
-      <div className="inline-flex shrink-0 border border-line rounded-md h-8 overflow-hidden bg-panel">
-        <button
-          className={`px-2.5 text-sm flex items-center gap-1 ${view === "tiles" ? "bg-bg-3 text-fg" : "text-fg-3"}`}
-          onClick={() => setView("tiles")}
-          title="Tile view"
-        >
-          <Grid className="w-3.5 h-3.5" />
-        </button>
-        <button
-          className={`px-2.5 text-sm flex items-center gap-1 border-l border-line ${view === "list" ? "bg-bg-3 text-fg" : "text-fg-3"}`}
-          onClick={() => setView("list")}
-          title="List view"
-        >
-          <List className="w-3.5 h-3.5" />
-        </button>
-      </div>
-      )}
-
       {/* Rescan */}
       <button
         onClick={onRescan}
-        aria-label={scanning || rescanning ? "Scanning…" : "Rescan"}
+        aria-label={busy ? "Scanning…" : "Rescan"}
         disabled={rescanDisabled}
         className="inline-flex shrink-0 items-center gap-2 h-8 px-2.5 lg:px-3 border border-line rounded-md bg-panel text-fg-2 text-sm hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 disabled:cursor-not-allowed"
         title={rescanTitle}
       >
-        {scanning || rescanning ? (
-          <Loader2 className="w-3.5 h-3.5 spin" />
-        ) : (
-          <RefreshCw className="w-3.5 h-3.5" />
-        )}
-        <span className="hidden lg:inline">{scanning || rescanning ? "Scanning…" : "Rescan"}</span>
+        {busy ? <Loader2 className="w-3.5 h-3.5 spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+        <span className="hidden lg:inline">{busy ? "Scanning…" : "Rescan"}</span>
       </button>
 
-      {/* Theme toggle */}
-      <ThemeToggle />
-
-      {/* Settings */}
-      <Link
-        to="/settings"
-        className="inline-flex shrink-0 items-center justify-center w-8 h-8 border border-line rounded-md bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
-        title="Settings"
-        aria-label="Settings"
-      >
-        <Settings className="w-3.5 h-3.5" />
-      </Link>
+      <ViewMenu commands={commands} />
     </header>
   );
 }
 
-/**
- * 5-stop slider for choosing how many tile columns the Library grid
- * shows. Default (no preference set) uses the responsive auto-fill
- * layout — slider exposes 3..7 fixed-column overrides; a visible
- * "×" next to the number puts it back to auto.
- */
-function TileColumnsSlider() {
-  const columns = useTileColumns();
-  // The slider visually represents 3-7. When `columns` is null (auto),
-  // anchor the thumb at 5 (the typical auto-fill outcome on a wide
-  // viewport) so the control isn't sitting empty.
-  const value = columns ?? 5;
+type Commands = ReturnType<typeof useCommands>;
 
+/** View → Show Activity, Appearance; Help → Keyboard Shortcuts. */
+function ViewMenu({ commands }: { commands: Commands }) {
+  const item = (id: CommandId, icon?: React.ReactNode) => {
+    const checked = commands.checked(id);
+    return (
+      <DropdownMenu.Item
+        key={id}
+        disabled={!commands.enabled(id)}
+        onSelect={() => void commands.run(id)}
+        role={checked === undefined ? "menuitem" : "menuitemradio"}
+        aria-checked={checked === undefined ? undefined : checked}
+        className="flex items-center gap-2 px-2 py-1.5 rounded-sm cursor-pointer outline-none text-fg-2 data-[highlighted]:bg-bg-3 data-[disabled]:opacity-50 data-[disabled]:cursor-default"
+      >
+        <span className="w-3 h-3 grid place-items-center shrink-0">
+          {checked ? <Check className="w-3 h-3" /> : icon}
+        </span>
+        <span>{commands.label(id)}</span>
+      </DropdownMenu.Item>
+    );
+  };
   return (
-    <div className="hidden lg:inline-flex shrink-0 items-center gap-2 h-8 px-2.5 border border-line rounded-md bg-panel">
-      <span className="mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">
-        Size
-      </span>
-      <input
-        type="range"
-        min={COLUMN_MIN}
-        max={COLUMN_MAX}
-        step={1}
-        value={value}
-        onChange={(e) => setTileColumns(parseInt(e.target.value, 10))}
-        className="w-20 accent-accent cursor-pointer"
-        aria-label={`Tiles per row (currently ${columns === null ? "auto" : columns})`}
-        title={columns === null ? "Auto — drag to set fixed column count" : `${columns} columns per row`}
-      />
-      {columns === null ? (
-        <span className="mono text-[11px] text-fg-3 w-9 text-center">Auto</span>
-      ) : (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger asChild>
         <button
           type="button"
-          onClick={() => setTileColumns(null)}
-          className="mono text-[11px] tabular-nums text-fg-3 hover:text-fg w-9 text-center cursor-pointer"
-          title="Back to automatic tile size"
-          aria-label={`${columns} per row. Back to automatic tile size`}
+          className="inline-flex shrink-0 items-center gap-1 h-8 px-2.5 border border-line rounded-md bg-panel text-fg-2 text-sm hover:bg-bg-3 hover:text-fg transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          title="Activity, appearance and keyboard shortcuts"
         >
-          {columns} ×
+          View
+          <ChevronDown className="w-3.5 h-3.5 text-fg-3" />
         </button>
-      )}
-    </div>
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content
+          align="end"
+          sideOffset={4}
+          className="z-50 min-w-[12rem] rounded-md border border-line bg-panel shadow-popup p-1 text-sm"
+        >
+          {item("view.activity")}
+          <DropdownMenu.Separator className="my-1 h-px bg-line" />
+          <DropdownMenu.Label className="px-2 pt-1 pb-0.5 mono text-[10.5px] uppercase tracking-[0.06em] text-fg-4">
+            Appearance
+          </DropdownMenu.Label>
+          {item("appearance.light")}
+          {item("appearance.dark")}
+          <DropdownMenu.Separator className="my-1 h-px bg-line" />
+          {item("help.shortcuts", <Keyboard className="w-3 h-3" />)}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
   );
 }
 
@@ -249,22 +159,5 @@ function BrandMark() {
       <span className="absolute inset-[3px] border rounded-full" style={{ borderColor: "color-mix(in oklch, var(--accent-fg), transparent 60%)" }} />
       <span className="absolute w-[3px] h-[3px] bg-accent-fg rounded-full" />
     </div>
-  );
-}
-
-function ThemeToggle() {
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
-  return (
-    <button
-      className="inline-flex shrink-0 items-center justify-center w-6 h-6 border border-line rounded-[5px] bg-panel text-fg-2 hover:bg-bg-3 hover:text-fg transition"
-      title="Toggle theme"
-      onClick={() => {
-        const next = !dark;
-        setTheme(next ? "dark" : "light");
-        setDark(next);
-      }}
-    >
-      {dark ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
-    </button>
   );
 }

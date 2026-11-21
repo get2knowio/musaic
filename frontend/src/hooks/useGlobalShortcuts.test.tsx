@@ -5,15 +5,23 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 
-import Titlebar from "@/components/Titlebar";
+import FilterBar from "@/components/FilterBar";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import type { AppConfig } from "@/lib/types";
+import { resetUiRequests, useShortcutsDialogOpen } from "@/lib/uiRequests";
+
+const getShortcutsOpen = () => screen.getByTestId("shortcuts").textContent === "open";
+
+function ShortcutsProbe() {
+  return <output data-testid="shortcuts">{useShortcutsDialogOpen() ? "open" : "closed"}</output>;
+}
 
 function Harness({ withSearch = true }: { withSearch?: boolean }) {
   useGlobalShortcuts();
   const { pathname } = useLocation();
   return (
     <div>
+      <ShortcutsProbe />
       <output data-testid="path">{pathname}</output>
       {withSearch && <input type="search" aria-label="Filter" aria-keyshortcuts="/" />}
       <input type="text" aria-label="Other field" />
@@ -27,18 +35,29 @@ function Harness({ withSearch = true }: { withSearch?: boolean }) {
   );
 }
 
-function setup(withSearch = true) {
+function setup(withSearch = true, at = "/library") {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+  qc.setQueryData(["config"], { library_dir: "/music", exists: true } as AppConfig);
+  qc.setQueryData(["albums-snapshot"], []);
   return render(
-    <MemoryRouter initialEntries={["/library"]}>
-      <Harness withSearch={withSearch} />
-    </MemoryRouter>,
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[at]}>
+        <Harness withSearch={withSearch} />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+}
+
+function desktop(marker: Record<string, unknown>) {
+  Object.defineProperty(window, "__musaicDesktop", { value: Object.freeze(marker), configurable: true });
 }
 
 const path = () => screen.getByTestId("path").textContent;
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  delete (window as { __musaicDesktop?: unknown }).__musaicDesktop;
+  resetUiRequests();
 });
 
 describe("global shortcuts", () => {
@@ -99,16 +118,51 @@ describe("global shortcuts", () => {
   });
 });
 
+describe("? and the menu keys", () => {
+  it("? opens Keyboard Shortcuts, not while typing", () => {
+    setup();
+    expect(fireEvent.keyDown(screen.getByLabelText("Notes"), { key: "?" })).toBe(true);
+    expect(getShortcutsOpen()).toBe(false);
+    fireEvent.keyDown(screen.getByText("plain"), { key: "?" });
+    expect(getShortcutsOpen()).toBe(true);
+  });
+
+  it("Ctrl-1 / 2 / , / F switch pages in the desktop window without a menu bar (Windows, Linux)", () => {
+    desktop({ reveal: true, nativeMenu: false });
+    setup(true, "/library");
+    fireEvent.keyDown(screen.getByText("plain"), { key: "2", ctrlKey: true });
+    expect(path()).toBe("/review");
+    fireEvent.keyDown(screen.getByText("plain"), { key: "1", ctrlKey: true });
+    expect(path()).toBe("/library");
+    // From a text field too, as a menu key would.
+    fireEvent.keyDown(screen.getByLabelText("Notes"), { key: ",", ctrlKey: true });
+    expect(path()).toBe("/settings");
+    fireEvent.keyDown(screen.getByText("plain"), { key: "f", ctrlKey: true });
+    expect(path()).toBe("/library");
+  });
+
+  it("leaves the menu keys to the native menu (macOS) and to the browser", () => {
+    for (const marker of [{ reveal: true, nativeMenu: true }, null]) {
+      if (marker) desktop(marker);
+      const v = setup(true, "/library");
+      expect(fireEvent.keyDown(screen.getByText("plain"), { key: "2", metaKey: true })).toBe(true);
+      expect(path()).toBe("/library");
+      v.unmount();
+      delete (window as { __musaicDesktop?: unknown }).__musaicDesktop;
+    }
+  });
+});
+
 describe("shortcut hint", () => {
-  it("the titlebar search shows / and declares it", () => {
+  it("the Library search shows / and declares it", () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     qc.setQueryData(["config"], { library_dir: "/music", exists: true } as AppConfig);
-    qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
+    qc.setQueryData(["albums-snapshot"], []);
     vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 404 })));
     render(
       <QueryClientProvider client={qc}>
         <MemoryRouter initialEntries={["/library"]}>
-          <Titlebar />
+          <FilterBar totalCount={0} libraryDir={null} scannedAt={null} />
         </MemoryRouter>
       </QueryClientProvider>,
     );

@@ -7,6 +7,8 @@
  * throw (private windows), so every access is guarded and the page simply
  * falls back to the default.
  */
+import { useSyncExternalStore } from "react";
+
 import { putUiPrefs } from "@/lib/api";
 
 const STORAGE_KEY = "mm.theme";
@@ -22,8 +24,31 @@ export function readStoredTheme(): Theme | null {
   }
 }
 
+const listeners = new Set<() => void>();
+
 export function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle("dark", theme === "dark");
+  for (const l of listeners) l();
+}
+
+/** The theme on screen now. */
+export function currentTheme(): Theme {
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
+/** The theme on screen, re-rendering when it changes (View → Appearance,
+ *  the server's stored choice arriving). */
+export function useTheme(): Theme {
+  return useSyncExternalStore(
+    (l) => {
+      listeners.add(l);
+      return () => {
+        listeners.delete(l);
+      };
+    },
+    currentTheme,
+    currentTheme,
+  );
 }
 
 /** Called once before the first render so the stored choice shows at once. */

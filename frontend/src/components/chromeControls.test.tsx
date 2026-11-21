@@ -1,16 +1,19 @@
 /**
- * Titlebar and sidebar controls (#197): nothing that does nothing, nothing
- * shown twice. Search and the view toggle belong to Library only; the key
- * hints show the keys that are wired (useGlobalShortcuts); the sidebar lists only real
- * destinations and lights one entry at a time; the theme choice is stored.
+ * Titlebar, filter bar and sidebar controls (#197, #333): nothing that does
+ * nothing, nothing shown twice. Search, sort and Tiles/List sit together in
+ * the Library's filter bar; Settings is the sidebar's; the theme is under
+ * View → Appearance; the key hints show the keys that are wired
+ * (useGlobalShortcuts); the sidebar lists only real destinations and
+ * lights one entry at a time; the theme choice is stored.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 
+import FilterBar from "@/components/FilterBar";
 import Sidebar from "@/components/Sidebar";
 import Titlebar from "@/components/Titlebar";
 import { setTileColumns } from "@/hooks/useTileColumns";
@@ -57,26 +60,35 @@ function sidebarAt(url: string, jobs: Partial<Job>[] = []) {
   );
 }
 
+function filterBarAt(url: string) {
+  return render(
+    <QueryClientProvider client={client()}>
+      <MemoryRouter initialEntries={[url]}>
+        <FilterBar totalCount={3} libraryDir="/Users/someone/Music" scannedAt={null} />
+        <Routes>
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+function Where() {
+  const l = useLocation();
+  return <output data-testid="where">{l.pathname + l.search}</output>;
+}
+
 describe("titlebar", () => {
-  it("shows search and the view toggle on Library only", () => {
-    const lib = titlebarAt("/library");
-    expect(screen.getByRole("searchbox")).toBeInTheDocument();
-    expect(screen.getByTitle("Tile view")).toBeInTheDocument();
-    lib.unmount();
-    for (const url of ["/review", "/settings"]) {
+  it("carries no Library controls, no Settings and no theme button on any page (#333)", () => {
+    for (const url of ["/library", "/review", "/settings"]) {
       const v = titlebarAt(url);
       expect(screen.queryByRole("searchbox")).toBeNull();
       expect(screen.queryByTitle("Tile view")).toBeNull();
-      expect(screen.queryByTitle("List view")).toBeNull();
+      expect(screen.queryByRole("link", { name: "Settings" })).toBeNull();
+      expect(screen.queryByTitle("Toggle theme")).toBeNull();
+      expect(screen.getByRole("button", { name: /^Activity/ })).toBeInTheDocument();
       v.unmount();
     }
-  });
-
-  it("promises only what the search does, and shows the wired key hint", () => {
-    titlebarAt("/library");
-    const box = screen.getByRole("searchbox");
-    expect(box).toHaveAttribute("placeholder", "Filter albums and artists…");
-    expect(box.parentElement?.querySelector("kbd")).toHaveTextContent("/");
   });
 
   it("does not repeat the library folder (the Library filter bar shows it)", () => {
@@ -85,18 +97,12 @@ describe("titlebar", () => {
     expect(screen.getByText("Library")).toBeInTheDocument();
   });
 
-  it("resets the tile size with a visible control", () => {
-    setTileColumns(4);
+  it("stores the theme choice from View → Appearance and starts from it", async () => {
     titlebarAt("/library");
-    expect(screen.getByRole("slider")).toHaveAttribute("aria-label", expect.stringContaining("4"));
-    fireEvent.click(screen.getByRole("button", { name: /Back to automatic tile size/ }));
-    expect(screen.getByText("Auto")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Back to automatic tile size/ })).toBeNull();
-  });
-
-  it("stores the theme choice and starts from it", async () => {
-    titlebarAt("/library");
-    fireEvent.click(screen.getByTitle("Toggle theme"));
+    fireEvent.pointerDown(screen.getByRole("button", { name: /View/ }), { button: 0, ctrlKey: false });
+    const light = await screen.findByRole("menuitemradio", { name: "Light" });
+    expect(screen.getByRole("menuitemradio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(light);
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     expect(localStorage.getItem("mm.theme")).toBe("light");
 
@@ -104,6 +110,40 @@ describe("titlebar", () => {
     const { applyStoredTheme } = await import("@/lib/theme");
     applyStoredTheme();
     expect(document.documentElement.classList.contains("dark")).toBe(false);
+  });
+});
+
+describe("library filter bar", () => {
+  it("groups search, sort and Tiles/List above the collection", () => {
+    filterBarAt("/library");
+    const box = screen.getByRole("searchbox");
+    expect(box).toHaveAttribute("placeholder", "Filter albums and artists…");
+    expect(box.parentElement?.querySelector("kbd")).toHaveTextContent("/");
+    expect(screen.getByRole("button", { name: /^Sort:/ })).toBeInTheDocument();
+    expect(screen.getByTitle("Tile view")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Tiles/List runs the View command: the URL keeps the choice", () => {
+    filterBarAt("/library?sort=year-desc");
+    fireEvent.click(screen.getByTitle("List view"));
+    expect(screen.getByTestId("where").textContent).toBe("/library?sort=year-desc&view=list");
+    expect(screen.getByTitle("List view")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTitle("Tile view"));
+    expect(screen.getByTestId("where").textContent).toBe("/library?sort=year-desc");
+  });
+
+  it("resets the tile size with a visible control", () => {
+    setTileColumns(4);
+    filterBarAt("/library");
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-label", expect.stringContaining("4"));
+    fireEvent.click(screen.getByRole("button", { name: /Back to automatic tile size/ }));
+    expect(screen.getByText("Auto")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Back to automatic tile size/ })).toBeNull();
+  });
+
+  it("hides the tile size in the list view", () => {
+    filterBarAt("/library?view=list");
+    expect(screen.queryByRole("slider")).toBeNull();
   });
 });
 

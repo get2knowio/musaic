@@ -4,6 +4,8 @@ import { toast } from "sonner";
 
 import RevealInFileManager from "@/components/RevealInFileManager";
 import { clearAlbumMbAnchor } from "@/lib/api";
+import { albumRevealAvailable } from "@/lib/commands";
+import { canRevealInFileManager } from "@/lib/desktop";
 import type { Album } from "@/lib/types";
 
 interface PropTableProps {
@@ -46,8 +48,9 @@ export default function PropTable({ album, aiReady = false }: PropTableProps) {
       <Row label="folder">
         <code className="mono text-xs text-fg-3 break-all">{album.path}</code>
         {/* Desktop window only; a Missing album's folder is
-            not on disk, so nothing to show. */}
-        {!album.missing_since && (
+            not on disk, so nothing to show. The same rule dims
+            Album → Show in Finder (lib/commands.ts). */}
+        {albumRevealAvailable(album, canRevealInFileManager()) && (
           <RevealInFileManager target={{ kind: "album", albumId: album.id }} className="ml-2 align-baseline" />
         )}
       </Row>
