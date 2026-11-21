@@ -13,7 +13,30 @@ Security.
 
 ## [Unreleased]
 
+## [0.2.0-rc.2] - 2026-11-21
+
 ### Added
+
+- An assistant you already use (any MCP-capable one, such as Claude Desktop or Claude Code)
+  can now work with your library through the running app
+  ([#351](https://github.com/get2knowio/musaic/pull/351)).
+  - **The CLI:** each installer bundles `musaic-cli`, which serves MCP over stdio. Run
+    `musaic-cli setup` to add Musaic to Claude Desktop or Claude Code. `musaic-cli doctor`
+    shows what is wrong without printing secrets.
+  - **What an assistant can do:**
+    - list albums, read an album's tags and its stored MusicBrainz resolution, and list
+      findings;
+    - propose tag, cover and rename fixes;
+    - start scans, checks and BPM/ReplayGain analysis.
+  - **Pairing:** pair an assistant in Settings > Assistants and choose what it may do. Its
+    secret stays in your system keyring.
+  - **Approvals:** changes to your files ask you first, as a card in the Review inbox.
+  - **Undo:** every change an assistant applies records what it replaced, and you can undo
+    it from Settings > Assistants. Undo refuses if the files changed since.
+  - **What an assistant can never do:** delete, restore a backup, change settings or its
+    own permissions, or reach files by path.
+- Release installers are checked to carry a runnable `musaic-cli` on every platform.
+- The first Windows installer (unsigned NSIS `-setup.exe`).
 
 - The library-events stream now reports when a batch of health-check runs has finished
   (`ChecksRerunFinished`: the checks that ran, the ones that failed, the albums it was
@@ -410,5 +433,6 @@ at first and has been withdrawn for that reason. Progress is tracked in
   and at connection time. Plain-`http` and local-network cover URLs are now refused; use
   cover upload for those images.
 
-[Unreleased]: https://github.com/get2knowio/musaic/compare/v0.2.0-rc.1...HEAD
+[Unreleased]: https://github.com/get2knowio/musaic/compare/v0.2.0-rc.2...HEAD
+[0.2.0-rc.2]: https://github.com/get2knowio/musaic/compare/v0.2.0-rc.1...v0.2.0-rc.2
 [0.2.0-rc.1]: https://github.com/get2knowio/musaic/compare/python-final...v0.2.0-rc.1

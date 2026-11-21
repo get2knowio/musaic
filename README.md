@@ -39,7 +39,7 @@ there is a stable release. The script downloads the build for your system from t
 newest release, checks it against the release's `SHA256SUMS.txt`, and installs it:
 `Musaic.app` into `/Applications` on macOS, or the AppImage as `~/.local/bin/musaic`
 (with a launcher entry) on Linux. Run it again to upgrade. Your library data in
-`~/.musaic` is not touched. To pin a version: `MUSAIC_VERSION=v0.2.0-rc.1` before `sh`.
+`~/.musaic` is not touched. To pin a version: `MUSAIC_VERSION=v0.2.0-rc.2` before `sh`.
 On macOS this route should also avoid the "unidentified developer" prompt described
 below, because a file fetched by `curl` is not marked as an internet download.
 
@@ -51,13 +51,14 @@ below, because a file fetched by `curl` is not marked as an internet download.
 | macOS, Apple Silicon | `.dmg` with `aarch64` in its name |
 | macOS, Intel | `.dmg` with `x64` in its name |
 | Linux (x64) | `.AppImage` or `.deb` |
-| Windows (x64), from the release after v0.2.0-rc.1 | `-setup.exe` |
+| Windows (x64), from v0.2.0-rc.2 on | `-setup.exe` |
 
 Each release lists the SHA-256 of every file in `SHA256SUMS.txt`.
 
 **Windows:** the automated tests now run on Windows and are required in CI, and the
-release workflow builds an unsigned NSIS installer (`-setup.exe`) from the next release
-on. v0.2.0-rc.1 has no Windows installer.
+release workflow builds an unsigned NSIS installer (`-setup.exe`), from v0.2.0-rc.2 on.
+v0.2.0-rc.1 has no Windows installer. Windows SmartScreen warns about an unsigned
+installer: choose "More info", then "Run anyway".
 
 **Tested so far:** only the macOS Apple Silicon build has been run by a person. The
 Linux and Intel Mac builds are produced by CI from the same source and have not yet been
