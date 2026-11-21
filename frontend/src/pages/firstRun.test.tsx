@@ -105,6 +105,7 @@ function client(config: AppConfig, opts: { findings?: Finding[]; sweep?: CheckSw
   qc.setQueryData(["config"], config);
   qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["jobs"], []);
+  qc.setQueryData(["agent", "approvals", "pending"], []);
   qc.setQueryData(["checks"], []);
   qc.setQueryData(["findings"], opts.findings ?? []);
   qc.setQueryData(["albums-snapshot"], serverAlbums);

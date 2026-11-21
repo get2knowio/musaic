@@ -41,6 +41,7 @@ import { AI_UNAVAILABLE } from "@/lib/aiGating";
 import { errorText } from "@/lib/errors";
 import MyTagsSettingsPanel from "./SettingsMyTags";
 import BackupPanel from "./SettingsBackup";
+import AgentsPanel from "./SettingsAgents";
 import FilenameTemplatesPanel from "./SettingsFilenameTemplates";
 
 /**
@@ -115,6 +116,9 @@ export default function SettingsPage() {
         </SettingsSection>
         <SettingsSection id="backup-restore" title="Backup & restore">
           <BackupPanel />
+        </SettingsSection>
+        <SettingsSection id="agents" title="Assistants">
+          <AgentsPanel />
         </SettingsSection>
       </div>
     </div>

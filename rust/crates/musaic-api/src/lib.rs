@@ -13,6 +13,7 @@
 //! * Blocking crate calls run on `spawn_blocking` with the musaic-events
 //!   guard flags carried over ([`http::blocking`]).
 
+pub mod agent_guard;
 pub mod ai;
 pub mod bind;
 pub mod files;
@@ -54,7 +55,9 @@ pub use state::{
 };
 pub use work::WorkSnapshot;
 
-use routes::{analyze, apply, checks, fixes, jobs, library, preview, settings, system, tags};
+use routes::{
+    agent, analyze, apply, checks, fixes, jobs, library, preview, settings, system, tags,
+};
 
 /// Python app routes registered as `501 Not Implemented` (method, path in the
 /// Python app's spelling, why). None left: the last one, the duplicate-tracks
@@ -125,7 +128,88 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         UI_PREFS_ROUTE,
         "change those preferences; not a route of the Python app",
     ),
+    (
+        "GET",
+        AGENT_PAIRINGS_ROUTE,
+        "the assistants paired with this app, for Settings -> Agents (the agent bridge); not a route of the Python app",
+    ),
+    (
+        "POST",
+        AGENT_PAIRINGS_ROUTE,
+        "pair an assistant: a name and the permissions it may be given; the secret goes to the OS keyring and is never returned; not a route of the Python app",
+    ),
+    (
+        "DELETE",
+        AGENT_PAIRING_ROUTE,
+        "revoke a pairing: its tokens stop at once and its keyring entry is deleted; not a route of the Python app",
+    ),
+    (
+        "PUT",
+        AGENT_POLICY_ROUTE,
+        "set a pairing's Allow / Ask / Refuse decisions per permission; not a route of the Python app",
+    ),
+    (
+        "GET",
+        AGENT_ACTIVITY_ROUTE,
+        "the last 100 calls a pairing made (tool and outcome, never argument values); not a route of the Python app",
+    ),
+    (
+        "GET",
+        AGENT_APPROVALS_ROUTE,
+        "the approval cards assistants asked for, for the Review inbox; not a route of the Python app",
+    ),
+    (
+        "POST",
+        AGENT_APPROVE_ROUTE,
+        "approve an assistant's request: only the person at the window can; not a route of the Python app",
+    ),
+    (
+        "POST",
+        AGENT_DENY_ROUTE,
+        "deny an assistant's request; nothing is changed; not a route of the Python app",
+    ),
+    (
+        "GET",
+        AGENT_CHANGES_ROUTE,
+        "the recent changes assistants applied, each with whether Undo would run now, for Settings -> Assistants; not a route of the Python app",
+    ),
+    (
+        "POST",
+        AGENT_UNDO_ROUTE,
+        "undo an assistant's applied change from its recorded before-image: only the person at the window can, and only while the album still holds what the change left; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::HELLO,
+        "the agent CLI's handshake, part one: this app instance's id and a one-time nonce; has its own guard and never accepts the launch cookie; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::EXCHANGE,
+        "the handshake, part two: a mutual proof of the pairing secret, answered with a 15-minute token; not a route of the Python app",
+    ),
+    (
+        "GET",
+        agent_guard::TOOLS,
+        "the agent tool catalog (the bytes of docs/agent-tools.json plus its digest); not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::TOOL,
+        "call one agent tool; authorization, the work gate and the events are the operation's; not a route of the Python app",
+    ),
 ];
+
+/// The agent bridge's routes for the webview ([`EXTRA_ROUTES`]).
+pub const AGENT_PAIRINGS_ROUTE: &str = "/api/agent/pairings";
+pub const AGENT_PAIRING_ROUTE: &str = "/api/agent/pairings/{pairing_id}";
+pub const AGENT_POLICY_ROUTE: &str = "/api/agent/pairings/{pairing_id}/policy";
+pub const AGENT_ACTIVITY_ROUTE: &str = "/api/agent/pairings/{pairing_id}/activity";
+pub const AGENT_APPROVALS_ROUTE: &str = "/api/agent/approvals";
+pub const AGENT_APPROVE_ROUTE: &str = "/api/agent/approvals/{approval_id}/approve";
+pub const AGENT_DENY_ROUTE: &str = "/api/agent/approvals/{approval_id}/deny";
+pub const AGENT_CHANGES_ROUTE: &str = "/api/agent/changes";
+pub const AGENT_UNDO_ROUTE: &str = "/api/agent/changes/{change_id}/undo";
 
 /// `GET` / `PUT /api/ui-prefs` ([`EXTRA_ROUTES`]).
 pub const UI_PREFS_ROUTE: &str = "/api/ui-prefs";
@@ -189,7 +273,7 @@ pub const PLACEHOLDERS: &[(&str, &str, &str)] = &[];
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RouteTag(pub String);
 
-async fn tag_route(req: Request, next: Next) -> Response {
+pub(crate) async fn tag_route(req: Request, next: Next) -> Response {
     let tag = req
         .extensions()
         .get::<MatchedPath>()
@@ -220,7 +304,7 @@ pub fn router(state: AppState) -> Router {
 /// [`route_table::Table`] so the table of (method, path, query parameters)
 /// is the router's own (`tests/inventory.rs`).
 fn routes() -> (Router<AppState>, Vec<RouteRow>) {
-    use route_table::{Table, delete, get, on, post};
+    use route_table::{Table, delete, get, on, post, put};
     let mut t = Table::default()
         .route("/api/health", get(system::health))
         .route(
@@ -455,6 +539,25 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             preview::ALBUM_COVER_PREVIEW_ROUTE,
             get(preview::album_cover_preview),
         )
+        // Not Python app routes: the agent bridge's desktop family ([`EXTRA_ROUTES`]).
+        .route(
+            AGENT_PAIRINGS_ROUTE,
+            get(agent::list_pairings).post(agent::create_pairing),
+        )
+        .route(AGENT_PAIRING_ROUTE, delete(agent::revoke_pairing))
+        .route(AGENT_POLICY_ROUTE, put(agent::set_policy))
+        .route(AGENT_ACTIVITY_ROUTE, get(agent::pairing_activity))
+        .route(
+            AGENT_APPROVALS_ROUTE,
+            get(agent::list_approvals).query(&["state"]),
+        )
+        .route(AGENT_APPROVE_ROUTE, post(agent::approve))
+        .route(AGENT_DENY_ROUTE, post(agent::deny))
+        .route(
+            AGENT_CHANGES_ROUTE,
+            get(agent::list_changes).query(&["pairing"]),
+        )
+        .route(AGENT_UNDO_ROUTE, post(agent::undo_change))
         .route("/api/ai/queue/resume", post(jobs::resume_queue))
         .route("/api/ai/providers", get(jobs::ai_providers))
         .route("/", get(system::spa_root))
@@ -469,7 +572,15 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
 /// query parameters its handler reads, in registration order. Built from
 /// the same calls that register the handlers (see [`route_table`]).
 pub fn route_table() -> Vec<RouteRow> {
-    routes().1
+    let mut rows = routes().1;
+    // The agent family is routed before everything else
+    // ([`agent_guard::agent_router`]) and has its own guard.
+    rows.extend(agent_guard::ROUTES.iter().map(|(method, path)| RouteRow {
+        method,
+        path,
+        query: &[],
+    }));
+    rows
 }
 
 /// [`router`] with the optional layers. With a launch gate the order,
@@ -479,6 +590,7 @@ pub fn router_with(state: AppState, opts: RouterOptions) -> Router {
     let (r, _) = routes();
     let frontend = state.0.frontend_dir.is_some();
     let outer_state = state.clone();
+    let agent = agent_guard::agent_router(state.clone());
     let inner = r
         .route_layer(middleware::from_fn(tag_route))
         .method_not_allowed_fallback(system::method_not_allowed)
@@ -492,7 +604,7 @@ pub fn router_with(state: AppState, opts: RouterOptions) -> Router {
     // Python app's `Allow` (starlette_routing).
     let outer = Router::new()
         .fallback(move |req: Request| starlette_routing::dispatch(inner.clone(), frontend, req));
-    match opts.launch {
+    let main = match opts.launch {
         None => outer,
         Some(gate) => outer
             .layer(middleware::from_fn_with_state(gate, launch::launch_guard))
@@ -500,5 +612,24 @@ pub fn router_with(state: AppState, opts: RouterOptions) -> Router {
                 outer_state,
                 host_check::host_origin_guard,
             )),
-    }
+    };
+    // The agent route family is answered before the Host / Origin check and the
+    // launch gate: it has its own guard and never reads the launch cookie. The
+    // checks above stay exactly as they were for every other path.
+    Router::new().fallback(move |req: Request| {
+        let agent = agent.clone();
+        let main = main.clone();
+        async move {
+            use tower::ServiceExt;
+            let r = if req.uri().path().starts_with(agent_guard::PREFIX) {
+                agent.oneshot(req).await
+            } else {
+                main.oneshot(req).await
+            };
+            match r {
+                Ok(resp) => resp,
+                Err(never) => match never {},
+            }
+        }
+    })
 }

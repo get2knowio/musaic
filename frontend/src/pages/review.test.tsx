@@ -83,6 +83,7 @@ function client(f: Finding[] = findings, j: Job[] = jobs, checks: CheckSummary[]
   qc.setQueryData(["checks"], checks);
   qc.setQueryData(["findings"], f);
   qc.setQueryData(["jobs"], j);
+  qc.setQueryData(["agent", "approvals", "pending"], []);
   qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["albums-snapshot"], [
     makeAlbum({ id: "present", title: "Here" }),

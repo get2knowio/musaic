@@ -3,6 +3,7 @@
 //! failure; nothing here knows a status code or a wire format. Rules:
 //! `specs/001-operations-without-http/contracts/operations-surface.md`.
 
+pub mod agent;
 pub mod analyze;
 pub mod apply;
 pub mod checks;
@@ -62,6 +63,9 @@ impl Ops {
     }
     pub fn jobs(&self) -> jobs::Jobs<'_> {
         jobs::Jobs { app: &self.app }
+    }
+    pub fn agent(&self) -> agent::Agent<'_> {
+        agent::Agent { app: &self.app }
     }
 }
 

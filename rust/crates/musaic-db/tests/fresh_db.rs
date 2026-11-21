@@ -64,7 +64,7 @@ fn migrated_python_empty() -> (tempfile::TempDir, Vec<MasterRow>) {
 }
 
 /// A fresh database has exactly the schema of the Python app's
-/// empty v16 database after the v17 to v20 migrations, row for row in
+/// empty v16 database after the v17 to v21 migrations, row for row in
 /// sqlite_master.
 #[test]
 fn fresh_schema_equals_the_migrated_python_database() {
@@ -80,7 +80,7 @@ fn fresh_schema_equals_the_migrated_python_database() {
 /// Compared with what `db.bootstrap()` itself writes. The only
 /// differences are the migrations' (v17: `fingerprint_impl`; v18: AcoustID
 /// lookup outcome columns and `fingerprint_rejects`; v19: `check_inputs`
-/// and the fingerprint inputs index; v20: two albums columns), enumerated
+/// and the fingerprint inputs index; v20: two albums columns; v21: the agent_* tables), enumerated
 /// here; an unlisted difference or an
 /// unused delta fails.
 #[test]
@@ -138,6 +138,37 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
             "idx_track_fingerprints_inputs",
             "track_fingerprints",
         ),
+        // v21: the agent bridge's tables (adds agent tables for the agent
+        // bridge: a deliberate schema change, nothing existing is altered).
+        ("table", "agent_pairings", "agent_pairings"),
+        (
+            "index",
+            "sqlite_autoindex_agent_pairings_1",
+            "agent_pairings",
+        ),
+        ("table", "agent_policies", "agent_policies"),
+        (
+            "index",
+            "sqlite_autoindex_agent_policies_1",
+            "agent_policies",
+        ),
+        ("table", "agent_proposals", "agent_proposals"),
+        (
+            "index",
+            "sqlite_autoindex_agent_proposals_1",
+            "agent_proposals",
+        ),
+        ("table", "agent_approvals", "agent_approvals"),
+        (
+            "index",
+            "sqlite_autoindex_agent_approvals_1",
+            "agent_approvals",
+        ),
+        ("index", "idx_agent_approvals_state", "agent_approvals"),
+        ("table", "agent_changes", "agent_changes"),
+        ("index", "sqlite_autoindex_agent_changes_1", "agent_changes"),
+        ("table", "agent_activity", "agent_activity"),
+        ("index", "idx_agent_activity_pairing", "agent_activity"),
     ];
     let mut used = vec![false; changed.len()];
     assert_eq!(ours.len(), theirs.len() + added.len());
@@ -172,7 +203,7 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
         assert_eq!(o, m, "added row must be the migration's own");
     }
 
-    // schema_version: [16] -> [20] (v17, v18, v19, then v20).
+    // schema_version: [16] -> [21] (v17, v18, v19, v20, then v21).
     let versions: Vec<i64> = conn
         .prepare("SELECT version FROM schema_version")
         .unwrap()

@@ -53,4 +53,4 @@ pub use post_scan::{ChecksSideEffects, SweepEntry, post_scan_sweep, run_post_sca
 pub use registry::Registry;
 pub use rerun::{RERUN_ALBUM_LIST_MAX, RerunReport};
 pub use resolution::{Fact, NoResolver, Resolution, ResolutionSource, TrackMatch};
-pub use runner::{RunError, run_check};
+pub use runner::{RunError, run_check, run_check_cancellable};

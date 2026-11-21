@@ -281,8 +281,13 @@ fn guarded_rerun(
     run_post_scan_guarded(|| fx.run_post_scan_checks(lib, album_ids)).unwrap_or(Ok(()))
 }
 
+/// Events that only report something already done: a finished rerun, and a
+/// change of the agent state. Neither changes an input of any check.
 fn is_rerun_finished(ev: &Event) -> bool {
-    ev.kind() == EventKind::ChecksRerunFinished
+    matches!(
+        ev.kind(),
+        EventKind::ChecksRerunFinished | EventKind::AgentStateChanged
+    )
 }
 
 fn run_handler(handler: Handler, fx: &dyn SideEffects, ev: &Event) -> Result<(), SubscriberError> {

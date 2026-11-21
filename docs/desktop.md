@@ -45,8 +45,9 @@ the UI's transport.
    (`shell/`), which shows start-up errors (`#error=…`). Shown runs restore the
    saved window size and position (see "Window state").
 4. On a background thread: build the application (`musaic-app`), bind the
-   loopback server, write the instance file, and navigate the window to the
-   one-time launch URL (see "Launch cookie").
+   loopback server, write the instance file and the agent descriptor
+   (`<config>/agent-instance.json`, see "Agent bridge"), and navigate the window
+   to the one-time launch URL (see "Launch cookie").
 5. Write the same rotating, secret-masking `<config>/server.log` as the server
    binary; the level comes from `MUSAIC_LOG_LEVEL`.
 
@@ -56,8 +57,11 @@ Closing the window, Cmd-Q, `AppHandle::exit`, SIGTERM / SIGINT / SIGHUP on Unix
 and Ctrl-C on Windows all end in Tauri's exit event: every SSE stream is ended,
 the server drains for up to 3 seconds (then remaining connections are aborted),
 the application shuts down (a running library scan cancelled, so it saves nothing
-and starts nothing, and waited for; fingerprint pool joined, job worker stopped) and
-the instance file is removed. No child processes are ever spawned.
+and starts nothing, and waited for; fingerprint pool joined, job worker stopped,
+the threads of agent operations asked to stop at their next item and joined) and
+the instance file and the agent descriptor are removed. No child processes are ever spawned,
+except, on Windows, the system's `whoami.exe` and `icacls.exe`, run briefly and without a
+window to give the agent descriptor its owner-only access control list.
 
 ### Quitting while work runs
 
@@ -242,11 +246,26 @@ Corrections… and Add Cover… / Change Cover….
 |---|---|
 | Database, settings (including the theme and tile size), logs, thumbnails, trash, window state, the record of each multi-disc conversion (`conversions/`, one JSON file each; kept outside the database so a restore does not lose it) | the config dir: `--config-dir`, else `MUSAIC_CONFIG_DIR`, else `~/.musaic` (Windows: `%USERPROFILE%\.musaic`) |
 | API keys | the OS keyring, service name `musaic` |
+| Agent pairing secrets (one per pairing, plus an index of the active pairing ids; no key is ever written to a file) | the OS keyring, service name `musaic-agent`, account `<config dir id>:<pairing id>` (a development run with in-memory secrets writes `<config>/agent-dev-credentials/<pairing id>` at mode 0600 instead) |
+| Where an agent's CLI finds the running app (`{instanceId, port, pid, ...}`; holds no credential; written at start, removed at teardown only if it still names this instance) | `<config>/agent-instance.json`, mode 0600 (Windows: an access control list for the current user alone, not inherited) |
+| The before-image of every change an agent made (prior tag values, names, and byte-for-byte copies of the cover sidecars and embedded pictures a cover change replaced); kept 90 days, then pruned at start-up | `<config>/agent-changes/<change id>/` |
 | Web view storage (HTTP cache, and a copy of the theme and tile size used only for the first paint; the web view's address changes on every launch, so nothing there is kept from one launch to the next) | managed by the platform's webview, outside the config dir: macOS `~/Library/WebKit/io.get2know.musaic` and `~/Library/Caches/io.get2know.musaic`; Windows `%LOCALAPPDATA%\io.get2know.musaic\`; Linux `~/.local/share/io.get2know.musaic/` |
 
 A launch from Finder, the Start menu or a desktop launcher has no
 `MUSAIC_CONFIG_DIR`, so it opens `~/.musaic`. A database written by the Python
 version is backed up to `library.v16.before-rust.db` and then migrated in place.
+
+## Agent bridge
+
+The shell also serves a second route family on the same loopback port for an assistant's
+CLI: `/__musaic/agent/v1/*` (docs/agents.md, SECURITY.md "Agent access"). Its guard
+(`musaic-api/src/agent_guard.rs`) runs before the launch cookie and the Host / Origin
+check, which stay exactly as they were for every other path; `src/gate.rs` passes the
+prefix straight through. The server is started with connection info (peer and local
+address) so the guard can check both. `musaic-api`'s loopback server writes
+`agent-instance.json` once the port is bound and removes it when the server stops.
+The webview manages pairings and decides approvals through the ordinary `/api/agent/*`
+routes (launch cookie required), refreshed by the `AgentStateChanged` bus event.
 
 ## Options
 
@@ -277,8 +296,8 @@ Never point a development run at `~/.musaic` or at a real music library.
 One-time tools (from crates.io):
 
 ```bash
-cargo install tauri-cli --version "^2" --locked          # CI pins 2.12.4
-cargo install cargo-about --locked --features cli        # CI pins 0.9.3
+cargo install tauri-cli --version 2.12.4 --locked
+cargo install cargo-about --version 0.9.3 --locked --features cli
 ```
 
 On a Mac, from the repository root:
@@ -305,6 +324,27 @@ Notes:
 - `tauri.bundle.conf.json` is merged over `tauri.conf.json` for bundling only:
   it adds `NOTICES.txt` to the resources, so plain `cargo build` / `cargo test`
   do not need the generated file.
+- `tauri.bundle.conf.json` also names the agent CLI as an `externalBin`
+  (`binaries/musaic-cli`). `scripts/stage_cli_sidecar.sh <triple>` builds `musaic-cli`
+  for the target and copies it to
+  `rust/crates/musaic-desktop/binaries/musaic-cli-<triple>[.exe]` (gitignored) before
+  `cargo tauri build`; `scripts/package_macos.sh` and the release workflow both call it.
+  Only a bundling build needs the file, so plain `cargo build` / `cargo test` stay green
+  without it.
+- `scripts/check_bundled_cli.sh <bundle-dir> <bundles> [<triple>]` then checks each
+  installer for the CLI at the place docs/agents.md names, and runs it (`--version`, and
+  `doctor` against a scratch config dir, which must report the descriptor absent):
+  - app, dmg: `Musaic.app/Contents/MacOS/musaic-cli` (the dmg is mounted read-only);
+  - deb: `usr/bin/musaic-cli` in the package data (`dpkg-deb -x`);
+  - AppImage: `usr/bin/musaic-cli` in the extracted image, and, run from the mounted
+    image (`--appimage-mount`, needs libfuse2), `musaic-cli setup --dry-run` must
+    refuse with the copy-it-out remedy;
+  - NSIS: a silent install (`/S /D=<scratch>`) must put `musaic-cli.exe` next to
+    `musaic-desktop.exe` (the main binary keeps the crate's bin name; the default
+    folder is `%LOCALAPPDATA%\Musaic`), then a silent uninstall.
+
+  A cross-built target (the Intel Mac build on Apple Silicon) gets an architecture
+  check (`lipo`) instead of a run. `scripts/package_macos.sh` ends with it.
 - `CI=true` makes the dmg step skip its Finder AppleScript (no window layout,
   no Automation prompt).
 - `cargo tauri build` rewrites the crate's `tauri-build` line in `Cargo.toml`;
@@ -314,8 +354,13 @@ Notes:
   copy (see the README for how to open it).
 
 Linux (AppImage, deb) and Windows (NSIS `-setup.exe`) bundles are built by
-`.github/workflows/release.yml` on the platform's own runner, with the same notices
-step and `cargo tauri build --no-sign`. The Windows installer is unsigned and is built
+`.github/workflows/release.yml` on the platform's own runner. Its build steps (toolchain,
+packaging tools, UI, notices, the CLI sidecar, `cargo tauri build --no-sign`, then
+`check_bundled_cli.sh`) live in the composite action `.github/actions/desktop-bundle`,
+which `.github/workflows/bundle-check.yml` also runs (macOS arm64, Linux x64, Windows
+x64) on pull requests that touch the desktop crate, the CLI, the packaging scripts or the
+workflows, and by hand; it uploads nothing. A release therefore cannot ship an installer
+whose CLI is missing or does not run. The Windows installer is unsigned and is built
 from the release after v0.2.0-rc.1 on; MSI is not used because its bundler rejects
 pre-release versions. Linux needs the WebKitGTK 4.1,
 GTK 3 and libsoup 3 development packages (listed in the README); Windows needs

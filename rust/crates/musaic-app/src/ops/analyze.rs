@@ -8,9 +8,17 @@
 //! guard is taken first and held until after `Done`. A sink that answers
 //! [`Listening::Gone`] is not called again; the run still analyses and writes
 //! every file, rescans the album and publishes `AlbumTagsChanged`.
+//!
+//! [`Analyze::run_cancellable`] also takes a cancel flag (the agent bridge's):
+//! once it is set the run stops before its next file, never inside one, writes
+//! no album gain, still rescans the album and publishes `AlbumTagsChanged` when
+//! it wrote any file, hands the sink `Done` with the partial counts and ends
+//! [`AnalyzeOutcome::Cancelled`]. [`Analyze::run`] (the desktop's) has no flag
+//! and always goes to the end.
 
 use std::ops::ControlFlow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::AtomicBool;
 
 pub use musaic_services::analyze::AnalysisKind;
 use musaic_services::analyze::{self, AnalyzeOutcome as Ended, AnalyzeRequest};
@@ -28,6 +36,9 @@ pub enum AnalyzeOutcome {
     /// The album's folder vanished after the checks, so no further event
     /// followed. `reason` is for a log.
     Aborted { reason: String },
+    /// The cancel flag stopped the run between files; the summary (also the
+    /// last event) counts the files dealt with before it stopped.
+    Cancelled(AnalyzeSummary),
 }
 
 /// The `analyze` operations.
@@ -49,6 +60,18 @@ impl Analyze<'_> {
         sink: &mut dyn FnMut(AnalyzeEvent) -> Listening,
     ) -> Result<AnalyzeOutcome, OpError> {
         self.prepare(album_id, what)?.run(sink)
+    }
+
+    /// [`run`](Self::run), stopped before the next file once `cancel` is set
+    /// (the module docs).
+    pub fn run_cancellable(
+        &self,
+        album_id: &str,
+        what: AnalysisKind,
+        cancel: &AtomicBool,
+        sink: &mut dyn FnMut(AnalyzeEvent) -> Listening,
+    ) -> Result<AnalyzeOutcome, OpError> {
+        self.prepare(album_id, what)?.run_with(Some(cancel), sink)
     }
 
     /// The checks of an analysis, with nothing read or written: the returned
@@ -96,6 +119,14 @@ impl AnalyzeRun {
         self,
         sink: &mut dyn FnMut(AnalyzeEvent) -> Listening,
     ) -> Result<AnalyzeOutcome, OpError> {
+        self.run_with(None, sink)
+    }
+
+    fn run_with(
+        self,
+        cancel: Option<&AtomicBool>,
+        sink: &mut dyn FnMut(AnalyzeEvent) -> Listening,
+    ) -> Result<AnalyzeOutcome, OpError> {
         let AnalyzeRun { app, guard, req } = self;
         let _guard = guard;
         let what = req.what;
@@ -103,7 +134,7 @@ impl AnalyzeRun {
         let mut listening = true;
         let mut summary = None;
         let ended = app.with_analyze_env(&mut conn, |env| {
-            analyze::analyze_album(env, &req, &mut |event| {
+            analyze::analyze_album_cancellable(env, &req, cancel, &mut |event| {
                 if let AnalyzeEvent::Done(s) = &event {
                     summary = Some(s.clone());
                 }
@@ -114,7 +145,7 @@ impl AnalyzeRun {
                         Ok(Listening::Yes)
                     );
                 }
-                // The service never stops: the run goes to its end either way.
+                // A sink that stops listening never stops the run; only `cancel` does.
                 ControlFlow::Continue(())
             })
         });
@@ -128,6 +159,13 @@ impl AnalyzeRun {
                 Ok(AnalyzeOutcome::Aborted { reason })
             }
             Ended::Finished | Ended::Stopped => Ok(AnalyzeOutcome::Finished(summary.unwrap_or(
+                AnalyzeSummary {
+                    what,
+                    analyzed_count: 0,
+                    errors: 0,
+                },
+            ))),
+            Ended::Cancelled => Ok(AnalyzeOutcome::Cancelled(summary.unwrap_or(
                 AnalyzeSummary {
                     what,
                     analyzed_count: 0,

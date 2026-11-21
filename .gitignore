@@ -6,6 +6,10 @@ rust/target/
 rust/testdata/synthetic-library/library/
 rust/testdata/synthetic-library/.library.tmp/
 
+# The agent CLI copied beside the desktop app for the installer (Tauri externalBin);
+# built by scripts/package_macos.sh and the release workflow, never committed.
+rust/crates/musaic-desktop/binaries/
+
 # Private test data, when checked out next to rust/ (never committed here)
 private-testdata/
 

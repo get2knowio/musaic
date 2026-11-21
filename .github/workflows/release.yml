@@ -12,6 +12,11 @@
 # tests job does not cover, so adding a platform to the build matrix without
 # its tests fails the release instead of shipping an untested installer.
 #
+# The build steps live in .github/actions/desktop-bundle, which
+# bundle-check.yml also runs on pull requests; it ends by checking that every
+# installer carries a runnable musaic-cli (scripts/check_bundled_cli.sh), so
+# a release cannot ship an installer without it.
+#
 # Unsigned: no signing, notarisation or updater configuration, and no secret
 # is referenced. tauri.conf.json has `signingIdentity: null` and
 # `createUpdaterArtifacts: false`; `--no-sign` makes that explicit.
@@ -42,14 +47,6 @@ env:
   TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
   GH_REPO: ${{ github.repository }}
   CARGO_TERM_COLOR: always
-  NODE_VERSION: "22"
-  PYTHON_VERSION: "3.13"
-  # Packaging tools, installed with `cargo install --locked` (cached).
-  TAURI_CLI_VERSION: "2.12.4"
-  CARGO_ABOUT_VERSION: "0.9.3"
-  # The notices generator reads licence files; never decode them with a
-  # Windows code page.
-  PYTHONUTF8: "1"
 
 jobs:
   # Keep this list equal to the runners in the build matrix below
@@ -173,68 +170,19 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v7
 
-      - name: Install Rust toolchain
-        run: |
-          channel="$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' rust/rust-toolchain.toml)"
-          test -n "$channel" || { echo "::error::no channel in rust/rust-toolchain.toml"; exit 1; }
-          rustup toolchain install "$channel" --profile minimal -c rustfmt -c clippy \
-            -t "${{ matrix.target }}" --no-self-update
-          (cd rust && rustc --version && cargo --version)
-
-      - name: Install Linux system packages
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential pkg-config libssl-dev \
-            libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
-            libwayland-dev librsvg2-dev patchelf file
-
-      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      # Toolchain, packaging tools, UI, notices, the musaic-cli sidecar, the
+      # unsigned bundle, and the check that each installer carries a runnable
+      # musaic-cli: the same action bundle-check.yml runs on pull requests.
+      - name: Build, bundle and check (unsigned)
+        id: bundle
+        uses: ./.github/actions/desktop-bundle
         with:
-          workspaces: "rust -> target"
-          key: ${{ matrix.target }}
-
-      - name: Install packaging tools
-        working-directory: rust
-        run: |
-          cargo install tauri-cli --version "$TAURI_CLI_VERSION" --locked
-          cargo install cargo-about --version "$CARGO_ABOUT_VERSION" --locked --features cli
-          cargo tauri --version
-          cargo about --version
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Build the UI
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Third-party notices
-        run: |
-          (cd rust && cargo fetch --locked)
-          python scripts/desktop_notices.py --target "${{ matrix.target }}"
-
-      - name: Build and bundle (unsigned)
-        working-directory: rust/crates/musaic-desktop
-        env:
-          CI: "true"
-        run: |
-          # A restored cache must not leave an older installer behind.
-          rm -rf "../../target/${{ matrix.target }}/release/bundle"
-          cargo tauri build --ci --no-sign --target "${{ matrix.target }}" \
-            --bundles "${{ matrix.bundles }}" --config tauri.bundle.conf.json
+          target: ${{ matrix.target }}
+          bundles: ${{ matrix.bundles }}
 
       - name: Collect installers and checksums
         run: |
-          bundle="rust/target/${{ matrix.target }}/release/bundle"
+          bundle="${{ steps.bundle.outputs.bundle-dir }}"
           mkdir dist
           find "$bundle" -maxdepth 2 -type f \
             \( -name '*.dmg' -o -name '*-setup.exe' -o -name '*.AppImage' -o -name '*.deb' \) \

@@ -549,9 +549,20 @@ async fn main() {
         Ok(l) => l,
         Err(e) => die(1, &format!("cannot bind {host}:{port}: {e}")),
     };
+    // Agent pairing secrets: the OS keyring under service `musaic-agent`, or
+    // memory (and a scratch-dir credential file for a separate CLI process) in
+    // a verification run, which is already limited to scratch directories.
+    let agent_memory = memory_secrets.is_some();
+    let agent_secrets: SharedSecrets = if agent_memory {
+        Arc::new(musaic_secrets::MemoryStore::new())
+    } else {
+        Arc::new(musaic_secrets::agent::agent_keyring())
+    };
     let state = match AppState::builder(config_dir)
         .allowed_hosts(allowed)
         .secrets(secrets)
+        .agent_secrets(agent_secrets)
+        .agent_dev_credentials(agent_memory)
         .network(network)
         // Every health check runs on its own (issue #187); checks that
         // need the network only when there is one.
@@ -568,6 +579,9 @@ async fn main() {
     let addr = listener
         .local_addr()
         .map_or_else(|_| format!("{host}:{port}"), |a| a.to_string());
+    if let Ok(bound) = listener.local_addr() {
+        musaic_api::agent_guard::publish_descriptor(&state, bound);
+    }
     let stop = stop_signal();
     println!("[musaic] listening on http://{addr}");
     log.log(
@@ -576,13 +590,18 @@ async fn main() {
         &format!("listening on http://{addr}"),
     );
     let stopping = state.clone();
-    let served = axum::serve(listener, router(state.clone()))
-        .with_graceful_shutdown(async move {
-            stop.await;
-            // Open SSE streams end cleanly so the drain finishes.
-            stopping.begin_shutdown();
-        })
-        .await;
+    let served = axum::serve(
+        listener,
+        router(state.clone())
+            .into_make_service_with_connect_info::<musaic_api::agent_guard::ConnInfo>(),
+    )
+    .with_graceful_shutdown(async move {
+        stop.await;
+        // Open SSE streams end cleanly so the drain finishes.
+        stopping.begin_shutdown();
+    })
+    .await;
+    musaic_api::agent_guard::remove_descriptor(&state);
     log.log(Level::Info, "musaic.main", "shutting down");
     // The lifespan's shutdown: stop the fingerprint pool (its thread exits
     // between two files, waited for with a bound), then checkpoint and close

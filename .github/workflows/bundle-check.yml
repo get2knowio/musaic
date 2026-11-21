@@ -1,0 +1,81 @@
+# Builds the real, unsigned desktop installers on each platform's runner and
+# checks that every one carries a runnable musaic-cli at the place
+# docs/agents.md names ("Where the CLI is"):
+#
+#   macOS    Musaic.app/Contents/MacOS/musaic-cli, in the .app and in the .dmg
+#   Linux    /usr/bin/musaic-cli in the deb; usr/bin/musaic-cli inside the
+#            AppImage, where `musaic-cli setup` refuses with the copy-it-out
+#            remedy
+#   Windows  musaic-cli.exe next to musaic-desktop.exe after a silent NSIS
+#            install into a scratch folder
+#
+# The build and the check are .github/actions/desktop-bundle, the same steps
+# release.yml runs, so the two cannot drift. Nothing is uploaded or released;
+# no secret is used. Runs on pull requests that touch the packaging, and by
+# hand.
+name: bundle-check
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "rust/crates/musaic-desktop/**"
+      - "rust/crates/musaic-cli/**"
+      - "scripts/package_macos.sh"
+      - "scripts/stage_cli_sidecar.sh"
+      - "scripts/check_bundled_cli.sh"
+      - "scripts/desktop_notices.py"
+      - ".github/actions/desktop-bundle/**"
+      - ".github/workflows/release.yml"
+      - ".github/workflows/bundle-check.yml"
+
+concurrency:
+  group: bundle-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bundle:
+    name: bundle (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        # The runners and targets release.yml builds on. The Intel Mac
+        # build (cross-compiled on macos-15) is left to the release, whose
+        # check verifies its CLI's architecture without running it.
+        include:
+          - name: macos-arm64
+            os: macos-15
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - name: windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: nsis
+          - name: linux-x64
+            os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Windows runners default to core.autocrlf=true, which would rewrite
+      # the scripts byte-wise. Check out files as committed.
+      - name: Keep line endings as committed
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+
+      - name: Build, bundle and check (unsigned)
+        uses: ./.github/actions/desktop-bundle
+        with:
+          target: ${{ matrix.target }}
+          bundles: ${{ matrix.bundles }}

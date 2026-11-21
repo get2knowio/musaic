@@ -3,7 +3,8 @@
 //! fingerprinter rejected), v18 -> v19 (`check_inputs`: what each health
 //! check last ran against, for the background check sweep), v19 -> v20
 //! (each album's per-file disc numbers and the highest disc total its tags
-//! name), and the backup taken before the first.
+//! name), v20 -> v21 (the `agent_*` tables of the agent bridge), and the
+//! backup taken before the first.
 //!
 //! Backup rule: a database the Python app wrote (v16, or any older version
 //! [`crate::python_chain`] brings to v16 first) is copied, to
@@ -14,8 +15,8 @@
 //! is already there ([`existing_backup`]), an earlier interrupted attempt took
 //! it from the untouched file, and no second one is written (an attempt
 //! interrupted after the `v<N> -> v16` step finds a v16 file next time).
-//! A v17, v18 or v19 database was written by this build: the v17 -> v18,
-//! v18 -> v19 and v19 -> v20 steps are additive and each runs in one
+//! A v17, v18, v19 or v20 database was written by this build: the v17 -> v18,
+//! v18 -> v19, v19 -> v20 and v20 -> v21 steps are additive and each runs in one
 //! transaction (an
 //! interruption leaves the file at the version it had), and no further
 //! backup file is written, so no new copy of plaintext settings rows
@@ -129,6 +130,90 @@ pub(crate) const V20_STATEMENTS: &[&str] = &[
     "ALTER TABLE albums ADD COLUMN tag_disc_total INTEGER",
 ];
 
+/// The v20 -> v21 statements, in order (also the text a fresh database gets).
+/// Tables only; nothing existing changes. A pairing is never deleted (revoking
+/// sets `revoked_at`), so the other tables keep their history by reference.
+pub(crate) const V21_STATEMENTS: &[&str] = &[
+    // A named, scoped, revocable grant to a local agent. The secret lives in
+    // the OS keyring; only its SHA-256 fingerprint is kept here.
+    "CREATE TABLE agent_pairings (
+        id                 TEXT PRIMARY KEY,
+        name               TEXT NOT NULL,
+        scopes             TEXT NOT NULL,
+        secret_fingerprint TEXT NOT NULL,
+        created_at         TEXT NOT NULL,
+        last_used_at       TEXT,
+        revoked_at         TEXT
+    )",
+    // A missing row means the default decision for that kind.
+    "CREATE TABLE agent_policies (
+        pairing_id TEXT NOT NULL REFERENCES agent_pairings(id),
+        kind       TEXT NOT NULL,
+        decision   TEXT NOT NULL CHECK (decision IN ('allow','ask','refuse')),
+        PRIMARY KEY (pairing_id, kind)
+    )",
+    // Immutable after insert.
+    "CREATE TABLE agent_proposals (
+        id            TEXT PRIMARY KEY,
+        pairing_id    TEXT NOT NULL REFERENCES agent_pairings(id),
+        album_id      TEXT NOT NULL,
+        base_revision TEXT NOT NULL,
+        patch         TEXT NOT NULL,
+        digest        TEXT NOT NULL,
+        kinds         TEXT NOT NULL,
+        diff          TEXT NOT NULL,
+        created_at    TEXT NOT NULL,
+        expires_at    TEXT NOT NULL
+    )",
+    "CREATE TABLE agent_approvals (
+        id             TEXT PRIMARY KEY,
+        pairing_id     TEXT NOT NULL REFERENCES agent_pairings(id),
+        action         TEXT NOT NULL CHECK (action IN
+            ('fix_apply','scan_start','checks_start','analysis_start')),
+        proposal_id    TEXT,
+        request        TEXT,
+        request_digest TEXT NOT NULL,
+        album_revision TEXT,
+        kinds          TEXT NOT NULL,
+        state          TEXT NOT NULL CHECK (state IN
+            ('pending','approved','denied','expired')),
+        reason         TEXT,
+        created_at     TEXT NOT NULL,
+        expires_at     TEXT NOT NULL,
+        decided_at     TEXT,
+        operation_id   TEXT
+    )",
+    "CREATE INDEX idx_agent_approvals_state ON agent_approvals(state)",
+    // The before-image of an agent-caused apply, written before the first
+    // file changes. `after` is what the change left on disk, written once it
+    // finished, so the desktop's Undo can tell whether anything changed
+    // since. An undo records its own before-image as a row whose `undoes`
+    // names the change it put back; that change becomes `undone`.
+    "CREATE TABLE agent_changes (
+        id          TEXT PRIMARY KEY,
+        pairing_id  TEXT NOT NULL REFERENCES agent_pairings(id),
+        proposal_id TEXT NOT NULL,
+        approval_id TEXT,
+        album_id    TEXT NOT NULL,
+        created_at  TEXT NOT NULL,
+        state       TEXT NOT NULL CHECK (state IN
+            ('recorded','applied','partial','failed','undone')),
+        before      TEXT NOT NULL,
+        outcome     TEXT,
+        after       TEXT,
+        undoes      TEXT
+    )",
+    // Tool, outcome and time only: never an argument value.
+    "CREATE TABLE agent_activity (
+        id         INTEGER PRIMARY KEY,
+        pairing_id TEXT NOT NULL,
+        at         TEXT NOT NULL,
+        tool       TEXT NOT NULL,
+        outcome    TEXT NOT NULL
+    )",
+    "CREATE INDEX idx_agent_activity_pairing ON agent_activity(pairing_id, id)",
+];
+
 pub(crate) fn backup_before_migration(
     conn: &Connection,
     db_path: &Path,
@@ -188,7 +273,7 @@ pub(crate) fn create_fresh(conn: &mut Connection) -> Result<()> {
 /// transaction (each re-checks the version, so a step another process
 /// already ran is skipped): the Python app's own chain to v16 for an older file
 /// ([`crate::python_chain`], one transaction as in the Python app), then v17,
-/// v18, v19, v20.
+/// v18, v19, v20, v21.
 pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     if found < PYTHON_SCHEMA_VERSION {
         crate::python_chain::to_python_version(conn)?;
@@ -204,6 +289,9 @@ pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     }
     if found <= 19 {
         v19_to_v20(conn)?;
+    }
+    if found <= 20 {
+        v20_to_v21(conn)?;
     }
     Ok(())
 }
@@ -266,6 +354,22 @@ pub(crate) fn v19_to_v20(conn: &mut Connection) -> Result<()> {
     })?;
     if current == 19 {
         for stmt in V20_STATEMENTS {
+            tx.execute(stmt, [])?;
+        }
+        tx.execute("UPDATE schema_version SET version = 20", [])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+/// See [`V21_STATEMENTS`].
+pub(crate) fn v20_to_v21(conn: &mut Connection) -> Result<()> {
+    let tx = crate::immediate(conn)?;
+    let current: i64 = tx.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get(0)
+    })?;
+    if current == 20 {
+        for stmt in V21_STATEMENTS {
             tx.execute(stmt, [])?;
         }
         tx.execute("UPDATE schema_version SET version = ?1", [SCHEMA_VERSION])?;

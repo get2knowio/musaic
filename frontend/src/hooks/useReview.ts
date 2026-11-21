@@ -7,7 +7,9 @@
  *  - an open finding of any severity (not ignored, not resolved);
  *  - a proposed change (a job with status "completed": a result awaiting
  *    review);
- *  - a failed job.
+ *  - a failed job;
+ *  - a pending approval: an assistant asked to do something that needs the
+ *    user's decision (it expires, so it is the most pressing after errors).
  *
  * Queued and running jobs and finished ones (applied / discarded) are
  * activity, not review items: they are returned apart (`inProgress`,
@@ -16,7 +18,7 @@
  * `count` is the number of distinct items in the default view (All open):
  * the Sidebar badge and the page header use it, with `reviewBadge`.
  *
- * Each of the two sources (findings, jobs) is in one of four states, kept
+ * Each of the three sources (findings, jobs, assistant requests) is in one of four states, kept
  * apart so that a request that failed never reads as "nothing to do":
  * `loading` (no answer yet), `ok` (answered; an empty list is a confirmed
  * empty), `unavailable` (failed with nothing cached) and `stale` (the
@@ -27,6 +29,8 @@ import { useMemo } from "react";
 
 import { useChecks, useFindings } from "./useChecks";
 import { useJobs } from "./useJobs";
+import { useAgentApprovals } from "./useAgents";
+import type { AgentApproval } from "@/lib/api";
 import type { Finding, Job } from "@/lib/types";
 
 /** The findings endpoint's default row limit (10000). A list that reaches
@@ -34,13 +38,14 @@ import type { Finding, Job } from "@/lib/types";
 export const FINDINGS_LIST_LIMIT = 10_000;
 
 /** How pressing an item is, most pressing first. */
-export type Urgency = "error" | "failed" | "warning" | "proposal" | "info";
+export type Urgency = "error" | "approval" | "failed" | "warning" | "proposal" | "info";
 
-export const URGENCY_ORDER: readonly Urgency[] = ["error", "failed", "warning", "proposal", "info"];
+export const URGENCY_ORDER: readonly Urgency[] = ["error", "approval", "failed", "warning", "proposal", "info"];
 
 /** The short label a row carries. */
 export const URGENCY_LABEL: Record<Urgency, string> = {
   error: "Error",
+  approval: "Needs approval",
   failed: "Failed",
   warning: "Warning",
   proposal: "To review",
@@ -49,10 +54,12 @@ export const URGENCY_LABEL: Record<Urgency, string> = {
 
 export type ReviewItem =
   | { kind: "finding"; key: string; urgency: Urgency; albumId: string | null; finding: Finding }
-  | { kind: "job"; key: string; urgency: Urgency; albumId: string; job: Job };
+  | { kind: "job"; key: string; urgency: Urgency; albumId: string; job: Job }
+  | { kind: "approval"; key: string; urgency: Urgency; albumId: string | null; approval: AgentApproval };
 
 export const findingKey = (id: number) => `finding:${id}`;
 export const jobKey = (id: string) => `job:${id}`;
+export const approvalKey = (id: string) => `approval:${id}`;
 
 export function isOpenFinding(f: Finding): boolean {
   return !f.ignored_at && !f.resolved_at;
@@ -85,6 +92,10 @@ export function sortReviewItems(items: ReviewItem[], checkOrder: readonly string
     if (a.kind === "job" && b.kind === "job" && a.job.created_at !== b.job.created_at) {
       return a.job.created_at < b.job.created_at ? 1 : -1;
     }
+    // Approvals expire in the order they were asked: the oldest is first.
+    if (a.kind === "approval" && b.kind === "approval" && a.approval.createdAt !== b.approval.createdAt) {
+      return a.approval.createdAt < b.approval.createdAt ? -1 : 1;
+    }
     return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
   });
 }
@@ -94,6 +105,7 @@ export function buildReviewItems(
   findings: readonly Finding[],
   jobs: readonly Job[],
   checkOrder: readonly string[] = [],
+  approvals: readonly AgentApproval[] = [],
 ): ReviewItem[] {
   const items: ReviewItem[] = [];
   for (const f of findings) {
@@ -110,6 +122,10 @@ export function buildReviewItems(
       job: j,
     });
   }
+  for (const a of approvals) {
+    if (a.state !== "pending") continue;
+    items.push({ kind: "approval", key: approvalKey(a.id), urgency: "approval", albumId: a.albumId, approval: a });
+  }
   return sortReviewItems(items, checkOrder);
 }
 
@@ -118,7 +134,8 @@ export type ReviewFilter =
   | { kind: "all" }
   | { kind: "check"; id: string }
   | { kind: "proposed" }
-  | { kind: "failed" };
+  | { kind: "failed" }
+  | { kind: "approvals" };
 
 export function filterReviewItems(
   items: readonly ReviewItem[],
@@ -136,6 +153,8 @@ export function filterReviewItems(
         return i.kind === "job" && i.job.status === "completed";
       case "failed":
         return i.kind === "job" && i.job.status === "failed";
+      case "approvals":
+        return i.kind === "approval";
     }
   });
 }
@@ -148,7 +167,7 @@ export function albumCount(items: readonly ReviewItem[]): number {
 export type SourceState = "loading" | "ok" | "unavailable" | "stale";
 
 export interface SourceStatus {
-  /** What the source is, for copy: "findings", "jobs". */
+  /** What the source is, for copy: "findings", "jobs", "assistant requests". */
   label: string;
   state: SourceState;
   /** Ask the source again (a refetch of its query). */
@@ -176,7 +195,7 @@ export interface ReviewInbox {
   inProgress: Job[];
   /** Applied / discarded jobs, newest first (history, not counted). */
   finishedJobs: Job[];
-  sources: { findings: SourceStatus; jobs: SourceStatus };
+  sources: { findings: SourceStatus; jobs: SourceStatus; approvals: SourceStatus };
   /** Every source has answered; nothing failed. */
   complete: boolean;
   /** Some source failed (no data, or only last-known data). */
@@ -192,21 +211,26 @@ const newestFirst = (a: Job, b: Job) => (a.created_at < b.created_at ? 1 : -1);
 export function useReview(): ReviewInbox {
   const findingsQ = useFindings();
   const jobsQ = useJobs();
+  const approvalsQ = useAgentApprovals("pending");
   // Only for the order of equal items; the checks list is not a source.
   const { data: checks } = useChecks();
   const all = findingsQ.data;
   const jobs = jobsQ.data;
   const findingsState = sourceStateOf(findingsQ);
   const jobsState = sourceStateOf(jobsQ);
+  const approvals = approvalsQ.data;
+  const approvalsState = sourceStateOf(approvalsQ);
   const findingsFetching = findingsQ.isFetching;
   const jobsFetching = jobsQ.isFetching;
+  const approvalsFetching = approvalsQ.isFetching;
+  const refetchApprovals = approvalsQ.refetch;
   const refetchFindings = findingsQ.refetch;
   const refetchJobs = jobsQ.refetch;
   return useMemo(() => {
     const fs = all ?? [];
     const js = jobs ?? [];
-    const items = buildReviewItems(fs, js, (checks ?? []).map((c) => c.meta.id));
-    const states = [findingsState, jobsState];
+    const items = buildReviewItems(fs, js, (checks ?? []).map((c) => c.meta.id), approvals ?? []);
+    const states = [findingsState, jobsState, approvalsState];
     const complete = states.every((s) => s === "ok");
     return {
       items,
@@ -222,6 +246,12 @@ export function useReview(): ReviewInbox {
           retrying: findingsFetching,
         },
         jobs: { label: "jobs", state: jobsState, retry: () => void refetchJobs(), retrying: jobsFetching },
+        approvals: {
+          label: "assistant requests",
+          state: approvalsState,
+          retry: () => void refetchApprovals(),
+          retrying: approvalsFetching,
+        },
       },
       complete,
       degraded: states.some((s) => s === "unavailable" || s === "stale"),
@@ -231,13 +261,17 @@ export function useReview(): ReviewInbox {
   }, [
     all,
     jobs,
+    approvals,
     checks,
     findingsState,
     jobsState,
+    approvalsState,
     findingsFetching,
     jobsFetching,
+    approvalsFetching,
     refetchFindings,
     refetchJobs,
+    refetchApprovals,
   ]);
 }
 

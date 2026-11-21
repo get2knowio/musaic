@@ -11,7 +11,7 @@
 use std::path::Path;
 
 use musaic_checks::runner::{self, RunError};
-use musaic_checks::{CheckEnv, ScopeKind};
+use musaic_checks::{CheckEnv, CheckError, ScopeKind};
 use musaic_db::findings::{FindingRow, RunRow, get_finding};
 use musaic_fsops::multi_disc;
 use musaic_fsops::plan::Plan;
@@ -54,7 +54,9 @@ pub fn run_error(e: RunError) -> OpError {
 /// Run `check_id` over the library at `lib` (resolved as the Python app's
 /// `Path(lib).resolve()`) and log its outcome (checks/runner.py:211-218;
 /// `scope` is the request's scope as given). The caller holds the work guard
-/// (a restore waits for it).
+/// (a restore waits for it). `cancel`, once set, stops the run between albums
+/// ([`musaic_checks::run_check_cancellable`]): it ends `failed`, and is
+/// reported in `ChecksRerunFinished` like any run that started.
 #[allow(clippy::too_many_arguments)]
 pub fn run_check_logged(
     conn: &Connection,
@@ -65,9 +67,10 @@ pub fn run_check_logged(
     album_ids: Option<&[String]>,
     scope: &str,
     log: &dyn HostLog,
+    cancel: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<RunRow, OpError> {
     let lib = py_resolve(Path::new(lib)).to_string_lossy().into_owned();
-    match musaic_checks::run_check(conn, env, check_id, &lib, kind, album_ids) {
+    match musaic_checks::run_check_cancellable(conn, env, check_id, &lib, kind, album_ids, cancel) {
         Ok(run) => {
             // checks/runner.py:211-218.
             let t = CHECKS_TARGET;
@@ -76,6 +79,20 @@ pub fn run_check_logged(
                     t,
                     &format!(
                         "check {} completed in {}ms ({} findings, scope={})",
+                        run.check_id,
+                        run.duration_ms.unwrap_or(0),
+                        run.issue_count,
+                        scope
+                    ),
+                );
+            } else if cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::SeqCst))
+                && run.error.as_deref() == Some(&CheckError::Cancelled.to_string())
+            {
+                // Asked for, not a fault.
+                log.info(
+                    t,
+                    &format!(
+                        "check {} cancelled after {}ms ({} findings so far, scope={})",
                         run.check_id,
                         run.duration_ms.unwrap_or(0),
                         run.issue_count,

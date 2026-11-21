@@ -85,6 +85,7 @@ impl Check for NoCoverArt {
             .collect::<rusqlite::Result<_>>()?
         };
         for (id, dir_name, dir_artist, dir_album) in rows {
+            ctx.checkpoint()?;
             emit(Finding {
                 album_id: Some(id),
                 summary: "No cover art (embedded or sidecar)".into(),

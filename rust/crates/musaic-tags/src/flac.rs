@@ -193,6 +193,13 @@ impl VorbisComment {
         self.comments.push((key.to_string(), value.to_string()));
     }
 
+    /// Append one more `(key, value)` entry, keeping every entry already
+    /// there (a multi-valued tag gets another value).
+    pub fn append(&mut self, key: &str, value: &str) {
+        assert!(is_valid_key(key), "invalid Vorbis comment key {key:?}");
+        self.comments.push((key.to_string(), value.to_string()));
+    }
+
     /// Replace the value of `key` where the comment already is: the first
     /// entry whose key matches case-insensitively keeps its place and its
     /// spelling of the key and gets `value`; every other entry of the key

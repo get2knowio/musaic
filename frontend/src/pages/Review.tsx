@@ -4,6 +4,7 @@ import { Activity as ActivityIcon, CheckCircle2, Eye, EyeOff, Inbox, Trash2, X, 
 import { toast } from "sonner";
 
 import { BulkQuickFixDialog } from "@/components/BulkQuickFixDialog";
+import { ApprovalRow } from "@/components/ApprovalRow";
 import { FindingRow } from "@/components/FindingRow";
 import { SourceNotice } from "@/components/SourceNotice";
 import {
@@ -44,7 +45,7 @@ import type { Album, CheckSummary, Finding, Job } from "@/lib/types";
  * changes it.
  *
  * Left, the filters: All open, then each type (proposed changes, failed
- * jobs, and each check once) with its count; exactly one is current. An
+ * jobs, assistant requests, and each check once) with its count; exactly one is current. An
  * album filter (`?album=<id>`, set from an album's panel) narrows any of
  * them and is shown as a chip in the header.
  *
@@ -106,10 +107,11 @@ function sameView(a: View, b: View): boolean {
   return viewKey(a, null) === viewKey(b, null);
 }
 
-const FILTER_TITLE: Record<"all" | "proposed" | "failed", string> = {
+const FILTER_TITLE: Record<"all" | "proposed" | "failed" | "approvals", string> = {
   all: "All open",
   proposed: "Proposed changes",
   failed: "Failed jobs",
+  approvals: "Assistant requests",
 };
 
 function albumName(a: Album | undefined, id: string): string {
@@ -168,7 +170,7 @@ export default function ReviewPage() {
       ? { kind: "ignored" }
       : checkParam
         ? { kind: "inbox", filter: { kind: "check", id: checkParam } }
-        : kindParam === "proposed" || kindParam === "failed"
+        : kindParam === "proposed" || kindParam === "failed" || kindParam === "approvals"
           ? { kind: "inbox", filter: { kind: kindParam } }
           : { kind: "inbox", filter: { kind: "all" } };
   const key = viewKey(view, album);
@@ -219,15 +221,17 @@ export default function ReviewPage() {
     const perCheck = new Map<string, number>();
     let proposed = 0;
     let failed = 0;
+    let approvals = 0;
     for (const i of review.items) {
       if (i.kind === "finding") perCheck.set(i.finding.check_id, (perCheck.get(i.finding.check_id) ?? 0) + 1);
+      else if (i.kind === "approval") approvals++;
       else if (i.job.status === "completed") proposed++;
       else failed++;
     }
     // Registry order (the checks' display order); unknown checks last.
     const order = new Map(checks.map((c, i) => [c.meta.id, i]));
     const checkIds = [...perCheck.keys()].sort((a, b) => (order.get(a) ?? 1e9) - (order.get(b) ?? 1e9));
-    return { perCheck, proposed, failed, checkIds };
+    return { perCheck, proposed, failed, approvals, checkIds };
   }, [review.items, checks]);
 
   // ---- what is listed ----
@@ -345,6 +349,8 @@ export default function ReviewPage() {
                   withCheck,
                   siblings: siblingsByCheck.get(i.finding.check_id) ?? [],
                 })
+              ) : i.kind === "approval" ? (
+                <ApprovalRow approval={i.approval} />
               ) : (
                 <JobRow job={i.job} onRequestDelete={onSingleDelete} highlight={i.key === highlightKey} />
               )}
@@ -537,7 +543,10 @@ export default function ReviewPage() {
       </div>
 
       <PausedBanner aiReady={ai.ready} />
-      <SourceNotice sources={[review.sources.findings, review.sources.jobs]} className="mx-4 mt-3 mb-1" />
+      <SourceNotice
+        sources={[review.sources.findings, review.sources.jobs, review.sources.approvals]}
+        className="mx-4 mt-3 mb-1"
+      />
 
       {/* The rail goes beside the list only when the page (not the window) has
           room for both: at a 768 px window the sidebar leaves 544 px. */}
@@ -554,6 +563,14 @@ export default function ReviewPage() {
             onSelect={() => select(all)}
           />
           <RailGroup label="By type">
+            {(rail.approvals > 0 || (view.kind === "inbox" && view.filter.kind === "approvals")) && (
+              <RailRow
+                label="Assistant requests"
+                count={rail.approvals}
+                active={view.kind === "inbox" && view.filter.kind === "approvals"}
+                onSelect={() => select({ kind: "inbox", filter: { kind: "approvals" } })}
+              />
+            )}
             {(rail.proposed > 0 || (view.kind === "inbox" && view.filter.kind === "proposed")) && (
               <RailRow
                 label="Proposed changes"

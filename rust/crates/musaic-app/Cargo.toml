@@ -9,8 +9,11 @@ rust-version.workspace = true
 [dependencies]
 musaic-ai = { path = "../musaic-ai" }
 musaic-checks = { path = "../musaic-checks" }
+musaic-commands = { path = "../musaic-commands" }
 musaic-core = { path = "../musaic-core" }
 musaic-db = { path = "../musaic-db" }
+musaic-fsops = { path = "../musaic-fsops" }
+musaic-tags = { path = "../musaic-tags" }
 musaic-events = { path = "../musaic-events" }
 musaic-log = { path = "../musaic-log" }
 musaic-net = { path = "../musaic-net" }
@@ -19,6 +22,9 @@ musaic-scan = { path = "../musaic-scan" }
 musaic-secrets = { path = "../musaic-secrets" }
 musaic-services = { path = "../musaic-services" }
 rusqlite.workspace = true
+same-file = "1"
+serde = { version = "1", features = ["derive"] }
+sha2 = "0.11"
 # Only `src/ops/record.rs` names it (the settings document keeps its stored key order).
 serde_json.workspace = true
 thiserror.workspace = true
@@ -31,6 +37,7 @@ tokio = { version = "1", features = ["sync", "macros"] }
 musaic-ai = { path = "../musaic-ai", features = ["replay"] }
 musaic-testdata = { path = "../musaic-testdata" }
 tempfile.workspace = true
+jsonschema = { version = "0.33", default-features = false }
 
 [lints]
 workspace = true

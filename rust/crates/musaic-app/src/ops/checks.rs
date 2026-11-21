@@ -15,6 +15,15 @@
 //! unknown check or an `albums` scope without ids is `Rejected`, not `NotFound`.
 //! A check run never touches a Missing album: the runner drops them from scope
 //! and keeps their findings.
+//!
+//! [`Checks::run_cancellable`] (the agent bridge's) also takes a cancel flag:
+//! once it is set the check stops before its next album, and the run ends
+//! `failed` with "check run cancelled", keeping the findings it wrote, resolving
+//! nothing and recording no inputs (the background sweep evaluates every album
+//! again). It still publishes `ChecksRerunFinished`, listing the check in
+//! `failed`. [`Checks::run`] (the desktop's) has no flag.
+
+use std::sync::atomic::AtomicBool;
 
 use musaic_checks::ScopeKind;
 use musaic_checks::runner;
@@ -148,6 +157,28 @@ impl Checks<'_> {
         scope: &str,
         album_ids: Option<&[String]>,
     ) -> Result<CheckRun, OpError> {
+        self.run_with(check_id, scope, album_ids, None)
+    }
+
+    /// [`run`](Self::run), stopped before the check's next album once
+    /// `cancel` is set (the module docs). The same refusals in the same order.
+    pub fn run_cancellable(
+        &self,
+        check_id: &str,
+        scope: &str,
+        album_ids: Option<&[String]>,
+        cancel: &AtomicBool,
+    ) -> Result<CheckRun, OpError> {
+        self.run_with(check_id, scope, album_ids, Some(cancel))
+    }
+
+    fn run_with(
+        &self,
+        check_id: &str,
+        scope: &str,
+        album_ids: Option<&[String]>,
+        cancel: Option<&AtomicBool>,
+    ) -> Result<CheckRun, OpError> {
         let _guard = self.app.gate().begin(WorkKind::CheckRun)?;
         let kind = match ScopeKind::parse(scope) {
             Some(k @ (ScopeKind::All | ScopeKind::Albums)) => k,
@@ -176,6 +207,7 @@ impl Checks<'_> {
             album_ids,
             scope,
             self.app.log(),
+            cancel,
         )
     }
 

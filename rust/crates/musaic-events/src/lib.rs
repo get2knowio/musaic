@@ -42,6 +42,7 @@ pub use context::{
     run_post_scan_guarded_async,
 };
 pub use event::{
-    ArgValue, Event, EventKind, FieldValue, FromFieldsError, Topic, ready_frame, sse_frame,
+    AgentWhat, ArgValue, Event, EventKind, FieldValue, FromFieldsError, Topic, ready_frame,
+    sse_frame,
 };
 pub use relay::{Connection, QUEUE_MAXSIZE, Relay, RelayMessage};

@@ -23,6 +23,7 @@
 //!   and the error type every face handles.
 //! - [`work`]: what is running now ([`work::WorkSnapshot`]).
 
+pub mod agent;
 pub mod ai;
 pub mod app;
 pub mod envs;

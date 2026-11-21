@@ -1,0 +1,40 @@
+[package]
+name = "musaic-cli"
+description = "The bundled agent CLI: the stdio MCP server, tool calls into the running app, doctor and host setup"
+edition.workspace = true
+version.workspace = true
+publish.workspace = true
+rust-version.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "musaic-cli"
+path = "src/main.rs"
+
+[dependencies]
+musaic-commands = { path = "../musaic-commands" }
+musaic-core = { path = "../musaic-core" }
+musaic-mcp = { path = "../musaic-mcp" }
+clap = { version = "4", features = ["derive"] }
+ureq = { version = "3.5", default-features = false }
+keyring = "4.2"
+# `raw_value` keeps a host config's other entries byte for byte; the key-order
+# feature is not used because it would reorder every serde_json map in the
+# workspace build (see docs/agents.md).
+serde_json = { workspace = true, features = ["raw_value"] }
+serde = { version = "1", features = ["derive"] }
+getrandom = "0.4"
+sha2 = "0.11"
+tokio = { version = "1", features = ["rt", "io-std", "io-util", "macros"] }
+
+[dev-dependencies]
+musaic-api = { path = "../musaic-api" }
+musaic-secrets = { path = "../musaic-secrets" }
+musaic-testdata = { path = "../musaic-testdata" }
+tempfile.workspace = true
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
+
+[lints]
+workspace = true

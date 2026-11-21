@@ -69,6 +69,20 @@
 //!   ended with no frame. Only a directory that vanishes between that check
 //!   and the listing still ends as [`AnalyzeOutcome::Aborted`].
 //!
+//! # Cancellation
+//!
+//! [`analyze_album_cancellable`] takes a flag the caller sets to stop the run
+//! (the agent bridge's cancel; the desktop's runs pass none and always go to
+//! the end). It is looked at only before each file, never while a file is
+//! measured or written, so no file is left half-written. Once it is set no
+//! further file is started; the album gains are not written (a gain measured
+//! over some of the tracks would be wrong for the album, so the files keep
+//! the album gain they had); if any file's step ran, the album is rescanned
+//! and upserted and `AlbumTagsChanged` is published as for a finished run, so
+//! the files written are seen; `done` carries the partial counts and the run
+//! ends [`AnalyzeOutcome::Cancelled`]. Cancelled before the first file:
+//! `start`, `done` and nothing written or published.
+//!
 //! # Per-file error text
 //!
 //! An OS error renders as Python's `OSError.__str__`
@@ -83,6 +97,7 @@ use std::io;
 use std::ops::ControlFlow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use musaic_dsp::loudness::{
     REPLAYGAIN_REFERENCE_LUFS, aggregate_album, format_gain, format_peak, reference_loudness_tag,
@@ -305,6 +320,9 @@ pub enum AnalyzeOutcome {
     /// listed); no item was produced. The text is the exception's `str()`,
     /// for the log: the client sees the response end without a final frame.
     Aborted(String),
+    /// The caller's cancel flag stopped the run between files (see the
+    /// module docs); `done` was the last item, with the partial counts.
+    Cancelled,
 }
 
 /// `services.albums.resolve_album_dict` as the analyze router uses it: no
@@ -418,6 +436,17 @@ pub fn analyze_album(
     req: &AnalyzeRequest,
     sink: &mut dyn FnMut(AnalyzeEvent) -> ControlFlow<()>,
 ) -> AnalyzeOutcome {
+    analyze_album_cancellable(env, req, None, sink)
+}
+
+/// [`analyze_album`], stopped between files once `cancel` is set (module
+/// docs, "Cancellation").
+pub fn analyze_album_cancellable(
+    env: &mut AnalyzeEnv<'_>,
+    req: &AnalyzeRequest,
+    cancel: Option<&AtomicBool>,
+    sink: &mut dyn FnMut(AnalyzeEvent) -> ControlFlow<()>,
+) -> AnalyzeOutcome {
     if let Err(refusal) = refuse_missing(env.conn, &req.album_id) {
         return AnalyzeOutcome::Refused(refusal);
     }
@@ -425,11 +454,18 @@ pub fn analyze_album(
         return AnalyzeOutcome::Refused(refusal);
     }
     let mut fwd = Forward { sink, gone: false };
-    match run(env, req, &mut fwd) {
-        Ok(()) if fwd.gone => AnalyzeOutcome::Stopped,
-        Ok(()) => AnalyzeOutcome::Finished,
+    match run(env, req, cancel, &mut fwd) {
+        Ok(Ran::Cancelled) => AnalyzeOutcome::Cancelled,
+        Ok(Ran::ToTheEnd) if fwd.gone => AnalyzeOutcome::Stopped,
+        Ok(Ran::ToTheEnd) => AnalyzeOutcome::Finished,
         Err(detail) => AnalyzeOutcome::Aborted(detail),
     }
+}
+
+/// How [`run`] ended when nothing raised.
+enum Ran {
+    ToTheEnd,
+    Cancelled,
 }
 
 /// `Err` = the Python app would have raised inside the stream (the text, for
@@ -437,8 +473,9 @@ pub fn analyze_album(
 fn run(
     env: &mut AnalyzeEnv<'_>,
     req: &AnalyzeRequest,
+    cancel: Option<&AtomicBool>,
     fwd: &mut Forward<'_>,
-) -> Result<(), String> {
+) -> Result<Ran, String> {
     let album_dir = Path::new(&req.album_path);
     let what = req.what.as_str();
 
@@ -458,7 +495,7 @@ fn run(
             analyzed_count: 0,
             errors: 0,
         }));
-        return Ok(());
+        return Ok(Ran::ToTheEnd);
     }
 
     let mut analyzed_count = 0usize;
@@ -467,8 +504,17 @@ fn run(
     let mut rg_tracks: Vec<(f64, f64, f64)> = Vec::new();
     // The files whose track step failed (no album tags for them).
     let mut failed = vec![false; flacs.len()];
+    // How many files' steps ran before a cancel stopped the run.
+    let mut stepped = 0usize;
+    let mut cancelled = false;
 
     for (index, path) in flacs.iter().enumerate() {
+        // Only between files: a file's step, once begun, is finished.
+        if cancel.is_some_and(|c| c.load(Ordering::SeqCst)) {
+            cancelled = true;
+            break;
+        }
+        stepped += 1;
         let file_name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
@@ -530,7 +576,19 @@ fn run(
 
     // Album-level ReplayGain, written to every listed FLAC whose track step
     // succeeded.
+    if cancelled && stepped == 0 {
+        fwd.emit(AnalyzeEvent::Done(AnalyzeSummary {
+            what: req.what,
+            analyzed_count,
+            errors,
+        }));
+        return Ok(Ran::Cancelled);
+    }
+
+    // A cancelled run writes no album gain: measured over some of the
+    // tracks it would be wrong for the album.
     if req.what == AnalysisKind::ReplayGain
+        && !cancelled
         && !rg_tracks.is_empty()
         && let Some(agg) = aggregate_album(&rg_tracks)
     {
@@ -583,5 +641,9 @@ fn run(
         analyzed_count,
         errors,
     }));
-    Ok(())
+    Ok(if cancelled {
+        Ran::Cancelled
+    } else {
+        Ran::ToTheEnd
+    })
 }

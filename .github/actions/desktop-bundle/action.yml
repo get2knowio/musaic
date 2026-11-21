@@ -1,0 +1,120 @@
+# Build the unsigned desktop installers for one target, then check that each
+# carries a runnable musaic-cli where docs/agents.md says it is
+# (scripts/check_bundled_cli.sh). Shared by release.yml and bundle-check.yml,
+# so the installers a release ships are built and checked exactly as the
+# bundle check builds and checks them.
+#
+# The caller checks out the repository first (with core.autocrlf off on
+# Windows) and runs the job with `shell: bash` as its default. No secret is
+# used: tauri.conf.json has `signingIdentity: null` and
+# `createUpdaterArtifacts: false`, and `--no-sign` makes that explicit.
+name: desktop-bundle
+description: Build the unsigned desktop installers for one target and check the bundled musaic-cli
+
+inputs:
+  target:
+    description: "Rust target triple, e.g. aarch64-apple-darwin"
+    required: true
+  bundles:
+    description: "Comma list for `cargo tauri build --bundles` (app,dmg / nsis / appimage,deb)"
+    required: true
+
+outputs:
+  bundle-dir:
+    description: "Where the installers are, relative to the repository root"
+    value: rust/target/${{ inputs.target }}/release/bundle
+
+runs:
+  using: composite
+  steps:
+    - name: Install Rust toolchain
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+      run: |
+        channel="$(sed -n 's/^channel *= *"\([^"]*\)".*/\1/p' rust/rust-toolchain.toml)"
+        test -n "$channel" || { echo "::error::no channel in rust/rust-toolchain.toml"; exit 1; }
+        rustup toolchain install "$channel" --profile minimal -c rustfmt -c clippy \
+          -t "$TARGET" --no-self-update
+        (cd rust && rustc --version && cargo --version)
+
+    # WebKitGTK and friends for the build; patchelf and file for the AppImage
+    # bundler; libfuse2 so the bundled-CLI check can mount the AppImage.
+    - name: Install Linux system packages
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential pkg-config libssl-dev \
+          libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev \
+          libwayland-dev librsvg2-dev patchelf file libfuse2
+
+    - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      with:
+        workspaces: "rust -> target"
+        key: ${{ inputs.target }}
+
+    # Packaging tools, pinned (docs/desktop.md "Packaging").
+    - name: Install packaging tools
+      shell: bash
+      working-directory: rust
+      env:
+        TAURI_CLI_VERSION: "2.12.4"
+        CARGO_ABOUT_VERSION: "0.9.3"
+      run: |
+        cargo install tauri-cli --version "$TAURI_CLI_VERSION" --locked
+        cargo install cargo-about --version "$CARGO_ABOUT_VERSION" --locked --features cli
+        cargo tauri --version
+        cargo about --version
+
+    - uses: actions/setup-node@v7
+      with:
+        node-version: "22"
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+    - name: Build the UI
+      shell: bash
+      working-directory: frontend
+      run: |
+        npm ci
+        npm run build
+
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.13"
+    - name: Third-party notices
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+        # The notices generator reads licence files; never decode them with
+        # a Windows code page.
+        PYTHONUTF8: "1"
+      run: |
+        (cd rust && cargo fetch --locked)
+        python scripts/desktop_notices.py --target "$TARGET"
+
+    # The agent CLI travels inside each installer as a Tauri externalBin
+    # (tauri.bundle.conf.json names it; plain cargo builds do not need it).
+    - name: Build the agent CLI sidecar
+      shell: bash
+      run: scripts/stage_cli_sidecar.sh "${{ inputs.target }}"
+
+    - name: Build and bundle (unsigned)
+      shell: bash
+      working-directory: rust/crates/musaic-desktop
+      env:
+        CI: "true"
+        TARGET: ${{ inputs.target }}
+        BUNDLES: ${{ inputs.bundles }}
+      run: |
+        # A restored cache must not leave an older installer behind.
+        rm -rf "../../target/$TARGET/release/bundle"
+        cargo tauri build --ci --no-sign --target "$TARGET" \
+          --bundles "$BUNDLES" --config tauri.bundle.conf.json
+
+    - name: Check the bundled musaic-cli
+      shell: bash
+      run: |
+        scripts/check_bundled_cli.sh "rust/target/${{ inputs.target }}/release/bundle" \
+          "${{ inputs.bundles }}" "${{ inputs.target }}"

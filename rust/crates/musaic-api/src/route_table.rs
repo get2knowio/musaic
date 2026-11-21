@@ -127,6 +127,9 @@ pub fn get<H: Handler<T, AppState>, T: 'static>(h: H) -> Endpoint {
 pub fn post<H: Handler<T, AppState>, T: 'static>(h: H) -> Endpoint {
     Endpoint::empty().post(h)
 }
+pub fn put<H: Handler<T, AppState>, T: 'static>(h: H) -> Endpoint {
+    Endpoint::empty().put(h)
+}
 pub fn delete<H: Handler<T, AppState>, T: 'static>(h: H) -> Endpoint {
     Endpoint::empty().delete(h)
 }

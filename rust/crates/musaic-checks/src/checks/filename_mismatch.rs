@@ -94,6 +94,7 @@ impl Check for FilenameMismatch {
                 .collect::<rusqlite::Result<_>>()?
         };
         for r in rows {
+            ctx.checkpoint()?;
             let Some(path) = r.path.as_deref().filter(|p| !p.is_empty()) else {
                 continue;
             };
