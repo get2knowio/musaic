@@ -214,6 +214,9 @@ describe("library configuration", () => {
     renderLibrary(qc);
     expect(screen.getByRole("heading", { name: "Library folder not found" })).toBeTruthy();
     expect(screen.getByText("/Volumes/Music")).toBeTruthy();
+    // Reconnecting leads; choosing another folder is a separate action.
+    expect(screen.queryByRole("textbox", { name: "Library directory path" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Change folder…" }));
     expect((screen.getByRole("textbox", { name: "Library directory path" }) as HTMLInputElement).value).toBe(
       "/Volumes/Music",
     );

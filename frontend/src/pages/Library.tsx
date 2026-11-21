@@ -4,6 +4,7 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 
 import FilterBar from "@/components/FilterBar";
 import AcoustidPrompt from "@/components/AcoustidPrompt";
+import FirstScanReport from "@/components/FirstScanReport";
 import TileGrid from "@/components/TileGrid";
 import AlbumList from "@/components/AlbumList";
 import AlbumPanel from "@/components/DetailSheet";
@@ -23,7 +24,7 @@ import {
   collectionName,
 } from "@/lib/libraryLinks";
 import LibraryPathForm from "@/components/LibraryPathForm";
-import { libraryPathHelp } from "@/lib/desktop";
+import { hasNativeFolderPicker, libraryPathHelp } from "@/lib/desktop";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
 import { useElementWidth } from "@/hooks/useElementWidth";
 import { usePageTitle } from "@/hooks/usePageTitle";
@@ -53,7 +54,7 @@ export default function LibraryPage() {
   usePageTitle("Library");
   const config = useLibraryConfig();
   const enabled = config.data?.exists === true;
-  const { albums: scannedAlbums, scan, libraryDir, snapshotSyncs } = useScanStream({ enabled });
+  const { albums: scannedAlbums, scan, libraryDir, rescan, snapshotSyncs } = useScanStream({ enabled });
 
   // Local overrides from apply flow — when the sheet emits an updated album,
   // we splice it into the scanned list so the tile reflects the change without
@@ -257,11 +258,12 @@ export default function LibraryPage() {
         scannedAt={scan.scannedAt}
         activeFilterLabel={filterKey ? collectionName(filterKey) : undefined}
       />
+      <FirstScanReport albumCount={albums.length} onScanAgain={() => void rescan()} />
       <AcoustidPrompt scannedAt={scan.scannedAt} />
       <div ref={rowRef} className="relative flex-1 min-h-0 flex">
         <ScrollPersistedArea ref={gridRef} inert={panelCoversGrid} storageKey={`mm.library.scroll.${view}`}>
           {albums.length === 0 && scan.status === "done" ? (
-            <EmptyLibrary />
+            <EmptyLibrary dir={libraryDir ?? config.data.library_dir} />
           ) : filtered.length === 0 && (query || filterKey) ? (
             <EmptyFilter
               query={query}
@@ -301,12 +303,15 @@ export default function LibraryPage() {
 // ---------- empty / placeholder views ----------
 
 /**
- * The path entry sits here (native folder picker in the
- * desktop window, text field in a browser) instead of a link to Settings.
- * A saved, existing directory flips the config query, this page renders
- * the grid, and its scan stream opens straight away (useScanStream).
+ * The path entry sits here instead of a link to Settings. In the desktop
+ * window the native picker is the one primary action (choosing saves and
+ * starts the scan; there is no Save step), with a typed path a link away;
+ * in a browser the text field is the way in. A saved, existing directory
+ * flips the config query, this page renders the grid, and its scan stream
+ * opens straight away (useScanStream).
  */
 function NoLibraryConfigured() {
+  const native = hasNativeFolderPicker();
   return (
     <LibraryShell icon={<Disc3 className="w-9 h-9" />} title="Configure your library">
       <p className="text-md text-fg-3 leading-relaxed">
@@ -314,16 +319,22 @@ function NoLibraryConfigured() {
         Subfolders with FLAC files are treated as albums.
       </p>
       <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
-        <LibraryPathForm initial="" inputClassName="w-80 max-w-full" />
+        <LibraryPathForm
+          initial=""
+          inputClassName="w-80 max-w-full"
+          pickerLabel="Choose music folder…"
+          manual={native ? "on-request" : "shown"}
+        />
       </div>
-      <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
+      {!native && <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>}
     </LibraryShell>
   );
 }
 
 /** A folder is configured but is not there now: most often a drive that
  *  is not connected. Nothing in the library is touched; once the folder is
- *  back, Try again shows it. */
+ *  back, Try again shows it. Reconnecting is the lead; choosing another
+ *  folder is a separate, secondary action (Change folder…). */
 function LibraryFolderUnreachable({
   dir,
   retrying,
@@ -346,11 +357,17 @@ function LibraryFolderUnreachable({
       <div className="mt-5">
         <RetryButton retrying={retrying} onRetry={onRetry} label="Try again" />
       </div>
-      <p className="text-sm text-fg-3 mt-6 mb-2">Or choose a different folder:</p>
+      <p className="text-sm text-fg-3 mt-6 mb-2">The library has moved for good?</p>
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <LibraryPathForm initial={dir} inputClassName="w-80 max-w-full" />
+        <LibraryPathForm
+          initial={dir}
+          inputClassName="w-80 max-w-full"
+          pickerLabel="Change folder…"
+          pickerEmphasis="secondary"
+          manual="on-request"
+          manualLabel={hasNativeFolderPicker() ? "Enter a path manually" : "Change folder…"}
+        />
       </div>
-      <p className="text-xs text-fg-4 mt-2">{libraryPathHelp()}</p>
     </LibraryShell>
   );
 }
@@ -415,15 +432,35 @@ function LibraryShell({
   );
 }
 
-function EmptyLibrary() {
+/** The folder is there and the scan finished, but found no album: offer
+ *  another folder right here (the picker in the desktop window, the path
+ *  field in a browser). */
+function EmptyLibrary({ dir }: { dir: string | null }) {
+  const native = hasNativeFolderPicker();
   return (
     <div className="grid place-items-center h-full text-center px-8 py-16">
       <div className="max-w-md">
-        <h3 className="text-lg font-semibold mb-2">No FLAC files found</h3>
-        <p className="text-sm text-fg-3">
-          The configured library directory exists but contains no folders with
-          FLAC files. Check the path in Settings.
+        <h3 className="text-lg font-semibold mb-2">No FLAC albums in this folder</h3>
+        <p className="text-sm text-fg-3 leading-relaxed">
+          {dir ? (
+            <>
+              Musaic looked through <code className="mono text-fg-2 break-all">{dir}</code> and found no
+              folders with FLAC files.
+            </>
+          ) : (
+            "Musaic found no folders with FLAC files in the library folder."
+          )}{" "}
+          Each album should be a folder of .flac files somewhere inside it.
         </p>
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-5">
+          <LibraryPathForm
+            initial={dir ?? ""}
+            inputClassName="w-80 max-w-full"
+            pickerLabel="Choose another folder…"
+            manual="on-request"
+            manualLabel={native ? "Enter a path manually" : "Choose another folder…"}
+          />
+        </div>
       </div>
     </div>
   );
