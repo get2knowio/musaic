@@ -34,6 +34,8 @@ if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
   exit 64
 fi
 BUNDLE_DIR="$1"
+# Absolute, because some checks run an installer after cd-ing into a scratch dir.
+[ -d "$BUNDLE_DIR" ] && BUNDLE_DIR="$(cd "$BUNDLE_DIR" && pwd)"
 BUNDLES="$2"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 HOST="$(cd "$ROOT/rust" && rustc -vV | sed -n 's/^host: //p')"
