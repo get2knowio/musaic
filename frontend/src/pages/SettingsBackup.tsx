@@ -146,7 +146,7 @@ export default function BackupPanel({
     <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
       <header className="flex items-center gap-2 px-4 h-10 border-b border-line bg-panel">
         <Database className="w-3.5 h-3.5 text-accent" />
-        <h2 className="text-md font-semibold">Backup &amp; restore</h2>
+        <h2 className="text-md font-semibold">Catalog database</h2>
       </header>
 
       <div className="px-4 py-4 space-y-5">
@@ -196,6 +196,7 @@ export default function BackupPanel({
           <button
             onClick={() => downloadBackup.mutate()}
             disabled={downloadBackup.isPending}
+            data-settings-focus
             className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5"
           >
             {downloadBackup.isPending ? (

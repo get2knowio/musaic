@@ -101,6 +101,7 @@ export default function FilenameTemplatesPanel() {
 
         <TemplateField
           label="Single-artist albums"
+          focusTarget
           value={singleDraft}
           onChange={setSingleDraft}
           onCommit={commitSingle}
@@ -182,7 +183,10 @@ function TemplateField({
   preview,
   disabled,
   placeholder,
+  focusTarget,
 }: {
+  /** The field a link to the File naming section focuses. */
+  focusTarget?: boolean;
   label: string;
   value: string;
   onChange: (v: string) => void;
@@ -196,6 +200,7 @@ function TemplateField({
       <label className="text-sm font-medium block">{label}</label>
       <input
         type="text"
+        data-settings-focus={focusTarget ? "" : undefined}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onCommit}
