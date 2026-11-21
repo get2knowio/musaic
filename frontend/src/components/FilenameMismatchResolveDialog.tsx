@@ -12,7 +12,7 @@
  * ArtistSortResolveDialog. Ideal for the inevitable first-run
  * sweep where hundreds of albums need renaming.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, FileEdit, FolderInput, Loader2, X } from "lucide-react";
@@ -55,7 +55,7 @@ function describeRenameResult(r: FilenameRenameResult): RenameNotice | null {
       title: `Renamed ${plural(r.renamed, "file")}, but ${plural(missing.length, "file")} ${missing.length === 1 ? "wasn't" : "weren't"} in the folder`,
       lines: [
         ...missing.map((e) => `${e.old} wasn't in the folder, so it was left alone.`),
-        "It may have been moved or renamed outside Musaic. Rescan the library, then check again.",
+        "It may have been moved or renamed outside Musaic. Use Refresh preview to see what is left.",
       ],
     };
   }
@@ -65,13 +65,13 @@ function describeRenameResult(r: FilenameRenameResult): RenameNotice | null {
   if (r.dir_renamed) {
     return {
       title: "The album folder was renamed, but the files inside were not",
-      lines: [...lines, "Close this and run the check again to see what is left."],
+      lines: [...lines, "Use Refresh preview to see what is left."],
     };
   }
   lines.push(
     r.renamed === 0
       ? "No file was changed. You can fix the cause and try again, or skip this album."
-      : `${plural(r.renamed, "file")} had already been renamed. Run the check again to see what is left.`,
+      : `${plural(r.renamed, "file")} had already been renamed. Use Refresh preview to see what is left.`,
   );
   return { title: "Couldn't rename the files", lines };
 }
@@ -135,15 +135,31 @@ export default function FilenameMismatchResolveDialog({
     retry: 1,
   });
 
-  // Fall back to the finding's stored detail when the preview is still
-  // loading or errored out, so the dialog never renders empty during a
-  // network blip. The fallback is intentionally lossy (it may show
-  // stale rows) but it's strictly better than a blank dialog.
+  // The stored detail is a snapshot from check-run time: it only labels the
+  // dialog (folder name, templates) while the preview loads or fails. It is
+  // never the source of what Rename sends (architectural rule 2).
   const fallbackDetail = (currentFinding.detail || {}) as unknown as FilenameMismatchDetail;
-  const source: FilenameMismatchDetail = preview.data ?? fallbackDetail;
-  const previewIsEmpty = preview.data?.is_empty === true;
-  const albumMissing = preview.data?.album_missing === true;
-  const previewError = preview.data?.error;
+
+  // Set after a rename attempt: what was on screen describes files that may
+  // have changed, so nothing is offered until the preview is re-derived.
+  const [stale, setStale] = useState(false);
+  const refreshSeq = useRef(0);
+
+  // Rename is offered only for a plan that was re-derived successfully for
+  // THIS finding and is not mid-refetch. A failed refetch keeps the previous
+  // `data` in the query, so success is checked, not just data's presence.
+  const verified: FilenameMismatchPlanPreview | undefined =
+    preview.isSuccess && !preview.isFetching && !stale ? preview.data : undefined;
+  const shown: FilenameMismatchPlanPreview | undefined =
+    preview.isSuccess && !stale ? preview.data : undefined;
+  const previewIsEmpty = shown?.is_empty === true;
+  const albumMissing = shown?.album_missing === true;
+  const previewError = shown?.error;
+  const couldNotVerify = (preview.isError || !!previewError) && !preview.isFetching;
+  const applicable =
+    !!verified && !verified.error && !verified.album_missing && !verified.is_empty;
+  const source: FilenameMismatchDetail =
+    shown && !shown.error ? shown : { ...fallbackDetail, renames: [], dir_rename: null };
 
   const renames: FilenameRenameEntry[] = source.renames ?? [];
   const dirRename = source.dir_rename ?? null;
@@ -166,13 +182,11 @@ export default function FilenameMismatchResolveDialog({
   const [notice, setNotice] = useState<RenameNotice | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      applyFilenameRename(currentFinding.id, {
-        plan: safe.map((r) => ({ old: r.filename, new: r.expected })),
-        dirRename: dirRename
-          ? { old: dirRename.old, new: dirRename.new }
-          : undefined,
-      }),
+    mutationFn: (v: {
+      findingId: number;
+      plan: { old: string; new: string }[];
+      dirRename?: { old: string; new: string };
+    }) => applyFilenameRename(v.findingId, { plan: v.plan, dirRename: v.dirRename }),
     onSuccess: (r) => {
       // The toast gets the same plain text as the dialog; `message` is only
       // shown for a clean result, whose wording is plain ("2 files").
@@ -186,6 +200,7 @@ export default function FilenameMismatchResolveDialog({
       const problem = describeRenameResult(r);
       if (problem) {
         setNotice(problem);
+        setStale(true);
         return;
       }
       // Cache invalidation is handled by the App-level
@@ -211,11 +226,30 @@ export default function FilenameMismatchResolveDialog({
   });
 
   const outcome =
-    previewIsEmpty || albumMissing ? null : _describeOutcome(safe.length, !!dirRename);
+    !applicable ? null : _describeOutcome(safe.length, !!dirRename);
+
+  // Switching findings drops everything that belonged to the previous one.
+  useEffect(() => {
+    setStale(false);
+    mutation.reset();
+    refreshSeq.current += 1;
+  }, [currentFinding.id]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const onApply = () => {
-    if (safe.length === 0 && !dirRename) return;
-    mutation.mutate();
+    if (!applicable || (safe.length === 0 && !dirRename)) return;
+    mutation.mutate({
+      findingId: currentFinding.id,
+      plan: safe.map((r) => ({ old: r.filename, new: r.expected })),
+      dirRename: dirRename ? { old: dirRename.old, new: dirRename.new } : undefined,
+    });
+  };
+
+  // Re-derive the plan. A newer request replaces an older one (refetch
+  // cancels the in-flight fetch), and only the latest one may clear `stale`.
+  const refreshPreview = async () => {
+    const seq = ++refreshSeq.current;
+    const r = await preview.refetch();
+    if (seq === refreshSeq.current && r.status === "success") setStale(false);
   };
 
   const onSkipNext = () => {
@@ -281,7 +315,7 @@ export default function FilenameMismatchResolveDialog({
               <p className="text-sm text-fg-2">{outcome}</p>
             )}
 
-            {preview.isLoading && !preview.data && (
+            {preview.isFetching && !shown && (
               <div className="flex items-center gap-2 text-xs text-fg-3 bg-panel-2 border border-line rounded px-3 py-2">
                 <Loader2 className="w-3.5 h-3.5 spin shrink-0" />
                 <span>Checking the album's files…</span>
@@ -299,18 +333,37 @@ export default function FilenameMismatchResolveDialog({
                   {notice.lines.map((l, i) => (
                     <div key={i} className="mt-0.5 text-fg-3 break-words">{l}</div>
                   ))}
+                  {stale && (
+                    <button
+                      onClick={refreshPreview}
+                      disabled={preview.isFetching}
+                      className="mt-1.5 h-7 px-2.5 border border-line rounded text-xs text-fg hover:bg-bg-3 transition disabled:opacity-60"
+                    >
+                      Refresh preview
+                    </button>
+                  )}
                 </div>
               </div>
             )}
 
-            {previewError && (
-              <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
+            {couldNotVerify && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2"
+              >
                 <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-medium text-fg">Couldn't check the files again</div>
-                  <div className="mt-0.5 text-fg-3">{previewError}. The list
-                  below is from when the check last ran and may be out of
-                  date.</div>
+                <div className="min-w-0">
+                  <div className="font-medium text-fg">Couldn't verify the current filenames</div>
+                  <div className="mt-0.5 text-fg-3 break-words">
+                    {previewError ? `${previewError}. ` : ""}Nothing will be
+                    renamed until the files have been checked again.
+                  </div>
+                  <button
+                    onClick={refreshPreview}
+                    className="mt-1.5 h-7 px-2.5 border border-line rounded text-xs text-fg hover:bg-bg-3 transition"
+                  >
+                    Retry preview
+                  </button>
                 </div>
               </div>
             )}
@@ -397,6 +450,11 @@ export default function FilenameMismatchResolveDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
+            {hasNext && (
+              <span className="mr-auto text-[11px] text-fg-4">
+                Then opens the next finding ({currentIndex + 2} of {totalInChain}).
+              </span>
+            )}
             <Dialog.Close asChild>
               <button
                 className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
@@ -419,19 +477,17 @@ export default function FilenameMismatchResolveDialog({
               onClick={onApply}
               disabled={
                 mutation.isPending
-                || preview.isLoading
-                || previewIsEmpty
-                || albumMissing
+                || !applicable
                 || (safe.length === 0 && !dirRename)
               }
               className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5"
             >
               {mutation.isPending ? (
                 <><Loader2 className="w-3.5 h-3.5 spin" /> Renaming…</>
-              ) : preview.isLoading ? (
+              ) : preview.isFetching && !verified ? (
                 <><Loader2 className="w-3.5 h-3.5 spin" /> Loading…</>
               ) : (
-                <>{_buildApplyLabel(safe.length, !!dirRename, hasNext)}</>
+                <>{applicable || previewIsEmpty || albumMissing ? _buildApplyLabel(safe.length, !!dirRename, hasNext) : "Rename files"}</>
               )}
             </button>
           </div>

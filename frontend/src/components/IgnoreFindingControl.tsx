@@ -1,9 +1,12 @@
 /**
  * Inline Ignore control for a finding row. Replaces the bare "Ignore" button
- * with a two-step popover: click → expose a small reason textarea + Save /
- * Skip reason buttons. Reason is optional (matches the API), but capturing
- * it stops the user from coming back three months later wondering why they
- * dismissed the finding.
+ * with a two-step popover: click → expose a small reason textarea with one
+ * "Ignore finding" commit button and Cancel. The reason is optional (matches
+ * the API), but capturing it stops the user from coming back three months
+ * later wondering why they dismissed the finding. A finished ignore offers
+ * Undo in a toast (#329): the row leaves the open list, so the offer cannot
+ * live on the row. The ignored-items list with its Restore button stays the
+ * way back after the toast is gone.
  *
  * The popover is implemented as a Radix DropdownMenu so we don't add a new
  * dependency. The MenuItems are intercepted with `onSelect={preventDefault}`
@@ -14,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useIgnoreFinding } from "@/hooks/useChecks";
+import { unignoreFinding } from "@/lib/api";
 
 interface Props {
   checkId: string;
@@ -38,13 +42,26 @@ export default function IgnoreFindingControl({ checkId, findingId, disabled }: P
     }
   }, [open]);
 
-  const submit = (withReason: boolean) => {
-    const r = withReason ? reason.trim() : "";
+  const submit = () => {
+    const r = reason.trim();
     ignoreMutation.mutate(
       { checkId, findingId, reason: r || undefined },
       {
         onSuccess: () => {
           setOpen(false);
+          // Calls the API directly: the row (and this component) may be gone
+          // by the time Undo is clicked. The checks stream refreshes the lists.
+          toast.success("Finding ignored", {
+            duration: 8000,
+            action: {
+              label: "Undo",
+              onClick: () => {
+                unignoreFinding(checkId, findingId).catch((e: Error) =>
+                  toast.error(e.message || "Couldn't undo"),
+                );
+              },
+            },
+          });
         },
         onError: (e) => toast.error((e as Error).message || "Couldn't ignore"),
       },
@@ -69,37 +86,37 @@ export default function IgnoreFindingControl({ checkId, findingId, disabled }: P
           onCloseAutoFocus={(e) => e.preventDefault()}
         >
           <div className="mono text-[11px] uppercase tracking-[0.06em] text-fg-4 mb-1.5">
-            Why are you ignoring this?
+            Reason (optional)
           </div>
           <textarea
             ref={inputRef}
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Optional — e.g. 'Self-released, no MB record', 'White Album track listing is correct'"
+            placeholder="e.g. 'Self-released, no MB record', 'White Album track listing is correct'"
             rows={3}
             maxLength={500}
             className="w-full bg-bg border border-line rounded px-2 py-1.5 text-sm placeholder:text-fg-4 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 resize-none"
             onKeyDown={(e) => {
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 e.preventDefault();
-                submit(true);
+                submit();
               }
             }}
           />
           <div className="flex items-center justify-end gap-2 mt-2">
             <button
-              onClick={() => submit(false)}
+              onClick={() => setOpen(false)}
               disabled={ignoreMutation.isPending}
               className="h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition disabled:opacity-60"
             >
-              Skip reason
+              Cancel
             </button>
             <button
-              onClick={() => submit(true)}
-              disabled={ignoreMutation.isPending || !reason.trim()}
+              onClick={submit}
+              disabled={ignoreMutation.isPending}
               className="h-7 px-2.5 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition disabled:opacity-60"
             >
-              {ignoreMutation.isPending ? "Saving…" : "Ignore"}
+              {ignoreMutation.isPending ? "Ignoring…" : "Ignore finding"}
             </button>
           </div>
         </DropdownMenu.Content>

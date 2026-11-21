@@ -85,13 +85,11 @@ describe("FindingFixButton AI gating", () => {
   // The MusicBrainz part of an ai-job fix runs without a model.
   it("offers an ai-job fix without a ready provider, with no hint dialog", async () => {
     renderButton(false, "no-cover-art", "ai-job");
-    const btn = screen.getByRole("button", { name: /fix/i });
+    const btn = screen.getByRole("button", { name: "Embed MusicBrainz cover" });
     expect(btn).toBeEnabled();
-    expect(btn.getAttribute("title")).toContain("Fix from MusicBrainz data.");
-    // No AI wording when no model can run.
-    expect(btn.getAttribute("title")).toBe(
-      "Fix from MusicBrainz data. A finding MusicBrainz can't settle stays open.",
-    );
+    // Says what it does (an immediate write, with its scope), and names no
+    // AI when no model can run.
+    expect(btn.getAttribute("title")).toContain("embeds it in this album's files right away");
     expect(btn.getAttribute("title")).not.toMatch(/\bAI\b|Claude/);
     fireEvent.click(btn);
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -108,16 +106,16 @@ describe("FindingFixButton AI gating", () => {
   it("shows the not-available message when the fix needs a model", async () => {
     fixAnswer = { ok: false, message: NOT_AVAILABLE, job_id: null };
     renderButton(false, "unidentified-album", "ai-job");
-    fireEvent.click(screen.getByRole("button", { name: /fix/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Look up on MusicBrainz" }));
     await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(NOT_AVAILABLE));
     expect(toasts.success).not.toHaveBeenCalled();
     // The button stays usable (the finding is still open).
-    expect(screen.getByRole("button", { name: /fix/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Look up on MusicBrainz" })).toBeEnabled();
   });
 
   it("offers an ai-job fix with the hint dialog when a provider is ready", () => {
     renderButton(true, "no-cover-art", "ai-job");
-    const btn = screen.getByRole("button", { name: /fix/i });
+    const btn = screen.getByRole("button", { name: "Find cover art…" });
     expect(btn).toBeEnabled();
     fireEvent.click(btn);
     expect(screen.getByRole("dialog")).toBeInTheDocument();

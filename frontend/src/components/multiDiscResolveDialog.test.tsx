@@ -170,13 +170,13 @@ describe("MultiDiscResolveDialog", () => {
 });
 
 describe("FindingFixButton for multi-disc-layout", () => {
-  it("offers a Resolve button", () => {
+  it("offers a Preview disc layout button", () => {
     wrap(<FindingFixButton finding={finding} fixKind="deterministic" />);
-    expect(screen.getByRole("button", { name: /Resolve/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Preview disc layout…" })).toBeTruthy();
   });
 
   it("offers nothing on an ignored finding", () => {
     wrap(<FindingFixButton finding={{ ...finding, ignored_at: "2026-11-14T00:00:00Z" }} fixKind="deterministic" />);
-    expect(screen.queryByRole("button", { name: /Resolve/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Preview disc layout…" })).toBeNull();
   });
 });

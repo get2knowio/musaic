@@ -2,10 +2,13 @@ import { Link } from "react-router-dom";
 import { AlertCircle, ArrowUpRight, Info, XCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
 
+import { useAiStatus } from "@/hooks/useAiStatus";
 import { useUnignoreFinding } from "@/hooks/useChecks";
 import FindingFixButton from "@/components/FindingFixButton";
 import IgnoreFindingControl from "@/components/IgnoreFindingControl";
+import { offersHintEntry } from "@/lib/aiGating";
 import { displayArtist } from "@/lib/albumFields";
+import { fixActionCopy } from "@/lib/findingActions";
 import { GENRE_HINT_POINTER, genreHintLead, suggestedGenre } from "@/lib/genreHint";
 import type { Album, Finding } from "@/lib/types";
 
@@ -28,6 +31,8 @@ export function FindingRow({
   siblings: Finding[];
 }) {
   const unignoreMutation = useUnignoreFinding();
+  const ai = useAiStatus();
+  const fixCopy = fixActionCopy(finding.check_id, offersHintEntry(ai));
 
   const onUnignore = () => {
     unignoreMutation.mutate(
@@ -131,10 +136,10 @@ export function FindingRow({
             type="button"
             disabled
             className="h-7 px-2 rounded border border-line text-xs text-fg-3 inline-flex items-center gap-1 cursor-not-allowed"
-            title="This album's folder is missing. Fix is available again once the album is back in the library."
+            title={`This album's folder is missing. "${fixCopy.label}" is available again once the album is back in the library.`}
           >
             <Zap className="w-3 h-3" />
-            Fix
+            {fixCopy.label}
           </button>
         ) : (
           <FindingFixButton finding={finding} fixKind={fixKind} siblings={siblings} />
