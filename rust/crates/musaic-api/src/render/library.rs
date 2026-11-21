@@ -135,6 +135,12 @@ pub fn rescan(r: RescanStarted) -> Json {
     ])
 }
 
+/// The one frame of `GET /api/scan/follow` when no scan has run: `idle`,
+/// with the scan state (as `GET /api/scan/status` renders it).
+pub fn scan_idle_frame(s: &ScanState) -> String {
+    format!("event: idle\ndata: {}\n\n", scan_state(s).dumps())
+}
+
 /// The scan event's name on the stream.
 pub fn scan_event_name(e: &ScanEvent) -> &'static str {
     e.name()

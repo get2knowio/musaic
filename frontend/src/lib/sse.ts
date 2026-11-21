@@ -15,8 +15,20 @@ export interface SseHandle {
 export function openScanStream(
   url: string,
   onEvent: (event: ScanEvent) => void,
+  /**
+   * `/api/scan/follow` only: no scan has run since the app started, so
+   * there is nothing to follow (the stream says `idle` and ends).
+   */
+  onIdle?: () => void,
 ): SseHandle {
   const es = new EventSource(url);
+
+  if (onIdle) {
+    es.addEventListener("idle", () => {
+      es.close();
+      onIdle();
+    });
+  }
 
   // Backend emits named events; EventSource handlers attach per-name.
   es.addEventListener("start", (ev) => {

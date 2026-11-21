@@ -185,6 +185,16 @@ impl Iterator for ScanSubscription {
     }
 }
 
+/// What [`Scan::follow`] found.
+pub enum ScanFollow {
+    /// A scan runs, or the last one has ended: its events from the first
+    /// (as far as the buffer keeps them), ending with its terminal event.
+    Following(ScanSubscription),
+    /// No scan has run since the app started; there is nothing to follow.
+    /// The state is the idle one, for the face to say so.
+    Idle(ScanState),
+}
+
 /// What [`Scan::rescan`] started.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RescanStarted {
@@ -226,6 +236,31 @@ impl Scan<'_> {
         let (inner, unused) = self.app.scan_and_subscribe(&lib, force, guard);
         drop(unused);
         Ok(ScanSubscription { inner })
+    }
+
+    /// Follow the current scan, or replay the last one, and never start one.
+    ///
+    /// For a reader that only watches (the Activity panel): [`subscribe`]
+    /// starts a scan when none runs, so a watcher that arrives just after a
+    /// scan ended would start one nobody asked for. Here a running scan is
+    /// joined from its first event; a scan that already ended is replayed
+    /// from its buffer, ending with its terminal event, so a late watcher
+    /// still learns how it ended; with no scan since startup the answer is
+    /// [`ScanFollow::Idle`]. Takes no guard and checks no library: it writes
+    /// nothing and starts nothing, so it is never refused (not even while a
+    /// restore holds the gate).
+    ///
+    /// [`subscribe`]: Self::subscribe
+    pub fn follow(&self) -> ScanFollow {
+        let state = self.app.0.scan.state();
+        if state.status == ScanStatus::Idle {
+            return ScanFollow::Idle(state);
+        }
+        // A scan that starts between the read above and here is the one
+        // followed: the subscription reads whichever buffer is current.
+        ScanFollow::Following(ScanSubscription {
+            inner: self.app.0.scan.subscribe(0),
+        })
     }
 
     /// Forget the library's scan time and every album's recorded folder time

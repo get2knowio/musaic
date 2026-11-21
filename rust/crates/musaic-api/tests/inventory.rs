@@ -176,6 +176,9 @@ fn the_extra_route_list_is_exactly_this() {
             "GET /api/albums/{album_id}/cover-preview",
             // Deliberate addition: cancelling a running scan (issue #193).
             "POST /api/scan/cancel",
+            // Deliberate addition: following a scan without starting one
+            // (issue #332).
+            "GET /api/scan/follow",
             // Deliberate addition: the background check sweep's progress
             // (issue #187).
             "GET /api/checks/sweep",

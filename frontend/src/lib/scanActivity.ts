@@ -5,11 +5,12 @@
  * mounted its `useScanStream` reads that stream (it also builds the album
  * list from it) and passes each event here (`noteScanEvent`), as the
  * stream's *owner*. Without an owner, `useScanFollower` (mounted once in
- * App) joins the same stream to keep this record current: a rescan started
- * from Review or Settings, or a scan still running after the user left
- * Library. Opening the stream starts a scan when none runs, so the follower
- * opens it only for a scan known to be running (`requestScanFollow`, or
- * `GET /api/scan/status` at startup), never to look.
+ * App) follows the scan on `/api/scan/follow` to keep this record current:
+ * a rescan started from Review or Settings, or a scan still running after
+ * the user left Library. That endpoint never starts a scan (it joins the
+ * running one, or replays the last one to its end); the follower still opens
+ * it only for a scan known to be running (`requestScanFollow`, or
+ * `GET /api/scan/status` at startup), not to look.
  *
  * `lost` is the honest state for a stream that broke mid-scan: the scan may
  * still be running, or may have ended; nothing here pretends to know.
@@ -155,6 +156,17 @@ export function useScanActivity(): ScanActivity {
 export function noteScanEvent(ev: ScanEvent): void {
   scan = reduceScan(scan, ev, Date.now());
   if (!isScanActive(scan.phase)) followWanted = false;
+  emit();
+}
+
+/**
+ * The follower found no scan to follow (none has run since the server
+ * started): a record that expected one goes back to idle.
+ */
+export function noteScanNotRunning(): void {
+  followWanted = false;
+  if (!isScanActive(scan.phase)) return;
+  scan = IDLE_SCAN;
   emit();
 }
 

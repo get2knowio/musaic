@@ -54,15 +54,15 @@ requirement FR-019.
 ## The inventory
 
 The table below has one row per row of `musaic_api::route_table()`, in registration order.
-**84 rows**: the 71 routes of the Python app, the 11 `EXTRA_ROUTES`, and 2 routing aliases
-(`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **80 rows are
+**85 rows**: the 71 routes of the Python app, the 12 `EXTRA_ROUTES`, and 2 routing aliases
+(`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **81 rows are
 operation-bearing** (each names exactly one operation, which `operations_inventory.rs`
 checks); 4 are HTTP face only (the two aliases and the two static-file routes).
-**10 rows are streamed**: the scan, 5 runs (apply, cover upload, analyze, quick-fix-all and
+**11 rows are streamed**: the scan and its follow-only reader, 5 runs (apply, cover upload, analyze, quick-fix-all and
 the conversion, which streams only when asked) and 4 feeds (library events, fingerprint
-pool, check runs, AI jobs). That is 10 streamed operations by name; `apply_changes` and
-`upload_cover` are two entry points to one apply run (one event type), so there are nine
-distinct streams.
+pool, check runs, AI jobs). That is 11 streamed operations by name; `apply_changes` and
+`upload_cover` are two entry points to one apply run (one event type), and `scan.follow`
+reads the same scan stream as `scan.subscribe`, so there are nine distinct streams.
 
 Columns: method, path, group, classification (thin adapter, or carries behaviour), what
 moves into the operation (or stays HTTP, where said), operation, result type, `OpError`
@@ -91,6 +91,7 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `GET` | `/api/scan/stream` | scan | carries behaviour | guard; library check; start-or-join the scan; stream assembly | `scan.subscribe` | ScanSubscription | Busy, NoLibrary, Internal | scan | query 422, guard, library configured and present, subscribe (a guard not needed is released at once) |
 | `POST` | `/api/scan/rescan` | scan | carries behaviour | guard; library check; snapshot drop; start scan; body construction | `scan.rescan` | RescanStarted (library folder and ScanState) | Busy, NoLibrary, Internal | no | guard, then library check (no body to validate) |
 | `POST` | `/api/scan/cancel` | scan | thin adapter | body construction (`outcome`, `scan`); no guard, works during a restore | `scan.cancel` | CancelOutcome with ScanState | none | no | default |
+| `GET` | `/api/scan/follow` | scan | thin adapter | join the running scan or replay the last one, never start one (`Idle` with no scan since startup, rendered as one `idle` event); no guard, no library check, works during a restore | `scan.follow` | ScanFollow (Following ScanSubscription, or Idle ScanState) | none | scan | default |
 | `GET` | `/api/albums/{album_id}` | library | carries behaviour | library check in the handler; body construction | `library.album` | AlbumRecord | NoLibrary, NotFound, Internal | no | library configured, album |
 | `DELETE` | `/api/albums/{album_id}` | library | carries behaviour | guard; publish (inside `library_ops`); body construction (`ok`, `deleted_album_id`) | `library.remove_album` | DeletedAlbum | Busy, NoLibrary, NotFound, Internal | no | guard, library, album |
 | `GET` | `/api/albums/{album_id}/cover` | library | carries behaviour | album resolve; full-or-thumb choice; embedded-cover bytes. Stays HTTP: ETag, If-None-Match, 304, Cache-Control, file response | `library.cover` | CoverImage (path or bytes, mime) | NoLibrary, NotFound, Failed | no | album, then cover (404 when none) |

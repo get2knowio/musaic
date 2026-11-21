@@ -34,7 +34,15 @@ import {
 } from "@/lib/activityModel";
 import { getActivityPanel, openActivityPanel, resetActivityPanel } from "@/lib/activityPanel";
 import { resetBulkRuns } from "@/lib/bulkRuns";
-import { IDLE_SCAN, noteScanEvent, noteScanStarting, reduceScan, resetScanActivity } from "@/lib/scanActivity";
+import {
+  IDLE_SCAN,
+  getScanActivity,
+  noteScanEvent,
+  noteScanStarting,
+  reduceScan,
+  requestScanFollow,
+  resetScanActivity,
+} from "@/lib/scanActivity";
 import { resetStreamHealth } from "@/lib/streamHealth";
 import { makeJob } from "@/test/fixtures";
 import { MockEventSource } from "@/test/setup";
@@ -215,9 +223,10 @@ describe("a scan started away from Library", () => {
     expect(toggleText()).toBe("Activity");
 
     fireEvent.click(screen.getByRole("button", { name: "Rescan" }));
-    // The follower joins the scan's stream (it was started by the rescan).
+    // The follower joins the scan (it was started by the rescan) on the
+    // follow-only endpoint, which never starts one.
     const es = await waitFor(() => {
-      const s = MockEventSource.instances.find((i) => i.url === "/api/scan/stream");
+      const s = MockEventSource.instances.find((i) => i.url === "/api/scan/follow");
       if (!s) throw new Error("not following yet");
       return s;
     });
@@ -250,7 +259,28 @@ describe("a scan started away from Library", () => {
     );
     renderApp("/review");
     await waitFor(() => expect(toggleText()).toBe("Scanning · 5 of 20"));
-    expect(MockEventSource.instances.filter((i) => i.url === "/api/scan/stream")).toHaveLength(1);
+    expect(MockEventSource.instances.filter((i) => i.url === "/api/scan/follow")).toHaveLength(1);
+    // The follower never opens the stream that starts a scan.
+    expect(MockEventSource.instances.some((i) => i.url === "/api/scan/stream")).toBe(false);
+  });
+
+  it("a follower that finds no scan to follow goes back to idle", async () => {
+    stubFetch();
+    renderApp("/settings");
+    act(() => {
+      noteScanStarting();
+      requestScanFollow();
+    });
+    const es = await waitFor(() => {
+      const s = MockEventSource.instances.find((i) => i.url === "/api/scan/follow");
+      if (!s) throw new Error("not following yet");
+      return s;
+    });
+    act(() => es.emit("idle", { status: "idle", total: 0, scanned: 0, error: null }));
+    expect(es.closed).toBe(true);
+    expect(getScanActivity().phase).toBe("idle");
+    expect(toggleText()).toBe("Activity");
+    expect(MockEventSource.instances.some((i) => i.url === "/api/scan/stream")).toBe(false);
   });
 
   it("opens no scan stream when no scan runs", async () => {
@@ -258,6 +288,7 @@ describe("a scan started away from Library", () => {
     renderApp("/review");
     await waitFor(() => expect(calls.some((c) => c.url === "/api/scan/status")).toBe(true));
     expect(MockEventSource.instances.some((i) => i.url === "/api/scan/stream")).toBe(false);
+    expect(MockEventSource.instances.some((i) => i.url === "/api/scan/follow")).toBe(false);
   });
 });
 
