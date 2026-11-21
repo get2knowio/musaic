@@ -197,11 +197,10 @@ fn an_owned_entry_is_updated_in_place() {
     );
     let text = read(&h.paths.claude_desktop);
     let v: Value = serde_json::from_str(&text).unwrap();
+    // Compare by path components: Windows writes `bin\musaic-cli`.
     assert!(
-        v["mcpServers"]["musaic"]["command"]
-            .as_str()
-            .unwrap()
-            .ends_with("bin/musaic-cli")
+        std::path::Path::new(v["mcpServers"]["musaic"]["command"].as_str().unwrap())
+            .ends_with(std::path::Path::new("bin").join("musaic-cli"))
     );
     assert_eq!(
         v["mcpServers"]["musaic"]["args"],

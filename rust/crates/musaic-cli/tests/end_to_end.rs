@@ -145,9 +145,32 @@ fn a_squatter_on_the_port_learns_no_secret_and_is_not_believed() {
     let t = std::thread::spawn(move || {
         for _ in 0..2 {
             let (mut s, _) = listener.accept().unwrap();
-            let mut buf = vec![0u8; 8192];
-            let n = s.read(&mut buf).unwrap();
-            let req = String::from_utf8_lossy(&buf[..n]).to_string();
+            // Read the whole request: the body can arrive in a later segment than
+            // the headers (it does on Windows), and a single read() would miss it.
+            let mut raw = Vec::new();
+            let mut buf = [0u8; 8192];
+            loop {
+                let n = s.read(&mut buf).unwrap();
+                if n == 0 {
+                    break;
+                }
+                raw.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&raw);
+                if let Some(end) = text.find("\r\n\r\n") {
+                    let want = text[..end]
+                        .lines()
+                        .find_map(|l| {
+                            let (k, v) = l.split_once(':')?;
+                            k.eq_ignore_ascii_case("content-length")
+                                .then(|| v.trim().parse::<usize>().ok())?
+                        })
+                        .unwrap_or(0);
+                    if raw.len() >= end + 4 + want {
+                        break;
+                    }
+                }
+            }
+            let req = String::from_utf8_lossy(&raw).to_string();
             r2.lock().unwrap().push_str(&req);
             let body = if req.contains("/hello") {
                 format!(
