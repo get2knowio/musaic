@@ -244,8 +244,10 @@ mod tests {
         let bytes = restore_file("agent-instance.json.tmp-42", ME);
         let text = String::from_utf16(
             &bytes
-                .chunks_exact(2)
-                .map(|c| u16::from_le_bytes([c[0], c[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_le_bytes(*c))
                 .collect::<Vec<_>>(),
         )
         .unwrap();
