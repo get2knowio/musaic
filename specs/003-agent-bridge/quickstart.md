@@ -50,7 +50,8 @@ Then:
   `musaic_fix_apply` returns `awaiting_approval`.
 - Approve through `/api/agent/approvals/{id}/approve`.
 - `musaic_operation_get` returns `succeeded`, and the copy's FLAC tags have changed.
-- Stop the server, then run `doctor`. It reports `APP_NOT_RUNNING`.
+- Stop the server, then run `doctor`. It reports `descriptor.status: "absent"` and exits 1.
+  Tool calls (`library-list`) report `APP_NOT_RUNNING`.
 
 ## 3. Not automatable in this run (report as not verified)
 
