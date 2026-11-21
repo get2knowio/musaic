@@ -2278,6 +2278,19 @@ fn shutdown_joins_the_worker_threads_and_refuses_new_ones() {
     assert!(report.scan_stopped);
 }
 
+#[test]
+fn list_tools_returns_the_generated_catalog_and_its_digest() {
+    let w = agent_world();
+    let id = w.pair("catalog", READ).pairing.id;
+    let p = w.login(&id);
+    let info = w.app.ops().agent().list_tools(&p);
+    assert_eq!(info.catalog, musaic_commands::catalog::catalog_json());
+    assert_eq!(
+        info.registry_digest,
+        musaic_commands::catalog::registry_digest()
+    );
+}
+
 /// An approved start whose authority went away after its card was made: the
 /// operation ends Failed with FORBIDDEN, no work ran, and the activity log
 /// records the refusal and no start (`start_still_allowed`).

@@ -394,6 +394,12 @@ async fn a_paired_agent_reads_through_the_whole_stack_and_no_credential_reaches_
         .header("authorization", &format!("Bearer {token}"))
         .send(&w.app)
         .await;
+    assert_eq!(g.status, 200);
+    // The operation's catalog, rendered as the contract's document byte for byte.
+    assert_eq!(
+        g.body,
+        serde_json::to_vec(&musaic_commands::catalog::catalog_with_digest()).unwrap()
+    );
     let cat: Value = serde_json::from_slice(&g.body).unwrap();
     assert_eq!(cat["tools"].as_array().unwrap().len(), 12);
     assert_eq!(

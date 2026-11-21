@@ -141,9 +141,13 @@ pub struct ApprovalRecord {
     pub diff: Option<FixDiff>,
 }
 
-/// The registry's identity, as the catalog route renders it.
+/// The tool catalog and the registry's identity, as the catalog route
+/// renders them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistryInfo {
+    /// The generated catalog text (`docs/agent-tools.json`).
+    pub catalog: String,
+    /// SHA-256 (hex) of `catalog`.
     pub registry_digest: String,
 }
 
@@ -631,9 +635,10 @@ impl Agent<'_> {
             .ok_or_else(|| tool_err(ToolErrorCode::NotPaired, "the token is not valid"))
     }
 
-    /// The registry's digest, for the catalog route.
+    /// The tool catalog and its digest, for the catalog route.
     pub fn list_tools(&self, _principal: &Principal) -> RegistryInfo {
         RegistryInfo {
+            catalog: musaic_commands::catalog::catalog_json(),
             registry_digest: musaic_commands::catalog::registry_digest(),
         }
     }

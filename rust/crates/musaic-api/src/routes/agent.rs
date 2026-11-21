@@ -111,7 +111,10 @@ pub async fn list_tools(
     Extension(Authed(p)): Extension<Authed>,
 ) -> Response {
     match blocking(move || st.ops().agent().list_tools(&p)).await {
-        Ok(_) => json_value(200, &musaic_commands::catalog::catalog_with_digest()),
+        Ok(info) => json_value(
+            200,
+            &musaic_commands::catalog::with_digest(&info.catalog, &info.registry_digest),
+        ),
         Err(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             ToolErrorCode::Internal,

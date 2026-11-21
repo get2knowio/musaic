@@ -216,8 +216,13 @@ fn yn(b: bool) -> &'static str {
 
 /// The catalog document with the registry digest added, as the app serves it.
 pub fn catalog_with_digest() -> Value {
-    let mut doc: Map<String, Value> =
-        serde_json::from_str(&catalog_json()).expect("catalog parses");
-    doc.insert("registryDigest".into(), Value::String(registry_digest()));
+    with_digest(&catalog_json(), &registry_digest())
+}
+
+/// A catalog text (as [`catalog_json`] gives it) with `digest` added as
+/// `registryDigest`: the document the catalog route renders.
+pub fn with_digest(catalog: &str, digest: &str) -> Value {
+    let mut doc: Map<String, Value> = serde_json::from_str(catalog).expect("catalog parses");
+    doc.insert("registryDigest".into(), Value::String(digest.to_string()));
     Value::Object(doc)
 }
