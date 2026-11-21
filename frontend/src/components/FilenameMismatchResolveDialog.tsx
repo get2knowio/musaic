@@ -450,6 +450,11 @@ export default function FilenameMismatchResolveDialog({
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
+            {hasNext && (
+              <span className="mr-auto text-[11px] text-fg-4">
+                Then opens the next finding ({currentIndex + 2} of {totalInChain}).
+              </span>
+            )}
             <Dialog.Close asChild>
               <button
                 className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"

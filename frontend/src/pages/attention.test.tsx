@@ -229,9 +229,9 @@ describe("a check's list", () => {
     expect(screen.queryByRole("button", { name: /Check now|Run now|Checking/ })).toBeNull();
   });
 
-  it("disables Fix on a Missing album's finding and says why", () => {
+  it("disables the fix on a Missing album's finding and says why", () => {
     renderAt("/attention?check=track-gaps");
-    const fixes = screen.getAllByRole("button", { name: /Fix/ }) as HTMLButtonElement[];
+    const fixes = screen.getAllByRole("button", { name: /Renumber tracks|Check track numbers/ }) as HTMLButtonElement[];
     const gone = fixes.find((b) => b.disabled)!;
     expect(gone.title).toMatch(/folder is missing/);
   });

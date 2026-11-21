@@ -179,7 +179,9 @@ describe("filename Resolve dialog preview gate", () => {
     answer(applyKey(12), () => json({ ok: true, renamed: 1, errors: [], message: "ok" }));
     wrap(<FilenameMismatchResolveDialog finding={one} findings={[one, two]} open onClose={() => {}} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Rename 1 file & next" }));
+    const next = await screen.findByRole("button", { name: "Rename 1 file & next" });
+    expect(screen.getByText("Then opens the next finding (2 of 2).")).toBeInTheDocument();
+    fireEvent.click(next);
     // Finding 12's preview is still loading: Rename is off and nothing leaks over.
     await screen.findByText(/2 of 2/);
     expect(renameButton()).toBeDisabled();

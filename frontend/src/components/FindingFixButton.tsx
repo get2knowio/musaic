@@ -43,7 +43,8 @@ import { useActiveJobForAlbum, usePriorCoverAttempts } from "@/hooks/useJobs";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useFixFinding } from "@/hooks/useChecks";
 import { useAiStatus } from "@/hooks/useAiStatus";
-import { fixIsMusicBrainzOnly, offersHintEntry } from "@/lib/aiGating";
+import { offersHintEntry } from "@/lib/aiGating";
+import { fixActionCopy } from "@/lib/findingActions";
 import type { CheckFixKind, Finding, JobType } from "@/lib/types";
 
 import ArtistSortResolveDialog from "./ArtistSortResolveDialog";
@@ -111,7 +112,6 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   // not-available message, shown as the error toast
   // (lib/aiGating.ts). No hint dialog: there is no model to steer.
   const ai = useAiStatus();
-  const mbOnly = fixIsMusicBrainzOnly(fixKind, ai);
 
   // Album lookup for the hint-dialog header — keeps the title in the
   // dialog matching what the user just clicked Fix on. Falls back through
@@ -141,6 +141,9 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   // For ai-job checks we have a hint mode; otherwise the click goes
   // straight through to the mutation with no hint.
   const hintMode = offersHintEntry(ai) ? HINT_MODE_FOR_CHECK[finding.check_id] ?? null : null;
+  // The words on the button: what the action does on this build's path
+  // (lib/findingActions.ts), the same in the inbox and the album inspector.
+  const copy = fixActionCopy(finding.check_id, hintMode != null);
 
   // Multi-disc-layout: one Resolve button for every finding, as for the
   // other dialog checks. Whether this set can convert (one folder, nothing
@@ -152,10 +155,10 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           onClick={(e) => { e.stopPropagation(); setMultiDiscOpen(true); }}
           className="h-7 px-2 rounded border border-line text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1"
-          title="See what putting this set in one folder does, and convert it"
+          title={copy.title}
         >
           <Layers className="w-3 h-3" />
-          Resolve…
+          {copy.label}
         </button>
         <MultiDiscResolveDialog
           finding={finding}
@@ -182,10 +185,10 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           onClick={(e) => { e.stopPropagation(); setFilenameOpen(true); }}
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
-          title="Review the new file names, then rename the files"
+          title={copy.title}
         >
           <FileEdit className="w-3 h-3" />
-          Resolve…
+          {copy.label}
         </button>
         <FilenameMismatchResolveDialog
           finding={finding}
@@ -206,10 +209,10 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           onClick={(e) => { e.stopPropagation(); setArtistSortOpen(true); }}
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
-          title="Give this artist the same sort name everywhere"
+          title={copy.title}
         >
           <Users className="w-3 h-3" />
-          Resolve…
+          {copy.label}
         </button>
         <ArtistSortResolveDialog
           finding={finding}
@@ -229,10 +232,10 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           onClick={(e) => { e.stopPropagation(); setDuplicateOpen(true); }}
           className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition inline-flex items-center gap-1"
-          title="Choose which copies to move to the trash"
+          title={copy.title}
         >
           <Files className="w-3 h-3" />
-          Resolve…
+          {copy.label}
         </button>
         <DuplicateResolveDialog
           finding={finding}
@@ -345,16 +348,10 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         onClick={onFix}
         disabled={fixMutation.isPending}
         className="h-7 px-2 rounded bg-accent text-accent-fg text-xs font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1"
-        title={
-          mbOnly
-            ? "Fix from MusicBrainz data. A finding MusicBrainz can't settle stays open."
-            : hintMode
-              ? "Add a hint and queue an AI fix for this finding"
-              : "Queue a fix for this finding"
-        }
+        title={copy.title}
       >
         <Zap className="w-3 h-3" />
-        Fix
+        {copy.label}
       </button>
       {hintMode && (
         <HintDialog
