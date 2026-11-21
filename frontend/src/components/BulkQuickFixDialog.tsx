@@ -1,44 +1,45 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
+import { Link } from "react-router-dom";
 import { Music, X, Zap } from "lucide-react";
-import { toast } from "sonner";
 
-import {
-  streamQuickFixAll,
-  type QuickFixSummary,
-} from "@/hooks/useChecks";
+import { type QuickFixSummary } from "@/hooks/useChecks";
 import { useAiStatus } from "@/hooks/useAiStatus";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useFindings } from "@/hooks/useChecks";
 import { displayArtist } from "@/lib/albumFields";
-import { plainReason, type BulkOutcome } from "@/lib/bulkFixReasons";
+import { type BulkOutcome } from "@/lib/bulkFixReasons";
+import {
+  processed,
+  startBulkRun,
+  stopBulkRun,
+  unconfirmed,
+  useBulkRun,
+  type BulkCounts,
+  type BulkResultItem,
+  type BulkRun,
+} from "@/lib/bulkRuns";
 import type { Album } from "@/lib/types";
 
 /** Rows listed per outcome group before "Show all N" (as on the Review page). */
 export const RESULT_ROW_LIMIT = 50;
 
-/** One handled finding, as the closing list shows it. */
-interface ResultItem {
-  findingId: number;
-  album: string;
-  outcome: BulkOutcome;
-  /** Plain-language reason; empty for a fixed finding. */
-  reason: string;
-}
-
 function albumLabel(album: Album | undefined): string {
   if (!album) return "Unknown album";
   const artist = displayArtist(album);
   const title = (album.title || "").trim() || album.dir_name;
-  return artist ? `${artist} \u2013 ${title}` : title;
+  return artist ? `${artist} – ${title}` : title;
 }
 
 /**
  * Modal that runs the MB-only bulk pass against every open finding for a
- * check, streaming per-finding outcomes as they happen. Cancel mid-run
- * aborts the stream (the in-flight finding may still complete server-side
- * but no more start). On done, refreshes the findings cache so the trimmed
- * list shows.
+ * check, streaming per-finding outcomes as they happen.
+ *
+ * The run itself lives in `lib/bulkRuns.ts`, not here: closing the dialog
+ * leaves it running (the Activity panel follows it), and Stop ends it
+ * keeping every outcome reported so far; the dialog then shows that partial
+ * summary until the user closes it, and Activity keeps it after (#186).
+ * The findings caches refresh on the BulkBatchCompleted event.
  */
 export function BulkQuickFixDialog({
   open,
@@ -61,116 +62,62 @@ export function BulkQuickFixDialog({
   fixKind: "none" | "ai-job" | "deterministic";
   totalFindings: number;
 }) {
-  const [phase, setPhase] = useState<"confirm" | "running" | "done">("confirm");
-  const [progress, setProgress] = useState<{
-    total: number;
-    processed: number;
-    counts: { fixed: number; skipped: number; errors: number; not_applicable: number };
-    last?: ResultItem;
-  }>({ total: totalFindings, processed: 0, counts: { fixed: 0, skipped: 0, errors: 0, not_applicable: 0 } });
-  const [summary, setSummary] = useState<QuickFixSummary | null>(null);
-  const [items, setItems] = useState<ResultItem[]>([]);
-  const cancelRef = useRef<(() => void) | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
+  const run = useBulkRun(runId);
 
   // Album names come from what the page knew when the run started: findings
   // and albums change as the run writes, and the list should name each album
   // as the user saw it.
   const { data: findings = [] } = useFindings();
   const { data: albums = [] } = useAlbumsSnapshot();
-  const lookup = useRef<(findingId: number) => string>(() => "Unknown album");
-  const latest = useMemo(() => {
+  const albumOf = useMemo(() => {
     const byAlbum = new Map(albums.map((a) => [a.id, a]));
-    const albumOf = new Map(findings.map((f) => [f.id, f.album_id]));
+    const albumIdOf = new Map(findings.map((f) => [f.id, f.album_id]));
     return (findingId: number) => {
-      const albumId = albumOf.get(findingId);
-      return albumLabel(albumId ? byAlbum.get(albumId) : undefined);
+      const id = albumIdOf.get(findingId) ?? null;
+      return { id, label: albumLabel(id ? byAlbum.get(id) : undefined) };
     };
   }, [albums, findings]);
 
-  // Reset everything when the dialog opens. CRITICAL: only depend on `open`,
-  // not `totalFindings` — that prop changes during the run as findings get
-  // resolved, and re-running this effect mid-run would yank the user back to
-  // the "confirm" phase while the stream is still going. (We seed the initial
-  // total from the prop value at open-time but ignore subsequent updates;
-  // the stream's own start/progress events drive the in-run total.)
-  useEffect(() => {
-    if (open) {
-      setPhase("confirm");
-      setProgress({ total: totalFindings, processed: 0, counts: { fixed: 0, skipped: 0, errors: 0, not_applicable: 0 } });
-      setSummary(null);
-      setItems([]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
-
-  // If the dialog is closed mid-run, make sure to abort the stream.
-  useEffect(() => {
-    return () => cancelRef.current?.();
-  }, []);
+  // A new opening starts at the confirmation (whatever `totalFindings` does
+  // meanwhile: it changes while a run resolves findings).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setRunId(null);
+  }
 
   const onStart = () => {
-    // Idempotency: if a stream is already in flight (e.g. user double-
-    // clicked, or React StrictMode re-fired an effect), don't spawn a
-    // second one — the server would happily start another bulk loop and
-    // we'd see the same album processed twice.
-    if (cancelRef.current) return;
-    lookup.current = latest;
-    setPhase("running");
-    setItems([]);
-    setProgress((p) => ({ ...p, processed: 0 }));
-    cancelRef.current = streamQuickFixAll(checkId, {
-      onStart: (total) => setProgress((p) => ({ ...p, total })),
-      onProgress: (ev) => {
-        const item: ResultItem = {
-          findingId: ev.finding_id,
-          album: lookup.current(ev.finding_id),
-          outcome: ev.outcome,
-          reason: plainReason(ev.outcome, ev.message),
-        };
-        setItems((prev) => [...prev, item]);
-        setProgress((p) => {
-        const next = { ...p.counts };
-        if (ev.outcome === "fixed") next.fixed++;
-        else if (ev.outcome === "skipped") next.skipped++;
-        else if (ev.outcome === "error") next.errors++;
-        else if (ev.outcome === "not-applicable") next.not_applicable++;
-        return { ...p, processed: p.processed + 1, counts: next, last: item };
-        });
-      },
-      onDone: (s) => {
-        cancelRef.current = null;  // allow a future re-run from this dialog
-        setSummary(s);
-        setPhase("done");
-        // Cache refresh rides the BulkBatchCompleted event the backend
-        // publishes at end-of-loop — useLibraryEventsStream catches it
-        // and invalidates the findings/checks caches.
-      },
-      onError: (detail) => {
-        cancelRef.current = null;
-        toast.error(`Quick-fix stream errored: ${detail}`);
-        setPhase("done");
-      },
-    });
+    // One run per press: a double click must not start a second loop.
+    if (run?.phase === "running") return;
+    // Take the lookup as it is now: later renders see what the run changed.
+    const snapshot = albumOf;
+    setRunId(
+      startBulkRun({
+        checkId,
+        checkLabel,
+        actionLabel: bulkActionLabel,
+        fixKind,
+        total: totalFindings,
+        albumOf: snapshot,
+      }),
+    );
   };
 
-  const onCancel = () => {
-    cancelRef.current?.();
-    onClose();
-  };
-
-  const fmt = `${progress.processed} of ${progress.total}`;
-  const pct = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0;
+  const phase: "confirm" | BulkRun["phase"] = run ? run.phase : "confirm";
+  const running = phase === "running";
 
   return (
-    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
+    <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-40 bg-black/50 backdrop-blur-[1px]" />
         <Dialog.Content
           className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 w-[min(560px,95vw)] bg-panel border border-line rounded-md shadow-sheet outline-none flex flex-col"
           aria-describedby={undefined}
-          onEscapeKeyDown={(e) => { if (phase === "running") e.preventDefault(); }}
-          onPointerDownOutside={(e) => { if (phase === "running") e.preventDefault(); }}
-          onInteractOutside={(e) => { if (phase === "running") e.preventDefault(); }}
+          // A stray click outside must not hide a running run; Escape and
+          // Close do, and say it carries on.
+          onPointerDownOutside={(e) => { if (running) e.preventDefault(); }}
+          onInteractOutside={(e) => { if (running) e.preventDefault(); }}
         >
           <div className="flex items-center justify-between px-4 h-11 border-b border-line">
             <div className="flex items-center gap-2">
@@ -179,15 +126,13 @@ export function BulkQuickFixDialog({
                 {bulkActionLabel}
               </Dialog.Title>
             </div>
-            {phase !== "running" && (
-              <button
-                onClick={onClose}
-                className="w-8 h-8 grid place-items-center text-fg-3 hover:text-fg hover:bg-bg-3 rounded transition"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              onClick={onClose}
+              className="w-8 h-8 grid place-items-center text-fg-3 hover:text-fg hover:bg-bg-3 rounded transition"
+              aria-label={running ? "Close (the run continues)" : "Close"}
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           <div className="px-4 py-4">
@@ -200,18 +145,16 @@ export function BulkQuickFixDialog({
                 totalFindings={totalFindings}
               />
             )}
-            {phase === "running" && (
-              <RunningBody fmt={fmt} pct={pct} counts={progress.counts} last={progress.last} />
+            {run && running && (
+              <>
+                <RunningBody run={run} />
+                <p className="mt-3 text-xs text-fg-3">
+                  Closing this window does not stop the run. Its progress and results stay in Activity.
+                </p>
+              </>
             )}
-            {phase === "done" && summary && (
-              <DoneBody summary={summary} fixKind={fixKind} />
-            )}
-            {phase === "done" && !summary && (
-              <p className="text-sm text-fg-2">
-                The run stopped before it finished. What was handled so far is listed below.
-              </p>
-            )}
-            {phase === "done" && <ResultsList items={items} stillOpen={summary?.still_open ?? 0} />}
+            {run && !running && <RunOutcome run={run} />}
+            {run && !running && <ResultsList items={run.items} stillOpen={run.summary?.still_open ?? 0} />}
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
@@ -232,15 +175,24 @@ export function BulkQuickFixDialog({
                 </button>
               </>
             )}
-            {phase === "running" && (
-              <button
-                onClick={onCancel}
-                className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
-              >
-                Stop
-              </button>
+            {run && running && (
+              <>
+                <button
+                  onClick={() => stopBulkRun(run.id)}
+                  className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
+                  title="Start no more findings. What was already fixed stays fixed."
+                >
+                  Stop
+                </button>
+                <button
+                  onClick={onClose}
+                  className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
+                >
+                  Close
+                </button>
+              </>
             )}
-            {phase === "done" && (
+            {run && !running && (
               <button
                 onClick={onClose}
                 className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition"
@@ -252,6 +204,54 @@ export function BulkQuickFixDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
+  );
+}
+
+/**
+ * How a run ended, for the dialog and Activity: the counts, then one or two
+ * sentences. A stopped or interrupted run separates what is confirmed from
+ * what is not known, and says that completed writes stand.
+ */
+export function RunOutcome({ run }: { run: BulkRun }) {
+  if (run.phase === "completed" && run.summary) {
+    return <DoneBody summary={run.summary} fixKind={run.fixKind} />;
+  }
+  if (run.phase === "failed") {
+    return (
+      <p className="text-sm text-fg-2">
+        The run could not start{run.error ? `: ${run.error}` : "."} Nothing was changed.
+      </p>
+    );
+  }
+  const done = processed(run);
+  const open = unconfirmed(run);
+  return (
+    <>
+      <Counts counts={run.counts} />
+      <p className="text-sm text-fg-2" data-bulk-partial>
+        {run.phase === "stopped" ? (
+          <>Stopped after {done} of {run.total}. </>
+        ) : (
+          <>The connection to the run was lost after {done} of {run.total}. </>
+        )}
+        {done > 0 ? "The outcomes listed below are confirmed, and the fixes made stay made. " : ""}
+        {open > 0 &&
+          (run.phase === "stopped"
+            ? `The other ${open} ${open === 1 ? "has" : "have"} no confirmed outcome: the one in progress when you stopped may still have finished, and the rest were not started.`
+            : `The other ${open} ${open === 1 ? "has" : "have"} no confirmed outcome: the run may have carried on without this window. Review shows what is still open.`)}
+      </p>
+    </>
+  );
+}
+
+function Counts({ counts }: { counts: BulkCounts }) {
+  return (
+    <div className="grid grid-cols-4 gap-2 text-xs mb-3">
+      <Stat label="Fixed" value={counts.fixed} tone="ok" />
+      <Stat label="Skipped" value={counts.skipped} tone="muted" />
+      <Stat label="N/A" value={counts.not_applicable} tone="muted" />
+      <Stat label="Errors" value={counts.errors} tone="err" />
+    </div>
   );
 }
 
@@ -328,18 +328,14 @@ function ConfirmBody({
   );
 }
 
-function RunningBody({
-  fmt, pct, counts, last,
-}: {
-  fmt: string;
-  pct: number;
-  counts: { fixed: number; skipped: number; errors: number; not_applicable: number };
-  last?: ResultItem;
-}) {
+function RunningBody({ run }: { run: BulkRun }) {
+  const done = processed(run);
+  const pct = run.total > 0 ? Math.round((done / run.total) * 100) : 0;
+  const last = run.items.at(-1);
   return (
     <>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-fg-2">Processing {fmt}</span>
+        <span className="text-sm text-fg-2">Processing {done} of {run.total}</span>
         <span className="mono text-xs text-fg-4 tabular-nums">{pct}%</span>
       </div>
       <div className="h-1.5 bg-bg-3 rounded-full overflow-hidden mb-3">
@@ -348,12 +344,7 @@ function RunningBody({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="grid grid-cols-4 gap-2 text-xs mb-3">
-        <Stat label="Fixed" value={counts.fixed} tone="ok" />
-        <Stat label="Skipped" value={counts.skipped} tone="muted" />
-        <Stat label="N/A" value={counts.not_applicable} tone="muted" />
-        <Stat label="Errors" value={counts.errors} tone="err" />
-      </div>
+      <Counts counts={run.counts} />
       {last && (
         <div className="text-xs text-fg-4 truncate">
           Latest: <span className={`mono ${
@@ -445,10 +436,25 @@ const GROUPS: ReadonlyArray<{ outcome: BulkOutcome; title: string; tone: string 
   { outcome: "fixed", title: "Fixed", tone: "text-ok" },
 ];
 
-function ResultsList({ items, stillOpen }: { items: ResultItem[]; stillOpen: number }) {
+/**
+ * Every finding a run handled, grouped by outcome, problems first. With
+ * `onOpenAlbum` (Activity), each album is a link to its panel.
+ */
+export function ResultsList({
+  items,
+  stillOpen,
+  onOpenAlbum,
+  scroll = true,
+}: {
+  items: BulkResultItem[];
+  stillOpen: number;
+  onOpenAlbum?: () => void;
+  /** Scroll inside a capped height (the dialog); off where the page scrolls. */
+  scroll?: boolean;
+}) {
   if (items.length === 0) return null;
   return (
-    <div className="mt-3 max-h-[40vh] overflow-y-auto space-y-3" data-testid="bulk-results">
+    <div className={`mt-3 space-y-3 ${scroll ? "max-h-[40vh] overflow-y-auto" : ""}`} data-testid="bulk-results">
       {GROUPS.map((g) => {
         const rows = items.filter((i) => i.outcome === g.outcome);
         return rows.length === 0 ? null : (
@@ -457,6 +463,7 @@ function ResultsList({ items, stillOpen }: { items: ResultItem[]; stillOpen: num
             title={g.title}
             tone={g.tone}
             rows={rows}
+            onOpenAlbum={onOpenAlbum}
             collapsed={g.outcome === "fixed"}
             note={
               g.outcome === "fixed" && stillOpen > 0
@@ -476,12 +483,14 @@ function ResultGroup({
   rows,
   collapsed,
   note,
+  onOpenAlbum,
 }: {
   title: string;
   tone: string;
-  rows: ResultItem[];
+  rows: BulkResultItem[];
   collapsed: boolean;
   note?: string;
+  onOpenAlbum?: () => void;
 }) {
   const [open, setOpen] = useState(!collapsed);
   const [all, setAll] = useState(false);
@@ -502,7 +511,18 @@ function ResultGroup({
           <ul className="mt-1 rounded border border-line bg-panel-2 divide-y divide-line">
             {shown.map((r) => (
               <li key={r.findingId} className="px-2 py-1.5 text-xs">
-                <div className="text-fg truncate" title={r.album}>{r.album}</div>
+                {onOpenAlbum && r.albumId ? (
+                  <Link
+                    to={`/library/${encodeURIComponent(r.albumId)}`}
+                    onClick={onOpenAlbum}
+                    className="block text-fg truncate hover:text-accent hover:underline"
+                    title={`Open ${r.album}`}
+                  >
+                    {r.album}
+                  </Link>
+                ) : (
+                  <div className="text-fg truncate" title={r.album}>{r.album}</div>
+                )}
                 {r.reason && <div className="text-fg-3">{r.reason}</div>}
               </li>
             ))}

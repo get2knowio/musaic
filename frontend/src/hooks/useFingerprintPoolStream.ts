@@ -14,6 +14,8 @@
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { noteStreamLive, trackEventSource } from "@/lib/streamHealth";
+
 import { FINGERPRINT_POOL_STATUS_KEY } from "./useFingerprintPoolStatus";
 import type { FingerprintPoolStatus } from "@/lib/types";
 
@@ -22,8 +24,10 @@ export function useFingerprintPoolStream() {
 
   useEffect(() => {
     const es = new EventSource("/api/fingerprint-pool/stream");
+    trackEventSource("fingerprint", es);
 
     es.addEventListener("state", (ev) => {
+      noteStreamLive("fingerprint");
       let payload: FingerprintPoolStatus;
       try {
         payload = JSON.parse((ev as MessageEvent).data);

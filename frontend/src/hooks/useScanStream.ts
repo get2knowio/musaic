@@ -5,7 +5,8 @@
  *   2. Open /api/scan/stream and merge events into the album list as they
  *      arrive (cached entries echo, fresh ones come through, removed ones
  *      drop out, done event closes the stream).
- *   3. Tracks progress for the scan ribbon UI.
+ *   3. Passes each stream event to the Activity panel's scan record
+ *      (lib/scanActivity.ts) as the stream's owner while Library is open.
  *
  * Returns a stable map of albums (sorted), the current scan state, and
  * imperative `rescan()` / `cancel()` controls.
@@ -27,6 +28,13 @@ import { toast } from "sonner";
 import { cancelScan, listAlbums, rescanLibrary } from "@/lib/api";
 import { openScanStream } from "@/lib/sse";
 import { registerRescan, setScanning } from "@/lib/rescanController";
+import {
+  attachScanOwner,
+  getScanActivity,
+  isScanActive,
+  noteScanEvent,
+  noteScanStarting,
+} from "@/lib/scanActivity";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import type { Album } from "@/lib/types";
 
@@ -100,7 +108,7 @@ export function isSettled(status: ScanState["status"]): boolean {
   return status === "done" || status === "cancelled" || status === "aborted";
 }
 
-/** A scan is in progress (the ribbon shows, Rescan is disabled). */
+/** A scan is in progress (Rescan is disabled). */
 export function isScanBusy(status: ScanState["status"]): boolean {
   return status === "scanning" || status === "loading-cache" || status === "cancelling";
 }
@@ -165,6 +173,7 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
     setScan({ ...INITIAL, status: "loading-cache" });
 
     let cancelled = false;
+    let detachOwner: (() => void) | null = null;
 
     (async () => {
       // 1. Pull cached snapshot first so the UI populates instantly.
@@ -220,8 +229,16 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
       // 2. Open the SSE stream to refresh + extend.
       const url = `/api/scan/stream${force ? "?force=true" : ""}`;
       setScan((s) => ({ ...s, canCancel: true }));
+      // The Activity panel's record of the scan follows this stream while
+      // Library has it open (lib/scanActivity.ts).
+      if (!isScanActive(getScanActivity().phase)) noteScanStarting();
+      detachOwner = attachScanOwner();
       const handle = openScanStream(url, (ev) => {
         if (cancelled) return;
+        noteScanEvent(ev);
+        if (ev.type === "done" || ev.type === "cancelled" || ev.type === "aborted" || ev.type === "error") {
+          detachOwner?.();
+        }
         switch (ev.type) {
           case "start":
             setScan((s) => ({
@@ -324,6 +341,7 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
       cancelled = true;
       streamRef.current?.close();
       streamRef.current = null;
+      detachOwner?.();
     };
   }, []);
 
@@ -368,7 +386,9 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
   // mounts within the same session skip the SSE and just refresh from cache.
   useEffect(() => {
     if (!enabled) return;
-    if (_initialScanDone) {
+    // A scan running now (started from another page) is joined, so the
+    // grid fills in live as it does for the first scan.
+    if (_initialScanDone && !isScanActive(getScanActivity().phase)) {
       return refreshFromCache();
     }
     // The flag is set when the scan ends (below), not here: a dev-mode

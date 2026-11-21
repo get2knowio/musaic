@@ -14,6 +14,9 @@ import { useLibraryEventsStream } from "@/hooks/useLibraryEventsStream";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useSyncUiPrefs } from "@/hooks/useUiPrefs";
 import { useTrackLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
+import { useScanFollower } from "@/hooks/useScanFollower";
+import { useActivityLinks } from "@/hooks/useActivityLinks";
+import ActivityPanel from "@/components/ActivityPanel";
 
 /**
  * Top-level layout: titlebar across the top, sidebar on the left, route
@@ -31,7 +34,7 @@ export default function App() {
   useChecksStream();
 
   // Single subscriber to the fingerprint-pool SSE stream — mirrors
-  // backend pool state into the cache so the titlebar pill renders
+  // backend pool state into the cache so the Activity panel renders
   // live progress without polling.
   useFingerprintPoolStream();
 
@@ -48,6 +51,13 @@ export default function App() {
 
   // `/` focuses the Library filter, `,` opens Settings.
   useGlobalShortcuts();
+
+  // The Activity panel's scan record while Library is not reading the scan
+  // stream (a rescan started elsewhere, a scan left running).
+  useScanFollower();
+
+  // `?activity=…` links open the Activity panel over the current page.
+  useActivityLinks();
 
   // Save the user's last /library URL to sessionStorage so the Sidebar's
   // "Library" link can restore the same filter / search / open album when
@@ -84,6 +94,9 @@ export default function App() {
           </Routes>
         </main>
       </div>
+      {/* Over whichever page is open; opened by the titlebar's Activity
+          control, openActivityPanel() or a `?activity=` link. */}
+      <ActivityPanel />
       {/* Top-right so toasts don't overlap with the right-anchored DetailSheet's
           footer buttons (which sit bottom-right of the visible area). */}
       <Toaster

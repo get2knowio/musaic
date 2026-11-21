@@ -2,7 +2,7 @@ import { Disc3, Inbox, Settings as SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import { useJobs, useInFlightJobCounts } from "@/hooks/useJobs";
+import { useJobs } from "@/hooks/useJobs";
 import { reviewBadge, useReview } from "@/hooks/useReview";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useRememberedLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
@@ -81,29 +81,18 @@ export default function Sidebar() {
   }, [albums, needsAttention]);
 
   const review = useReview();
-  const { running: runningCount, queued: queuedCount } = useInFlightJobCounts();
-  const activityLabel =
-    runningCount > 0
-      ? queuedCount > 0
-        ? `${runningCount} running, ${queuedCount} queued`
-        : `${runningCount} running`
-      : queuedCount > 0
-      ? `${queuedCount} queued`
-      : null;
   // One neutral number: the distinct open items Review lists by default
   // (open findings of every severity, proposed changes, failed jobs), the
   // same count its header shows. Hidden at a verified zero; a source that
   // failed makes it a lower bound ("2+", or "?" with nothing known), never
-  // a confident zero. Jobs in progress show as the activity dot instead.
+  // a confident zero. Jobs in progress are activity, not decisions: the
+  // titlebar's Activity control shows them, not this item.
   const badge = reviewBadge(review);
   const reviewItem: NavItem = {
     to: "/review",
     label: "Review",
     icon: Inbox,
     badge: badge ? { ...badge, tone: "neutral" } : undefined,
-    activity: runningCount > 0 && activityLabel
-      ? { label: activityLabel }
-      : undefined,
   };
 
   // Tooltip the "Jobs to review" filter chip with both perspectives — albums

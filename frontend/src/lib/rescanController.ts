@@ -13,6 +13,7 @@
  * can fall back to the API directly (and show an explanatory toast).
  */
 import { rescanLibrary } from "@/lib/api";
+import { noteScanStarting, requestScanFollow } from "@/lib/scanActivity";
 
 type RescanFn = () => Promise<void>;
 
@@ -43,9 +44,9 @@ export function subscribeScanning(listener: () => void): () => void {
 
 /**
  * Kick off a rescan. Prefers the registered Library function (so the SSE
- * stream + ribbon update live); falls back to a bare POST + cache invalidation
- * when no Library is mounted, so a click from /jobs or /settings still does
- * something useful.
+ * stream updates the grid live); when no Library is mounted (Review,
+ * Settings) it falls back to a bare POST and the Activity panel's follower
+ * reads the scan's stream, so the progress shows where the user is.
  */
 export async function triggerRescan(): Promise<{ via: "library" | "api" }> {
   if (rescanFn) {
@@ -53,5 +54,9 @@ export async function triggerRescan(): Promise<{ via: "library" | "api" }> {
     return { via: "library" };
   }
   await rescanLibrary();
+  // Library is not open to read the scan's stream: the Activity panel's
+  // follower does, so the progress shows wherever the user is.
+  noteScanStarting();
+  requestScanFollow();
   return { via: "api" };
 }

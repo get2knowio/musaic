@@ -217,7 +217,17 @@ export type ScanEvent =
   // unmounted drive). The library keeps its previous scan.
   | { type: "cancelled"; reason: "cancelled"; phase: string; scanned: number; total: number; detail: string }
   | { type: "aborted"; reason: string; detail: string; vanish_count: number; cached_count: number }
-  | { type: "error"; detail: string };
+  // `lost`: the connection broke (no event from the server); whether the
+  // scan is still running is not known.
+  | { type: "error"; detail: string; lost?: boolean };
+
+/** `GET /api/scan/status` (the fields the UI reads). */
+export interface ScanStatusResponse {
+  status: "idle" | "running" | "cancelling" | "done" | "aborted" | "cancelled" | "error";
+  total: number;
+  scanned: number;
+  error: string | null;
+}
 
 /** `POST /api/scan/cancel`. */
 export interface ScanCancelResponse {

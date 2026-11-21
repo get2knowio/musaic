@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigationType, useSearchParams } from "react-router-dom";
-import { CheckCircle2, Eye, EyeOff, Inbox, Trash2, X, Zap } from "lucide-react";
+import { Activity as ActivityIcon, CheckCircle2, Eye, EyeOff, Inbox, Trash2, X, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { BulkQuickFixDialog } from "@/components/BulkQuickFixDialog";
@@ -28,6 +28,7 @@ import {
 import { useChecks, useIgnoredFindings } from "@/hooks/useChecks";
 import { useBulkDeleteJobs, useDeleteJob, useJobs } from "@/hooks/useJobs";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { openActivityPanel, type ActivitySection } from "@/lib/activityPanel";
 import { displayArtist } from "@/lib/albumFields";
 import type { Album, CheckSummary, Finding, Job } from "@/lib/types";
 
@@ -47,35 +48,31 @@ import type { Album, CheckSummary, Finding, Job } from "@/lib/types";
  * album filter (`?album=<id>`, set from an album's panel) narrows any of
  * them and is shown as a chip in the header.
  *
- * Below them, until the Activity panel takes them over: jobs in progress,
- * job history and ignored findings. They are not review items and are not
- * counted.
+ * Below them, not counted: ignored findings, and a way to the Activity
+ * panel, which holds jobs in progress and job history (they are not review
+ * items).
  *
  * The URL holds the state, so Back from an album's panel returns to it:
- * `?check=<id>`, `?kind=proposed|failed`, `?album=<id>`,
- * `?show=running|history|ignored`, `?ignored=1` (a check's ignored findings
- * listed with it), `?all=1` (past the first SECTION_ROW_LIMIT rows), and
- * `?job=<id>` (a deep link: the job highlighted where it lives). The
- * scroll position and the row last opened are restored on Back too. Old
- * Needs attention, Health and Jobs links are translated by
- * `reviewRedirects.tsx`.
+ * `?check=<id>`, `?kind=proposed|failed`, `?album=<id>`, `?show=ignored`,
+ * `?ignored=1` (a check's ignored findings listed with it), `?all=1` (past
+ * the first SECTION_ROW_LIMIT rows), and `?job=<id>` (a deep link: the job
+ * highlighted where it lives; a job in progress or finished opens the
+ * Activity panel at it). `?show=running|history` from older builds opens
+ * the Activity panel too. The scroll position and the row last opened are
+ * restored on Back. Old Needs attention, Health and Jobs links are
+ * translated by `reviewRedirects.tsx`.
  *
- * Checks run on their own (the titlebar shows progress), so there is
- * nothing to run from here.
+ * Checks run on their own (the Activity control shows progress), so there
+ * is nothing to run from here.
  */
 
 /** Rows listed before "Show all N". */
 export const SECTION_ROW_LIMIT = 50;
 
-type View =
-  | { kind: "inbox"; filter: ReviewFilter }
-  | { kind: "running" }
-  | { kind: "history" }
-  | { kind: "ignored" };
+type View = { kind: "inbox"; filter: ReviewFilter } | { kind: "ignored" };
 
 const SCROLL_KEY = "mm.review.scroll";
 const ITEM_KEY = "mm.review.item";
-const JOB_COLS = "100px minmax(0, 1.2fr) 110px 110px 72px";
 const QUIET_BUTTON =
   "h-7 px-2.5 border border-line rounded text-xs text-fg-2 hover:bg-bg-3 transition inline-flex items-center gap-1.5";
 
@@ -167,18 +164,36 @@ export default function ReviewPage() {
   const kindParam = params.get("kind");
   const checkParam = params.get("check");
   const view: View =
-    show === "running" || show === "history" || show === "ignored"
-      ? { kind: show }
+    show === "ignored"
+      ? { kind: "ignored" }
       : checkParam
         ? { kind: "inbox", filter: { kind: "check", id: checkParam } }
         : kindParam === "proposed" || kindParam === "failed"
           ? { kind: "inbox", filter: { kind: kindParam } }
-          : linked && (linked.status === "queued" || linked.status === "running")
-            ? { kind: "running" }
-            : linked?.status === "acted_on"
-              ? { kind: "history" }
-              : { kind: "inbox", filter: { kind: "all" } };
+          : { kind: "inbox", filter: { kind: "all" } };
   const key = viewKey(view, album);
+
+  // Jobs in progress and job history live in the Activity panel: an old
+  // `show=running|history` link, or a link to a job that is not a review
+  // item, opens it over All open.
+  const activitySection: ActivitySection | null =
+    show === "running"
+      ? "jobs"
+      : show === "history"
+        ? "history"
+        : linked && (linked.status === "queued" || linked.status === "running")
+          ? "jobs"
+          : linked?.status === "acted_on"
+            ? "history"
+            : null;
+  useEffect(() => {
+    if (!activitySection) return;
+    openActivityPanel({ section: activitySection, job: linkedJobId });
+    const p = new URLSearchParams(params);
+    p.delete("show");
+    p.delete("job");
+    setParams(p, { replace: true });
+  }, [activitySection, linkedJobId, params, setParams]);
 
   const select = (next: View) => {
     const p = new URLSearchParams();
@@ -331,24 +346,6 @@ export default function ReviewPage() {
     );
   };
 
-  const jobTable = (jobs: Job[]) => (
-    <div className="rounded-md border border-line bg-panel-2 overflow-hidden">
-      <div
-        className="grid gap-3 px-3 py-2 border-b border-line text-fg-4 text-xs"
-        style={{ gridTemplateColumns: JOB_COLS }}
-      >
-        <span>Status</span>
-        <span>Album</span>
-        <span>Job</span>
-        <span>When</span>
-        <span />
-      </div>
-      {jobs.map((j) => (
-        <JobRow key={j.id} job={j} onRequestDelete={onSingleDelete} highlight={j.id === linkedJobId} />
-      ))}
-    </div>
-  );
-
   // ---- the selected view ----
   const inboxDetail = (filter: ReviewFilter) => {
     const check = filter.kind === "check" ? checksById.get(filter.id) : undefined;
@@ -468,66 +465,34 @@ export default function ReviewPage() {
   const detail = () => {
     if (view.kind === "inbox") return inboxDetail(view.filter);
 
-    if (view.kind === "ignored") {
-      const byCheck = new Map<string, Finding[]>();
-      for (const f of ignoredQ.data ?? []) byCheck.set(f.check_id, [...(byCheck.get(f.check_id) ?? []), f]);
-      return (
-        <section aria-labelledby="review-detail-heading">
-          <DetailHead
-            title="Ignored findings"
-            count={ignoredQ.data?.length}
-            description="Findings you chose to ignore. They are not counted anywhere and stay ignored until you restore them."
-          />
-          {ignoredQ.isLoading ? (
-            <Quiet>Loading…</Quiet>
-          ) : byCheck.size === 0 ? (
-            <Quiet>Nothing is ignored.</Quiet>
-          ) : (
-            <div className="space-y-4">
-              {[...byCheck.entries()].map(([checkId, list]) => (
-                <div key={checkId}>
-                  <h3 className="text-xs text-fg-3 mb-1.5">{checkLabel(checkId)}</h3>
-                  <div className="rounded-md border border-line bg-panel-2 overflow-hidden divide-y divide-line">
-                    {list.map((f) => (
-                      <div key={f.id}>{findingRow(f, { withCheck: false, siblings: list })}</div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      );
-    }
-
-    const running = view.kind === "running";
-    const jobs = running ? review.inProgress : review.finishedJobs;
+    // Ignored findings.
+    const byCheck = new Map<string, Finding[]>();
+    for (const f of ignoredQ.data ?? []) byCheck.set(f.check_id, [...(byCheck.get(f.check_id) ?? []), f]);
     return (
       <section aria-labelledby="review-detail-heading">
         <DetailHead
-          title={running ? "In progress" : "Job history"}
-          count={jobs.length}
-          description={
-            running
-              ? "Jobs that are queued or running now. They are not review items: a job that finishes with a proposed change, or fails, is listed in All open."
-              : "Jobs whose result you applied or discarded, kept as history."
-          }
-          actions={
-            !running && jobs.length > 0 ? (
-              <button
-                type="button"
-                onClick={() =>
-                  onBulkDelete({ kind: "bulk", statuses: ["acted_on"], label: "acted-on", count: jobs.length })
-                }
-                className={QUIET_BUTTON}
-              >
-                <Trash2 className="w-3 h-3" />
-                Clear {jobs.length} acted-on
-              </button>
-            ) : null
-          }
+          title="Ignored findings"
+          count={ignoredQ.data?.length}
+          description="Findings you chose to ignore. They are not counted anywhere and stay ignored until you restore them."
         />
-        {jobs.length > 0 ? jobTable(jobs) : <Quiet>None right now.</Quiet>}
+        {ignoredQ.isLoading ? (
+          <Quiet>Loading…</Quiet>
+        ) : byCheck.size === 0 ? (
+          <Quiet>Nothing is ignored.</Quiet>
+        ) : (
+          <div className="space-y-4">
+            {[...byCheck.entries()].map(([checkId, list]) => (
+              <div key={checkId}>
+                <h3 className="text-xs text-fg-3 mb-1.5">{checkLabel(checkId)}</h3>
+                <div className="rounded-md border border-line bg-panel-2 overflow-hidden divide-y divide-line">
+                  {list.map((f) => (
+                    <div key={f.id}>{findingRow(f, { withCheck: false, siblings: list })}</div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     );
   };
@@ -605,24 +570,26 @@ export default function ReviewPage() {
               />
             ))}
           </RailGroup>
-          <RailGroup label="Activity" note="Not counted">
-            <RailRow
-              label="In progress"
-              count={review.inProgress.length}
-              active={view.kind === "running"}
-              onSelect={() => select({ kind: "running" })}
-            />
-            <RailRow
-              label="Job history"
-              count={review.finishedJobs.length}
-              active={view.kind === "history"}
-              onSelect={() => select({ kind: "history" })}
-            />
+          <RailGroup label="Not counted">
             <RailRow
               label="Ignored findings"
               active={view.kind === "ignored"}
               onSelect={() => select({ kind: "ignored" })}
             />
+            {/* Jobs in progress and their history are activity, not
+                decisions: they live in the Activity panel. */}
+            <button
+              type="button"
+              onClick={() => openActivityPanel({ section: "jobs" })}
+              aria-haspopup="dialog"
+              className={
+                "w-full h-7 px-2 rounded flex items-center gap-2 text-left text-sm transition text-fg-2 hover:bg-bg-3 hover:text-fg " +
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+              }
+            >
+              <span className="truncate flex-1">Jobs in progress and history</span>
+              <ActivityIcon className="w-3 h-3 text-fg-4" aria-hidden />
+            </button>
           </RailGroup>
         </nav>
         <div ref={scroller} tabIndex={-1} className="flex-1 min-h-0 min-w-0 overflow-y-auto outline-none px-5 py-4">

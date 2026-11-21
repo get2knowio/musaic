@@ -65,15 +65,17 @@ export function openScanStream(
   es.addEventListener("error", (ev) => {
     const messageEv = ev as MessageEvent;
     let detail = "Scan stream error";
+    // No payload: the connection failed, not the scan.
+    const lost = !messageEv.data;
     if (messageEv.data) {
       try {
         const data = JSON.parse(messageEv.data);
         if (data.detail) detail = data.detail;
       } catch {
-        /* connection-level error, no payload */
+        /* unreadable payload */
       }
     }
-    onEvent({ type: "error", detail });
+    onEvent(lost ? { type: "error", detail, lost } : { type: "error", detail });
     es.close();
   });
 

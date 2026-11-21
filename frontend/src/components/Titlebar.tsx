@@ -17,8 +17,7 @@ import {
   subscribeScanning,
   triggerRescan,
 } from "@/lib/rescanController";
-import CheckSweepPill from "./CheckSweepPill";
-import FingerprintPoolPill from "./FingerprintPoolPill";
+import ActivityButton from "./ActivityButton";
 
 type ViewMode = "tiles" | "list";
 
@@ -41,13 +40,13 @@ const ROUTE_LABELS: { match: (path: string) => boolean; label: string }[] = [
  * Narrow windows: the header never makes the page wider than the window
  * (`min-w-0` lets the app grid shrink it). The location crumb and the search
  * box shrink first; below Tailwind's `lg` (1024 px) the tile-size slider is
- * hidden and Rescan shows only its icon. The fingerprint pill already hides
- * below `md`.
+ * hidden and Rescan shows only its icon. The Activity control truncates its
+ * text.
  *
  * The Rescan button delegates to the Library page's `useScanStream.rescan`
  * via the rescanController module-level registry. When Library isn't
- * mounted, it falls back to a bare API call + toast pointing the user at
- * the Library page so they can watch the progress.
+ * mounted, it falls back to a bare API call. Either way the Activity control
+ * shows the scan's progress and the user stays on the page they are on.
  */
 export default function Titlebar() {
   const [params, setParams] = useSearchParams();
@@ -80,13 +79,8 @@ export default function Titlebar() {
     if (rescanning || scanning) return;
     setRescanning(true);
     try {
-      const { via } = await triggerRescan();
-      if (via === "api") {
-        toast("Rescan started in the background", {
-          description: "Open Library to watch the progress.",
-          duration: 4000,
-        });
-      }
+      // Progress shows in the Activity control wherever the user is.
+      await triggerRescan();
     } catch (err) {
       const e = err as Error;
       toast.error(e.message || "Couldn't start rescan");
@@ -120,12 +114,9 @@ export default function Titlebar() {
 
       <div className="flex-1" />
 
-      {/* Background-pool status pill — only visible while the eager
-          fingerprinting pool is actively running. Auto-hides otherwise. */}
-      <FingerprintPoolPill />
-
-      {/* Background health-check sweep — only visible while it has work. */}
-      <CheckSweepPill />
+      {/* Activity: scans, checks, fingerprinting, bulk fixes and jobs, in
+          one control that opens the Activity panel over this page. */}
+      <ActivityButton />
 
       {/* Search and the view toggle only act on the Library page, so they
           only show there. Search writes ?q=… to the URL for Library to filter. */}
