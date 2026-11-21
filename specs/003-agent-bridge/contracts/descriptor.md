@@ -39,7 +39,7 @@ The CLI refuses the descriptor, and maps each refusal to an error code, in this 
 |---|---|
 | File absent | `APP_NOT_RUNNING` |
 | Path is a symlink (lstat) or not a regular file | `DESCRIPTOR_INVALID` |
-| Unix: owner uid ≠ current euid, or mode has group/other bits | `DESCRIPTOR_INVALID` |
+| Unix: owner uid ≠ current euid (or the euid cannot be learned), or mode has group/other bits | `DESCRIPTOR_INVALID` |
 | Larger than 4 KiB, not JSON, unknown fields, `formatVersion` ≠ 1 | `DESCRIPTOR_INVALID` |
 | `host` ≠ `127.0.0.1`, or `port` outside 1..65535 | `DESCRIPTOR_INVALID` |
 | Connection refused, or `hello` times out (2 s) | `APP_NOT_RUNNING` (stale) |

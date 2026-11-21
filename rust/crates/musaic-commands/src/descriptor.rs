@@ -92,23 +92,67 @@ pub fn remove_if_own(dir: &Path, instance_id: &str) -> bool {
     }
 }
 
-/// The effective uid, learned from the owner of a file this process creates
-/// (no libc, no unsafe).
+/// The effective uid, without libc or unsafe: the owner of a probe file
+/// created next to the descriptor (the reader's own config dir), else of
+/// `/proc/self` on Linux, else of a probe in the system temp dir. `None` only
+/// when none of these works; the caller then refuses the descriptor.
 #[cfg(unix)]
-fn current_uid() -> Option<u32> {
-    use std::os::unix::fs::MetadataExt;
+fn current_uid(dir: &Path) -> Option<u32> {
+    current_uid_with_temp(dir, &std::env::temp_dir())
+}
+
+#[cfg(unix)]
+fn current_uid_with_temp(dir: &Path, temp: &Path) -> Option<u32> {
+    probe_uid(dir)
+        .or_else(proc_self_uid)
+        .or_else(|| probe_uid(temp))
+}
+
+/// The owner of a uniquely named file this process creates in `dir`, which
+/// is removed again.
+#[cfg(unix)]
+fn probe_uid(dir: &Path) -> Option<u32> {
+    use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
     let mut name = [0u8; 8];
     getrandom::fill(&mut name).ok()?;
-    let p = std::env::temp_dir().join(format!(".musaic-uid-{}", crate::auth::hex_encode(&name)));
+    let p = dir.join(format!(".musaic-uid-{}", crate::auth::hex_encode(&name)));
     let f = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)
+        .mode(0o600)
         .open(&p)
         .ok()?;
     let uid = f.metadata().ok().map(|m| m.uid());
     drop(f);
     let _ = std::fs::remove_file(&p);
     uid
+}
+
+/// `/proc/self` is owned by the process's effective uid.
+#[cfg(target_os = "linux")]
+fn proc_self_uid() -> Option<u32> {
+    use std::os::unix::fs::MetadataExt;
+    std::fs::metadata("/proc/self").ok().map(|m| m.uid())
+}
+
+#[cfg(all(unix, not(target_os = "linux")))]
+fn proc_self_uid() -> Option<u32> {
+    None
+}
+
+/// The owner check: a descriptor owned by another user is refused, and so
+/// is one checked by a process that cannot tell who it is (fail closed).
+#[cfg(unix)]
+fn check_owner(owner: u32, current: Option<u32>) -> Result<(), DescriptorError> {
+    match current {
+        None => Err(DescriptorError::Invalid(
+            "cannot tell which user is reading it".into(),
+        )),
+        Some(uid) if uid != owner => Err(DescriptorError::Invalid(
+            "it belongs to another user".into(),
+        )),
+        Some(_) => Ok(()),
+    }
 }
 
 /// Read and validate the descriptor, applying the reader table of the contract
@@ -131,13 +175,7 @@ pub fn read_validated(dir: &Path) -> Result<Descriptor, DescriptorError> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        if let Some(uid) = current_uid()
-            && meta.uid() != uid
-        {
-            return Err(DescriptorError::Invalid(
-                "it belongs to another user".into(),
-            ));
-        }
+        check_owner(meta.uid(), current_uid(dir))?;
         if meta.mode() & 0o077 != 0 {
             return Err(DescriptorError::Invalid(
                 "its permissions allow other users".into(),
@@ -175,4 +213,57 @@ pub fn read_validated(dir: &Path) -> Result<Descriptor, DescriptorError> {
         return Err(DescriptorError::Invalid("its port is out of range".into()));
     }
     Ok(d)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::MetadataExt;
+
+    fn own_uid(dir: &Path) -> u32 {
+        let p = dir.join("mine");
+        std::fs::write(&p, b"").unwrap();
+        let uid = std::fs::metadata(&p).unwrap().uid();
+        std::fs::remove_file(&p).unwrap();
+        uid
+    }
+
+    #[test]
+    fn the_uid_is_learned_without_the_temp_dir_and_leaves_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let unusable = dir.path().join("no").join("such").join("temp");
+        assert_eq!(
+            current_uid_with_temp(dir.path(), &unusable),
+            Some(own_uid(dir.path()))
+        );
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn the_probe_answers_none_where_it_cannot_create_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(probe_uid(&dir.path().join("absent")), None);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn proc_self_names_the_same_user_as_a_probe() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(proc_self_uid(), probe_uid(dir.path()));
+    }
+
+    #[test]
+    fn an_unknown_reader_fails_closed() {
+        let why = |r: Result<(), DescriptorError>| match r {
+            Err(DescriptorError::Invalid(w)) => w,
+            other => panic!("expected invalid, got {other:?}"),
+        };
+        assert!(why(check_owner(501, None)).contains("cannot tell"));
+        assert!(why(check_owner(501, Some(0))).contains("another user"));
+        assert_eq!(check_owner(501, Some(501)), Ok(()));
+        assert_eq!(
+            DescriptorError::Invalid("x".into()).to_tool_error().code,
+            crate::errors::ToolErrorCode::DescriptorInvalid
+        );
+    }
 }

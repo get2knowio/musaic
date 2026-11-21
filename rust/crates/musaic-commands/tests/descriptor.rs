@@ -117,6 +117,22 @@ fn other_owner_is_refused_when_root_can_set_it() {
     assert!(invalid(descriptor::read_validated(dir.path())).contains("another user"));
 }
 
+// The reader learns its uid from a probe next to the descriptor; where it may
+// not write there it falls back (/proc/self on Linux, the temp dir) instead of
+// skipping the owner check, and leaves nothing behind.
+#[cfg(unix)]
+#[test]
+fn a_descriptor_in_a_read_only_dir_is_still_owner_checked_and_read() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    descriptor::write_atomic_owner_only(dir.path(), &sample()).unwrap();
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o500)).unwrap();
+    let read = descriptor::read_validated(dir.path());
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(read.unwrap(), sample());
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1);
+}
+
 #[test]
 fn oversize_bad_version_host_port_and_unknown_fields_are_refused() {
     let dir = tempfile::tempdir().unwrap();
