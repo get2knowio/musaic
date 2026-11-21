@@ -37,7 +37,12 @@ struct Counting {
     revealed: std::sync::Mutex<Vec<std::path::PathBuf>>,
     /// The reveal hook fails (the file manager could not be asked).
     reveal_fails: std::sync::atomic::AtomicBool,
+    /// Menu states the page posted: (id, enabled, checked) per item.
+    menu: std::sync::Mutex<Vec<Vec<MenuItem>>>,
 }
+
+/// (id, enabled, checked)
+type MenuItem = (String, bool, Option<bool>);
 
 impl Hooks for Counting {
     fn focus(&self) {
@@ -64,6 +69,14 @@ impl Hooks for Counting {
             Ok(())
         });
         rx
+    }
+    fn menu_state(&self, items: Vec<musaic_desktop::menu::ItemState>) {
+        self.menu.lock().unwrap().push(
+            items
+                .iter()
+                .map(|s| (s.command.id.to_string(), s.enabled, s.checked))
+                .collect(),
+        );
     }
 }
 
@@ -366,6 +379,65 @@ fn shim_defines_the_desktop_marker() {
     #[cfg(windows)]
     assert_eq!(gate::FILE_MANAGER, "Explorer");
     assert!(js.contains("Object.freeze"));
+    assert!(js.contains(&format!("nativeMenu: {}", gate::NATIVE_MENU)));
+    assert!(!js.contains("__MUSAIC_NATIVE_MENU__"));
+    assert_eq!(gate::NATIVE_MENU, cfg!(target_os = "macos"));
+}
+
+fn menu_req(body: &str, method: Method, origin: Option<&str>, with_cookie: bool) -> Request<Body> {
+    let mut b = req(method, gate::MENU_STATE_PATH).header(header::CONTENT_TYPE, "application/json");
+    if let Some(o) = origin {
+        b = b.header(header::ORIGIN, o);
+    }
+    if with_cookie {
+        b = b.header(header::COOKIE, cookie());
+    }
+    b.body(Body::from(body.to_string())).unwrap()
+}
+
+// The page reports the native menu's state: only allow-listed command ids
+// reach the shell, behind the same checks as the reveal endpoints.
+#[tokio::test]
+async fn menu_state_endpoint() {
+    let dir = tempfile::tempdir().unwrap();
+    let hooks = Arc::new(Counting::default());
+    let app = app(dir.path(), hooks.clone());
+    let origin = format!("http://127.0.0.1:{PORT}");
+    let body = r#"{"items": [
+        {"id": "album.reveal", "enabled": false},
+        {"id": "view.list", "enabled": true, "checked": true},
+        {"id": "not.a.command", "enabled": true}
+    ]}"#;
+
+    let (s, h, b) = send(&app, menu_req(body, Method::POST, Some(&origin), true)).await;
+    assert_eq!(s, StatusCode::NO_CONTENT, "{b}");
+    assert_eq!(h[header::CONTENT_SECURITY_POLICY], gate::APP_CSP);
+    assert_eq!(
+        *hooks.menu.lock().unwrap(),
+        vec![vec![
+            ("album.reveal".to_string(), false, None),
+            ("view.list".to_string(), true, Some(true)),
+        ]]
+    );
+
+    // Malformed: 400, nothing applied.
+    let (s, _, _) = send(&app, menu_req("nope", Method::POST, Some(&origin), true)).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    // No cookie, another Origin, no Origin, GET: refused, nothing applied.
+    for r in [
+        menu_req(body, Method::POST, Some(&origin), false),
+        menu_req(body, Method::POST, Some("http://evil.example"), true),
+        menu_req(body, Method::POST, None, true),
+        menu_req(body, Method::GET, Some(&origin), true),
+    ] {
+        let (s, _, _) = send(&app, r).await;
+        assert_eq!(s, StatusCode::FORBIDDEN);
+    }
+    // Too large.
+    let big = format!(r#"{{"items": [], "pad": "{}"}}"#, "x".repeat(20_000));
+    let (s, _, _) = send(&app, menu_req(&big, Method::POST, Some(&origin), true)).await;
+    assert_eq!(s, StatusCode::PAYLOAD_TOO_LARGE);
+    assert_eq!(hooks.menu.lock().unwrap().len(), 1);
 }
 
 const ON_DISK: (&str, &str) = ("3a95f73281595529", "Aurora Fields - Second Light [FLAC]");

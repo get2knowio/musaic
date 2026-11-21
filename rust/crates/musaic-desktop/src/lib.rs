@@ -32,9 +32,12 @@
 //! Quitting: the window's close button (and Window → Close),
 //! the app menu's Quit and Cmd-Q ask first while work runs
 //! ([`quit::QuitGate`]; the native dialog here is the only part a hidden
-//! test cannot show). On macOS the app menu is Tauri's default with its
-//! predefined Quit (which sends `terminate:`, unseen by tao) swapped for
-//! our own item ([`quit::QUIT_MENU_ID`], Cmd-Q). Dock → Quit, the quit
+//! test cannot show). On macOS the menu bar is Musaic's own ([`menu`]),
+//! whose app menu has our own Quit item ([`quit::QUIT_MENU_ID`], Cmd-Q)
+//! instead of the predefined one (which sends `terminate:`, unseen by
+//! tao). Its command items reach the page as an allow-listed DOM event
+//! evaluated in the window, and the page reports their enabled state to
+//! `POST /__musaic/menu-state`; still no IPC ([`menu`]). Dock → Quit, the quit
 //! Apple Event and logout still send `terminate:` and quit without asking
 //! (tao has no `applicationShouldTerminate:`; docs/desktop.md "Quitting").
 //! Signals never ask.
@@ -51,6 +54,7 @@
 pub mod backend;
 pub mod gate;
 pub mod instance;
+pub mod menu;
 pub mod nav;
 pub mod options;
 pub mod quit;
@@ -94,6 +98,8 @@ struct Shell {
     /// Selftest runs: the answer the next quit prompt records (`true`:
     /// "Quit").
     selftest_quit_answer: AtomicBool,
+    /// The menu bar's command items (macOS; empty elsewhere).
+    menu: OnceLock<MenuHandles>,
 }
 
 struct TauriHooks {
@@ -210,6 +216,26 @@ impl Hooks for TauriHooks {
         rx
     }
 
+    fn menu_state(&self, items: Vec<menu::ItemState>) {
+        let Some(shell) = self.shell.upgrade() else {
+            return;
+        };
+        if let Some(handles) = shell.menu.get() {
+            apply_menu_state(handles, &items);
+        }
+        if self.report.enabled() {
+            let enabled: Vec<_> = items
+                .iter()
+                .filter(|s| s.enabled)
+                .map(|s| s.command.id)
+                .collect();
+            self.report.event(
+                "menu-state",
+                serde_json::json!({"items": items.len(), "enabled": enabled}),
+            );
+        }
+    }
+
     fn seen(&self, method: &axum::http::Method, path: &str) {
         self.report.seen(method.as_str(), path);
     }
@@ -222,6 +248,8 @@ impl Hooks for TauriHooks {
     ///   the app menu Quit item's handler (`menu`) or close the window the
     ///   way its close button does (`close`: `Window::close` raises the same
     ///   `CloseRequested`); a prompt records `answer` (default `quit`).
+    /// * `menu?id=<command>`: on the main thread, run what choosing that
+    ///   menu command runs (menu.rs: the allow-listed event to the page).
     fn selftest(
         &self,
         cmd: &str,
@@ -278,6 +306,18 @@ impl Hooks for TauriHooks {
                     }
                 });
                 sent.map(|()| serde_json::json!({"via": via, "answer": answer}))
+                    .map_err(|e| e.to_string())
+            }
+            "menu" => {
+                let id = param("id").unwrap_or_default();
+                let Some(cmd) = menu::command(&id) else {
+                    return Some(Err(format!("not a menu command: {id:?}")));
+                };
+                let handle = self.app.clone();
+                let s = shell.clone();
+                self.app
+                    .run_on_main_thread(move || deliver_command(&handle, &s, cmd))
+                    .map(|()| serde_json::json!({"id": cmd.id}))
                     .map_err(|e| e.to_string())
             }
             _ => return None,
@@ -510,38 +550,156 @@ fn quit_from_menu(app: &AppHandle<Wry>, shell: &Shell) {
     }
 }
 
-/// macOS: Tauri's default app menu (About, Services, Hide, Edit with
-/// undo/cut/copy/paste/select all, View, Window, Help) with the
-/// predefined Quit item, which sends `terminate:` straight to NSApp (no
-/// event reaches us), replaced in place by our own Quit item with the
-/// same Cmd-Q accelerator.
+/// A command item of the menu bar, kept so the page's menu state can dim
+/// or tick it.
+#[derive(Clone)]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+enum MenuHandle {
+    Item(tauri::menu::MenuItem<Wry>),
+    Check(tauri::menu::CheckMenuItem<Wry>),
+}
+
+type MenuHandles = std::collections::HashMap<&'static str, MenuHandle>;
+
+/// macOS: the menu bar of menu.rs ([`menu::MENU_BAR`], #334). Command items
+/// start dimmed until the page reports what is available. The app menu's
+/// Quit is our own item (Cmd-Q, [`quit::QUIT_MENU_ID`]): the predefined
+/// one sends `terminate:` straight to NSApp, so no event would reach us
+/// and work in progress would not be asked about.
 #[cfg(target_os = "macos")]
-fn app_menu(app: &AppHandle<Wry>) -> tauri::Result<tauri::menu::Menu<Wry>> {
-    use tauri::menu::{Menu, MenuItem, MenuItemKind};
-    let menu = Menu::default(app)?;
-    let items = menu.items()?;
-    let Some(app_submenu) = items.first().and_then(MenuItemKind::as_submenu) else {
-        return Ok(menu);
+fn app_menu(
+    app: &AppHandle<Wry>,
+    handles: &OnceLock<MenuHandles>,
+) -> tauri::Result<tauri::menu::Menu<Wry>> {
+    use menu::{Entry, Role, Std};
+    use tauri::menu::{
+        AboutMetadata, CheckMenuItem, HELP_SUBMENU_ID, IsMenuItem, Menu, MenuItem,
+        PredefinedMenuItem, Submenu, WINDOW_SUBMENU_ID,
     };
-    let quit = MenuItem::with_id(
-        app,
-        quit::QUIT_MENU_ID,
-        format!("Quit {}", app.package_info().name),
-        true,
-        Some("CmdOrCtrl+Q"),
-    )?;
-    let predefined = app_submenu.items()?.iter().position(|i| match i {
-        MenuItemKind::Predefined(p) => p.text().is_ok_and(|t| t.starts_with("Quit")),
-        _ => false,
-    });
-    match predefined {
-        Some(pos) => {
-            app_submenu.remove_at(pos)?;
-            app_submenu.insert(&quit, pos)?;
+
+    fn entries(
+        app: &AppHandle<Wry>,
+        list: &'static [Entry],
+        handles: &mut MenuHandles,
+    ) -> tauri::Result<Vec<Box<dyn IsMenuItem<Wry>>>> {
+        let mut out: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
+        for e in list {
+            match *e {
+                Entry::Separator => out.push(Box::new(PredefinedMenuItem::separator(app)?)),
+                Entry::Quit => out.push(Box::new(MenuItem::with_id(
+                    app,
+                    quit::QUIT_MENU_ID,
+                    format!("Quit {}", app.package_info().name),
+                    true,
+                    Some("CmdOrCtrl+Q"),
+                )?)),
+                Entry::Std(s) => out.push(Box::new(match s {
+                    Std::About => {
+                        let info = app.package_info();
+                        let meta = AboutMetadata {
+                            name: Some(info.name.clone()),
+                            version: Some(info.version.to_string()),
+                            copyright: app.config().bundle.copyright.clone(),
+                            ..Default::default()
+                        };
+                        PredefinedMenuItem::about(app, None, Some(meta))?
+                    }
+                    Std::Services => PredefinedMenuItem::services(app, None)?,
+                    Std::Hide => PredefinedMenuItem::hide(app, None)?,
+                    Std::HideOthers => PredefinedMenuItem::hide_others(app, None)?,
+                    Std::ShowAll => PredefinedMenuItem::show_all(app, None)?,
+                    Std::Undo => PredefinedMenuItem::undo(app, None)?,
+                    Std::Redo => PredefinedMenuItem::redo(app, None)?,
+                    Std::Cut => PredefinedMenuItem::cut(app, None)?,
+                    Std::Copy => PredefinedMenuItem::copy(app, None)?,
+                    Std::Paste => PredefinedMenuItem::paste(app, None)?,
+                    Std::SelectAll => PredefinedMenuItem::select_all(app, None)?,
+                    Std::CloseWindow => PredefinedMenuItem::close_window(app, None)?,
+                    Std::Minimize => PredefinedMenuItem::minimize(app, None)?,
+                    Std::Zoom => PredefinedMenuItem::maximize(app, Some("Zoom"))?,
+                    Std::Fullscreen => PredefinedMenuItem::fullscreen(app, None)?,
+                    Std::BringAllToFront => PredefinedMenuItem::bring_all_to_front(app, None)?,
+                })),
+                Entry::Command(id) => {
+                    let Some(c) = menu::command(id) else { continue };
+                    match c.kind {
+                        menu::Kind::Normal => {
+                            let item = MenuItem::with_id(app, c.id, c.label, false, c.accel)?;
+                            handles.insert(c.id, MenuHandle::Item(item.clone()));
+                            out.push(Box::new(item));
+                        }
+                        menu::Kind::Check => {
+                            let item =
+                                CheckMenuItem::with_id(app, c.id, c.label, false, false, c.accel)?;
+                            handles.insert(c.id, MenuHandle::Check(item.clone()));
+                            out.push(Box::new(item));
+                        }
+                    }
+                }
+                Entry::Submenu(title, inner) => {
+                    let items = entries(app, inner, handles)?;
+                    let refs: Vec<&dyn IsMenuItem<Wry>> =
+                        items.iter().map(|b| b.as_ref()).collect();
+                    out.push(Box::new(Submenu::with_items(app, title, true, &refs)?));
+                }
+            }
         }
-        None => app_submenu.append(&quit)?,
+        Ok(out)
     }
-    Ok(menu)
+
+    let mut map = MenuHandles::new();
+    let bar = Menu::new(app)?;
+    for top in menu::MENU_BAR {
+        let items = entries(app, top.entries, &mut map)?;
+        let refs: Vec<&dyn IsMenuItem<Wry>> = items.iter().map(|b| b.as_ref()).collect();
+        let sub = match top.role {
+            Role::App => Submenu::with_items(app, app.package_info().name.clone(), true, &refs)?,
+            Role::Window => {
+                Submenu::with_id_and_items(app, WINDOW_SUBMENU_ID, top.title, true, &refs)?
+            }
+            Role::Help => Submenu::with_id_and_items(app, HELP_SUBMENU_ID, top.title, true, &refs)?,
+            Role::None => Submenu::with_items(app, top.title, true, &refs)?,
+        };
+        bar.append(&sub)?;
+    }
+    let _ = handles.set(map);
+    Ok(bar)
+}
+
+/// Apply the page's menu state to the command items.
+fn apply_menu_state(handles: &MenuHandles, items: &[menu::ItemState]) {
+    for s in items {
+        match handles.get(s.command.id) {
+            Some(MenuHandle::Item(i)) => {
+                let _ = i.set_enabled(s.enabled);
+            }
+            Some(MenuHandle::Check(i)) => {
+                let _ = i.set_enabled(s.enabled);
+                if let Some(c) = s.checked {
+                    let _ = i.set_checked(c);
+                }
+            }
+            None => {}
+        }
+    }
+}
+
+/// A command item was chosen: hand its allow-listed id to the page
+/// (menu.rs), only while the window shows the backend origin.
+fn deliver_command(app: &AppHandle<Wry>, shell: &Shell, cmd: &'static menu::Command) {
+    let delivered = match (app.get_webview_window(MAIN_WINDOW), shell.origin.get()) {
+        (Some(w), Some(origin)) => {
+            let on_backend = w
+                .url()
+                .is_ok_and(|u| u.origin().ascii_serialization() == *origin);
+            on_backend && w.eval(menu::dispatch_script(cmd)).is_ok()
+        }
+        _ => false,
+    };
+    shell.report.event(
+        "menu-command",
+        serde_json::json!({"id": cmd.id, "delivered": delivered}),
+    );
 }
 
 /// The menu bar as the selftest report shows it: each submenu's title and
@@ -652,6 +810,7 @@ pub fn run() -> i32 {
         quit: QuitGate::new(),
         held: Mutex::new(Vec::new()),
         selftest_quit_answer: AtomicBool::new(true),
+        menu: OnceLock::new(),
     });
 
     let setup_shell = shell.clone();
@@ -681,12 +840,16 @@ pub fn run() -> i32 {
     let remember_window = state_file.is_some();
     #[cfg(target_os = "macos")]
     {
-        builder = builder.menu(app_menu);
+        let s = shell.clone();
+        builder = builder.menu(move |app| app_menu(app, &s.menu));
     }
     let menu_shell = shell.clone();
     builder = builder.on_menu_event(move |app, event| {
-        if event.id() == quit::QUIT_MENU_ID {
+        let id = event.id().as_ref();
+        if id == quit::QUIT_MENU_ID {
             quit_from_menu(app, &menu_shell);
+        } else if let Some(cmd) = menu::command(id) {
+            deliver_command(app, &menu_shell, cmd);
         }
     });
     let app = builder

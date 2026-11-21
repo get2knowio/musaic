@@ -77,9 +77,9 @@ with `rfd` from `src/lib.rs`.
 | Dock → Quit, a quit Apple Event, logout / restart / shut down (macOS) | no |
 | SIGTERM / SIGINT / SIGHUP, Ctrl-C | no: nobody is there to answer |
 
-On macOS the default app menu's Quit item is replaced by Musaic's own "Quit
-Musaic" item (Cmd-Q), because the predefined item quits without giving the app
-a chance to ask. Dock → Quit and logout go through a path the shell cannot hold
+On macOS the app menu's Quit item is Musaic's own "Quit Musaic" item (Cmd-Q),
+not the predefined one, because the predefined item quits without giving the
+app a chance to ask. Dock → Quit and logout go through a path the shell cannot hold
 without unsafe Objective-C calls (the workspace forbids `unsafe`), so they quit
 without asking; their teardown is the same clean path. Windows and Linux have no
 app menu, so there only the close button, the last window and signals apply.
@@ -108,7 +108,10 @@ app menu, so there only the close button, the last window and signals apply.
   an album, never a URL; the server fetches under the cover-download rules below.
 - **No IPC.** No capabilities, no `#[tauri::command]`s, `withGlobalTauri: false`.
   The dialog, opener and window-state plugins are registered but called from
-  Rust only; the opener's own link-click script is switched off.
+  Rust only; the opener's own link-click script is switched off. Native menu
+  commands reach the page as a fixed, allow-listed DOM event the shell
+  evaluates, and their enabled state comes back through
+  `POST /__musaic/menu-state` (see "The menu bar and commands").
 - **Navigation lock** (`src/nav.rs`). The window may show the backend origin,
   its `blob:` URLs, `about:blank` and the boot page. A link to an `https` URL on
   a public host (default port, no user name or password) opens in the system
@@ -157,7 +160,81 @@ browser behaviour.
   cover-upload dialog.
 - **External links** open in the system browser (see Navigation lock).
 
+- **Menu bar** (macOS; `src/menu.rs`, see below).
+
 There is no updater, no deep-link handler and no tray icon.
+
+## The menu bar and commands
+
+On macOS the shell builds its own menu bar from the table in `src/menu.rs`
+(#333, #334):
+
+| Menu | Items |
+|---|---|
+| Musaic | About Musaic · Settings… (⌘,) · Services · Hide Musaic, Hide Others, Show All · Quit Musaic (⌘Q) |
+| File | Choose Music Folder… · Rescan Library · Cancel Scan · Back Up Catalog Database… · Restore Catalog Database… · Close Window (⌘W) |
+| Edit | Undo, Redo, Cut, Copy, Paste, Select All · Find in Library (⌘F) |
+| View | Show Library (⌘1) · Show Review (⌘2) · Show Activity · Tiles · List · Sort By ▸ · Appearance ▸ Light / Dark · Enter Full Screen |
+| Album | Show in Finder · Edit My Tags… · Audio Analysis… |
+| Window | Minimize, Zoom, Bring All to Front (macOS adds the window list) |
+| Help | Keyboard Shortcuts (macOS adds the Help search field) |
+
+A label ending in "…" asks for more input before anything happens. A
+command opens a screen or a section (Settings, Backup & restore, the
+inspector's My Tags or Audio analysis); none of them writes a file by being
+chosen: the writes stay behind that screen's own buttons. Undo through
+Select All, Close Window, Minimize, Zoom, Full Screen, Services and Hide are
+the platform's own items, so native text editing and window handling stay as
+they were.
+
+What each command does and when it is available is decided once, in the
+frontend's command registry (`frontend/src/lib/commands.ts`). The menu item,
+the window's own control (the titlebar's Rescan and View menu, the Library
+filter bar's search, sort and Tiles/List, the sidebar, the inspector's Show
+in Finder) and the keyboard shortcut all run the same registry command under
+the same availability rule. Album commands act on the album open in the
+inspector, from Library or from a Review item; they are dimmed with no album
+open, for an album whose folder is missing (Show in Finder, Edit My Tags…,
+Audio Analysis…), and every command is dimmed while a modal dialog is open.
+Rescan, Choose Music Folder…, Back Up… and Restore… are dimmed while a scan
+runs; Cancel Scan only then.
+
+### How a menu command reaches the page (no IPC)
+
+The webview still has no IPC, no capabilities and the same CSP and
+navigation lock. The two directions are:
+
+- **Shell → page.** Choosing an item evaluates, in the main window, a fixed
+  script `window.dispatchEvent(new CustomEvent("musaic:command", { detail: "<id>" }))`
+  (`menu::dispatch_script`). The id is the `&'static str` of an entry in the
+  shell's allow-list (`menu::COMMANDS`), looked up from the menu item's own
+  id; nothing from the page, a URL or the event text is ever interpolated.
+  The script is evaluated only while the window shows the backend origin.
+  A script the shell evaluates is not subject to the page's CSP, so the CSP
+  is unchanged, and the event can do nothing the page's own code could not:
+  the page's command host (`frontend/src/hooks/useCommands.ts`) ignores ids
+  that are not in its registry and runs a known one only when it is
+  available.
+- **Page → shell.** The page posts each command's `enabled` (and, for Tiles /
+  List, the sort orders and Light / Dark, `checked`) to
+  `POST /__musaic/menu-state`, which needs the launch cookie, the exact Host
+  and the app's own Origin, like the reveal endpoints. The shell keeps only
+  ids in its allow-list and only sets enabled / checked on its own items.
+  Until the page has posted, every command item is dimmed.
+
+The marker (`window.__musaicDesktop.nativeMenu`) says whether a menu bar
+exists. Windows and Linux have no menu bar: there every command stays in the
+window (the sidebar for Library, Review and Settings; the titlebar's View
+menu for Show Activity, Appearance and Keyboard Shortcuts; the filter bar for
+search, sort and Tiles/List; the inspector for Show in Finder), and the menu
+keys work with Ctrl (Ctrl-, Settings, Ctrl-F Find in Library, Ctrl-1 / Ctrl-2
+Library / Review), handled by the page (`useGlobalShortcuts`). In a plain
+browser those keys stay the browser's. Everywhere: `/` focuses the Library
+search, `,` opens Settings, `?` shows Keyboard Shortcuts, F6 moves focus
+between the album list and the inspector, Esc closes the inspector.
+
+Not yet in the menu bar (#334 lists them): Musaic Help, Album → Review
+Corrections… and Add Cover… / Change Cover….
 
 ## Data locations
 
@@ -187,7 +264,9 @@ bind host is always `127.0.0.1`.
 cd rust
 cargo test -p musaic-desktop                  # unit tests, gate, second instance, server log
 cargo test -p musaic-desktop --test boot -- --ignored --nocapture
-#   hidden-window boot test: start-up, serving, focus request, quit routes, teardown
+#   hidden-window boot test: start-up, serving, focus request, quit routes,
+#   the menu bar (macOS: its layout, the page's menu state, a command
+#   delivered to the page), teardown
 cargo run -p musaic-desktop -- --config-dir "$(mktemp -d)/config" --dev-memory-secrets --network offline
 ```
 
