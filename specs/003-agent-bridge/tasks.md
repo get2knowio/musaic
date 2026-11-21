@@ -413,7 +413,7 @@ and the slice's targeted tests passing.
   - (c) "Record a real MCP host connection (Claude Desktop / Claude Code) with versions and a secret-stripped transcript", only if T069 is not done;
   - (d) "Cancellation inside checks runs and analysis (services), beyond item boundaries";
   - (e) "Installer verification of the bundled musaic-cli on Windows and Linux".
-- [ ] T069 (SKIPPED: no real MCP host is available in this environment; filed as #348) Optional live evidence: if a real host is available, connect it against a scratch config dir and save a secret-stripped transcript to `specs/003-agent-bridge/evidence/host-connection.md`. Otherwise mark this task skipped and rely on T068(c).
+- [X] T069 (done for #348: Claude Code 2.1.330 connected headless to `musaic-cli mcp` on a scratch config, once per profile, negotiating 2026-07-28 by default and 2025-11-25 with `MCP_PROTOCOL_NEGOTIATION=legacy`; Claude Desktop, an approval round trip and the Keychain prompt were not recorded, as the evidence file says) Optional live evidence: if a real host is available, connect it against a scratch config dir and save a secret-stripped transcript to `specs/003-agent-bridge/evidence/host-connection.md`. Otherwise mark this task skipped and rely on T068(c).
 - [X] T070 Full gate:
   - `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`;
   - the frontend lint, typecheck, typecheck:test, test and build;

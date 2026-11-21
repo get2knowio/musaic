@@ -59,6 +59,11 @@ carry ids and bare file and folder names, never a filesystem path.
    Always use the absolute path: a host started from a launcher or the Dock does not have
    your shell's `PATH`.
 
+Tested hosts: Claude Code 2.1.330 on macOS, with both profiles (it negotiates
+2026-07-28 by default, and 2025-11-25 with `MCP_PROTOCOL_NEGOTIATION=legacy`); see
+[the recorded connection](../specs/003-agent-bridge/evidence/host-connection.md). Claude
+Desktop has not been connected to a built Musaic yet.
+
 The CLI never starts Musaic. If the app is not running, a tool call answers
 `APP_NOT_RUNNING` ("Start Musaic, then try again"). With a non-default config folder pass
 `--config-dir` (the entry `setup` writes includes it when you gave one).

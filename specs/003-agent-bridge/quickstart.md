@@ -55,6 +55,7 @@ Then:
 ## 3. Not automatable in this run (report as not verified)
 
 - A real Claude Desktop or Claude Code connection, with the transcript saved and secrets
-  stripped.
+  stripped. Claude Code has since been recorded for both profiles in
+  `evidence/host-connection.md`; Claude Desktop has not.
 - Installer builds on each platform with the bundled CLI at its documented location.
 - macOS Keychain prompt behaviour on first CLI read.
