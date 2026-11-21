@@ -380,6 +380,7 @@ and the slice's targeted tests passing.
   - gitignore `musaic-desktop/binaries/`;
   - build `musaic-cli --release --target <triple>` and copy it to `binaries/musaic-cli-<triple>[.exe]` in `scripts/package_macos.sh` (before the Cargo.toml save, ≈:41) and in `.github/workflows/release.yml` (before `cargo tauri build`, ≈:225);
   - make the desktop dev build (`cargo build -p musaic-desktop`) not require the sidecar, or have `musaic-desktop/build.rs` create a placeholder only for non-bundle builds, so `cargo test --workspace` stays green.
+  - Follow-up (#350): the staging step is now one script, `scripts/stage_cli_sidecar.sh`, and every installer build ends with `scripts/check_bundled_cli.sh` (the CLI at its documented place, `--version` and `doctor` run; the AppImage's `setup` refusal). release.yml and the new `.github/workflows/bundle-check.yml` share the composite action `.github/actions/desktop-bundle`. The Windows CLI sits next to `musaic-desktop.exe`, not `Musaic.exe`; docs corrected.
 - [X] T062 [US5] Add a CI catalog check: in `.github/workflows/rust-tests.yml`, after Clippy (≈:195), add the step `cargo run -p musaic-cli --locked -- catalog --check`.
 
 **Checkpoint S7**: `cargo test -p musaic-cli` passes, `cargo build -p musaic-desktop` works, and `scripts/package_macos.sh` produces an app with `Contents/MacOS/musaic-cli` (run it if time allows; otherwise report it as not verified).
@@ -456,4 +457,4 @@ checkpoint the workspace is green.
 - (b) #347 Undo for applied changes, using the agent before-image records (also for the user's own edits)
 - (c) #348 Record a real MCP host connection (Claude Desktop / Claude Code) with versions and a secret-stripped transcript
 - (d) #349 Cancellation inside check runs and analysis (services), beyond item boundaries
-- (e) #350 Installer verification of the bundled musaic-cli on Windows and Linux
+- (e) #350 Installer verification of the bundled musaic-cli on Windows and Linux. Addressed by `bundle-check.yml` and the check at the end of every release build (see T061); macOS verified locally with `scripts/package_macos.sh`. The issue closes once `bundle-check` has passed on all three platforms.

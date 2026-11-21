@@ -296,8 +296,8 @@ Never point a development run at `~/.musaic` or at a real music library.
 One-time tools (from crates.io):
 
 ```bash
-cargo install tauri-cli --version "^2" --locked          # CI pins 2.12.4
-cargo install cargo-about --locked --features cli        # CI pins 0.9.3
+cargo install tauri-cli --version 2.12.4 --locked
+cargo install cargo-about --version 0.9.3 --locked --features cli
 ```
 
 On a Mac, from the repository root:
@@ -325,14 +325,26 @@ Notes:
   it adds `NOTICES.txt` to the resources, so plain `cargo build` / `cargo test`
   do not need the generated file.
 - `tauri.bundle.conf.json` also names the agent CLI as an `externalBin`
-  (`binaries/musaic-cli`). `scripts/package_macos.sh` and the release workflow build
-  `musaic-cli` for the target and copy it to
+  (`binaries/musaic-cli`). `scripts/stage_cli_sidecar.sh <triple>` builds `musaic-cli`
+  for the target and copies it to
   `rust/crates/musaic-desktop/binaries/musaic-cli-<triple>[.exe]` (gitignored) before
-  `cargo tauri build`; it lands at `Musaic.app/Contents/MacOS/musaic-cli` on macOS, next
-  to `Musaic.exe` on Windows and in `/usr/bin` for the deb (the AppImage holds it inside
-  the image, where `musaic-cli setup` refuses to register it: copy it out first). Only a
-  bundling build needs the file, so plain `cargo build` / `cargo test` stay green without
-  it.
+  `cargo tauri build`; `scripts/package_macos.sh` and the release workflow both call it.
+  Only a bundling build needs the file, so plain `cargo build` / `cargo test` stay green
+  without it.
+- `scripts/check_bundled_cli.sh <bundle-dir> <bundles> [<triple>]` then checks each
+  installer for the CLI at the place docs/agents.md names, and runs it (`--version`, and
+  `doctor` against a scratch config dir, which must report the descriptor absent):
+  - app, dmg: `Musaic.app/Contents/MacOS/musaic-cli` (the dmg is mounted read-only);
+  - deb: `usr/bin/musaic-cli` in the package data (`dpkg-deb -x`);
+  - AppImage: `usr/bin/musaic-cli` in the extracted image, and, run from the mounted
+    image (`--appimage-mount`, needs libfuse2), `musaic-cli setup --dry-run` must
+    refuse with the copy-it-out remedy;
+  - NSIS: a silent install (`/S /D=<scratch>`) must put `musaic-cli.exe` next to
+    `musaic-desktop.exe` (the main binary keeps the crate's bin name; the default
+    folder is `%LOCALAPPDATA%\Musaic`), then a silent uninstall.
+
+  A cross-built target (the Intel Mac build on Apple Silicon) gets an architecture
+  check (`lipo`) instead of a run. `scripts/package_macos.sh` ends with it.
 - `CI=true` makes the dmg step skip its Finder AppleScript (no window layout,
   no Automation prompt).
 - `cargo tauri build` rewrites the crate's `tauri-build` line in `Cargo.toml`;
@@ -342,8 +354,13 @@ Notes:
   copy (see the README for how to open it).
 
 Linux (AppImage, deb) and Windows (NSIS `-setup.exe`) bundles are built by
-`.github/workflows/release.yml` on the platform's own runner, with the same notices
-step and `cargo tauri build --no-sign`. The Windows installer is unsigned and is built
+`.github/workflows/release.yml` on the platform's own runner. Its build steps (toolchain,
+packaging tools, UI, notices, the CLI sidecar, `cargo tauri build --no-sign`, then
+`check_bundled_cli.sh`) live in the composite action `.github/actions/desktop-bundle`,
+which `.github/workflows/bundle-check.yml` also runs (macOS arm64, Linux x64, Windows
+x64) on pull requests that touch the desktop crate, the CLI, the packaging scripts or the
+workflows, and by hand; it uploads nothing. A release therefore cannot ship an installer
+whose CLI is missing or does not run. The Windows installer is unsigned and is built
 from the release after v0.2.0-rc.1 on; MSI is not used because its bundler rejects
 pre-release versions. Linux needs the WebKitGTK 4.1,
 GTK 3 and libsoup 3 development packages (listed in the README); Windows needs

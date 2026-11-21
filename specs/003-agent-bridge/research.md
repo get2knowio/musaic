@@ -238,7 +238,8 @@ Checked against main `00113c9b` and the published MCP documentation, 2026-11-20.
   `rust/crates/musaic-desktop/binaries/musaic-cli-<triple>[.exe]` (gitignored).
 - **Install locations**:
   - macOS: `Musaic.app/Contents/MacOS/musaic-cli`
-  - Windows: next to `Musaic.exe`
+  - Windows: `musaic-cli.exe` next to the main binary, `musaic-desktop.exe` (Tauri keeps
+    the crate's bin name; there is no `mainBinaryName`), in the install folder
   - Linux deb: `/usr/bin/musaic-cli`
   - Linux AppImage: inside the image. `setup` refuses an AppImage-internal path and tells
     the user to copy the CLI out.
@@ -247,6 +248,9 @@ Checked against main `00113c9b` and the published MCP documentation, 2026-11-20.
   three OSes.
 - **Not verifiable in this run**: an actual installer build on each platform. Reported as
   not verified.
+- **Follow-up (#350)**: `scripts/check_bundled_cli.sh` checks every installer after the
+  build (release.yml, and `bundle-check.yml` on pull requests, through the shared action
+  `.github/actions/desktop-bundle`); `scripts/stage_cli_sidecar.sh` is the one staging step.
 
 ## R13. Windows descriptor ACL
 

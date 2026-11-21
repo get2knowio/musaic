@@ -73,9 +73,13 @@ The CLI never starts Musaic. If the app is not running, a tool call answers
 | Platform | Location |
 |---|---|
 | macOS | `Musaic.app/Contents/MacOS/musaic-cli` |
-| Windows | next to `Musaic.exe` |
+| Windows | `musaic-cli.exe` in the install folder, next to the app's `musaic-desktop.exe` (`%LOCALAPPDATA%\Musaic` unless you chose another folder) |
 | Linux, deb | `/usr/bin/musaic-cli` |
-| Linux, AppImage | inside the image, which is not a stable path: `setup` refuses it. Copy `musaic-cli` out (for example to `~/.local/bin`) and run setup from there |
+| Linux, AppImage | `usr/bin/musaic-cli` inside the image, which is not a stable path: `setup` refuses it. Copy it out and run setup from there, for example: `./Musaic_<version>_amd64.AppImage --appimage-extract`, then copy `squashfs-root/usr/bin/musaic-cli` to `~/.local/bin` |
+
+Every installer the release builds is checked for these locations before it is published
+(`scripts/check_bundled_cli.sh`): the CLI must be there and answer `--version` and
+`doctor`.
 
 On macOS the Keychain may ask once whether `musaic-cli` may read the pairing's entry.
 

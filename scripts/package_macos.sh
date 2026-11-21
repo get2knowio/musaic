@@ -5,18 +5,20 @@
 #
 #   scripts/package_macos.sh          # npm ci if needed, SPA, NOTICES, bundle
 #
-# Output (gitignored, under rust/target/release/bundle/):
+# Output (gitignored, under rust/target/release/bundle/, or under
+# $CARGO_TARGET_DIR/release/bundle/ when that is set):
 #   macos/Musaic.app
 #   dmg/Musaic_<version>_<arch>.dmg   (<arch>: aarch64 or x64)
 #
 # Needs: cargo-tauri and cargo-about in ~/.cargo/bin or on PATH
-#   cargo install tauri-cli --version "^2" --locked
-#   cargo install cargo-about --locked --features cli
+#   cargo install tauri-cli --version 2.12.4 --locked
+#   cargo install cargo-about --version 0.9.3 --locked --features cli
 # Network: crates.io / npm registry fetches only (cargo fetch, npm ci).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="$HOME/.cargo/bin:$PATH"
+TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/rust/target}"
 
 # 1. The SPA (frontend/dist), from the committed package-lock.json.
 if [ ! -d "$ROOT/frontend/node_modules" ]; then
@@ -33,10 +35,7 @@ python3 "$ROOT/scripts/desktop_notices.py" --target "$HOST_TARGET"
 # 2b. The agent CLI, bundled beside the app as a Tauri externalBin
 # (Musaic.app/Contents/MacOS/musaic-cli). tauri.bundle.conf.json names it, so
 # only a bundling build needs this file; `cargo build` / `cargo test` do not.
-(cd "$ROOT/rust" && cargo build --release --locked -p musaic-cli --target "$HOST_TARGET")
-mkdir -p "$ROOT/rust/crates/musaic-desktop/binaries"
-cp "$ROOT/rust/target/$HOST_TARGET/release/musaic-cli" \
-   "$ROOT/rust/crates/musaic-desktop/binaries/musaic-cli-$HOST_TARGET"
+"$ROOT/scripts/stage_cli_sidecar.sh" "$HOST_TARGET"
 
 # 3. Release build + bundle. tauri.bundle.conf.json adds NOTICES.txt to the
 # resources; CI=true makes the dmg step skip its Finder AppleScript
@@ -55,6 +54,6 @@ env -u APPLE_CERTIFICATE -u APPLE_SIGNING_IDENTITY -u APPLE_ID -u APPLE_PASSWORD
     -u TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
     CI=true cargo tauri build --ci --bundles app,dmg --config tauri.bundle.conf.json
 
-test -x "$ROOT"/rust/target/release/bundle/macos/Musaic.app/Contents/MacOS/musaic-cli \
-  || { echo "the bundled musaic-cli is missing from Musaic.app" >&2; exit 1; }
-ls -d "$ROOT"/rust/target/release/bundle/macos/*.app "$ROOT"/rust/target/release/bundle/dmg/*.dmg
+# 4. The bundled CLI is where docs/agents.md says, and runs.
+"$ROOT/scripts/check_bundled_cli.sh" "$TARGET_DIR/release/bundle" app,dmg "$HOST_TARGET"
+ls -d "$TARGET_DIR"/release/bundle/macos/*.app "$TARGET_DIR"/release/bundle/dmg/*.dmg
