@@ -514,7 +514,7 @@ export default function ReviewPage() {
   const all: View = { kind: "inbox", filter: { kind: "all" } };
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
+    <div className="@container flex-1 min-h-0 flex flex-col">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 min-h-[var(--filterbar-h)] border-b border-line bg-panel-2 text-sm shrink-0">
         <Inbox className="w-3.5 h-3.5 text-fg-2" />
         <h1 className="font-medium">Review</h1>
@@ -539,10 +539,12 @@ export default function ReviewPage() {
       <PausedBanner aiReady={ai.ready} />
       <SourceNotice sources={[review.sources.findings, review.sources.jobs]} className="mx-4 mt-3 mb-1" />
 
-      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+      {/* The rail goes beside the list only when the page (not the window) has
+          room for both: at a 768 px window the sidebar leaves 544 px. */}
+      <div className="flex-1 min-h-0 flex flex-col @2xl:flex-row">
         <nav
           aria-label="Filters"
-          className="shrink-0 max-h-[40%] md:max-h-none md:w-[248px] overflow-y-auto border-b md:border-b-0 md:border-r border-line bg-panel-2 px-2 py-3"
+          className="shrink-0 max-h-[40%] @2xl:max-h-none @2xl:w-[200px] @4xl:w-[248px] overflow-y-auto border-b @2xl:border-b-0 @2xl:border-r border-line bg-panel-2 px-2 py-3"
         >
           <RailRow
             label="All open"

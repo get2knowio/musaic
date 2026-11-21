@@ -1,9 +1,11 @@
-import { Music } from "lucide-react";
+import { CloudOff, Music } from "lucide-react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
 import { coverUrl } from "@/lib/api";
 import { displayArtist } from "@/lib/albumFields";
+import { listLayout, type ListLayout } from "@/lib/albumListLayout";
 import type { Album, Job } from "@/lib/types";
+import { useElementWidth } from "@/hooks/useElementWidth";
 import JobStatusBadge from "./JobStatusBadge";
 import { requestPanelFocus } from "./DetailSheet/panelFocus";
 
@@ -15,6 +17,19 @@ interface AlbumListProps {
   activeJobs?: Map<string, Job>;
 }
 
+/** The grid columns for a layout; header, rows and skeletons share it. */
+function template(l: ListLayout): string {
+  return [
+    "40px",
+    l.stacked ? "minmax(0, 1fr)" : "minmax(0, 2fr) minmax(0, 1.4fr)",
+    l.year ? "56px" : "",
+    l.tracks ? "56px" : "",
+    l.length ? "72px" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 /**
  * Dense list view of the library. Same data as TileGrid, columnar layout.
  * Click a row → shows the album in the panel beside the list (URL preserves
@@ -22,41 +37,51 @@ interface AlbumListProps {
  * close). Same push/replace and keyboard-focus behaviour as Tile.
  */
 export default function AlbumList({ albums, skeletonCount = 0, activeJobs }: AlbumListProps) {
+  const [ref, width] = useElementWidth<HTMLDivElement>();
+  const layout = listLayout(width);
   return (
-    <div className="px-4 py-4">
+    <div ref={ref} className="px-4 py-4" data-list-layout={layoutName(layout)}>
       <div className="rounded-md border border-line bg-panel-2 overflow-hidden">
-        <ListHeader />
+        <ListHeader layout={layout} />
         {albums.map((album) => (
-          <Row key={album.id} album={album} activeJob={activeJobs?.get(album.id) ?? null} />
+          <Row key={album.id} album={album} activeJob={activeJobs?.get(album.id) ?? null} layout={layout} />
         ))}
         {Array.from({ length: skeletonCount }).map((_, i) => (
-          <SkeletonRow key={`skel-${i}`} />
+          <SkeletonRow key={`skel-${i}`} layout={layout} />
         ))}
       </div>
     </div>
   );
 }
 
-// Same column template used by header + rows so they line up.
-const ROW_TEMPLATE = "40px minmax(0, 2fr) minmax(0, 1.4fr) 64px 64px 80px";
+function layoutName(l: ListLayout): string {
+  const cols = [l.year && "year", l.tracks && "tracks", l.length && "length"].filter(Boolean);
+  return `${l.stacked ? "stacked" : "columns"}${cols.length ? `+${cols.join("+")}` : ""}`;
+}
 
-function ListHeader() {
+function ListHeader({ layout }: { layout: ListLayout }) {
   return (
     <div
       className="grid gap-3 px-3 py-2 border-b border-line text-fg-4 mono text-xs uppercase tracking-[0.06em]"
-      style={{ gridTemplateColumns: ROW_TEMPLATE }}
+      style={{ gridTemplateColumns: template(layout) }}
     >
       <span />
-      <span>Album</span>
-      <span>Artist</span>
-      <span className="text-right">Year</span>
-      <span className="text-right">Tracks</span>
-      <span className="text-right">Length</span>
+      {layout.stacked ? (
+        <span>Album · Artist</span>
+      ) : (
+        <>
+          <span>Album</span>
+          <span>Artist</span>
+        </>
+      )}
+      {layout.year && <span className="text-right">Year</span>}
+      {layout.tracks && <span className="text-right">Tracks</span>}
+      {layout.length && <span className="text-right">Length</span>}
     </div>
   );
 }
 
-function Row({ album, activeJob }: { album: Album; activeJob: Job | null }) {
+function Row({ album, activeJob, layout }: { album: Album; activeJob: Job | null; layout: ListLayout }) {
   const location = useLocation();
   const { albumId: openAlbumId } = useParams<{ albumId: string }>();
   const isOpen = openAlbumId === album.id;
@@ -64,6 +89,20 @@ function Row({ album, activeJob }: { album: Album; activeJob: Job | null }) {
     ? "Various Artists"
     : displayArtist(album, "Unknown artist");
   const hasCover = album.has_embedded_cover || album.cover_file !== null;
+  const isMissing = !!album.missing_since;
+  const title = album.title || album.dir_name;
+
+  const badges = (
+    <>
+      {isMissing && <MissingBadge since={album.missing_since!} />}
+      {activeJob && !isMissing && <JobStatusBadge job={activeJob} variant="row" />}
+      {!hasCover && !isMissing && (
+        <span className="mono text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-warn-soft text-warn border border-warn/30 shrink-0" title="No cover art">
+          no art
+        </span>
+      )}
+    </>
+  );
 
   return (
     <Link
@@ -79,10 +118,14 @@ function Row({ album, activeJob }: { album: Album; activeJob: Job | null }) {
       className={`grid gap-3 px-3 py-1.5 border-b border-line last:border-0 items-center text-sm transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent ${
         isOpen ? "bg-accent-soft ring-2 ring-inset ring-accent" : "hover:bg-bg-3"
       }`}
-      style={{ gridTemplateColumns: ROW_TEMPLATE }}
-      title={album.path}
+      style={{ gridTemplateColumns: template(layout) }}
+      title={isMissing ? `Folder missing since ${formatMissingDate(album.missing_since!)} — ${album.path}` : album.path}
     >
-      <div className="w-8 h-8 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4">
+      <div
+        className={`w-8 h-8 rounded bg-bg-2 overflow-hidden grid place-items-center text-fg-4 ${
+          isMissing ? "grayscale opacity-50" : ""
+        }`}
+      >
         {hasCover ? (
           <img
             src={coverUrl(album)}
@@ -95,43 +138,69 @@ function Row({ album, activeJob }: { album: Album; activeJob: Job | null }) {
           <Music className="w-3.5 h-3.5" />
         )}
       </div>
-      <div className="min-w-0 flex items-center gap-2">
-        <span className="font-medium truncate" title={album.title || album.dir_name}>
-          {album.title || album.dir_name}
+      {layout.stacked ? (
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-medium truncate" data-album-title title={title}>{title}</span>
+          </div>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="truncate text-fg-3 text-xs" data-album-artist title={artist}>{artist}</span>
+            {badges}
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="min-w-0 flex items-center gap-2">
+            <span className="font-medium truncate" data-album-title title={title}>{title}</span>
+            {badges}
+          </div>
+          <span className="truncate text-fg-2" data-album-artist title={artist}>{artist}</span>
+        </>
+      )}
+      {layout.year && <span className="mono tabular-nums text-fg-3 text-right">{album.year || "—"}</span>}
+      {layout.tracks && <span className="mono tabular-nums text-fg-3 text-right">{album.track_count || "—"}</span>}
+      {layout.length && (
+        <span className="mono tabular-nums text-fg-3 text-right">
+          {album.total_seconds ? formatDuration(album.total_seconds) : "—"}
         </span>
-        {activeJob && <JobStatusBadge job={activeJob} variant="row" />}
-        {!hasCover && (
-          <span className="mono text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-warn-soft text-warn border border-warn/30 shrink-0" title="No cover art">
-            no art
-          </span>
-        )}
-      </div>
-      <span className="truncate text-fg-2" title={artist}>
-        {artist}
-      </span>
-      <span className="mono tabular-nums text-fg-3 text-right">{album.year || "—"}</span>
-      <span className="mono tabular-nums text-fg-3 text-right">{album.track_count || "—"}</span>
-      <span className="mono tabular-nums text-fg-3 text-right">
-        {album.total_seconds ? formatDuration(album.total_seconds) : "—"}
-      </span>
+      )}
     </Link>
   );
 }
 
-function SkeletonRow() {
+/** The folder is not on disk: said in words (not colour or a tooltip alone). */
+function MissingBadge({ since }: { since: string }) {
+  return (
+    <span
+      data-missing-folder
+      className="inline-flex items-center gap-1 mono text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-warn-soft text-warn border border-warn/40 shrink-0"
+    >
+      <CloudOff className="w-3 h-3" aria-hidden />
+      Folder missing
+      <span className="sr-only">, not seen on disk since {formatMissingDate(since)}</span>
+    </span>
+  );
+}
+
+function SkeletonRow({ layout }: { layout: ListLayout }) {
   return (
     <div
       className="grid gap-3 px-3 py-1.5 border-b border-line last:border-0 items-center"
-      style={{ gridTemplateColumns: ROW_TEMPLATE }}
+      style={{ gridTemplateColumns: template(layout) }}
     >
       <div className="w-8 h-8 rounded bg-bg-2 animate-[skel-pulse_1.5s_ease-in-out_infinite]" />
       <div className="h-3.5 bg-bg-2 rounded animate-[skel-pulse_1.5s_ease-in-out_infinite]" />
-      <div className="h-3 bg-bg-2 rounded animate-[skel-pulse_1.5s_ease-in-out_infinite]" />
-      <div />
-      <div />
-      <div />
+      {!layout.stacked && <div className="h-3 bg-bg-2 rounded animate-[skel-pulse_1.5s_ease-in-out_infinite]" />}
+      {layout.year && <div />}
+      {layout.tracks && <div />}
+      {layout.length && <div />}
     </div>
   );
+}
+
+function formatMissingDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString();
 }
 
 function formatDuration(seconds: number): string {

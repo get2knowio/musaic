@@ -77,9 +77,11 @@ export function FindingRow({
     : "—";
 
   return (
-    <div className={`px-3 py-2 flex items-start gap-3 ${finding.ignored_at ? "opacity-55" : ""}`}>
+    <div className={`px-3 py-2 flex flex-wrap items-start gap-x-3 gap-y-1.5 ${finding.ignored_at ? "opacity-55" : ""}`}>
       <SevIcon className={`w-4 h-4 shrink-0 mt-0.5 ${sevClass}`} />
-      <div className="flex-1 min-w-0">
+      {/* In a narrow list the actions wrap below the text instead of
+          squeezing the album name to nothing. */}
+      <div className="flex-1 min-w-[min(100%,14rem)]">
         {/* Title row + jump-to-album icon. Same pattern as the Jobs
             page: the title itself isn't a link (keeping the visual
             consistent with non-clickable text), an inline
@@ -146,7 +148,7 @@ export function FindingRow({
           </div>
         )}
       </div>
-      <div className="flex items-center gap-1 shrink-0">
+      <div className="flex items-center gap-1 shrink-0 ml-auto">
         {album?.missing_since && fixKind !== "none" && !finding.ignored_at ? (
           // A Missing album's folder is not on disk, so no fix can touch
           // its files; the album sheet hides findings for the same reason.

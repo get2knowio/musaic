@@ -25,6 +25,7 @@ import {
 import LibraryPathForm from "@/components/LibraryPathForm";
 import { libraryPathHelp } from "@/lib/desktop";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
+import { useElementWidth } from "@/hooks/useElementWidth";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScanStream } from "@/hooks/useScanStream";
 import { useJobs, useActiveJobAlbumMap } from "@/hooks/useJobs";
@@ -543,26 +544,6 @@ function ScrollPersistedArea({
       {children}
     </div>
   );
-}
-
-// ---------- layout ----------
-
-/** A callback ref and the element's current width (null until measured). */
-function useElementWidth<T extends HTMLElement>(): [(el: T | null) => void, number | null] {
-  const [width, setWidth] = useState<number | null>(null);
-  const observer = useRef<ResizeObserver | null>(null);
-  const ref = useCallback((el: T | null) => {
-    observer.current?.disconnect();
-    observer.current = null;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    setWidth(el.getBoundingClientRect().width);
-    observer.current = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width;
-      if (w !== undefined) setWidth(w);
-    });
-    observer.current.observe(el);
-  }, []);
-  return [ref, width];
 }
 
 // ---------- filtering ----------
