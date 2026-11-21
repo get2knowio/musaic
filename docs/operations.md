@@ -273,6 +273,11 @@ take the guard before the meaning validation, listed per row and below).
   checks) is `Ok(Aborted)` with no terminal event, as the body ended with no final frame
   before, and the operation logs it (target `musaic.api.analyze`, unchanged). A sink that
   panics counts as `Gone`.
+  `analyze().run_cancellable(album_id, what, cancel, sink)` (the agent bridge's, #349) also
+  takes a cancel flag, looked at only before each file: once set, no further file starts,
+  no album gain is written, the album is rescanned and `AlbumTagsChanged` published when a
+  file was written, `Done` carries the partial counts and the outcome is `Cancelled`. The
+  route has no flag.
 - Each of the three runs (`analyze.run`, `apply.apply_changes`, `apply.upload_cover`) is
   also offered in two steps: `prepare` / `prepare_changes` / `prepare_upload` take the
   guard and find the album, writing nothing, and return a run (`AnalyzeRun`, `ApplyRun`)
@@ -335,6 +340,10 @@ take the guard before the meaning validation, listed per row and below).
   scope (`Rejected`), then the library (`NoLibrary`, "No library configured"), then the run. An
   unknown check or an `albums` scope without ids is `Rejected` (a 400 today), not the `NotFound`
   the first inventory had; only `checks.get` and the finding lookups are `NotFound`.
+  `checks.run_cancellable(…, cancel)` (the agent bridge's, #349) stops the check before its
+  next album once the flag is set: the run ends `failed` ("check run cancelled") with the
+  findings it wrote, resolves nothing, records no inputs and is still reported in
+  `ChecksRerunFinished`. The route has no flag.
 - The check summaries, a check's detail, a finding and the cluster preview are record newtypes
   (`CheckSummaryRecord`, `CheckDetailRecord`, `FindingRecord`, `ClusterPreview`, in `record.rs`):
   they are documents the checks crate builds from stored data (a finding's detail is stored text

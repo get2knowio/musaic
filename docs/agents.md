@@ -17,7 +17,13 @@ Twelve tools, in three groups:
   album's current revision, then apply the preview. Applying runs now or waits for you,
   depending on the pairing's policy (below).
 - **Start work**: a library scan, health checks, or an analysis (tempo, ReplayGain) of some
-  albums. Each returns a handle to poll, and can be stopped between items.
+  albums. Each returns a handle to poll, and can be stopped: a scan through its own
+  cancel, health checks before the next album a check looks at, an analysis before the
+  next file it measures. A file being written is always finished first. A health check
+  stopped part-way keeps the findings it wrote, resolves none, and is run again later by
+  the background sweep. An analysis stopped part-way keeps the tags of the files it wrote
+  (ReplayGain then writes no album gain, which needs every track), and the album is
+  rescanned as after a finished one.
 
 An assistant cannot: run SQL or a shell, read a file path, read or write keys, delete or
 move anything outside the rename a proposal asks for, restore or download the database,

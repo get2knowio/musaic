@@ -437,9 +437,14 @@ against expectations.
 - **FR-043**: `musaic_operation_get` MUST report state (awaiting approval, running,
   succeeded, failed, cancelled, denied, expired), counts and the result or error;
   `musaic_operation_cancel` MUST request cooperative cancellation, honoured at item
-  boundaries (between albums, between checks), for a scan through the scan's own cancel,
-  and for an apply only while it awaits approval (amended at plan time). A pairing can see
-  and cancel only its own operations.
+  boundaries: between checks and, inside a check run, before the check's next album;
+  between albums and, inside an album's analysis, before its next file (never while a
+  file is written); for a scan through the scan's own cancel; and for an apply only while
+  it awaits approval (amended at plan time; finer-grained within a check run and an
+  analysis since #349). A check run stopped part-way ends failed, keeps the findings it
+  wrote, resolves none and records no inputs, so the background sweep runs it again; an
+  analysis stopped part-way writes no album gain and still publishes `AlbumTagsChanged`
+  for the files it wrote. A pairing can see and cancel only its own operations.
 - **FR-044**: Every mutation an agent causes MUST publish the same domain events and follow
   the same work and restore gates as the equivalent desktop action (rules 1 and 7).
 - **FR-045**: Every new agent operation MUST be an operation on the operations surface with

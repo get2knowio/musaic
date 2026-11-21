@@ -125,6 +125,7 @@ impl Check for UnidentifiedAlbum {
             .collect::<rusqlite::Result<_>>()?
         };
         for row in rows {
+            ctx.checkpoint()?;
             let previously_attempted =
                 row.last_checked.is_some() && row.mbid.as_deref().is_none_or(str::is_empty);
             let summary = summarize(

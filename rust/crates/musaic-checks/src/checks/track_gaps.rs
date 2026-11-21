@@ -170,6 +170,7 @@ impl Check for TrackGaps {
         emit: &mut Emit<'_>,
     ) -> Result<(), CheckError> {
         for album in &scope.albums {
+            ctx.checkpoint()?;
             let whole = findings_for(&album.id, &album.track_numbers, album.track_count);
             if whole.is_empty() {
                 // Judging per disc turns repeats into nothing, so the files

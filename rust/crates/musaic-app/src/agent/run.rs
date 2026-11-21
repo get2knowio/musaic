@@ -9,7 +9,8 @@
 
 use std::collections::BTreeSet;
 use std::path::Path;
-use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use musaic_commands::auth::{hex_encode, random_hex};
@@ -803,6 +804,16 @@ fn cancelled(app: &App, id: &str) -> bool {
         .is_some_and(|s| s.cancel.load(Ordering::SeqCst))
 }
 
+/// The operation's cancel flag, handed to the services so a check run stops
+/// between albums and an analysis between files.
+fn cancel_flag(app: &App, id: &str) -> Arc<AtomicBool> {
+    app.0
+        .agent
+        .operation_any(id)
+        .map(|s| s.cancel)
+        .unwrap_or_default()
+}
+
 fn worker(app: &App, op_id: &str, work: Compute) {
     app.0.agent.set_state(op_id, OperationState::Running);
     let hub = &app.0.agent;
@@ -922,6 +933,8 @@ fn run_checks(app: &App, op_id: &str, input: &ChecksStartInput) -> Finished {
     let total = ids.len() as u32;
     let (mut done, mut failed) = (0u32, 0u32);
     let mut summaries = Vec::new();
+    let cancel = cancel_flag(app, op_id);
+    let cancelled_run = musaic_checks::CheckError::Cancelled.to_string();
     hub.set_counts(
         op_id,
         Counts {
@@ -930,22 +943,43 @@ fn run_checks(app: &App, op_id: &str, input: &ChecksStartInput) -> Finished {
             failed,
         },
     );
+    let stop = |summaries| {
+        (
+            OperationState::Cancelled,
+            Some(OperationResult {
+                checks: Some(summaries),
+                ..Default::default()
+            }),
+            None,
+        )
+    };
     for id in &ids {
-        // Cancellation is honoured between checks.
+        // Between checks; inside one, the runner stops before its next album.
         if cancelled(app, op_id) {
-            return (
-                OperationState::Cancelled,
-                Some(OperationResult {
-                    checks: Some(summaries),
-                    ..Default::default()
-                }),
-                None,
-            );
+            return stop(summaries);
         }
-        let (findings, bad) = match app.ops().checks().run(id, scope, albums) {
-            Ok(run) => (run.issue_count.max(0) as u32, run.status == "failed"),
-            Err(_) => (0, true),
+        let (findings, bad, stopped) = match app
+            .ops()
+            .checks()
+            .run_cancellable(id, scope, albums, &cancel)
+        {
+            Ok(run) => (
+                run.issue_count.max(0) as u32,
+                run.status == "failed",
+                run.status == "failed" && run.error.as_deref() == Some(&cancelled_run),
+            ),
+            Err(_) => (0, true, false),
         };
+        if stopped {
+            // The check stopped part-way: its findings so far, and `failed`
+            // because it did not complete. Not counted as done or failed.
+            summaries.push(CheckRunSummary {
+                check_id: id.clone(),
+                findings,
+                failed: true,
+            });
+            return stop(summaries);
+        }
         done += 1;
         failed += bad as u32;
         summaries.push(CheckRunSummary {
@@ -978,6 +1012,7 @@ fn run_checks(app: &App, op_id: &str, input: &ChecksStartInput) -> Finished {
 }
 
 fn run_analysis(app: &App, op_id: &str, input: &AnalysisStartInput) -> Finished {
+    use crate::ops::analyze::AnalyzeOutcome as Outcome;
     use musaic_services::analyze::AnalysisKind as Kind;
     let hub = &app.0.agent;
     let total = input.album_ids.len() as u32;
@@ -992,27 +1027,35 @@ fn run_analysis(app: &App, op_id: &str, input: &AnalysisStartInput) -> Finished 
         },
     );
     let conn = conn(app).ok();
+    let cancel = cancel_flag(app, op_id);
+    let stop = |items| {
+        (
+            OperationState::Cancelled,
+            Some(OperationResult {
+                analysis: Some(items),
+                ..Default::default()
+            }),
+            None,
+        )
+    };
     for album in &input.album_ids {
-        // Cancellation is honoured between albums.
+        // Between albums; inside one, the analysis stops before its next file.
         if cancelled(app, op_id) {
-            return (
-                OperationState::Cancelled,
-                Some(OperationResult {
-                    analysis: Some(items),
-                    ..Default::default()
-                }),
-                None,
-            );
+            return stop(items);
         }
         let missing = conn
             .as_ref()
             .and_then(|c| musaic_db::albums::missing_since(c, album).ok().flatten())
             .is_some_and(|s| !s.is_empty());
         for kind in &input.kinds {
+            if cancelled(app, op_id) {
+                return stop(items);
+            }
             let name = match kind {
                 AnalysisKind::Bpm => "bpm",
                 AnalysisKind::Replaygain => "replaygain",
             };
+            let mut stopped = false;
             let status = if missing {
                 FileStatus::Skipped
             } else {
@@ -1023,14 +1066,30 @@ fn run_analysis(app: &App, op_id: &str, input: &AnalysisStartInput) -> Finished 
                 match app
                     .ops()
                     .analyze()
-                    .run(album, k, &mut |_| crate::ops::Listening::Yes)
+                    .run_cancellable(album, k, &cancel, &mut |_| crate::ops::Listening::Yes)
                 {
-                    Ok(crate::ops::analyze::AnalyzeOutcome::Finished(s)) if s.errors == 0 => {
-                        FileStatus::Ok
+                    Ok(Outcome::Finished(s)) if s.errors == 0 => FileStatus::Ok,
+                    // Stopped part-way: some files written, the album not
+                    // finished (not counted as failed). None written: skipped.
+                    Ok(Outcome::Cancelled(s)) => {
+                        stopped = true;
+                        if s.analyzed_count + s.errors == 0 {
+                            FileStatus::Skipped
+                        } else {
+                            FileStatus::Failed
+                        }
                     }
                     _ => FileStatus::Failed,
                 }
             };
+            if stopped {
+                items.push(AnalysisItem {
+                    album_id: album.clone(),
+                    kind: name.into(),
+                    status,
+                });
+                return stop(items);
+            }
             if status == FileStatus::Failed {
                 failed += 1;
             }
@@ -1312,7 +1371,9 @@ pub fn operation_cancel(
         }
     }
     // An apply that has started cannot be stopped (a tag write in progress is
-    // not interruptible); everything else stops at its next item boundary.
+    // not interruptible); everything else stops at its next boundary: a scan
+    // through its own cancel, a check run before its next album, an analysis
+    // before its next file.
     if s.tool == "musaic_fix_apply" {
         return Ok(out(s.state, Cancellation::NotCancellable));
     }

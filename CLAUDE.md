@@ -394,7 +394,8 @@ See `SECURITY.md`.
 
 1. Add `rust/crates/musaic-checks/src/checks/<name>.rs` implementing `Check`
    (`musaic-checks/src/base.rs`: `meta()` and `run(ctx, scope, emit)`); export it from
-   `checks/mod.rs`.
+   `checks/mod.rs`. A check that looks at albums one at a time calls `ctx.checkpoint()?`
+   before each, so a cancelled run (an agent's) stops between albums.
 2. Add it to `Registry::default` in `musaic-checks/src/registry.rs` (order is display
    order).
 3. A fix, if any, goes in `musaic-services/src/check_fixes.rs`, and mutates through the

@@ -191,9 +191,11 @@ Checked against main `00113c9b` and the published MCP documentation, 2026-11-20.
 - **Scan**: `scan.start(false)` and `scan.cancel()`. If a scan is already running, the
   operation follows it.
 - **Checks**: loop over check ids, calling `checks.run(id, scope, albums)` per check;
-  cancellation is checked between checks.
+  cancellation is checked between checks, and the operation's cancel flag is handed to
+  `checks.run_cancellable`, so a check stops before its next album (#349).
 - **Analysis**: loop over albums × kinds with `analyze.run`; cancellation is checked
-  between albums.
+  between albums, and the flag is handed to `analyze.run_cancellable`, so an album's
+  analysis stops before its next file (#349).
 
 ## R10. Bus event and UI
 
