@@ -11,6 +11,13 @@
 - **Pairing list**: each row shows name, scopes, created date, last used date, a policy
   selector per kind (Allow / Ask / Refuse, disabled for kinds outside the scope), a
   Revoke button with a confirmation, and an expandable activity list (last 100).
+- **Recent changes** (FR-055): per pairing, revoked ones included, an expandable list of
+  the changes it applied (newest first, at most 20): time, album, what it did, state. Each
+  change has an Undo button, disabled with the backend's reason beside it (and as its
+  description) when Undo would not run; an undo's own record has none. Undo opens a
+  confirmation that starts on Cancel: "Put back the tags, names and cover this assistant
+  changed on <Album>?" A refusal (for example, the album changed since) is shown as a
+  toast with the reason, listing what changed.
 - **Note shown on the page**: "Anyone who can run programs as you on this computer can use
   a pairing. Revoke pairings you no longer use."
 
@@ -28,4 +35,7 @@
 
 `useAgentPairings` and `useAgentApprovals` use `staleTime: Infinity`. Both are invalidated
 by `AgentStateChanged` through `useLibraryEventsStream` (rule 5). Mutation handlers do not
-call `invalidateQueries`.
+call `invalidateQueries`. `useAgentChanges` (`["agent", "changes", pairingId]`) also uses
+`staleTime: Infinity`; it is invalidated by `AgentStateChanged(changes)` and, because
+whether a change can be undone depends on the album's files, by the album events (tags,
+cover, rename, missing, scan, bulk batch).

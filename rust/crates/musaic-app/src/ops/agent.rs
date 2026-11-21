@@ -52,6 +52,12 @@ pub enum AgentError {
     /// The state forbids it: 20 pairings are active, or a card is no longer
     /// pending.
     Conflict { message: String },
+    /// An undo found the album changed since the assistant's change: what
+    /// changed, one entry per file and field. Nothing was written.
+    ChangedSince {
+        message: String,
+        changed: Vec<String>,
+    },
     /// Any other operation failure (the database, the library).
     Op(OpError),
 }
@@ -141,6 +147,40 @@ pub struct ApprovalRecord {
     pub diff: Option<FixDiff>,
 }
 
+/// One recorded change an assistant made (or an undo of one), as Settings
+/// lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChangeRecord {
+    pub id: String,
+    pub pairing_id: String,
+    pub pairing_name: String,
+    /// The album's id now (after a folder rename, the new one).
+    pub album_id: String,
+    pub album_label: Option<String>,
+    pub created_at: String,
+    /// `recorded`, `applied`, `partial`, `failed` or `undone`.
+    pub state: String,
+    /// What it did, in a few words (labels only).
+    pub summary: String,
+    /// For an undo's own record: the change it put back.
+    pub undoes: Option<String>,
+    /// Whether Undo would run now; when not, `reason` says why.
+    pub undoable: bool,
+    pub reason: Option<String>,
+}
+
+/// What an undo did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UndoOutcome {
+    /// The change, now `undone`.
+    pub change: ChangeRecord,
+    /// The undo's own record (its before-image).
+    pub undo_id: String,
+    /// Everything was put back; when not, `message` says what was not.
+    pub complete: bool,
+    pub message: Option<String>,
+}
+
 /// The tool catalog and the registry's identity, as the catalog route
 /// renders them.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -221,6 +261,34 @@ fn record_of(
     })
 }
 
+/// "Artist - Title" of an album, for a label.
+pub(crate) fn album_label(
+    conn: &rusqlite::Connection,
+    lib: Option<&str>,
+    id: &str,
+) -> Option<String> {
+    musaic_services::agent_read::cached_row(conn, lib, id)
+        .ok()
+        .map(|r| {
+            let a = musaic_core::album_fields::display_artist(
+                r.album.album_artist.as_deref(),
+                r.album.artist.as_deref(),
+                r.album.dir_artist.as_deref(),
+                true,
+            );
+            let t = r
+                .album
+                .title
+                .clone()
+                .unwrap_or_else(|| r.album.dir_name.clone());
+            if a.is_empty() {
+                t
+            } else {
+                format!("{a} - {t}")
+            }
+        })
+}
+
 /// One card as the Review inbox shows it: its pairing's name, and the album
 /// and diff of its proposal when it has one (labels only).
 fn approval_record(
@@ -236,28 +304,9 @@ fn approval_record(
         None => None,
     };
     let album_id = proposal.as_ref().map(|p| p.album_id.clone());
-    let album_label = album_id.as_deref().and_then(|id| {
-        musaic_services::agent_read::cached_row(conn, lib, id)
-            .ok()
-            .map(|r| {
-                let a = musaic_core::album_fields::display_artist(
-                    r.album.album_artist.as_deref(),
-                    r.album.artist.as_deref(),
-                    r.album.dir_artist.as_deref(),
-                    true,
-                );
-                let t = r
-                    .album
-                    .title
-                    .clone()
-                    .unwrap_or_else(|| r.album.dir_name.clone());
-                if a.is_empty() {
-                    t
-                } else {
-                    format!("{a} - {t}")
-                }
-            })
-    });
+    let album_label = album_id
+        .as_deref()
+        .and_then(|id| album_label(conn, lib, id));
     Ok(ApprovalRecord {
         id: card.id,
         pairing_id: card.pairing_id,
@@ -744,6 +793,31 @@ impl Agent<'_> {
                 approval_record(&conn, self.app.library_dir().as_deref(), card)
             }
         }
+    }
+
+    // ---------------------------------------------------------- changes
+
+    /// The recent changes assistants made (a pairing's, or every pairing's),
+    /// newest first, at most 20 per call, each with whether Undo would run
+    /// now. Reads only: nothing is written and no guard is taken. `NotFound`
+    /// for an unknown pairing.
+    pub fn list_changes(&self, pairing_id: Option<&str>) -> Result<Vec<ChangeRecord>, AgentError> {
+        crate::agent::undo::list_changes(self.app, pairing_id)
+    }
+
+    /// The desktop user's Undo of an assistant's change: no agent tool
+    /// reaches it. Under the apply guard (a restore running refuses it), in
+    /// this order: the change exists (`NotFound`); it was applied or partly
+    /// applied and not undone, and is not itself an undo (`Conflict`); its
+    /// album is present (`Conflict`, rule 6); the files still hold exactly
+    /// what the change left (`ChangedSince`, listing what differs; nothing
+    /// is written). Then it records its own before-image, renames back
+    /// through the rename service, puts the tags, pictures and cover files
+    /// back through the apply pipeline (the same events as any rename and
+    /// apply), marks the change `undone`, records an activity row and
+    /// publishes [`AgentWhat::Changes`].
+    pub fn undo_change(&self, change_id: &str) -> Result<UndoOutcome, AgentError> {
+        crate::agent::undo::undo_change(self.app, change_id)
     }
 
     /// Expire the cards whose time has come ("timed out"). The app calls it

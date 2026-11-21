@@ -250,7 +250,7 @@ pub static REGISTRY: [ToolDef; 12] = [
 
 /// What the contract deliberately does not offer (FR-005), stated in the
 /// catalog.
-pub const NOT_OFFERED: [&str; 8] = [
+pub const NOT_OFFERED: [&str; 9] = [
     "raw SQL",
     "shell execution",
     "arbitrary filesystem paths",
@@ -259,6 +259,7 @@ pub const NOT_OFFERED: [&str; 8] = [
     "database restore or backup download",
     "settings changes",
     "setting or changing agent permissions and policies, including approving its own requests",
+    "undoing an applied change (only the person at the desktop can)",
 ];
 
 /// The tool with this id.

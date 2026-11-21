@@ -71,9 +71,19 @@ restarted".
 | approval_id | TEXT NULL | NULL when the policy was Allow |
 | album_id | TEXT | album id before any rename |
 | created_at | TEXT | written before the first file changes |
-| state | TEXT | `recorded`, then `applied`, `partial` or `failed` once apply finishes |
-| before | TEXT | JSON: `{files: {fileName: {"album.FIELD" \| "track.FIELD": value \| null \| [values]}}, renames: {files: [{from, to}], folder?: {from, to}}, cover?: {sidecars: [{name, savedAs: "agent-changes/<id>/sidecars/<name>"}], embedded: {fileName: [{savedAs: "agent-changes/<id>/pictures/<hash>.<ext>", type, mime, description, width, height, depth, colors}]}}}`. Names are bare names, not paths |
-| outcome | TEXT NULL | per-file outcomes, as reported to the agent |
+| state | TEXT | `recorded`, then `applied`, `partial` or `failed` once apply finishes; `undone` once the desktop user undid it (FR-055) |
+| before | TEXT | JSON: `{files: {fileName: {"album.FIELD" \| "track.FIELD": value \| null \| [values]}}, aliases?: {fileName: {VORBISKEY: value \| null \| [values]}}, renames: {files: [{from, to}], folder?: {from, to}}, cover?: {sidecars: [{name, savedAs: "agent-changes/<id>/sidecars/<name>"}], embedded: {fileName: [{savedAs: "agent-changes/<id>/pictures/<hash>.<ext>", type, mime, description, width, height, depth, colors}]}}}`. Names are bare names, not paths. `aliases` holds the other spellings a removal deletes with its field (`album_artist`, `year`), only for fields the change removes |
+| outcome | TEXT NULL | per-file outcomes, as reported to the agent (for an undo: `{albumId, error}`) |
+| after | TEXT NULL | written once an `applied` or `partial` change finished (also `after.json` beside `before.json`): `{albumId, folder, files: {nameBefore: {name, fields?: {key: value}, aliases?: {key: value}, pictures?: [digest], unread?: true}}, sidecars?: {name: digest}}`: the album's id and folder name now, and for every file the record names, the name it has now, the same keys' values, and digests of its PICTURE blocks and of the cover files when the change set a cover. NULL: cannot be undone |
+| undoes | TEXT NULL | on an undo's own record: the change it undid |
+
+An undo (FR-055) compares the files with `after` (file by file, field by field; files by
+same-file identity) and refuses, writing nothing, when anything differs. It then records
+its own before-image as a new row (same pairing and proposal, `undoes` set; never
+undoable itself), renames back, restores tags, pictures and cover files, finishes its row
+(`applied`, `partial` or `failed`) and marks the original `undone` unless it wrote
+nothing. The `after` and `undoes` columns and the `undone` state were added to the v21
+definition in place: v21 had not been released.
 
 Rows are kept for 90 days, then pruned at startup together with their
 `<config dir>/agent-changes/<id>/` directory. A cover apply replaces both kinds of cover

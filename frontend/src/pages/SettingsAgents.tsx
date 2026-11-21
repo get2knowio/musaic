@@ -5,13 +5,22 @@ import { toast } from "sonner";
 
 import {
   useAgentActivity,
+  useAgentChanges,
   useAgentPairings,
   useCreateAgentPairing,
   useRevokeAgentPairing,
   useSetAgentPolicy,
+  useUndoAgentChange,
 } from "@/hooks/useAgents";
 import { useReturnFocus } from "@/components/DetailSheet/useReturnFocus";
-import { AGENT_KINDS, type AgentDecision, type AgentKind, type AgentPairing, type AgentPairingCreated } from "@/lib/api";
+import {
+  AGENT_KINDS,
+  type AgentChange,
+  type AgentDecision,
+  type AgentKind,
+  type AgentPairing,
+  type AgentPairingCreated,
+} from "@/lib/api";
 import { AGENT_DECISION_LABEL, AGENT_KIND_LABEL, decisionsFor, outcomeText } from "@/lib/agentCopy";
 import { errorText } from "@/lib/errors";
 
@@ -195,6 +204,7 @@ function ConnectInfo({ pairing, onDone }: { pairing: AgentPairingCreated; onDone
 function PairingRow({ pairing, onRevoke }: { pairing: AgentPairing; onRevoke: () => void }) {
   const setPolicy = useSetAgentPolicy();
   const [open, setOpen] = useState(false);
+  const [changesOpen, setChangesOpen] = useState(false);
   const isRevoked = !!pairing.revokedAt;
   const scoped = AGENT_KINDS.filter((k) => pairing.scopes.includes(k));
 
@@ -262,7 +272,157 @@ function PairingRow({ pairing, onRevoke }: { pairing: AgentPairing; onRevoke: ()
       <div id={`activity-${pairing.id}`} hidden={!open}>
         {open && <ActivityList id={pairing.id} />}
       </div>
+      <button
+        type="button"
+        onClick={() => setChangesOpen((o) => !o)}
+        aria-expanded={changesOpen}
+        aria-controls={`changes-${pairing.id}`}
+        className="inline-flex items-center gap-1 text-xs text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent rounded-sm"
+      >
+        {changesOpen ? <ChevronDown className="w-3 h-3" aria-hidden /> : <ChevronRight className="w-3 h-3" aria-hidden />}
+        Recent changes
+      </button>
+      <div id={`changes-${pairing.id}`} hidden={!changesOpen}>
+        {changesOpen && <ChangesList pairing={pairing} />}
+      </div>
     </li>
+  );
+}
+
+const CHANGE_STATE_LABEL: Record<AgentChange["state"], string> = {
+  recorded: "Not finished",
+  applied: "Applied",
+  partial: "Partly applied",
+  failed: "Not applied",
+  undone: "Undone",
+};
+
+/** The changes this assistant applied, newest first, each with an Undo the
+ * backend says whether it can run (the files must still hold what the
+ * change left). */
+function ChangesList({ pairing }: { pairing: AgentPairing }) {
+  const changes = useAgentChanges(pairing.id);
+  const undo = useUndoAgentChange();
+  const [confirming, setConfirming] = useState<AgentChange | null>(null);
+
+  const confirmUndo = () => {
+    if (!confirming) return;
+    const target = confirming;
+    undo.mutate(target.id, {
+      onSuccess: (r) => {
+        if (r.complete) toast.success(`Undone on ${albumName(target)}`, { duration: 2500 });
+        else toast.warning(r.message ?? "Not everything could be put back", { duration: 6000 });
+        setConfirming(null);
+      },
+      onError: (err) => {
+        toast.error(errorText(err, "Could not undo the change"), { duration: 6000 });
+        setConfirming(null);
+      },
+    });
+  };
+
+  if (changes.isPending) return <p className="text-xs text-fg-3">Loading…</p>;
+  if (changes.isError && !changes.data) return <p className="text-xs text-fg-3">Couldn't load the changes.</p>;
+  const rows = changes.data ?? [];
+  if (rows.length === 0) return <p className="text-xs text-fg-3">No changes yet.</p>;
+  return (
+    <>
+      <ul aria-label={`Recent changes by ${pairing.name}`} className="max-h-72 overflow-y-auto text-xs divide-y divide-line border border-line rounded">
+        {rows.map((c) => {
+          const reasonId = `undo-reason-${c.id}`;
+          return (
+            <li key={c.id} className="px-2 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1" data-change-id={c.id}>
+              <span className="text-fg-3 tabular-nums">{when(c.createdAt)}</span>
+              <span className="text-fg font-medium">{albumName(c)}</span>
+              <span className="text-fg-2">{c.summary}</span>
+              <span className="text-fg-3">{CHANGE_STATE_LABEL[c.state] ?? c.state}</span>
+              <div className="flex-1" />
+              {!c.undoes && (
+                <button
+                  type="button"
+                  disabled={!c.undoable || undo.isPending}
+                  onClick={() => setConfirming(c)}
+                  aria-label={`Undo the change on ${albumName(c)}`}
+                  aria-describedby={c.reason ? reasonId : undefined}
+                  className={`${BUTTON} h-7 px-2 text-xs`}
+                >
+                  Undo
+                </button>
+              )}
+              {!c.undoable && c.reason && !c.undoes && (
+                <span id={reasonId} className="basis-full text-fg-3">
+                  {c.reason}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {confirming && (
+        <UndoConfirm
+          change={confirming}
+          busy={undo.isPending}
+          onConfirm={confirmUndo}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function albumName(c: AgentChange): string {
+  return c.albumLabel ?? "this album";
+}
+
+function UndoConfirm({
+  change,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  change: AgentChange;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const returnFocus = useReturnFocus(true);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  return (
+    <Dialog.Root open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/45 backdrop-blur-[1px]" />
+        <Dialog.Content
+          className="fixed top-1/2 left-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[min(440px,95vw)] bg-panel border border-line rounded-md shadow-sheet outline-none"
+          // Starts on Cancel, so Enter does not overwrite anything.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            cancelRef.current?.focus();
+          }}
+          onCloseAutoFocus={returnFocus}
+        >
+          <div className="px-4 py-3 border-b border-line">
+            <Dialog.Title className="font-semibold text-md">Undo this change?</Dialog.Title>
+          </div>
+          <Dialog.Description className="px-4 py-3.5 text-sm text-fg-2">
+            Put back the tags, names and cover this assistant changed on {albumName(change)}?
+          </Dialog.Description>
+          <p className="px-4 pb-3.5 text-xs text-fg-3">{change.summary}</p>
+          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
+            <button ref={cancelRef} type="button" onClick={onCancel} className={BUTTON}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onConfirm}
+              className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
+            >
+              {busy ? "Undoing…" : "Undo"}
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 

@@ -436,7 +436,7 @@ pub fn apply_album_changes(
     req: &ApplyRequest,
     sink: &mut dyn FnMut(ApplyEvent) -> ControlFlow<()>,
 ) -> ApplyOutcome {
-    apply_with(env, req, None, sink)
+    apply_with(env, req, Special::None, sink)
 }
 
 /// The fields a multi-disc conversion's `AlbumTagsChanged` names.
@@ -465,13 +465,58 @@ pub fn apply_disc_conversion(
         library_dir: library_dir.map(str::to_string),
         ..ApplyRequest::default()
     };
-    apply_with(env, &req, Some(conversion), sink)
+    apply_with(env, &req, Special::Conversion(conversion), sink)
+}
+
+/// What an undo puts back through this pipeline
+/// ([`musaic_tags::Restore`], plus the cover sidecars).
+#[derive(Debug, Clone, Default)]
+pub struct RestoreRequest {
+    pub tags: musaic_tags::Restore,
+    /// The cover sidecars, by bare name and bytes; `None` leaves them alone,
+    /// `Some(empty)` leaves the folder without one.
+    pub sidecars: Option<Vec<(String, Vec<u8>)>>,
+    /// The fields `AlbumTagsChanged` names (the album and track fields the
+    /// undone change touched).
+    pub fields: Vec<String>,
+}
+
+/// The writes of an undo (`musaic_app`'s agent undo), through this
+/// pipeline: the same items, the same Missing refusal, the same rescan,
+/// upsert, `AlbumTagsChanged` (naming [`RestoreRequest::fields`]) and
+/// `AlbumCoverChanged` when a picture or a sidecar changed. The writes are
+/// exactly `restore`'s ([`musaic_tags::apply_restore`], then
+/// [`musaic_tags::restore_cover_sidecars`]); no file is renamed and nothing
+/// else is written. Not reachable from [`ApplyRequest`].
+pub fn apply_restore(
+    env: &mut ApplyEnv<'_>,
+    album_id: &str,
+    album_path: &str,
+    library_dir: Option<&str>,
+    restore: &RestoreRequest,
+    sink: &mut dyn FnMut(ApplyEvent) -> ControlFlow<()>,
+) -> ApplyOutcome {
+    let req = ApplyRequest {
+        album_id: album_id.to_string(),
+        album_path: album_path.to_string(),
+        library_dir: library_dir.map(str::to_string),
+        ..ApplyRequest::default()
+    };
+    apply_with(env, &req, Special::Restore(restore), sink)
+}
+
+/// What a run writes besides the request's suggestions, removals and cover.
+#[derive(Clone, Copy)]
+enum Special<'a> {
+    None,
+    Conversion(&'a musaic_tags::DiscConversion),
+    Restore(&'a RestoreRequest),
 }
 
 fn apply_with(
     env: &mut ApplyEnv<'_>,
     req: &ApplyRequest,
-    conversion: Option<&musaic_tags::DiscConversion>,
+    special: Special<'_>,
     sink: &mut dyn FnMut(ApplyEvent) -> ControlFlow<()>,
 ) -> ApplyOutcome {
     let mut fwd = Forward {
@@ -494,7 +539,7 @@ fn apply_with(
         return fwd.outcome();
     }
     let mut emit = |event: ApplyEvent| fwd.emit(event);
-    let result = run(env, req, cover_url, conversion, &mut emit);
+    let result = run(env, req, cover_url, special, &mut emit);
     match result {
         Err(Halt::Failed(detail)) => {
             // apply.py:257 `_log.exception("apply_album_changes_iter failed
@@ -521,7 +566,7 @@ fn run(
     env: &mut ApplyEnv<'_>,
     req: &ApplyRequest,
     cover_url: Option<&str>,
-    conversion: Option<&musaic_tags::DiscConversion>,
+    special: Special<'_>,
     emit: &mut dyn FnMut(ApplyEvent) -> Result<(), Halt>,
 ) -> Result<(), Halt> {
     let album_dir = Path::new(&req.album_path);
@@ -617,9 +662,10 @@ fn run(
         // takes effect at the next step boundary.)
         let _ = emit(ApplyEvent::from_tag(ev));
     };
-    match conversion {
-        Some(c) => musaic_tags::apply_disc_conversion(album_dir, c, &mut callback),
-        None => musaic_tags::apply_to_album_iter_numbered(
+    match special {
+        Special::Conversion(c) => musaic_tags::apply_disc_conversion(album_dir, c, &mut callback),
+        Special::Restore(r) => musaic_tags::apply_restore(album_dir, &r.tags, &mut callback),
+        Special::None => musaic_tags::apply_to_album_iter_numbered(
             album_dir,
             &req.suggestions,
             &req.track_suggestions,
@@ -647,6 +693,20 @@ fn run(
             path: path_str(&saved),
             filename,
         })?;
+    }
+    // 3b. An undo's cover sidecars. A failure is reported after the
+    // album is rescanned and the events are published: the files may have
+    // changed already.
+    let mut sidecar_error = None;
+    if let Special::Restore(RestoreRequest {
+        sidecars: Some(saved),
+        ..
+    }) = special
+    {
+        match musaic_tags::restore_cover_sidecars(album_dir, saved) {
+            Ok(changed) => had_art_change |= changed,
+            Err(e) => sidecar_error = Some(format!("the cover files could not be put back: {e}")),
+        }
     }
 
     // 5. Track-tag sidecar after renames (only when the album has tags).
@@ -692,18 +752,22 @@ fn run(
     // Publish before the final yield.
     env.bus.publish(&BusEvent::AlbumTagsChanged {
         album_id: req.album_id.clone(),
-        fields: match conversion {
-            Some(_) => DISC_CONVERSION_FIELDS
+        fields: match special {
+            Special::Conversion(_) => DISC_CONVERSION_FIELDS
                 .iter()
                 .map(|f| f.to_string())
                 .collect(),
-            None => changed_fields(&req.suggestions, &req.removals),
+            Special::Restore(r) => r.fields.clone(),
+            Special::None => changed_fields(&req.suggestions, &req.removals),
         },
     });
     if had_art_change {
         env.bus.publish(&BusEvent::AlbumCoverChanged {
             album_id: req.album_id.clone(),
         });
+    }
+    if let Some(e) = sidecar_error {
+        return Err(Halt::Failed(e));
     }
     emit(ApplyEvent::UpdatedAlbum(fresh_json))
 }

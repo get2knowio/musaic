@@ -185,7 +185,10 @@ pub(crate) const V21_STATEMENTS: &[&str] = &[
     )",
     "CREATE INDEX idx_agent_approvals_state ON agent_approvals(state)",
     // The before-image of an agent-caused apply, written before the first
-    // file changes.
+    // file changes. `after` is what the change left on disk, written once it
+    // finished, so the desktop's Undo can tell whether anything changed
+    // since. An undo records its own before-image as a row whose `undoes`
+    // names the change it put back; that change becomes `undone`.
     "CREATE TABLE agent_changes (
         id          TEXT PRIMARY KEY,
         pairing_id  TEXT NOT NULL REFERENCES agent_pairings(id),
@@ -194,9 +197,11 @@ pub(crate) const V21_STATEMENTS: &[&str] = &[
         album_id    TEXT NOT NULL,
         created_at  TEXT NOT NULL,
         state       TEXT NOT NULL CHECK (state IN
-            ('recorded','applied','partial','failed')),
+            ('recorded','applied','partial','failed','undone')),
         before      TEXT NOT NULL,
-        outcome     TEXT
+        outcome     TEXT,
+        after       TEXT,
+        undoes      TEXT
     )",
     // Tool, outcome and time only: never an argument value.
     "CREATE TABLE agent_activity (

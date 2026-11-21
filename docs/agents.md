@@ -27,7 +27,8 @@ Twelve tools, in three groups:
 
 An assistant cannot: run SQL or a shell, read a file path, read or write keys, delete or
 move anything outside the rename a proposal asks for, restore or download the database,
-change settings, or change its own permissions or approve its own requests. Tool results
+change settings, change its own permissions or approve its own requests, or undo a change
+(only you can, below). Tool results
 carry ids and bare file and folder names, never a filesystem path.
 
 ## Pairing
@@ -111,7 +112,32 @@ every tag field it touches, the prior file and folder names, and, for a cover, a
 all the prior cover art (the `cover.*` sidecar files and every picture embedded in each
 track), under `<config>/agent-changes/<id>/` (and in the database). The record is
 kept for 90 days. If it cannot be written the change is refused and nothing is written.
-There is no Undo button yet; the record is what an undo will use.
+Once the change finishes, Musaic also notes what it left: each file's name now, the
+values of the same fields, and fingerprints of the cover art it wrote.
+
+## Undoing an assistant's change
+
+In Settings → Assistants, open **Recent changes** under a pairing (revoked ones too) and
+press **Undo** beside a change. After you confirm ("Put back the tags, names and cover
+this assistant changed on <Album>?"), Musaic renames the files and folder back, puts
+every tag field the change touched back to its old value (several values and the other
+spellings of a removed field included), and restores the cover art byte for byte: the
+`cover.*` files and every picture embedded in each track. The library, the checks and
+any open album update as after any edit.
+
+Undo refuses, and changes nothing, when:
+
+- anything the change wrote has changed since: a later edit of one of the same fields, a
+  new cover, a renamed or moved file or folder. The message lists the files and fields;
+  your later edits are never overwritten;
+- the album is missing from disk (rescan once its folder is back);
+- a restore or other work is running (try again when it ends);
+- the change was already undone, wrote nothing, or is itself an undo;
+- its record is older than 90 days (pruned) or was made before Undo existed.
+
+An undo is recorded like a change (what it overwrote is kept), and shows in the pairing's
+activity as `undo`. Only you can undo: no assistant tool does it. Undo covers changes an
+assistant made; your own edits in Musaic cannot be undone this way yet.
 
 ## Tokens, restarts, revoking
 

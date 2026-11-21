@@ -102,7 +102,8 @@
     "trash or delete",
     "database restore or backup download",
     "settings changes",
-    "setting or changing agent permissions and policies, including approving its own requests"
+    "setting or changing agent permissions and policies, including approving its own requests",
+    "undoing an applied change (only the person at the desktop can)"
   ],
   "tools": [
     {

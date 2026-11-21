@@ -1,7 +1,7 @@
 //! SC-009 and FR-054: the before-image of an agent-caused apply can be
-//! replayed through the apply pipeline and the rename service to restore the
-//! prior state, and an apply whose before-image cannot be recorded writes
-//! nothing.
+//! replayed (the desktop's Undo, FR-055, through the rename service and the
+//! apply pipeline) to restore the prior state, and an apply whose
+//! before-image cannot be recorded writes nothing.
 
 mod common;
 
@@ -9,13 +9,9 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use common::{AgentWorld, agent_world_scanned};
-use musaic_app::ops::Listening;
-use musaic_app::ops::apply::ApplyChanges;
 use musaic_commands::{Decision, PermissionKind as K};
-use musaic_fsops::rename::PlanEntry;
 use musaic_scan::flacmeta;
-use musaic_services::agent_changes::{ALBUM_PREFIX, BeforeImage, Prior, TRACK_PREFIX};
-use musaic_services::library_ops::{RenameParts, rename_album_with_plan};
+use musaic_services::agent_changes::{ALBUM_PREFIX, BeforeImage, TRACK_PREFIX};
 use musaic_tags::apply::{FIELD_TO_VORBIS, TRACK_FIELD_TO_VORBIS};
 use musaic_tags::flac::{FlacFile, Picture};
 use serde_json::json;
@@ -84,47 +80,18 @@ fn before_image(c: &Case) -> (BeforeImage, String) {
     let conn = musaic_db::open_connection(c.w.app.db_path()).unwrap();
     let rows = musaic_db::agent::list_changes(&conn).unwrap();
     assert_eq!(rows.len(), 1);
+    assert!(rows[0].after.is_some(), "what the change left is recorded");
     (
         serde_json::from_str(&rows[0].before).unwrap(),
         rows[0].id.clone(),
     )
 }
 
-/// Put the prior values back through the apply pipeline (what an undo does).
-fn replay_tags(c: &Case, album_id: &str, before: &BeforeImage) {
-    let mut changes = ApplyChanges::default();
-    let mut album_seen: BTreeMap<String, Prior> = BTreeMap::new();
-    for (file, fields) in &before.files {
-        let mut sets = Vec::new();
-        let mut clears = Vec::new();
-        for (key, prior) in fields {
-            if let Some(f) = key.strip_prefix(ALBUM_PREFIX) {
-                album_seen.insert(f.to_string(), prior.clone());
-            } else if let Some(f) = key.strip_prefix(TRACK_PREFIX) {
-                match prior.values().first() {
-                    Some(v) => sets.push((f.to_string(), v.clone())),
-                    None => clears.push(f.to_string()),
-                }
-            }
-        }
-        if !sets.is_empty() {
-            changes.track_suggestions.push((file.clone(), sets));
-        }
-        if !clears.is_empty() {
-            changes.track_clear.push((file.clone(), clears));
-        }
-    }
-    for (f, prior) in album_seen {
-        match prior.values().first() {
-            Some(v) => changes.suggestions.push((f, v.clone())),
-            None => changes.clear.push(f),
-        }
-    }
-    c.w.app
-        .ops()
-        .apply()
-        .apply_changes(album_id, &changes, &mut |_| Listening::Yes)
-        .unwrap();
+/// Put the prior state back: the desktop's Undo, which replays the
+/// before-image through the rename service and the apply pipeline.
+fn replay(c: &Case, change_id: &str) {
+    let out = c.w.app.ops().agent().undo_change(change_id).unwrap();
+    assert!(out.complete, "{out:?}");
 }
 
 fn apply(c: &Case, patch: serde_json::Value) -> serde_json::Value {
@@ -172,7 +139,7 @@ fn a_tag_apply_is_undone_by_replaying_its_before_image() {
             .all(|f| !f.keys().any(|k| k.contains('/'))),
         "bare names only"
     );
-    replay_tags(&c, &c.album, &image);
+    replay(&c, &id);
     assert_eq!(
         tag_state(Path::new(&c.path)),
         before,
@@ -205,7 +172,7 @@ fn a_rename_apply_is_undone_by_reversing_the_recorded_names() {
         json!({"tags": {"album": {"album_artist": "Roundtrip Artist"}}, "rename": true}),
     );
     let after_id = h["result"]["albumIdAfter"].as_str().unwrap().to_string();
-    let (image, _) = before_image(&c);
+    let (image, id) = before_image(&c);
     let folder = image
         .renames
         .folder
@@ -214,40 +181,18 @@ fn a_rename_apply_is_undone_by_reversing_the_recorded_names() {
     assert_eq!(folder.from, folder_before);
     assert!(folder.to.contains("Roundtrip Artist"));
 
-    // Reverse: names first (the plan is keyed by the names the files have now),
-    // then the tags, then the folder.
-    let ops = c.w.app.ops();
-    let moved = ops.library().album(&after_id).unwrap().path().to_string();
+    // Reverse: names first (the plan is keyed by the names the files have
+    // now), then the tags.
+    let moved =
+        c.w.app
+            .ops()
+            .library()
+            .album(&after_id)
+            .unwrap()
+            .path()
+            .to_string();
     assert_ne!(moved, c.path);
-    replay_tags(&c, &after_id, &image);
-    let mut conn = musaic_db::open_connection(c.w.app.db_path()).unwrap();
-    let files: Vec<PlanEntry> = image
-        .renames
-        .files
-        .iter()
-        .map(|n| PlanEntry {
-            old: n.to.clone(),
-            new: n.from.clone(),
-        })
-        .collect();
-    let dir = PlanEntry {
-        old: folder.to.clone(),
-        new: folder.from.clone(),
-    };
-    let lib = c.w.app.library_dir();
-    rename_album_with_plan(
-        RenameParts {
-            conn: &mut conn,
-            bus: c.w.app.bus(),
-            library_dir: lib.as_deref(),
-            now: "2027-01-15T08:00:00Z",
-            track_order: musaic_scan::TrackOrder::DiscTrack,
-        },
-        &after_id,
-        &files,
-        Some(&dir),
-    )
-    .unwrap();
+    replay(&c, &id);
     assert!(
         Path::new(&c.path).is_dir(),
         "the folder has its old name again"
@@ -388,28 +333,13 @@ fn a_cover_apply_is_undone_by_restoring_the_sidecars_and_every_embedded_picture(
     assert_ne!(during.0, before.0, "the apply replaced the sidecars");
     assert_ne!(during.1, before.1, "the apply replaced the embedded art");
 
-    // Replay: the sidecars as they were (and no `cover.jpg` that was not
-    // there), then every file's PICTURE blocks rebuilt from the record.
-    let config = &c.w.scratch.config;
-    for e in std::fs::read_dir(dir).unwrap().flatten() {
-        let name = e.file_name().to_string_lossy().into_owned();
-        if name.to_ascii_lowercase().starts_with("cover.")
-            && !saved.sidecars.iter().any(|s| s.name == name)
-        {
-            std::fs::remove_file(e.path()).unwrap();
-        }
-    }
-    for s in &saved.sidecars {
-        std::fs::copy(config.join(&s.saved_as), dir.join(&s.name)).unwrap();
-    }
-    for (name, pictures) in &saved.embedded {
-        let mut f = FlacFile::open(&dir.join(name)).unwrap();
-        f.clear_pictures();
-        for p in pictures {
-            f.add_picture(p.to_picture(std::fs::read(config.join(&p.saved_as)).unwrap()));
-        }
-        f.save().unwrap();
-    }
+    // Replay what an undo writes: every file's PICTURE blocks rebuilt from
+    // the record, then the sidecars as they were (and no `cover.jpg` that
+    // was not there).
+    let req =
+        musaic_services::agent_changes::restore_request(c.w.app.config_dir(), &image).unwrap();
+    musaic_tags::apply_restore(dir, &req.tags, &mut |_| {}).unwrap();
+    musaic_tags::restore_cover_sidecars(dir, req.sidecars.as_deref().unwrap()).unwrap();
     assert_eq!(
         art_state(dir),
         before,

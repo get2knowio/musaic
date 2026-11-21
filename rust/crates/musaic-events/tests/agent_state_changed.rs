@@ -58,6 +58,7 @@ fn an_agent_state_change_starts_nothing_and_reaches_the_relay() {
         AgentWhat::Pairings,
         AgentWhat::Approvals,
         AgentWhat::Activity,
+        AgentWhat::Changes,
     ] {
         bus.publish(&Event::AgentStateChanged {
             what,
@@ -71,7 +72,7 @@ fn an_agent_state_change_starts_nothing_and_reaches_the_relay() {
         0,
         "the sweep was not woken"
     );
-    for want in ["pairings", "approvals", "activity"] {
+    for want in ["pairings", "approvals", "activity", "changes"] {
         let msg = conn.recv_timeout(Duration::from_secs(30)).expect("relayed");
         assert_eq!(&*msg.name, "AgentStateChanged");
         assert_eq!(

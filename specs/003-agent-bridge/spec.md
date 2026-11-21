@@ -115,6 +115,18 @@ marked "(amended at plan time)".
   card. An Undo action that uses these records, and covers the user's own edits too, is a
   filed follow-up issue and not part of this feature.
 
+### Session 2026-11-21 (Undo for assistant changes added in PR #351 follow-up)
+
+- Q: Should the desktop be able to undo an assistant's applied change now? → A: Yes, for
+  assistant changes only (FR-055). The desktop user, in Settings → Assistants, can undo a
+  recorded change while the album still holds exactly what the change left; anything
+  changed since refuses the undo, listing what, and nothing is written. To tell, the record
+  now also keeps what the change left (an after-image), so the `agent_changes` table of
+  schema v21 gains `after` and `undoes` columns and an `undone` state. v21 is not released
+  yet, so its definition is amended in place rather than adding v22. No agent tool can undo
+  anything. Undo for the user's own edits needs before-images recorded for desktop applies
+  first and stays a separate follow-up.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - An agent reads the library through the running app (Priority: P1)
@@ -486,6 +498,18 @@ against expectations.
   the prior cover under the config dir. The record is written before the first file
   changes, survives restart, and is kept for at least 90 days. If the before-image cannot
   be recorded, the apply is refused and nothing is written.
+- **FR-055**: The desktop user MUST be able to undo an agent-caused change that was
+  applied or partly applied, from Settings → Assistants, after a confirmation. Once the
+  change finishes, the system records what it left (the files' names, the touched fields'
+  values, digests of the pictures and cover files it wrote, the folder name). An undo runs
+  only when the change is not already undone and is not itself an undo, the album is
+  present, no restore is running, and the files still hold exactly what the change left.
+  Otherwise it is refused with a plain reason, listing the files and fields that changed
+  since, and nothing is written. An undo renames back through the rename service, puts
+  tags, pictures and cover files back through the apply pipeline (publishing the same
+  events as any rename and apply), records its own before-image, marks the change
+  `undone` and records an activity row. No agent tool offers undo (added in the PR #351
+  follow-up; the user's own edits are not covered).
 
 ### Key Entities
 
@@ -504,7 +528,9 @@ against expectations.
   counts and result; kept for the app's run.
 - **Change record (before-image)**: per agent-caused apply: pairing, proposal, approval,
   album, time; prior tag values per file for the touched fields, prior names, saved prior
-  cover; the basis for a later Undo.
+  cover; once finished, what it left (the after-image); the basis of the desktop's Undo
+  (FR-055), which records its own before-image as a change record naming the change it
+  undid.
 - **Agent activity record**: pairing, tool, outcome, time; no secrets or argument values;
   the last 100 per pairing are shown to the user.
 
@@ -530,8 +556,8 @@ against expectations.
 - **SC-008**: While an approval is pending, read-only tools keep answering, each within
   1 second on the synthetic fixture library.
 - **SC-009**: For every agent-caused apply in the test suite, the recorded before-image
-  restores the exact prior tag values, names and cover bytes when replayed by a test
-  helper (100% of touched fields).
+  restores the exact prior tag values, names and cover bytes when replayed (by the
+  desktop's Undo since FR-055) (100% of touched fields).
 
 ## Assumptions
 

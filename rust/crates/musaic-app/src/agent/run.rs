@@ -70,7 +70,7 @@ pub fn check_not_restoring(app: &App) -> Result<(), ToolError> {
     }
 }
 
-fn apply_guard(app: &App) -> Result<musaic_services::gate::WorkGuard, ToolError> {
+pub(crate) fn apply_guard(app: &App) -> Result<musaic_services::gate::WorkGuard, ToolError> {
     app.gate()
         .begin(WorkKind::Apply)
         .map_err(|busy| match busy {
@@ -386,6 +386,8 @@ fn run_apply(
     let mut cover: Option<FileOutcome> = None;
     let mut first_error: Option<String> = None;
     let mut wrote = false;
+    // The pipeline's own track-number renames, for the after-image.
+    let mut step1_renamed: std::collections::BTreeMap<String, String> = Default::default();
     let cover_url = match &v.patch.cover {
         None => None,
         Some(musaic_commands::tools::fix::CoverPatch::Url { url }) => Some(url.clone()),
@@ -444,6 +446,13 @@ fn run_apply(
                                 .as_deref()
                                 .map(|m| without_paths(app, m, &album_path)),
                         });
+                    }
+                    ApplyEvent::Tags(TagEvent::FileRenamed {
+                        old_filename,
+                        new_filename,
+                        ..
+                    }) => {
+                        step1_renamed.insert(old_filename, new_filename);
                     }
                     ApplyEvent::Tags(TagEvent::Done {
                         rename_failures, ..
@@ -516,6 +525,18 @@ fn run_apply(
     } else {
         "failed"
     };
+    // What the change left, for the desktop's Undo to compare with later.
+    if change_state != "failed"
+        && let Some(before) = agent_changes::load_before(&conn, &change_id)
+    {
+        let final_id = album_id_after.clone().unwrap_or_else(|| album_id.clone());
+        let final_path = cached_row(&conn, lib.as_deref(), &final_id)
+            .map(|r| r.album.path.clone())
+            .unwrap_or_else(|_| album_path.clone());
+        let after =
+            agent_changes::read_after(&final_id, Path::new(&final_path), &before, &step1_renamed);
+        agent_changes::save_after(&conn, app.config_dir(), &change_id, &after);
+    }
     let result = ApplyResult {
         files,
         cover,

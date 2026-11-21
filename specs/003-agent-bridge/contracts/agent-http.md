@@ -54,5 +54,9 @@ are used only by the webview.
 | GET | `/api/agent/approvals` | `agent.list_approvals` | `?state=pending` (default) \| `all` |
 | POST | `/api/agent/approvals/{id}/approve` | `agent.decide_approval` | 409 if it is no longer pending |
 | POST | `/api/agent/approvals/{id}/deny` | `agent.decide_approval` | 409 if it is no longer pending |
+| GET | `/api/agent/changes` | `agent.list_changes` | `?pairing=<id>` (optional; 404 for an unknown pairing) → newest first, at most 20: `[{id, pairingId, pairingName, albumId, albumLabel, createdAt, state, summary, undoes, undoable, reason}]`. `albumId` is the album's id now; `undoable`/`reason` are derived from the files at the time of the request |
+| POST | `/api/agent/changes/{id}/undo` | `agent.undo_change` | FR-055. → `{change, undoId, complete, message}`. 404 unknown change; 409 with a plain `detail` when the change is not applied or partial, already undone, an undo itself, its album is Missing, or a restore or other work is running; 409 with `detail: {message, changed: ["<file>: <field>", …]}` when the files changed since (nothing written); 503 when nothing could be put back |
 
-Every mutation here publishes `AgentStateChanged`.
+Every mutation here publishes `AgentStateChanged` (an undo: `what: "changes"`, plus an
+`activity` row with tool `undo`). There is no undo on the agent route family: no tool
+offers it, and the catalog lists it under what is deliberately not offered.

@@ -17,11 +17,12 @@ pub mod sidecar;
 
 pub use apply::{
     ConvertedNumbers, CoverInput, DISC_CONVERSION_REMOVES, Diff, DiscConversion, Event, FileChange,
-    Numbering, Removals, RenameFailure, Suggestions, TRACK_FIELDS_NOT_REMOVABLE, TrackSuggestions,
-    apply_album_files, apply_disc_conversion, apply_to_album_iter, apply_to_album_iter_numbered,
-    default_numbering, is_removable_album_field, is_removable_track_field, proposed_filename,
-    proposed_filename_with, removable_album_fields, removable_track_fields,
+    Numbering, Removals, RenameFailure, Restore, Suggestions, TRACK_FIELDS_NOT_REMOVABLE,
+    TrackSuggestions, apply_album_files, apply_disc_conversion, apply_restore, apply_to_album_iter,
+    apply_to_album_iter_numbered, default_numbering, is_removable_album_field,
+    is_removable_track_field, proposed_filename, proposed_filename_with, removable_album_fields,
+    removable_track_fields, removal_aliases,
 };
 pub use cover::{build_picture, normalize_to_jpeg};
 pub use flac::{FlacFile, Picture, SaveMode, SaveReport, VorbisComment};
-pub use sidecar::save_cover_to_album_dir;
+pub use sidecar::{is_cover_sidecar_name, restore_cover_sidecars, save_cover_to_album_dir};

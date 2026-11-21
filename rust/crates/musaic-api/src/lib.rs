@@ -169,6 +169,16 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         "deny an assistant's request; nothing is changed; not a route of the Python app",
     ),
     (
+        "GET",
+        AGENT_CHANGES_ROUTE,
+        "the recent changes assistants applied, each with whether Undo would run now, for Settings -> Assistants; not a route of the Python app",
+    ),
+    (
+        "POST",
+        AGENT_UNDO_ROUTE,
+        "undo an assistant's applied change from its recorded before-image: only the person at the window can, and only while the album still holds what the change left; not a route of the Python app",
+    ),
+    (
         "POST",
         agent_guard::HELLO,
         "the agent CLI's handshake, part one: this app instance's id and a one-time nonce; has its own guard and never accepts the launch cookie; not a route of the Python app",
@@ -198,6 +208,8 @@ pub const AGENT_ACTIVITY_ROUTE: &str = "/api/agent/pairings/{pairing_id}/activit
 pub const AGENT_APPROVALS_ROUTE: &str = "/api/agent/approvals";
 pub const AGENT_APPROVE_ROUTE: &str = "/api/agent/approvals/{approval_id}/approve";
 pub const AGENT_DENY_ROUTE: &str = "/api/agent/approvals/{approval_id}/deny";
+pub const AGENT_CHANGES_ROUTE: &str = "/api/agent/changes";
+pub const AGENT_UNDO_ROUTE: &str = "/api/agent/changes/{change_id}/undo";
 
 /// `GET` / `PUT /api/ui-prefs` ([`EXTRA_ROUTES`]).
 pub const UI_PREFS_ROUTE: &str = "/api/ui-prefs";
@@ -541,6 +553,11 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         )
         .route(AGENT_APPROVE_ROUTE, post(agent::approve))
         .route(AGENT_DENY_ROUTE, post(agent::deny))
+        .route(
+            AGENT_CHANGES_ROUTE,
+            get(agent::list_changes).query(&["pairing"]),
+        )
+        .route(AGENT_UNDO_ROUTE, post(agent::undo_change))
         .route("/api/ai/queue/resume", post(jobs::resume_queue))
         .route("/api/ai/providers", get(jobs::ai_providers))
         .route("/", get(system::spa_root))

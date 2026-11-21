@@ -43,16 +43,17 @@ describe("useLibraryEventsStream", () => {
     const { invalidate, es } = setup();
     es.emit("AlbumTagsChanged", { album_id: "a1" });
     expect(keysOf(invalidate)).toEqual([
+      ["agent", "changes"],
       ["albums-snapshot"],
       ["tracks", "a1"],
       ["album-resolution", "a1"],
     ]);
   });
 
-  it("AlbumCoverChanged only invalidates the snapshot", () => {
+  it("AlbumCoverChanged invalidates the snapshot and the assistant changes", () => {
     const { invalidate, es } = setup();
     es.emit("AlbumCoverChanged", { album_id: "a1" });
-    expect(keysOf(invalidate)).toEqual([["albums-snapshot"]]);
+    expect(keysOf(invalidate)).toEqual([["agent", "changes"], ["albums-snapshot"]]);
   });
 
   it("AlbumMbAnchorSet invalidates snapshot + that album's resolution", () => {
@@ -73,6 +74,7 @@ describe("useLibraryEventsStream", () => {
       ["album-resolution", "old"],
     ]);
     expect(keysOf(invalidate)).toEqual([
+      ["agent", "changes"],
       ["albums-snapshot"],
       ["tracks", "new"],
       ["album-resolution", "new"],
@@ -84,6 +86,7 @@ describe("useLibraryEventsStream", () => {
     es.emit("AlbumRenamed", { old_album_id: "same", new_album_id: "same" });
     expect(remove).not.toHaveBeenCalled();
     expect(keysOf(invalidate)).toEqual([
+      ["agent", "changes"],
       ["albums-snapshot"],
       ["tracks", "same"],
       ["album-resolution", "same"],
@@ -100,10 +103,10 @@ describe("useLibraryEventsStream", () => {
     ]);
   });
 
-  it("AlbumMarkedMissing invalidates only the snapshot and preserves cached track/resolution data", () => {
+  it("AlbumMarkedMissing invalidates the snapshot and the assistant changes and preserves cached track/resolution data", () => {
     const { invalidate, remove, es } = setup();
     es.emit("AlbumMarkedMissing", { album_id: "m1" });
-    expect(keysOf(invalidate)).toEqual([["albums-snapshot"]]);
+    expect(keysOf(invalidate)).toEqual([["agent", "changes"], ["albums-snapshot"]]);
     // Contract: keep cached data so the DetailSheet can still render a
     // Missing album's known metadata.
     expect(remove).not.toHaveBeenCalled();
@@ -113,6 +116,7 @@ describe("useLibraryEventsStream", () => {
     const { invalidate, es } = setup();
     es.emit("LibraryScanCompleted", { album_count: 42 });
     expect(keysOf(invalidate)).toEqual([
+      ["agent", "changes"],
       ["albums-snapshot"],
       ["tracks"],
       ["album-resolution"],
@@ -129,6 +133,7 @@ describe("useLibraryEventsStream", () => {
     const { invalidate, es } = setup();
     es.emit("BulkBatchCompleted");
     expect(keysOf(invalidate)).toEqual([
+      ["agent", "changes"],
       ["albums-snapshot"],
       ["tracks"],
       ["album-resolution"],
@@ -171,10 +176,12 @@ describe("useLibraryEventsStream", () => {
     es.emit("AgentStateChanged", { what: "approvals", ids: ["x"] });
     es.emit("AgentStateChanged", { what: "pairings", ids: [] });
     es.emit("AgentStateChanged", { what: "activity", ids: ["p1"] });
+    es.emit("AgentStateChanged", { what: "changes", ids: ["p1"] });
     expect(keysOf(invalidate)).toEqual([
       ["agent", "approvals"],
       ["agent", "pairings"],
       ["agent", "activity"],
+      ["agent", "changes"],
     ]);
     expect(remove).not.toHaveBeenCalled();
   });

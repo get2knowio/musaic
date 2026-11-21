@@ -139,6 +139,73 @@ impl DiscConversion {
     }
 }
 
+/// A Vorbis key and the exact values it is to hold.
+pub type KeyValues = (String, Vec<String>);
+
+/// What an undo puts back, by file name: the exact values of Vorbis keys
+/// and the exact PICTURE blocks a file held before a change. Like
+/// [`DiscConversion`] a type of its own: only an undo that recorded these
+/// values first builds one, and it can name keys the general apply cannot
+/// (the removal aliases, see [`removal_aliases`]).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Restore {
+    /// File name -> (Vorbis key, values). The key ends up holding exactly
+    /// these values in this order, under the spelling given; an empty list
+    /// removes every entry of the key (any spelling).
+    pub tags: Vec<(String, Vec<KeyValues>)>,
+    /// File name -> its PICTURE blocks in order (an empty list: none).
+    /// A file not named keeps its pictures.
+    pub pictures: Vec<(String, Vec<Picture>)>,
+}
+
+impl Restore {
+    fn edits_for(&self, filename: &str) -> Vec<(String, Edit)> {
+        self.tags
+            .iter()
+            .filter(|(f, _)| f == filename)
+            .flat_map(|(_, keys)| keys.iter())
+            .map(|(k, v)| (k.clone(), Edit::Values(v.clone())))
+            .collect()
+    }
+
+    fn pictures_for(&self, filename: &str) -> Option<&[Picture]> {
+        self.pictures
+            .iter()
+            .find(|(f, _)| f == filename)
+            .map(|(_, p)| p.as_slice())
+    }
+
+    fn file_count(&self) -> usize {
+        let mut names: Vec<&String> = self
+            .tags
+            .iter()
+            .map(|(f, _)| f)
+            .chain(self.pictures.iter().map(|(f, _)| f))
+            .collect();
+        names.sort();
+        names.dedup();
+        names.len()
+    }
+}
+
+/// The other Vorbis keys a removal of `vorbis_key` deletes with it (the
+/// spellings the scanner reads as the same field), so that a record of what
+/// a removal overwrote can include them.
+pub fn removal_aliases(vorbis_key: &str) -> &'static [&'static str] {
+    REMOVAL_ALIASES
+        .iter()
+        .find(|(k, _)| *k == vorbis_key)
+        .map_or(&[][..], |(_, a)| *a)
+}
+
+/// What a run writes besides suggestions and removals.
+#[derive(Clone, Copy)]
+enum Special<'a> {
+    None,
+    Conversion(&'a DiscConversion),
+    Restore(&'a Restore),
+}
+
 /// The album-level field names a [`Removals`] can remove, in table order.
 pub fn removable_album_fields() -> Vec<&'static str> {
     FIELD_TO_VORBIS.iter().map(|(f, _)| *f).collect()
@@ -198,6 +265,8 @@ enum Edit {
     /// the file lacks is appended as [`Edit::Set`] does.
     Rewrite(String),
     Remove,
+    /// An undo's write: exactly these values (none: the key removed).
+    Values(Vec<String>),
 }
 
 /// `FileChange` as `change_to_dict` renders it, plus `renamed_to`.
@@ -518,7 +587,7 @@ pub fn apply_to_album_iter_numbered(
         emit,
         numbering,
         &|dir, _| musaic_scan::dir_names(dir),
-        None,
+        Special::None,
     )
 }
 
@@ -546,7 +615,34 @@ pub fn apply_disc_conversion(
         emit,
         &|_, _| None,
         &|dir, _| musaic_scan::dir_names(dir),
-        Some(conversion),
+        Special::Conversion(conversion),
+    )
+}
+
+/// The tag and picture writes of an undo: for each file `restore` names,
+/// every Vorbis key it lists set to exactly its recorded values (removed
+/// when it lists none) and, when it lists the file's pictures, every
+/// PICTURE block replaced by the recorded ones, in one save per file. No
+/// file is renamed (an undo renames through the rename code first) and
+/// nothing else is written. A file already holding what is recorded is not
+/// saved. The events are those of [`apply_to_album_iter`]; a file that
+/// fails is a `FileDone` with its error and the others are still written.
+pub fn apply_restore(
+    album_dir: &Path,
+    restore: &Restore,
+    emit: &mut dyn FnMut(Event),
+) -> io::Result<()> {
+    apply_to_album_iter_with(
+        album_dir,
+        &Vec::new(),
+        &Vec::new(),
+        &Removals::default(),
+        None,
+        false,
+        emit,
+        &|_, _| None,
+        &|dir, _| musaic_scan::dir_names(dir),
+        Special::Restore(restore),
     )
 }
 
@@ -605,7 +701,7 @@ fn apply_to_album_iter_with(
     emit: &mut dyn FnMut(Event),
     numbering: Numbering,
     read_back: ReadBack,
-    conversion: Option<&DiscConversion>,
+    special: Special<'_>,
 ) -> io::Result<()> {
     if !album_dir.is_dir() {
         return Err(io::Error::new(
@@ -624,7 +720,7 @@ fn apply_to_album_iter_with(
         .iter()
         .filter_map(|(vk, e)| match e {
             Edit::Set(v) | Edit::Rewrite(v) => Some((album_field_of(vk).to_string(), v.clone())),
-            Edit::Remove => None,
+            Edit::Remove | Edit::Values(_) => None,
         })
         .collect();
     let cleared: Vec<String> = album_applied
@@ -672,7 +768,12 @@ fn apply_to_album_iter_with(
         suggestions_applied: user_friendly.clone(),
         cleared: cleared.clone(),
         has_cover_change: pic.is_some(),
-        track_change_count: per_file.len() + conversion.map_or(0, |c| c.files.len()),
+        track_change_count: per_file.len()
+            + match special {
+                Special::None => 0,
+                Special::Conversion(c) => c.files.len(),
+                Special::Restore(r) => r.file_count(),
+            },
     });
     let done =
         |saved_count, art_changed_count, renamed_count, errors, rename_failures| Event::Done {
@@ -729,10 +830,13 @@ fn apply_to_album_iter_with(
             for (k, v) in file_specific {
                 dict_set(&mut combined, k, v.clone());
             }
-            if let Some(c) = conversion {
-                for (k, v) in c.edits_for(&filename) {
-                    dict_set(&mut combined, &k, v);
-                }
+            let special_edits = match special {
+                Special::None => Vec::new(),
+                Special::Conversion(c) => c.edits_for(&filename),
+                Special::Restore(r) => r.edits_for(&filename),
+            };
+            for (k, v) in special_edits {
+                dict_set(&mut combined, &k, v);
             }
             for (vkey, edit) in &combined {
                 match edit {
@@ -800,6 +904,28 @@ fn apply_to_album_iter_with(
                             }
                         }
                     }
+                    Edit::Values(new) => {
+                        let old: Vec<String> = audio
+                            .tags()
+                            .map(|t| t.values(vkey).map(str::to_string).collect())
+                            .unwrap_or_default();
+                        if old != *new {
+                            change.diffs.push((
+                                vkey.clone(),
+                                Diff {
+                                    old: old.join("; "),
+                                    new: (!new.is_empty()).then(|| new.join("; ")),
+                                },
+                            ));
+                            if !dry_run {
+                                let tags = audio.tags_mut();
+                                tags.remove(vkey);
+                                for v in new {
+                                    tags.append(vkey, v);
+                                }
+                            }
+                        }
+                    }
                 }
             }
             if let Some(pic) = &pic {
@@ -807,6 +933,20 @@ fn apply_to_album_iter_with(
                 if !dry_run {
                     audio.clear_pictures();
                     audio.add_picture(pic.clone());
+                }
+            }
+            if let Special::Restore(r) = special
+                && let Some(want) = r.pictures_for(&filename)
+            {
+                let have: Vec<&Picture> = audio.pictures();
+                if have.len() != want.len() || have.iter().zip(want).any(|(h, w)| *h != w) {
+                    change.art_changed = true;
+                    if !dry_run {
+                        audio.clear_pictures();
+                        for p in want {
+                            audio.add_picture(p.clone());
+                        }
+                    }
                 }
             }
             if !dry_run && (!change.diffs.is_empty() || change.art_changed) {
@@ -1090,6 +1230,67 @@ mod tests {
         musaic_scan::dir_names(dir)
     };
 
+    /// An undo's restore sets each key to exactly its recorded values (all
+    /// of them, in order), removes a key recorded as absent, rebuilds the
+    /// pictures, and saves no file that already holds what is recorded.
+    #[test]
+    fn a_restore_writes_exact_values_and_pictures_and_skips_files_already_restored() {
+        let tmp = tempfile::tempdir().unwrap();
+        let album = tmp.path().join("album");
+        std::fs::create_dir(&album).unwrap();
+        std::fs::write(
+            album.join("01.flac"),
+            flac_bytes(&[("GENRE", "Now"), ("ALBUM_ARTIST", "Gone")]),
+        )
+        .unwrap();
+        std::fs::write(album.join("02.flac"), flac_bytes(&[("GENRE", "Same")])).unwrap();
+        let pic = Picture {
+            kind: 4,
+            mime: "image/png".into(),
+            desc: "back".into(),
+            width: 1,
+            height: 2,
+            depth: 24,
+            colors: 0,
+            data: b"png bytes".to_vec(),
+        };
+        let restore = Restore {
+            tags: vec![
+                (
+                    "01.flac".into(),
+                    vec![
+                        ("genre".into(), vec!["Ambient".into(), "Drone".into()]),
+                        ("album_artist".into(), vec![]),
+                    ],
+                ),
+                (
+                    "02.flac".into(),
+                    vec![("genre".into(), vec!["Same".into()])],
+                ),
+            ],
+            pictures: vec![("01.flac".into(), vec![pic.clone()])],
+        };
+        let mut saved = Vec::new();
+        apply_restore(&album, &restore, &mut |e| {
+            if let Event::FileDone(c) = e {
+                saved.push((c.filename, c.saved, c.art_changed));
+            }
+        })
+        .unwrap();
+        assert_eq!(
+            saved,
+            [
+                ("01.flac".to_string(), true, true),
+                ("02.flac".to_string(), false, false)
+            ]
+        );
+        let f = FlacFile::open(&album.join("01.flac")).unwrap();
+        let t = f.tags().unwrap();
+        assert_eq!(t.values("genre").collect::<Vec<_>>(), ["Ambient", "Drone"]);
+        assert_eq!(t.values("album_artist").count(), 0);
+        assert_eq!(f.pictures(), [&pic]);
+    }
+
     /// The renumbered file is reported under the name its folder lists,
     /// which is the name its rows are moved to.
     #[test]
@@ -1122,7 +1323,7 @@ mod tests {
             },
             &default_numbering,
             STORES_NFD,
-            None,
+            Special::None,
         )
         .unwrap();
         let listed: Vec<OsString> = musaic_scan::dir_names(&album).unwrap();

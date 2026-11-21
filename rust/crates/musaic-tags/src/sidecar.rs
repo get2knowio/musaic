@@ -8,6 +8,7 @@
 //! `front.*` are never touched.
 
 use std::fs;
+use std::io;
 use std::path::{Path, PathBuf};
 
 /// The Python app's `_COMPETING_COVER_FILES`, in its order.
@@ -61,4 +62,47 @@ pub fn save_cover_to_album_dir(album_dir: &Path, jpeg_bytes: &[u8]) -> Option<Pa
         }
     }
     Some(target)
+}
+
+/// Whether `name` is a sidecar a cover apply writes or deletes
+/// (`cover.jpg`, `cover.jpeg`, `cover.png`), in any case, so that nothing it
+/// could replace on a case-insensitive volume is missed.
+pub fn is_cover_sidecar_name(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "cover.jpg" | "cover.jpeg" | "cover.png"
+    )
+}
+
+/// Put the folder's cover sidecars back to exactly `saved` (bare name, bytes
+/// byte for byte): a cover sidecar the folder lists that is not among them
+/// by name is deleted, then each saved one is written (through a temporary
+/// name, renamed over). Returns whether anything changed on disk. Used by an
+/// undo; an empty `saved` leaves the folder without any cover sidecar.
+pub fn restore_cover_sidecars(album_dir: &Path, saved: &[(String, Vec<u8>)]) -> io::Result<bool> {
+    let mut changed = false;
+    let listed: Vec<String> = fs::read_dir(album_dir)?
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| is_cover_sidecar_name(n) && album_dir.join(n).is_file())
+        .collect();
+    for name in &listed {
+        if !saved.iter().any(|(s, _)| s == name) {
+            fs::remove_file(album_dir.join(name))?;
+            changed = true;
+        }
+    }
+    for (name, bytes) in saved {
+        let target = album_dir.join(name);
+        if listed.contains(name) && fs::read(&target).is_ok_and(|b| b == *bytes) {
+            continue;
+        }
+        let tmp = album_dir.join(format!(".{name}.restore.tmp"));
+        if let Err(e) = fs::write(&tmp, bytes).and_then(|()| fs::rename(&tmp, &target)) {
+            let _ = fs::remove_file(&tmp);
+            return Err(e);
+        }
+        changed = true;
+    }
+    Ok(changed)
 }

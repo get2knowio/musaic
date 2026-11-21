@@ -208,6 +208,8 @@ fn the_extra_route_list_is_exactly_this() {
             "GET /api/agent/approvals",
             "POST /api/agent/approvals/{approval_id}/approve",
             "POST /api/agent/approvals/{approval_id}/deny",
+            "GET /api/agent/changes",
+            "POST /api/agent/changes/{change_id}/undo",
             "POST /__musaic/agent/v1/hello",
             "POST /__musaic/agent/v1/exchange",
             "GET /__musaic/agent/v1/tools",

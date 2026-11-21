@@ -430,6 +430,39 @@ async fn a_paired_agent_reads_through_the_whole_stack_and_no_credential_reaches_
         .send(&w.app)
         .await;
     assert_eq!(g.status, 404);
+    // FR-055: Undo is the desktop's alone. No tool undoes, the catalog says
+    // so, and the agent's token opens no Undo route of either family.
+    assert!(
+        cat["tools"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|t| !t["id"].as_str().unwrap().contains("undo")),
+        "{cat}"
+    );
+    assert!(
+        cat["notOffered"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|n| n.as_str().unwrap().starts_with("undoing")),
+        "{cat}"
+    );
+    for path in [
+        "/__musaic/agent/v1/tools/musaic_change_undo",
+        "/__musaic/agent/v1/changes/ch_0123456789abcdef/undo",
+    ] {
+        let g = Req::post(path)
+            .header("authorization", &format!("Bearer {token}"))
+            .send(&w.app)
+            .await;
+        assert_eq!(g.status, 404, "{path}");
+    }
+    let g = Req::post("/api/agent/changes/ch_0123456789abcdef/undo")
+        .header("authorization", &format!("Bearer {token}"))
+        .send(&w.app)
+        .await;
+    assert_eq!(g.status, 403, "a token is no launch cookie");
 
     // FR-028: nothing the app logged holds a token, the secret or a header.
     let lines = w.log.lock().unwrap().join("\n");
@@ -618,6 +651,36 @@ async fn the_webview_routes_manage_pairings_and_never_show_a_secret() {
     assert_eq!(g.status, 404);
     let g = send(call("GET", "/api/agent/approvals?state=bogus", None)).await;
     assert_eq!(g.status, 400);
+
+    // The recorded changes and their Undo (FR-055), behind the same gate.
+    let g = send(call(
+        "GET",
+        &format!("/api/agent/changes?pairing={id}"),
+        None,
+    ))
+    .await;
+    assert_eq!(g.status, 200);
+    assert_eq!(serde_json::from_slice::<Value>(&g.body).unwrap(), json!([]));
+    let g = send(call("GET", "/api/agent/changes", None)).await;
+    assert_eq!(g.status, 200);
+    let g = send(call("GET", "/api/agent/changes?pairing=p_nope", None)).await;
+    assert_eq!(g.status, 404);
+    let g = send(call("POST", "/api/agent/changes/ch_nope/undo", None)).await;
+    assert_eq!(g.status, 404, "{}", String::from_utf8_lossy(&g.body));
+    for (cookie, origin) in [(false, None), (true, Some("http://evil.example"))] {
+        let mut b = Request::builder()
+            .method("POST")
+            .uri("/api/agent/changes/ch_nope/undo")
+            .header("host", &own);
+        if cookie {
+            b = b.header("cookie", format!("{COOKIE}={TOKEN}"));
+        }
+        if let Some(o) = origin {
+            b = b.header("origin", o);
+        }
+        let g = send(b.body(Body::empty()).unwrap()).await;
+        assert_eq!(g.status, 403, "cookie={cookie} origin={origin:?}");
+    }
 
     let g = send(call("DELETE", &format!("/api/agent/pairings/{id}"), None)).await;
     assert_eq!(g.status, 200);

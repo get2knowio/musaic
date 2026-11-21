@@ -1064,4 +1064,40 @@ export function decideAgentApproval(id: string, decision: "approve" | "deny"): P
   return request(`/api/agent/approvals/${encodeURIComponent(id)}/${decision}`, { method: "POST" });
 }
 
+export type AgentChangeState = "recorded" | "applied" | "partial" | "failed" | "undone";
+
+/** One change an assistant applied (or the undo of one). */
+export interface AgentChange {
+  id: string;
+  pairingId: string;
+  pairingName: string;
+  /** The album's id now (a folder rename changes it). */
+  albumId: string;
+  albumLabel: string | null;
+  createdAt: string;
+  state: AgentChangeState;
+  /** What it did, in a few words; a label only. */
+  summary: string;
+  /** For an undo's own record: the change it put back. */
+  undoes: string | null;
+  /** Whether Undo would run now; when not, `reason` says why. */
+  undoable: boolean;
+  reason: string | null;
+}
+
+export interface AgentUndoResult {
+  change: AgentChange;
+  undoId: string;
+  complete: boolean;
+  message: string | null;
+}
+
+export function listAgentChanges(pairingId: string): Promise<AgentChange[]> {
+  return request(`/api/agent/changes?pairing=${encodeURIComponent(pairingId)}`);
+}
+
+export function undoAgentChange(id: string): Promise<AgentUndoResult> {
+  return request(`/api/agent/changes/${encodeURIComponent(id)}/undo`, { method: "POST" });
+}
+
 export { ApiError };

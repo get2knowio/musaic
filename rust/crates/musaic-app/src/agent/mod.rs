@@ -14,6 +14,7 @@ pub mod hub_types;
 pub mod proposal;
 pub mod read;
 pub mod run;
+pub mod undo;
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;

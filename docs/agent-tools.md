@@ -316,3 +316,4 @@ Transport errors are reported by the CLI, not by a tool:
 - database restore or backup download
 - settings changes
 - setting or changing agent permissions and policies, including approving its own requests
+- undoing an applied change (only the person at the desktop can)

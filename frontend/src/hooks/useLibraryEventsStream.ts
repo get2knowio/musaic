@@ -58,9 +58,13 @@
  *                                       open findings view refetches).
  *   SettingsChanged(keys)             → ["settings"], ["acoustid-prompt"],
  *                                       ["ui-prefs"]
- *   AgentStateChanged(what, ids)      → ["agent", what] (pairings, approvals
- *                                       or activity; prefix-matched, so every
- *                                       state / pairing under it refetches)
+ *   AgentStateChanged(what, ids)      → ["agent", what] (pairings, approvals,
+ *                                       activity or changes; prefix-matched,
+ *                                       so every state / pairing under it
+ *                                       refetches)
+ *   Album tags / cover / rename /     → also ["agent", "changes"]: whether
+ *   missing, scans, bulk batches        an assistant's change can still be
+ *                                       undone is derived from the files
  *   LibraryScanStopped(reason)        → ["albums-snapshot"] only: an
  *                                       aborted / cancelled / failed scan
  *                                       wrote no album, but a cancelled
@@ -83,7 +87,7 @@ import { ACOUSTID_PROMPT_QUERY_KEY } from "./useAcoustidPrompt";
 import { UI_PREFS_QUERY_KEY } from "./useUiPrefs";
 import { CHECKS_QUERY_KEY, FINDINGS_QUERY_KEY } from "./useChecks";
 import { SETTINGS_QUERY_KEY } from "./useJobs";
-import { AGENT_QUERY_KEY } from "./useAgents";
+import { AGENT_CHANGES_QUERY_KEY, AGENT_QUERY_KEY } from "./useAgents";
 
 type EventPayload = {
   album_id?: string;
@@ -98,13 +102,21 @@ export function useLibraryEventsStream() {
   useEffect(() => {
     const es = new EventSource("/api/library-events/stream");
 
+    // Whether an assistant's change can be undone is derived from the
+    // album's files, so anything that changes them refreshes that list.
+    const onAlbumFilesChanged = () => {
+      qc.invalidateQueries({ queryKey: AGENT_CHANGES_QUERY_KEY });
+    };
+
     const onAlbumScopedTags = (album_id: string) => {
+      onAlbumFilesChanged();
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
       qc.invalidateQueries({ queryKey: ["tracks", album_id] });
       qc.invalidateQueries({ queryKey: ["album-resolution", album_id] });
     };
 
     const onAlbumScopedCover = (_album_id: string) => {
+      onAlbumFilesChanged();
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
       // Cover URLs are mtime-busted via coverUrl() in lib/api.ts —
       // the snapshot refresh picks up the new dir_mtime and forces
@@ -122,6 +134,7 @@ export function useLibraryEventsStream() {
     };
 
     const onAlbumRenamed = (old_id: string, new_id: string) => {
+      onAlbumFilesChanged();
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
       // Two distinct cases — see the AlbumRenamed docstring in
       // library_events.py:
@@ -154,6 +167,7 @@ export function useLibraryEventsStream() {
     };
 
     const onLibraryWide = () => {
+      onAlbumFilesChanged();
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
       // Prefix-match every per-album entry — a scan or bulk-fix may
       // have touched any open album, and without this an open
@@ -169,12 +183,14 @@ export function useLibraryEventsStream() {
       // data — but the snapshot now carries the missing_since marker,
       // which the Library grid uses to grey out the tile and the
       // DetailSheet uses to swap to the "missing" banner. So we only
-      // need to bust the snapshot.
+      // need to bust the snapshot (and the assistant changes, which
+      // cannot be undone on a Missing album).
       //
       // We deliberately do NOT removeQueries on ['tracks', id] /
       // ['album-resolution', id] — keeping the cached data means the
       // DetailSheet can still display the album's known metadata when
       // the user opens a Missing tile.
+      onAlbumFilesChanged();
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
       // No-op album_id reference; consumers read it from the snapshot.
       void album_id;
@@ -231,10 +247,12 @@ export function useLibraryEventsStream() {
       qc.invalidateQueries({ queryKey: UI_PREFS_QUERY_KEY });
     });
     es.addEventListener("AgentStateChanged", (ev) => {
-      // A pairing, an approval or an activity record changed. `what` names
+      // A pairing, an approval, an activity record or a change record
+      // changed. `what` names
       // the family; an unknown or missing one refreshes all of them.
       const what = parse(ev as MessageEvent)?.what;
-      const known = what === "pairings" || what === "approvals" || what === "activity";
+      const known =
+        what === "pairings" || what === "approvals" || what === "activity" || what === "changes";
       qc.invalidateQueries({ queryKey: known ? [...AGENT_QUERY_KEY, what] : AGENT_QUERY_KEY });
     });
     es.addEventListener("LibraryScanStopped", () => {

@@ -64,6 +64,8 @@ pub enum AgentWhat {
     Pairings,
     Approvals,
     Activity,
+    /// The recorded changes (an undo marked one `undone`).
+    Changes,
 }
 
 impl AgentWhat {
@@ -72,6 +74,7 @@ impl AgentWhat {
             AgentWhat::Pairings => "pairings",
             AgentWhat::Approvals => "approvals",
             AgentWhat::Activity => "activity",
+            AgentWhat::Changes => "changes",
         }
     }
 
@@ -80,6 +83,7 @@ impl AgentWhat {
             AgentWhat::Pairings,
             AgentWhat::Approvals,
             AgentWhat::Activity,
+            AgentWhat::Changes,
         ]
         .into_iter()
         .find(|w| w.as_str() == s)

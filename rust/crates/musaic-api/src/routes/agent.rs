@@ -7,8 +7,8 @@
 //!   tool route, which parses the body with `musaic_commands::parse_call` and
 //!   renders the typed output, and the catalog.
 //! * `/api/agent/*`, called by the webview behind the launch gate: pairings,
-//!   policy, activity and the approval cards. Only the person at the window
-//!   reaches these; no agent token opens them.
+//!   policy, activity, the approval cards and the Undo of a recorded change.
+//!   Only the person at the window reaches these; no agent token opens them.
 //!
 //! The guard, the validation order, the events and the notifications are the
 //! operations' (`docs/operations.md`).
@@ -19,7 +19,7 @@ use axum::extract::{Path as UrlPath, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use musaic_app::ops::agent::{
-    ActivityRecord, AgentError, ApprovalFilter, ApprovalRecord, PairingRecord,
+    ActivityRecord, AgentError, ApprovalFilter, ApprovalRecord, ChangeRecord, PairingRecord,
 };
 use musaic_commands::auth::ExchangeRequest;
 use musaic_commands::{Decision, PermissionKind, ToolError, ToolErrorCode, parse_call};
@@ -63,7 +63,7 @@ fn tool_error_body(e: &ToolError) -> Value {
 fn agent_family_error(e: AgentError) -> Response {
     match e {
         AgentError::Tool(t) => json_value(status_of(t.code).as_u16(), &tool_error_body(&t)),
-        AgentError::Conflict { message } => {
+        AgentError::Conflict { message } | AgentError::ChangedSince { message, .. } => {
             error_response(StatusCode::CONFLICT, ToolErrorCode::Busy, &message)
         }
         AgentError::Op(_) => error_response(
@@ -158,6 +158,10 @@ fn api_error(e: AgentError) -> ApiError {
     match e {
         AgentError::Tool(t) => ApiError::new(status_of(t.code).as_u16(), t.message),
         AgentError::Conflict { message } => ApiError::new(409, message),
+        AgentError::ChangedSince { message, changed } => ApiError {
+            status: 409,
+            detail: json!({"message": message, "changed": changed}),
+        },
         AgentError::Op(e) => ApiError::internal(format!("{e:?}")),
     }
 }
@@ -333,6 +337,56 @@ pub async fn approve(
 
 pub async fn deny(State(st): State<AppState>, UrlPath(approval_id): UrlPath<String>) -> ApiResult {
     decide(st, approval_id, false).await
+}
+
+fn change_json(c: &ChangeRecord) -> Value {
+    json!({
+        "id": c.id,
+        "pairingId": c.pairing_id,
+        "pairingName": c.pairing_name,
+        "albumId": c.album_id,
+        "albumLabel": c.album_label,
+        "createdAt": c.created_at,
+        "state": c.state,
+        "summary": c.summary,
+        "undoes": c.undoes,
+        "undoable": c.undoable,
+        "reason": c.reason,
+    })
+}
+
+pub async fn list_changes(State(st): State<AppState>, q: Q) -> ApiResult {
+    let q = qp(q);
+    let pairing = q.get("pairing").map(str::to_string);
+    blocking(move || {
+        let list = st
+            .ops()
+            .agent()
+            .list_changes(pairing.as_deref())
+            .map_err(api_error)?;
+        ok_value(Value::Array(list.iter().map(change_json).collect()))
+    })
+    .await?
+}
+
+pub async fn undo_change(
+    State(st): State<AppState>,
+    UrlPath(change_id): UrlPath<String>,
+) -> ApiResult {
+    blocking(move || {
+        let out = st
+            .ops()
+            .agent()
+            .undo_change(&change_id)
+            .map_err(api_error)?;
+        ok_value(json!({
+            "change": change_json(&out.change),
+            "undoId": out.undo_id,
+            "complete": out.complete,
+            "message": out.message,
+        }))
+    })
+    .await?
 }
 
 async fn decide(st: AppState, approval_id: String, approve: bool) -> ApiResult {

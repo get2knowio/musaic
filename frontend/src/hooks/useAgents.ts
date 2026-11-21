@@ -13,14 +13,19 @@ import {
   decideAgentApproval,
   listAgentActivity,
   listAgentApprovals,
+  listAgentChanges,
   listAgentPairings,
   revokeAgentPairing,
   setAgentPolicy,
+  undoAgentChange,
   type AgentDecision,
   type AgentKind,
 } from "@/lib/api";
 
 export const AGENT_QUERY_KEY = ["agent"] as const;
+/** The recorded changes. Whether one can be undone also depends on the
+ * album's files, so the album events refresh it too. */
+export const AGENT_CHANGES_QUERY_KEY = ["agent", "changes"] as const;
 
 export function useAgentPairings() {
   return useQuery({
@@ -45,6 +50,19 @@ export function useAgentActivity(id: string, enabled = true) {
     enabled,
     staleTime: Infinity, // AgentStateChanged keeps it fresh
   });
+}
+
+export function useAgentChanges(pairingId: string, enabled = true) {
+  return useQuery({
+    queryKey: [...AGENT_CHANGES_QUERY_KEY, pairingId],
+    queryFn: () => listAgentChanges(pairingId),
+    enabled,
+    staleTime: Infinity, // AgentStateChanged and the album events keep it fresh
+  });
+}
+
+export function useUndoAgentChange() {
+  return useMutation({ mutationFn: (id: string) => undoAgentChange(id) });
 }
 
 export function useCreateAgentPairing() {

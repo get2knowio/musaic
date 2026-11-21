@@ -294,6 +294,7 @@ pub fn agent_err_code(e: &AgentError) -> String {
     match e {
         AgentError::Tool(t) => t.code.as_str().to_string(),
         AgentError::Conflict { .. } => "CONFLICT".into(),
+        AgentError::ChangedSince { .. } => "CHANGED_SINCE".into(),
         AgentError::Op(_) => "OP".into(),
     }
 }

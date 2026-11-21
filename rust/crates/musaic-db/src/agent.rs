@@ -374,10 +374,15 @@ pub struct ChangeRow {
     pub state: String,
     pub before: String,
     pub outcome: Option<String>,
+    /// What the change left on disk (written once it finished), for the
+    /// desktop's Undo to compare with the files now.
+    pub after: Option<String>,
+    /// For an undo's own record: the change it undid.
+    pub undoes: Option<String>,
 }
 
-const CHANGE_COLS: &str =
-    "id, pairing_id, proposal_id, approval_id, album_id, created_at, state, before, outcome";
+const CHANGE_COLS: &str = "id, pairing_id, proposal_id, approval_id, album_id, created_at, state, \
+     before, outcome, after, undoes";
 
 fn change(r: &Row<'_>) -> rusqlite::Result<ChangeRow> {
     Ok(ChangeRow {
@@ -390,6 +395,8 @@ fn change(r: &Row<'_>) -> rusqlite::Result<ChangeRow> {
         state: r.get(6)?,
         before: r.get(7)?,
         outcome: r.get(8)?,
+        after: r.get(9)?,
+        undoes: r.get(10)?,
     })
 }
 
@@ -397,7 +404,8 @@ fn change(r: &Row<'_>) -> rusqlite::Result<ChangeRow> {
 pub fn insert_change(conn: &Connection, c: &ChangeRow) -> Result<()> {
     conn.execute(
         &format!(
-            "INSERT INTO agent_changes({CHANGE_COLS}) VALUES (?1,?2,?3,?4,?5,?6,'recorded',?7,NULL)"
+            "INSERT INTO agent_changes({CHANGE_COLS}) \
+             VALUES (?1,?2,?3,?4,?5,?6,'recorded',?7,NULL,NULL,?8)"
         ),
         params![
             c.id,
@@ -406,7 +414,8 @@ pub fn insert_change(conn: &Connection, c: &ChangeRow) -> Result<()> {
             c.approval_id,
             c.album_id,
             c.created_at,
-            c.before
+            c.before,
+            c.undoes
         ],
     )?;
     Ok(())
@@ -437,6 +446,39 @@ pub fn finish_change(conn: &Connection, id: &str, state: &str, outcome: &str) ->
     let n = conn.execute(
         "UPDATE agent_changes SET state = ?2, outcome = ?3 WHERE id = ?1 AND state = 'recorded'",
         params![id, state, outcome],
+    )?;
+    Ok(n == 1)
+}
+
+/// A pairing's changes (every pairing's when `None`), newest first, at most
+/// `limit` (undo records included).
+pub fn list_changes_of(
+    conn: &Connection,
+    pairing_id: Option<&str>,
+    limit: u32,
+) -> Result<Vec<ChangeRow>> {
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {CHANGE_COLS} FROM agent_changes WHERE (?1 IS NULL OR pairing_id = ?1) \
+         ORDER BY created_at DESC, rowid DESC LIMIT ?2"
+    ))?;
+    let rows = stmt.query_map(params![pairing_id, limit], change)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Store what a change left on disk (once, after it finished).
+pub fn set_change_after(conn: &Connection, id: &str, after: &str) -> Result<bool> {
+    let n = conn.execute(
+        "UPDATE agent_changes SET after = ?2 WHERE id = ?1 AND after IS NULL",
+        params![id, after],
+    )?;
+    Ok(n == 1)
+}
+
+/// Mark an `applied` or `partial` change `undone` (once).
+pub fn mark_change_undone(conn: &Connection, id: &str) -> Result<bool> {
+    let n = conn.execute(
+        "UPDATE agent_changes SET state = 'undone' WHERE id = ?1 AND state IN ('applied','partial')",
+        [id],
     )?;
     Ok(n == 1)
 }
@@ -716,6 +758,8 @@ mod tests {
             state: "ignored".into(),
             before: r#"{"files":{}}"#.into(),
             outcome: None,
+            after: None,
+            undoes: None,
         };
         insert_change(c, &mk("ch_old", "2026-01-01T00:00:00Z")).unwrap();
         insert_change(c, &mk("ch_new", "2026-06-01T00:00:00Z")).unwrap();
@@ -726,6 +770,27 @@ mod tests {
             "finishes once"
         );
         assert_eq!(get_change(c, "ch_new").unwrap().unwrap().state, "applied");
+        assert!(set_change_after(c, "ch_new", "{}").unwrap());
+        assert!(
+            !set_change_after(c, "ch_new", "{}").unwrap(),
+            "written once"
+        );
+        assert_eq!(
+            list_changes_of(c, Some("p_1"), 10)
+                .unwrap()
+                .iter()
+                .map(|r| r.id.as_str())
+                .collect::<Vec<_>>(),
+            ["ch_new", "ch_old"],
+            "newest first"
+        );
+        assert!(
+            !mark_change_undone(c, "ch_old").unwrap(),
+            "only an applied or partial change"
+        );
+        assert!(mark_change_undone(c, "ch_new").unwrap());
+        assert!(!mark_change_undone(c, "ch_new").unwrap(), "undone once");
+        assert_eq!(get_change(c, "ch_new").unwrap().unwrap().state, "undone");
         assert_eq!(
             prune_changes(c, "2026-03-01T00:00:00Z").unwrap(),
             ["ch_old"]

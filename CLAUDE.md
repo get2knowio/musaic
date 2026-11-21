@@ -227,9 +227,12 @@ the SSE relay). Callers never call those directly.
 A merge of several album rows into one (rule 6) has no event of its own: it is
 `AlbumRenamed(old, survivor)` per merged row, under `in_bulk_run`.
 
-`AgentStateChanged(what, ids)` reports that a pairing, an approval card or an agent's
-activity changed (references only), so the UI refreshes Settings, Agents and the Review
-inbox. Like `ChecksRerunFinished` it is a report: no rerun subscriber, no sweep wake, no
+`AgentStateChanged(what, ids)` reports that a pairing, an approval card, an agent's
+activity or its change records (an undo) changed (references only), so the UI refreshes
+Settings, Agents and the Review inbox. The desktop's Undo of an agent change
+(`musaic-app/src/agent/undo.rs`) renames back through the rename service and restores
+through the apply pipeline (`apply::apply_restore`), so it publishes what any rename and
+apply publish. Like `ChecksRerunFinished` it is a report: no rerun subscriber, no sweep wake, no
 findings notify; only the relay carries it.
 
 New mutation → publish the right event. A direct call to the post-scan rerun outside the
