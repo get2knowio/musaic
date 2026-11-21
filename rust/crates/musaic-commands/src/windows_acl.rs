@@ -19,6 +19,9 @@ const SYSTEM_SID: &str = "S-1-5-18";
 /// current user or SYSTEM. Deny ACEs take nothing away from this and are
 /// allowed. The `Err` is the reason, worded for `DESCRIPTOR_INVALID`.
 pub fn check_dacl(sddl: &str, user_sid: &str) -> Result<(), String> {
+    // Name the trustee: a SID or an SDDL alias identifies an account, never a
+    // secret, and without it a refusal on someone's machine cannot be diagnosed.
+    let other_named = |who: &str| Err(format!("its permissions allow other users ({who})"));
     let other = || Err("its permissions allow other users".to_string());
     let Some(rest) = sddl.trim().strip_prefix("D:") else {
         return Err("its access control list cannot be read".into());
@@ -43,7 +46,7 @@ pub fn check_dacl(sddl: &str, user_sid: &str) -> Result<(), String> {
         }
         let is_deny = matches!(fields[0], "D" | "OD" | "XD");
         if !is_deny && !trustee_is_allowed(fields[5], user_sid) {
-            return other();
+            return other_named(fields[5]);
         }
         aces = &body[end + 1..];
     }
