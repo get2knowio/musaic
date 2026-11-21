@@ -2686,7 +2686,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-ai"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "base64 0.23.1",
  "musaic-ai",
@@ -2705,7 +2705,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-api"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "axum",
  "base64 0.23.1",
@@ -2744,7 +2744,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-app"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "jsonschema",
  "musaic-ai",
@@ -2774,7 +2774,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-bpm"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "musaic-dsp",
  "musaic-testdata",
@@ -2785,7 +2785,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-checks"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "musaic-core",
  "musaic-db",
@@ -2805,7 +2805,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-cli"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "clap",
  "getrandom 0.4.3",
@@ -2826,7 +2826,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-commands"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "getrandom 0.4.3",
  "hmac",
@@ -2842,7 +2842,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-core"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "musaic-testdata",
  "serde",
@@ -2854,7 +2854,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-db"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "musaic-core",
  "musaic-scan",
@@ -2867,7 +2867,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-desktop"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "axum",
  "fd-lock",
@@ -2897,7 +2897,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-dsp"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "base64 0.23.1",
  "claxon",
@@ -2910,7 +2910,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-events"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "musaic-core",
  "musaic-log",
@@ -2920,7 +2920,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-fsops"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "musaic-core",
  "musaic-db",
@@ -2940,11 +2940,11 @@ dependencies = [
 
 [[package]]
 name = "musaic-log"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 
 [[package]]
 name = "musaic-mcp"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "jsonschema",
  "musaic-commands",
@@ -2955,7 +2955,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-net"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "base64 0.23.1",
  "musaic-core",
@@ -2975,7 +2975,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-resolve"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "base64 0.23.1",
  "form_urlencoded",
@@ -2996,7 +2996,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-scan"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "musaic-core",
  "musaic-testdata",
@@ -3008,7 +3008,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-secrets"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "keyring",
  "musaic-commands",
@@ -3023,7 +3023,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-services"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "base64 0.23.1",
  "image",
@@ -3055,7 +3055,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-tags"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "base64 0.23.1",
  "image",
@@ -3073,7 +3073,7 @@ dependencies = [
 
 [[package]]
 name = "musaic-testdata"
-version = "0.2.0-rc.1"
+version = "0.2.0-rc.2"
 dependencies = [
  "serde_json",
 ]
