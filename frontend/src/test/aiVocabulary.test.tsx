@@ -17,7 +17,7 @@ vi.mock("sonner", () => ({
 
 import Sidebar from "@/components/Sidebar";
 import JobStatusBadge from "@/components/JobStatusBadge";
-import AttentionPage from "@/pages/Attention";
+import ReviewPage from "@/pages/Review";
 import SettingsPage from "@/pages/Settings";
 import BackupPanel from "@/pages/SettingsBackup";
 import PropTable from "@/components/DetailSheet/PropTable";
@@ -148,11 +148,11 @@ const reviewJob = makeJob({
 
 /** Each surface that names AI, and the wording it shows when ready. */
 const surfaces: { name: string; ui: () => ReactNode; jobs?: Job[]; act?: () => void; namesAi: string[] }[] = [
-  { name: "Sidebar", ui: () => <Sidebar />, namesAi: ["Needs attention"] },
-  { name: "Needs attention, empty", ui: () => <AttentionPage />, namesAi: ["Nothing needs attention"] },
+  { name: "Sidebar", ui: () => <Sidebar />, namesAi: ["Review"] },
+  { name: "Review, empty", ui: () => <ReviewPage />, namesAi: ["Nothing to review"] },
   {
-    name: "Needs attention, delete dialog",
-    ui: () => <AttentionPage />,
+    name: "Review, delete dialog",
+    ui: () => <ReviewPage />,
     jobs: [completedJob],
     act: () => fireEvent.click(screen.getByRole("button", { name: "Delete job" })),
     namesAi: ["discard Claude's suggestions"],

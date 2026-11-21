@@ -16,7 +16,7 @@ vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), warning: vi.fn() }),
 }));
 
-import AttentionPage from "@/pages/Attention";
+import ReviewPage from "@/pages/Review";
 import LibraryPage from "@/pages/Library";
 import Sidebar from "@/components/Sidebar";
 import { makeAlbum, makeJob } from "@/test/fixtures";
@@ -95,18 +95,18 @@ function client(seed: { findings?: Finding[]; jobs?: Job[] } = {}) {
 function renderReview(qc: QueryClient) {
   render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={["/attention"]}>
+      <MemoryRouter initialEntries={["/review"]}>
         <Sidebar />
         <Routes>
-          <Route path="/attention" element={<AttentionPage />} />
+          <Route path="/review" element={<ReviewPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-const navLink = () => screen.getByRole("link", { name: /Needs attention/ });
-const ALL_CLEAR = { name: "Nothing needs attention" };
+const navLink = () => screen.getByRole("link", { name: /Review/ });
+const ALL_CLEAR = { name: "Nothing to review" };
 
 describe("review sources", () => {
   it("initial failure of every source: no all-clear, a Retry for each, the badge says it does not know", async () => {
@@ -140,7 +140,7 @@ describe("review sources", () => {
     });
     expect(await screen.findByText(/Showing findings as last loaded/)).toBeTruthy();
     expect(screen.getByText("gap 1")).toBeTruthy();
-    expect(navLink().querySelector("[title]")!.getAttribute("title")).toMatch(/last known/);
+    expect(navLink().querySelector("[data-badge]")!.getAttribute("title")).toMatch(/last known/);
   });
 
   it("a successful retry clears the notice and only then shows the all-clear", async () => {
@@ -152,7 +152,7 @@ describe("review sources", () => {
     fireEvent.click(retry);
     expect(await screen.findByRole("heading", ALL_CLEAR)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Retry findings" })).toBeNull();
-    expect(navLink().textContent).toBe("Needs attention");
+    expect(navLink().textContent).toBe("Review");
   });
 
   it("genuinely empty answers show the all-clear and no badge", async () => {
@@ -161,14 +161,15 @@ describe("review sources", () => {
     renderReview(client());
     expect(await screen.findByRole("heading", ALL_CLEAR)).toBeTruthy();
     expect(screen.queryByRole("status")).toBeNull();
-    expect(navLink().textContent).toBe("Needs attention");
+    expect(navLink().textContent).toBe("Review");
   });
 
   it("while nothing has answered it says loading, not all-clear", () => {
     answers["/api/checks/findings"] = PENDING;
     answers["/api/ai/jobs"] = PENDING;
     renderReview(client());
-    expect(screen.getByText("Loading…")).toBeTruthy();
+    expect(screen.getAllByText("Loading…").length).toBeGreaterThan(0);
+    expect(navLink().textContent).toBe("Review");
     expect(screen.queryByRole("heading", ALL_CLEAR)).toBeNull();
   });
 });

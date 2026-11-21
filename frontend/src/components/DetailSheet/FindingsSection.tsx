@@ -42,7 +42,7 @@ export default function FindingsSection({ album, genreRowShown = false }: Props)
   // Hide the section entirely when there's nothing to show.
   if (open.length === 0 && ignored.length === 0) return null;
 
-  // Most-common open check on this album → drives the "Bulk fix in Needs attention"
+  // Most-common open check on this album → drives the "Bulk fix in Review"
   // deep-link in the section meta, so the user discovers the bulk affordance
   // without us spending a paragraph telling them about it.
   const topCheckId = pickTopCheck(open);
@@ -62,9 +62,19 @@ export default function FindingsSection({ album, genreRowShown = false }: Props)
           {open.length > 0 && ignored.length > 0 && (
             <span className="text-fg-4">· {ignored.length} ignored</span>
           )}
+          {open.length > 0 && (
+            <Link
+              to={`/review?album=${encodeURIComponent(albumId)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-0.5 text-fg-3 hover:text-accent hover:underline"
+              title="This album's open items in Review"
+            >
+              In Review ↗
+            </Link>
+          )}
           {topCheckId && (
             <Link
-              to={`/attention?check=${encodeURIComponent(topCheckId)}`}
+              to={`/review?check=${encodeURIComponent(topCheckId)}`}
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-0.5 text-fg-3 hover:text-accent hover:underline"
               title="Bulk-fix similar findings across the library"
@@ -162,7 +172,7 @@ function FindingRow({ finding, genreRowShown = false }: { finding: Finding; genr
         )}
         <div className="mono text-[11px] text-fg-4 mt-0.5 truncate">
           <Link
-            to={`/attention?check=${encodeURIComponent(finding.check_id)}`}
+            to={`/review?check=${encodeURIComponent(finding.check_id)}`}
             className="hover:underline text-fg-3"
           >
             {checkLabel}

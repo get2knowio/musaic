@@ -1,6 +1,6 @@
 /**
- * The Needs attention entry looks active for any /attention URL, whatever
- * its query string (a check filter, the Suggestions view, a linked job).
+ * The Review entry looks active for any /review URL, whatever its query
+ * string (a check filter, a type filter, an album filter, a linked job).
  */
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
@@ -22,16 +22,16 @@ function renderAt(url: string) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  return screen.getByRole("link", { name: /Needs attention/ });
+  return screen.getByRole("link", { name: /Review/ });
 }
 
 describe("sidebar active state", () => {
   for (const url of [
-    "/attention",
-    "/attention?check=filename-mismatch",
-    "/attention?view=suggestions",
-    "/attention?view=other",
-    "/attention?job=j1",
+    "/review",
+    "/review?check=filename-mismatch",
+    "/review?kind=proposed",
+    "/review?album=a1",
+    "/review?job=j1",
   ]) {
     it(`${url} is active`, () => {
       const link = renderAt(url);

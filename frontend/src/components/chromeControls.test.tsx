@@ -63,7 +63,7 @@ describe("titlebar", () => {
     expect(screen.getByRole("searchbox")).toBeInTheDocument();
     expect(screen.getByTitle("Tile view")).toBeInTheDocument();
     lib.unmount();
-    for (const url of ["/attention", "/settings"]) {
+    for (const url of ["/review", "/settings"]) {
       const v = titlebarAt(url);
       expect(screen.queryByRole("searchbox")).toBeNull();
       expect(screen.queryByTitle("Tile view")).toBeNull();

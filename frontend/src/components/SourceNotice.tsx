@@ -1,6 +1,6 @@
 import { AlertTriangle, RotateCcw } from "lucide-react";
 
-import type { SourceStatus } from "@/hooks/useAttention";
+import type { SourceStatus } from "@/hooks/useReview";
 
 /**
  * One line per data source that failed: what is missing or out of date,

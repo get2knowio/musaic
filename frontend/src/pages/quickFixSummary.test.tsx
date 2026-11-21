@@ -1,5 +1,5 @@
 /**
- * Needs attention → bulk quick-fix dialog: the closing summary reports only
+ * Review → bulk quick-fix dialog: the closing summary reports only
  * the findings that are gone as resolved. A fix that wrote part of what its
  * finding asks for comes back as `still_open` (the backend reruns the check
  * over the albums it fixed), and the dialog says so instead of claiming
@@ -12,7 +12,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import AttentionPage from "@/pages/Attention";
+import ReviewPage from "@/pages/Review";
 import type { CheckDetail, Finding } from "@/lib/types";
 
 const finding = (id: number): Finding => ({
@@ -80,9 +80,9 @@ function stubFetch(body: string) {
 function renderPage() {
   render(
     <QueryClientProvider client={client()}>
-      <MemoryRouter initialEntries={["/attention"]}>
+      <MemoryRouter initialEntries={[`/review?check=${detail.meta.id}`]}>
         <Routes>
-          <Route path="/attention" element={<AttentionPage />} />
+          <Route path="/review" element={<ReviewPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

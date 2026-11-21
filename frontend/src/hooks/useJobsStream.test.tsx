@@ -44,7 +44,7 @@ describe("useJobsStream", () => {
       </QueryClientProvider>,
     );
     expect(MockEventSource.instances).toHaveLength(1);
-    act(() => go!("/attention"));
+    act(() => go!("/review"));
     act(() => go!("/settings"));
     expect(MockEventSource.instances).toHaveLength(1);
     expect(MockEventSource.last!.closed).toBe(false);

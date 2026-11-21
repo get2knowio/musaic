@@ -1,9 +1,9 @@
-import { AlertCircle, Disc3, Settings as SettingsIcon } from "lucide-react";
+import { Disc3, Inbox, Settings as SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
 import { NavLink, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useJobs, useInFlightJobCounts } from "@/hooks/useJobs";
-import { attentionBadge, attentionBadgeText, useAttention } from "@/hooks/useAttention";
+import { reviewBadge, useReview } from "@/hooks/useReview";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useRememberedLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
 import { FILTERS, buildNeedsAttentionSet, isValidFilterKey, type FilterKey } from "@/lib/filters";
@@ -13,9 +13,7 @@ interface NavItem {
   label: string;
   icon: typeof Disc3;
   count?: number;
-  badge?: { text: string; tone: "accent" | "warn" | "err"; title?: string; uncertain?: boolean };
-  /** A second, quieter number after the badge; `title` starts with it. */
-  quiet?: { text: string; title: string };
+  badge?: { text: string; tone: "accent" | "neutral" | "warn" | "err"; title?: string; uncertain?: boolean };
   /** Show a pulsing dot to indicate background activity (e.g. AI job running). */
   activity?: { label: string };
 }
@@ -23,7 +21,7 @@ interface NavItem {
 export default function Sidebar() {
   const location = useLocation();
   const isLibrary = location.pathname.startsWith("/library");
-  const isAttention = location.pathname.startsWith("/attention");
+  const isReview = location.pathname.startsWith("/review");
 
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -38,7 +36,7 @@ export default function Sidebar() {
   const rememberedLibraryUrl = useRememberedLibraryUrl();
 
   // Toggle a filter chip. Clicking the currently-active filter clears it;
-  // clicking from /attention or /settings navigates BACK to the remembered library
+  // clicking from /review or /settings navigates BACK to the remembered library
   // URL with the filter applied — but strip any open-album segment so a
   // filter click doesn't surprise the user by re-opening a detail sheet.
   // Other view state (search query, view mode) IS preserved.
@@ -82,7 +80,7 @@ export default function Sidebar() {
     return out;
   }, [albums, needsAttention]);
 
-  const attention = useAttention();
+  const review = useReview();
   const { running: runningCount, queued: queuedCount } = useInFlightJobCounts();
   const activityLabel =
     runningCount > 0
@@ -92,25 +90,17 @@ export default function Sidebar() {
       : queuedCount > 0
       ? `${queuedCount} queued`
       : null;
-  // Two numbers, as the page's index groups them: what needs a decision
-  // (open warn/error findings plus proposed and failed jobs), then the
-  // suggestions (informational findings), quieter. Finished jobs and
-  // ignored findings are in neither.
-  // A source that failed makes the first number a lower bound ("2+", or
-  // "?" with nothing known), never a confident zero.
-  const suggestions = attention.infoFindings.length;
-  const badge = attentionBadge(attention);
-  const attentionItem: NavItem = {
-    to: "/attention",
-    label: "Needs attention",
-    icon: AlertCircle,
-    badge: badge ? { ...badge, tone: "warn" } : undefined,
-    quiet: suggestions > 0
-      ? {
-          text: attentionBadgeText(suggestions, attention.countIsLowerBound),
-          title: `${attentionBadgeText(suggestions, attention.countIsLowerBound)} ${suggestions === 1 ? "suggestion" : "suggestions"}`,
-        }
-      : undefined,
+  // One neutral number: the distinct open items Review lists by default
+  // (open findings of every severity, proposed changes, failed jobs), the
+  // same count its header shows. Hidden at a verified zero; a source that
+  // failed makes it a lower bound ("2+", or "?" with nothing known), never
+  // a confident zero. Jobs in progress show as the activity dot instead.
+  const badge = reviewBadge(review);
+  const reviewItem: NavItem = {
+    to: "/review",
+    label: "Review",
+    icon: Inbox,
+    badge: badge ? { ...badge, tone: "neutral" } : undefined,
     activity: runningCount > 0 && activityLabel
       ? { label: activityLabel }
       : undefined,
@@ -136,12 +126,12 @@ export default function Sidebar() {
     <nav className="border-r border-line bg-panel-2 px-2.5 py-3 flex flex-col gap-1 text-sm overflow-y-auto">
       <SectionLabel>Workspace</SectionLabel>
       {/* Library item targets the remembered URL so the user lands back on
-          their last filter / search / open album when returning from /attention. */}
+          their last filter / search / open album when returning from /review. */}
       <WorkspaceItem
         item={{ to: rememberedLibraryUrl, label: "Library", icon: Disc3 }}
         active={isLibrary && activeFilter === null}
       />
-      <WorkspaceItem item={attentionItem} active={isAttention} />
+      <WorkspaceItem item={reviewItem} active={isReview} />
 
       <SectionLabel>Filters</SectionLabel>
       <FilterChipRow
@@ -223,6 +213,7 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
       )}
       {item.badge && (
         <span
+          data-badge
           title={item.badge.title}
           className={
             (item.activity ? "" : "ml-auto ") +
@@ -230,6 +221,8 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
             (item.badge.uncertain ? "border border-dashed border-current " : "") +
             (item.badge.tone === "accent"
               ? "bg-accent text-accent-fg"
+              : item.badge.tone === "neutral"
+              ? "bg-bg-3 text-fg-2"
               : item.badge.tone === "warn"
               ? "bg-warn-soft text-warn"
               : "bg-err-soft text-err")
@@ -239,19 +232,7 @@ function WorkspaceItem({ item, active }: { item: NavItem; active: boolean }) {
           {item.badge.title && <span className="sr-only"> {item.badge.title.replace(/^\S+ /, "")}</span>}
         </span>
       )}
-      {item.quiet && (
-        <span
-          title={item.quiet.title}
-          className={
-            (item.activity || item.badge ? "" : "ml-auto ") +
-            "mono text-[10.5px] tabular-nums px-1.5 py-0.5 rounded-full border border-line text-fg-3"
-          }
-        >
-          {item.quiet.text}
-          <span className="sr-only"> {item.quiet.title.replace(/^\S+ /, "")}</span>
-        </span>
-      )}
-      {item.activity && !item.badge && !item.quiet && <span className="ml-auto" />}
+      {item.activity && !item.badge && <span className="ml-auto" />}
       {item.count !== undefined && !item.badge && (
         <span className="ml-auto mono text-xs text-fg-4 tabular-nums">{item.count}</span>
       )}

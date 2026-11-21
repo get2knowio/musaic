@@ -43,6 +43,19 @@ Security.
 
 ### Changed
 
+- "Needs attention" is now **Review**, one inbox at `/review`
+  ([#325](https://github.com/get2knowio/musaic/issues/325)). It opens to All open: every
+  open finding whatever its severity (informational ones included, with nothing to open
+  first), every proposed change and every failed job, most pressing first (errors, failed
+  jobs, warnings, proposed changes, suggestions), each row with a short label. The sidebar
+  shows one neutral badge, the number of those items, and the page header shows the same
+  count and the albums they are about; a filter (one entry per check, proposed changes,
+  failed jobs, and an album filter from the album's Findings section) shows "2 of 3 items"
+  and leaves the badge alone. A check's bulk command says it works on all of the check's
+  open findings in the library, also under a narrower filter. Jobs in progress, job history
+  and ignored findings are listed beside the inbox and are not counted. Old `/attention`,
+  `/health` and `/jobs` links land on the nearest filter, and Back returns to the same
+  filter, row and scroll position.
 - A "Tags don't match canonical" finding whose only blank core tag is the genre is now
   informational. A blank title, album artist or year is still a warning. This build has no
   way to fill in a missing genre, so the warning had no fix; the finding still says the

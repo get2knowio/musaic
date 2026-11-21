@@ -253,7 +253,7 @@ function SheetBody({
   // The proposed corrections, from a finished job or else from the
   // resolver; one diff, one set of ticks, one apply. A job's result for a
   // Missing album could not be applied (apply answers 409), so it is not
-  // shown here; Needs attention still lists it.
+  // shown here; Review still lists it.
   const corrections = useCorrections({
     album: displayAlbum,
     activeJob,
@@ -269,7 +269,7 @@ function SheetBody({
 
   // Most recent failed job for this album that hasn't been acted on. Surfaced
   // in the banner so the user can retry / inspect the error inline rather
-  // than navigating to Needs attention and hunting the row.
+  // than navigating to Review and hunting the row.
   const recentFailedJob =
     !activeJob && !isApplying && !isMissing
       ? allJobs
@@ -497,7 +497,7 @@ function SheetBody({
 
         {/* Failed-job banner — surfaces the most recent failure for this
             album so the user can Retry / inspect inline, instead of navigating
-            to Needs attention and finding the row. */}
+            to Review and finding the row. */}
         {recentFailedJob && (
           <div className="mx-4 my-3 rounded-md border border-err/40 bg-err-soft p-3 text-sm flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-err shrink-0 mt-0.5" />
@@ -527,10 +527,10 @@ function SheetBody({
                 Retry
               </button>
               <Link
-                to="/attention"
+                to={`/review?job=${encodeURIComponent(recentFailedJob.id)}`}
                 className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition inline-flex items-center"
               >
-                View in Needs attention
+                View in Review
               </Link>
             </div>
           </div>
