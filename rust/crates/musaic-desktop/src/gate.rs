@@ -47,6 +47,12 @@
 //!   picker (cookie, exact Host, the app's own Origin, POST). The marker
 //!   advertises it (`reveal: true`, `fileManager: "Finder" | "Explorer" |
 //!   "file manager"`).
+//! * **Native menu state** (`POST /__musaic/menu-state`): the page reports
+//!   which native menu commands are enabled and which check items are
+//!   ticked (menu.rs, [`crate::menu::parse_state`]: allow-listed ids only).
+//!   Same checks as the reveal endpoints. 204; 400 for a malformed body.
+//!   The marker advertises a menu bar (`nativeMenu: true`) only where the
+//!   shell has one (macOS).
 //! * **Selftest controls** (`--selftest-report` runs only; 404 otherwise):
 //!   `POST /__musaic/selftest/{cmd}` lets the hidden-window tests hold a
 //!   piece of work and send a quit request down the same paths the close
@@ -80,6 +86,8 @@ pub const REVEAL_PREFIX: &str = "/__musaic/reveal/";
 pub const REVEAL_ALBUM_PREFIX: &str = "/__musaic/reveal/album/";
 /// `POST /__musaic/reveal/trash`.
 pub const REVEAL_TRASH_PATH: &str = "/__musaic/reveal/trash";
+/// `POST /__musaic/menu-state` (menu.rs).
+pub const MENU_STATE_PATH: &str = "/__musaic/menu-state";
 /// Selftest controls (`--selftest-report` runs only).
 pub const SELFTEST_PREFIX: &str = "/__musaic/selftest/";
 
@@ -92,6 +100,10 @@ pub const FILE_MANAGER: &str = if cfg!(target_os = "macos") {
 } else {
     "file manager"
 };
+
+/// Whether the shell shows a native menu bar whose commands the page drives
+/// (menu.rs): macOS only. Elsewhere every command stays in the window.
+pub const NATIVE_MENU: bool = cfg!(target_os = "macos");
 
 /// Content-Security-Policy on every backend response. Only the app's own
 /// origin: no remote scripts, styles, fonts, images or connections.
@@ -124,17 +136,24 @@ pub const DIALOG_SHIM_JS: &str = r#"(function () {
   window.alert = function (message) { ask("alert", message); };
   // Marker for the frontend (lib/desktop.ts): this window can show a
   // native folder picker through POST /__musaic/dialog/folder and reveal
-  // an album folder / the trash through POST /__musaic/reveal/*.
+  // an album folder / the trash through POST /__musaic/reveal/*. With
+  // nativeMenu, the menu bar sends "musaic:command" events (menu.rs) and
+  // takes its enabled state from POST /__musaic/menu-state.
   Object.defineProperty(window, "__musaicDesktop", {
-    value: Object.freeze({ folderPicker: true, reveal: true, fileManager: "__MUSAIC_FILE_MANAGER__" }),
+    value: Object.freeze({ folderPicker: true, reveal: true, fileManager: "__MUSAIC_FILE_MANAGER__", nativeMenu: __MUSAIC_NATIVE_MENU__ }),
     enumerable: false, configurable: false, writable: false
   });
 })();"#;
 
 /// The initialization script the window runs: [`DIALOG_SHIM_JS`] with the
-/// platform's [`FILE_MANAGER`] name in the marker.
+/// platform's [`FILE_MANAGER`] name and [`NATIVE_MENU`] in the marker.
 pub fn init_script() -> String {
-    DIALOG_SHIM_JS.replace("__MUSAIC_FILE_MANAGER__", FILE_MANAGER)
+    DIALOG_SHIM_JS
+        .replace("__MUSAIC_FILE_MANAGER__", FILE_MANAGER)
+        .replace(
+            "__MUSAIC_NATIVE_MENU__",
+            if NATIVE_MENU { "true" } else { "false" },
+        )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,6 +184,9 @@ pub trait Hooks: Send + Sync {
         let _ = tx.send(Err("no window".into()));
         rx
     }
+    /// The page's native menu state (allow-listed items only). The default
+    /// (no menu bar) ignores it.
+    fn menu_state(&self, _items: Vec<crate::menu::ItemState>) {}
     /// An authenticated request reached the backend (selftest bookkeeping).
     fn seen(&self, _method: &Method, _path: &str) {}
     /// A selftest control (`POST /__musaic/selftest/{cmd}?{query}`).
@@ -273,6 +295,16 @@ pub async fn guard(State(gate): State<Arc<Gate>>, req: Request, next: Next) -> R
         }
         return with_csp(reveal(&gate, what).await);
     }
+    if path == MENU_STATE_PATH {
+        let h = req.headers();
+        if !gate.launch.host_is_self(h) || !gate.launch.authorizes(h) {
+            return with_csp(detail(StatusCode::FORBIDDEN, NO_TOKEN));
+        }
+        if req.method() != Method::POST || !gate.launch.origin_is_self(h) {
+            return with_csp(detail(StatusCode::FORBIDDEN, "Forbidden"));
+        }
+        return with_csp(menu_state(&gate, req).await);
+    }
     if let Some(cmd) = path.strip_prefix(SELFTEST_PREFIX) {
         let h = req.headers();
         if !gate.launch.host_is_self(h) || !gate.launch.authorizes(h) {
@@ -302,6 +334,22 @@ pub async fn guard(State(gate): State<Arc<Gate>>, req: Request, next: Next) -> R
 }
 
 const DIALOG_BODY_LIMIT: usize = 16 * 1024;
+
+async fn menu_state(gate: &Gate, req: Request) -> Response {
+    let Ok(bytes) = axum::body::to_bytes(req.into_body(), crate::menu::STATE_BODY_LIMIT).await
+    else {
+        return detail(StatusCode::PAYLOAD_TOO_LARGE, "Menu state too large");
+    };
+    match crate::menu::parse_state(&bytes) {
+        Ok(items) => {
+            gate.hooks.menu_state(items);
+            let mut r = Response::new(Body::empty());
+            *r.status_mut() = StatusCode::NO_CONTENT;
+            r
+        }
+        Err(e) => detail(StatusCode::BAD_REQUEST, &e),
+    }
+}
 
 async fn dialog(gate: &Gate, kind: &str, req: Request) -> Response {
     let kind = match kind {

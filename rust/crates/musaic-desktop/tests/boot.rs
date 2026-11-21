@@ -691,7 +691,61 @@ fn quit_routes_ask_only_while_work_runs() {
                 "Edit → {want} missing: {menu}"
             );
         }
-        assert!(subs.iter().any(|s| s["title"] == "Window"), "{menu}");
+        let titles: Vec<_> = subs.iter().map(|s| s["title"].clone()).collect();
+        assert_eq!(
+            titles,
+            ["Musaic", "File", "Edit", "View", "Album", "Window", "Help"],
+            "{menu}"
+        );
+        let has = |title: &str, id: &str| {
+            subs.iter()
+                .find(|s| s["title"] == title)
+                .and_then(|s| s["items"].as_array())
+                .is_some_and(|items| items.iter().any(|i| i["id"] == id))
+        };
+        for (title, id) in [
+            ("Musaic", "app.settings"),
+            ("File", "library.rescan"),
+            ("Edit", "library.find"),
+            ("View", "view.library"),
+            ("View", "view.review"),
+            ("Album", "album.reveal"),
+            ("Help", "help.shortcuts"),
+        ] {
+            assert!(has(title, id), "{title} → {id} missing: {menu}");
+        }
+
+        // The page reports which commands are available (no library
+        // configured, nothing selected) ...
+        let state = wait_for("menu state from the page", 60, || {
+            named(&events(&run.report), "menu-state")
+                .first()
+                .map(|e| (*e).clone())
+        });
+        let enabled = state["enabled"].as_array().unwrap();
+        assert!(enabled.iter().any(|i| i == "view.library"), "{state}");
+        assert!(enabled.iter().any(|i| i == "app.settings"), "{state}");
+        assert!(!enabled.iter().any(|i| i == "album.reveal"), "{state}");
+        assert!(!enabled.iter().any(|i| i == "library.rescan"), "{state}");
+        // ... and a menu command reaches it: Keyboard Shortcuts opens a
+        // modal, after which the page dims every command.
+        let r = selftest(&live, "menu?id=help.shortcuts");
+        assert_eq!(r.status, 200, "{}", r.body);
+        let sent = wait_for("menu command", 30, || {
+            named(&events(&run.report), "menu-command")
+                .first()
+                .map(|e| (*e).clone())
+        });
+        assert_eq!(sent["delivered"], true, "{sent}");
+        wait_for("menu dimmed under the modal", 30, || {
+            named(&events(&run.report), "menu-state")
+                .iter()
+                .any(|e| e["enabled"].as_array().is_some_and(Vec::is_empty))
+                .then_some(())
+        });
+        // Not a command: refused.
+        let r = selftest(&live, "menu?id=musaic-quit");
+        assert_eq!(r.status, 400, "{}", r.body);
     }
     let r = selftest(&live, "hold-work");
     assert_eq!(r.status, 200, "{}", r.body);

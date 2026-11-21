@@ -17,6 +17,8 @@ import { useTrackLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
 import { useScanFollower } from "@/hooks/useScanFollower";
 import { useActivityLinks } from "@/hooks/useActivityLinks";
 import ActivityPanel from "@/components/ActivityPanel";
+import KeyboardShortcutsDialog from "@/components/KeyboardShortcutsDialog";
+import { useCommandHost } from "@/hooks/useCommands";
 
 /**
  * Top-level layout: titlebar across the top, sidebar on the left, route
@@ -49,8 +51,13 @@ export default function App() {
   // address changes on every launch); show them once they arrive.
   useSyncUiPrefs();
 
-  // `/` focuses the Library filter, `,` opens Settings.
+  // `/` focuses the Library filter, `,` opens Settings, `?` lists the keys;
+  // Ctrl-F / 1 / 2 / , in the desktop window on Windows and Linux.
   useGlobalShortcuts();
+
+  // The macOS menu bar's commands arrive here, and the menu's enabled
+  // state follows the page (lib/commands.ts, desktop menu.rs).
+  useCommandHost();
 
   // The Activity panel's scan record while Library is not reading the scan
   // stream (a rescan started elsewhere, a scan left running).
@@ -97,6 +104,8 @@ export default function App() {
       {/* Over whichever page is open; opened by the titlebar's Activity
           control, openActivityPanel() or a `?activity=` link. */}
       <ActivityPanel />
+      {/* Help → Keyboard Shortcuts, the View menu, or `?`. */}
+      <KeyboardShortcutsDialog />
       {/* Top-right so toasts don't overlap with the right-anchored DetailSheet's
           footer buttons (which sit bottom-right of the visible area). */}
       <Toaster

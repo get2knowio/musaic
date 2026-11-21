@@ -25,6 +25,10 @@ interface DesktopMarker {
   /** What the platform's file manager is called ("Finder", "Explorer",
    *  "file manager"), for the button label. */
   fileManager?: string;
+  /** The shell shows a native menu bar (macOS): its commands arrive as
+   *  `musaic:command` events and it takes its enabled state from
+   *  `POST /__musaic/menu-state` (rust/crates/musaic-desktop/src/menu.rs). */
+  nativeMenu?: boolean;
 }
 
 declare global {
@@ -34,6 +38,38 @@ declare global {
 }
 
 export const FOLDER_PICKER_PATH = "/__musaic/dialog/folder";
+export const MENU_STATE_PATH = "/__musaic/menu-state";
+
+/** Whether this page runs in the desktop window (any platform). */
+export function isDesktopWindow(): boolean {
+  return typeof window !== "undefined" && window.__musaicDesktop !== undefined;
+}
+
+/** Whether the desktop window has a native menu bar driving the commands. */
+export function hasNativeMenu(): boolean {
+  return typeof window !== "undefined" && window.__musaicDesktop?.nativeMenu === true;
+}
+
+/** One native menu item's state, as the shell reads it. */
+export interface MenuItemState {
+  id: string;
+  enabled: boolean;
+  checked?: boolean;
+}
+
+/** Tell the shell which menu commands are available. Best effort: a
+ *  failed post leaves the menu as it was. */
+export async function postMenuState(items: MenuItemState[]): Promise<void> {
+  try {
+    await fetch(MENU_STATE_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ items }),
+    });
+  } catch {
+    /* the next change posts again */
+  }
+}
 
 /** Whether this page runs in the desktop window with a native folder picker. */
 export function hasNativeFolderPicker(): boolean {

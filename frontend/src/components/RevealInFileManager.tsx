@@ -7,7 +7,8 @@ import { useState } from "react";
 import { FolderOpen, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { canRevealInFileManager, revealAlbumFolder, revealLabel, revealTrash } from "@/lib/desktop";
+import { revealAlbum } from "@/lib/commands";
+import { canRevealInFileManager, revealLabel, revealTrash } from "@/lib/desktop";
 
 export type RevealTarget = { kind: "album"; albumId: string } | { kind: "trash" };
 
@@ -24,7 +25,8 @@ export default function RevealInFileManager({ target, className = "" }: Props) {
     if (busy) return;
     setBusy(true);
     try {
-      await (target.kind === "album" ? revealAlbumFolder(target.albumId) : revealTrash());
+      // An album goes the way Album → Show in Finder goes (lib/commands.ts).
+      await (target.kind === "album" ? revealAlbum(target.albumId) : revealTrash());
     } catch (e) {
       toast.error((e as Error).message || "Couldn't open the folder");
     } finally {

@@ -1,5 +1,12 @@
 import { ChevronRight } from "lucide-react";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+
+import {
+  peekAlbumSection,
+  subscribeAlbumSection,
+  takeAlbumSection,
+  useAlbumSectionRequest,
+} from "@/lib/uiRequests";
 
 interface SectionProps {
   /** Stable id; used as the localStorage key suffix. */
@@ -31,7 +38,7 @@ export default function Section({
 }: SectionProps) {
   const storageKey = STORAGE_PREFIX + id;
   const [open, setOpen] = useState<boolean>(() => {
-    if (forceOpen) return true;
+    if (forceOpen || peekAlbumSection() === id) return true;
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored === "1") return true;
@@ -46,6 +53,29 @@ export default function Section({
   useEffect(() => {
     if (forceOpen) setOpen(true);
   }, [forceOpen]);
+
+  // Album → Edit My Tags… / Audio Analysis… (lib/commands.ts): open this
+  // section, bring it into view and put focus on its header. Opening
+  // writes nothing; the section's own buttons do.
+  const headerRef = useRef<HTMLButtonElement>(null);
+  useEffect(
+    () =>
+      subscribeAlbumSection(() => {
+        if (peekAlbumSection() === id) setOpen(true);
+      }),
+    [id],
+  );
+  const request = useAlbumSectionRequest();
+  useEffect(() => {
+    if (request !== id) return;
+    // Taking the request re-renders with none; the focus below must
+    // still happen, so it is not cancelled by that change.
+    takeAlbumSection();
+    requestAnimationFrame(() => {
+      headerRef.current?.scrollIntoView?.({ block: "start" });
+      headerRef.current?.focus();
+    });
+  }, [request, id]);
 
   const toggle = useCallback(() => {
     setOpen((prev) => {
@@ -62,7 +92,9 @@ export default function Section({
   return (
     <div className="border-b border-line">
       <button
+        ref={headerRef}
         type="button"
+        data-section={id}
         onClick={toggle}
         className="w-full flex items-center gap-2 px-4 h-9 hover:bg-bg-2 transition text-left"
         aria-expanded={open}
