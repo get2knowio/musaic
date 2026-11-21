@@ -8,6 +8,7 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -23,11 +24,12 @@ import {
 } from "@/lib/api";
 import { useSettings, useUpdateSettings } from "@/hooks/useJobs";
 import { useAiStatus } from "@/hooks/useAiStatus";
+import { useReturnFocus } from "@/components/DetailSheet/useReturnFocus";
 import { reloadAfterRestore, takeRestoreNotice } from "@/lib/restoreReload";
 import type { DbInfo, DbSnapshot } from "@/lib/types";
 
 /**
- * Backup & Snapshots panel for the Settings page.
+ * Backup & restore panel for the Settings page.
  *
  * The DB at ~/.musaic/library.db carries data that's expensive
  * to recover after a wipe — AI-driven MBID anchors (API fees),
@@ -91,8 +93,8 @@ export default function BackupPanel({
 
   const downloadBackup = useMutation({
     mutationFn: () => downloadDbBackup(),
-    onSuccess: () => toast.success("Backup download started"),
-    onError: (e: Error) => toast.error(e.message || "Couldn't download backup"),
+    onSuccess: () => toast.success("Catalog database backup download started"),
+    onError: (e: Error) => toast.error(e.message || "Couldn't back up the catalog database"),
   });
 
   const deleteOne = useMutation({
@@ -144,27 +146,34 @@ export default function BackupPanel({
     <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
       <header className="flex items-center gap-2 px-4 h-10 border-b border-line bg-panel">
         <Database className="w-3.5 h-3.5 text-accent" />
-        <h2 className="text-md font-semibold">Backup &amp; snapshots</h2>
+        <h2 className="text-md font-semibold">Backup &amp; restore</h2>
       </header>
 
       <div className="px-4 py-4 space-y-5">
-        <p className="text-sm text-fg-3 leading-relaxed">
-          {ai.ready ? (
-            <>
-              Your library DB carries data that's expensive to rebuild — AI-driven
-              MBID anchors, AcoustID fingerprints, your tag taxonomy.
-              Automatic snapshots are taken on app startup so you can roll back
-              a mistake.
-            </>
-          ) : (
-            <>
-              Your library DB carries data that's expensive to rebuild —
-              MusicBrainz matches, AcoustID fingerprints, your tag taxonomy.
-              Automatic snapshots are taken on app startup so you can roll back
-              a mistake.
-            </>
-          )}
-        </p>
+        <div className="text-sm text-fg-3 leading-relaxed space-y-2">
+          <p>
+            {ai.ready ? (
+              <>
+                Musaic keeps a catalog database of records that are expensive to
+                rebuild: AI-driven MBID anchors, AcoustID fingerprints and
+                your My Tags vocabulary.
+              </>
+            ) : (
+              <>
+                Musaic keeps a catalog database of records that are expensive to
+                rebuild: MusicBrainz matches, AcoustID fingerprints and your My
+                Tags vocabulary.
+              </>
+            )}{" "}
+            Snapshots are taken automatically on app startup.
+          </p>
+          <p>
+            Restoring brings back that catalog: its album records, matches and
+            fingerprints. It does not touch your music. FLAC files, their
+            embedded tags, cover files and filenames are not restored; those
+            have their own recovery paths, such as your own file backups.
+          </p>
+        </div>
 
         {/* Current DB stats */}
         {dbInfo.data && <CurrentDbCard info={dbInfo.data} aiReady={ai.ready} />}
@@ -190,9 +199,9 @@ export default function BackupPanel({
             className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5"
           >
             {downloadBackup.isPending ? (
-              <><Loader2 className="w-3.5 h-3.5 spin" /> Preparing…</>
+              <><Loader2 className="w-3.5 h-3.5 spin" /> Preparing backup…</>
             ) : (
-              <><Download className="w-3.5 h-3.5" /> Download backup</>
+              <><Download className="w-3.5 h-3.5" /> Back up catalog database</>
             )}
           </button>
           <button
@@ -244,6 +253,7 @@ export default function BackupPanel({
       {pendingRestore && (
         <RestoreConfirm
           target={pendingRestore}
+          dbPath={dbInfo.data?.path}
           onConfirm={onConfirmRestore}
           onCancel={() => setPendingRestore(null)}
         />
@@ -515,17 +525,23 @@ function SnapshotRow({
 
 function RestoreConfirm({
   target,
+  dbPath,
   onConfirm,
   onCancel,
 }: {
   target:
     | { kind: "snapshot"; name: string; snapshot: DbSnapshot }
     | { kind: "upload"; file: File };
+  /** The live database file that is about to be replaced. */
+  dbPath?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const returnFocus = useReturnFocus(true);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const summary = target.kind === "snapshot"
     ? {
+        kind: "Snapshot",
         label: target.snapshot.filename,
         size: target.snapshot.size_bytes,
         schema: target.snapshot.schema_version,
@@ -533,6 +549,7 @@ function RestoreConfirm({
         counts: target.snapshot.counts,
       }
     : {
+        kind: "Uploaded backup file",
         label: target.file.name,
         size: target.file.size,
         schema: null,
@@ -541,61 +558,96 @@ function RestoreConfirm({
       };
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/45 backdrop-blur-[1px] p-4">
-      <div className="w-[min(520px,95vw)] bg-panel border border-line rounded-md shadow-sheet">
-        <div className="px-4 py-3 border-b border-line flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-warn" />
-          <h3 className="font-semibold text-md">Restore database?</h3>
-        </div>
-        <div className="px-4 py-3.5 space-y-3 text-sm">
-          <p className="text-fg-2">
-            This will overwrite your current library database. The existing
-            file will be moved aside as <code className="mono text-fg">library.db.bak-…</code> first,
-            so this is recoverable. Musaic reloads itself once the restore is done.
-          </p>
-          <div className="border border-line rounded p-3 bg-panel-2 space-y-1 text-xs">
-            <div className="mono text-fg-2 truncate" title={summary.label}>{summary.label}</div>
-            <div className="mono text-[11px] text-fg-4 tabular-nums">
-              {summary.when}
-              <span className="mx-1.5">·</span>
-              {humanBytes(summary.size)}
-              {summary.schema !== null && summary.schema !== undefined && (
-                <>
-                  <span className="mx-1.5">·</span>
-                  schema v{summary.schema}
-                </>
-              )}
-            </div>
-            {summary.counts && (
-              <div className="mono text-[11px] text-fg-4 tabular-nums">
-                {summary.counts.albums ?? "?"} albums
-                {summary.counts.albums_with_mbid !== undefined &&
-                  ` · ${summary.counts.albums_with_mbid} MBIDs`}
-                {summary.counts.track_fingerprints !== undefined &&
-                  ` · ${summary.counts.track_fingerprints} fingerprints`}
-                {summary.counts.track_tags !== undefined &&
-                  ` · ${summary.counts.track_tags} track tags`}
-              </div>
-            )}
+    <Dialog.Root open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-[60] bg-black/45 backdrop-blur-[1px]" />
+        <Dialog.Content
+          className="fixed top-1/2 left-1/2 z-[61] -translate-x-1/2 -translate-y-1/2 w-[min(520px,95vw)] max-h-[90vh] overflow-y-auto bg-panel border border-line rounded-md shadow-sheet outline-none"
+          // A destructive confirm starts on Cancel, so Enter does not restore.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            cancelRef.current?.focus();
+          }}
+          onCloseAutoFocus={returnFocus}
+        >
+          <div className="px-4 py-3 border-b border-line flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-warn" />
+            <Dialog.Title className="font-semibold text-md">
+              Restore the catalog database?
+            </Dialog.Title>
           </div>
-        </div>
-        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
-          <button
-            onClick={onCancel}
-            className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="h-8 px-3 rounded bg-warn text-warn-fg text-sm font-medium hover:opacity-90 transition inline-flex items-center gap-1.5"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Restore
-          </button>
-        </div>
-      </div>
-    </div>
+          <Dialog.Description asChild>
+            <div className="px-4 py-3.5 space-y-3 text-sm">
+              <p className="text-fg-2">
+                This will overwrite your current library database with the
+                source below. The existing file will be moved aside as{" "}
+                <code className="mono text-fg">library.db.bak-…</code> first,
+                so this is recoverable. Musaic reloads itself once the restore is done.
+              </p>
+              <div className="border border-line rounded p-3 bg-panel-2 space-y-1 text-xs">
+                <div className="text-fg-4">{summary.kind}</div>
+                <div className="mono text-fg-2 break-all">{summary.label}</div>
+                <div className="mono text-[11px] text-fg-4 tabular-nums">
+                  {summary.when}
+                  <span className="mx-1.5">·</span>
+                  {humanBytes(summary.size)}
+                  {summary.schema !== null && summary.schema !== undefined && (
+                    <>
+                      <span className="mx-1.5">·</span>
+                      schema v{summary.schema}
+                    </>
+                  )}
+                </div>
+                {summary.counts && (
+                  <div className="mono text-[11px] text-fg-4 tabular-nums">
+                    {summary.counts.albums ?? "?"} albums
+                    {summary.counts.albums_with_mbid !== undefined &&
+                      ` · ${summary.counts.albums_with_mbid} MBIDs`}
+                    {summary.counts.track_fingerprints !== undefined &&
+                      ` · ${summary.counts.track_fingerprints} fingerprints`}
+                    {summary.counts.track_tags !== undefined &&
+                      ` · ${summary.counts.track_tags} track tags`}
+                  </div>
+                )}
+              </div>
+              <ul className="list-disc pl-5 text-fg-3 space-y-0.5 text-xs">
+                <li>
+                  Replaced: the live catalog database
+                  {dbPath ? <> at <span className="mono text-fg-2 break-all">{dbPath}</span></> : null}.
+                </li>
+                <li>
+                  Backed up first: Musaic makes a copy of the current database
+                  as <span className="mono text-fg-2">library.db.bak-…</span>{" "}
+                  before replacing it.
+                </li>
+                <li>
+                  Not restored: FLAC files, embedded tags, cover files and
+                  filenames stay exactly as they are on disk.
+                </li>
+              </ul>
+            </div>
+          </Dialog.Description>
+          <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-line bg-panel-2 rounded-b-md">
+            <button
+              ref={cancelRef}
+              type="button"
+              onClick={onCancel}
+              className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="h-8 px-3 rounded bg-warn text-warn-fg text-sm font-medium hover:opacity-90 transition inline-flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Restore
+            </button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }
 
