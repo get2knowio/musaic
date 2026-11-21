@@ -72,13 +72,28 @@ restarted".
 | album_id | TEXT | album id before any rename |
 | created_at | TEXT | written before the first file changes |
 | state | TEXT | `recorded`, then `applied`, `partial` or `failed` once apply finishes |
-| before | TEXT | JSON: `{files: {fileName: {"album.FIELD" \| "track.FIELD": value \| null \| [values]}}, renames: {files: [{from, to}], folder?: {from, to}}, cover?: {savedAs: "agent-changes/<id>/cover.<ext>", source: "embedded" \| "sidecar" \| "none"}}`. Names are bare names, not paths |
+| before | TEXT | JSON: `{files: {fileName: {"album.FIELD" \| "track.FIELD": value \| null \| [values]}}, renames: {files: [{from, to}], folder?: {from, to}}, cover?: {sidecars: [{name, savedAs: "agent-changes/<id>/sidecars/<name>"}], embedded: {fileName: [{savedAs: "agent-changes/<id>/pictures/<hash>.<ext>", type, mime, description, width, height, depth, colors}]}}}`. Names are bare names, not paths |
 | outcome | TEXT NULL | per-file outcomes, as reported to the agent |
 
 Rows are kept for 90 days, then pruned at startup together with their
-`<config dir>/agent-changes/<id>/` directory. The prior cover is copied byte for byte and
-is not re-encoded. A failure to write the row or the cover copy refuses the apply before
-any write.
+`<config dir>/agent-changes/<id>/` directory. A cover apply replaces both kinds of cover
+art: it drops every PICTURE block of every FLAC file and embeds one, writes `cover.jpg`
+and deletes `cover.jpeg` / `cover.png` (in any case). So the before-image of a change
+that sets a cover keeps all of it, byte for byte and not re-encoded:
+
+- `sidecars`: every `cover.jpg`, `cover.jpeg` or `cover.png` the folder lists (names
+  matched without regard to case, kept as listed), each copied under `sidecars/`. An
+  empty list means the folder had none, so a restore removes the `cover.jpg` the apply
+  wrote.
+- `embedded`: every FLAC file by bare name, with its PICTURE blocks in file order (an
+  empty list is a file that had none). Each entry keeps the block's fields and points at
+  its image data under `pictures/`, named by the first 16 hex characters of the data's
+  SHA-256. Files whose pictures are identical (the usual album, one front cover in every
+  file) share one copy; files that differ each keep their own. Saving per file rather
+  than one album picture is what lets a restore rebuild every block exactly, including a
+  back cover or a picture only some files carry.
+
+A failure to write the row or any of these copies refuses the apply before any write.
 
 ### agent_activity
 | Column | Type | Rules |

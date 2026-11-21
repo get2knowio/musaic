@@ -3,8 +3,14 @@
 //!
 //! For each file the change will touch, the prior value (or absence) of every
 //! tag field it names; the prior file and folder names when it renames; and,
-//! when it replaces the cover, a byte-for-byte copy of the prior cover under
-//! `<config dir>/agent-changes/<id>/`. The record is a row of `agent_changes`
+//! when it replaces the cover, a byte-for-byte copy of everything a cover
+//! apply overwrites or deletes, under `<config dir>/agent-changes/<id>/`:
+//! every PICTURE block of every FLAC file (the apply drops them all and embeds
+//! one) and every `cover.jpg` / `cover.jpeg` / `cover.png` sidecar, in any
+//! case (the apply writes `cover.jpg` and deletes the others). Picture data is
+//! stored once per distinct content, so an album whose files share one
+//! picture keeps one copy, while files that differ each keep their own. The
+//! record is a row of `agent_changes`
 //! (state `recorded`, then `applied`, `partial` or `failed`) and a
 //! `before.json` beside the copy, so it survives a restart and a lost
 //! database row alike. If any part cannot be recorded the apply is refused
@@ -24,7 +30,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::agent_read::file_facts;
 use crate::albums::AlbumRow;
-use crate::covers::{self, FullCover};
+use musaic_tags::flac::{FlacFile, Picture};
+use sha2::{Digest, Sha256};
 
 /// The directory holding every change's record.
 pub const DIR: &str = "agent-changes";
@@ -74,13 +81,60 @@ pub struct RenamesBefore {
     pub folder: Option<NamePair>,
 }
 
+/// One prior sidecar image, saved byte for byte.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SidecarBefore {
+    /// The bare name the album folder listed (`cover.jpg`, `cover.PNG`, ...).
+    pub name: String,
+    /// `agent-changes/<id>/sidecars/<name>`, relative to the config dir.
+    #[serde(rename = "savedAs")]
+    pub saved_as: String,
+}
+
+/// One prior PICTURE block of a FLAC file: its fields, and its image data
+/// saved byte for byte, so the block can be rebuilt exactly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PictureBefore {
+    /// `agent-changes/<id>/pictures/<sha256 prefix>.<ext>`, relative to the
+    /// config dir; files whose picture data is identical share one copy.
+    #[serde(rename = "savedAs")]
+    pub saved_as: String,
+    /// The ID3v2 APIC picture type (3 = front cover).
+    #[serde(rename = "type")]
+    pub kind: u32,
+    pub mime: String,
+    pub description: String,
+    pub width: u32,
+    pub height: u32,
+    pub depth: u32,
+    pub colors: u32,
+}
+
+impl PictureBefore {
+    /// The PICTURE block this stands for, given its saved data.
+    pub fn to_picture(&self, data: Vec<u8>) -> Picture {
+        Picture {
+            kind: self.kind,
+            mime: self.mime.clone(),
+            desc: self.description.clone(),
+            width: self.width,
+            height: self.height,
+            depth: self.depth,
+            colors: self.colors,
+            data,
+        }
+    }
+}
+
+/// The prior cover art: everything a cover apply replaces.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CoverBefore {
-    /// `agent-changes/<id>/cover.<ext>`, relative to the config dir.
-    #[serde(rename = "savedAs", default, skip_serializing_if = "Option::is_none")]
-    pub saved_as: Option<String>,
-    /// `embedded`, `sidecar` or `none`.
-    pub source: String,
+    /// Every cover sidecar the folder held (empty: none). A restore writes
+    /// these back and removes a `cover.jpg` that is not among them.
+    pub sidecars: Vec<SidecarBefore>,
+    /// Every FLAC file's PICTURE blocks in file order, by bare file name; an
+    /// empty list is a file that had none.
+    pub embedded: BTreeMap<String, Vec<PictureBefore>>,
 }
 
 /// The before-image as stored in `agent_changes.before`.
@@ -169,32 +223,69 @@ fn read_prior(
     Ok(out)
 }
 
-fn cover_copy(dir: &Path, change_id: &str, row: &AlbumRow) -> Result<CoverBefore, ToolError> {
-    match covers::full_cover(&row.album.path, &row.json) {
-        None => Ok(CoverBefore {
-            saved_as: None,
-            source: "none".into(),
-        }),
-        Some(found) => {
-            let (bytes, ext, source) = match found {
-                FullCover::Disk(p) => {
-                    let bytes = std::fs::read(&p).map_err(refuse)?;
-                    let ext = p
-                        .extension()
-                        .map(|e| e.to_string_lossy().to_lowercase())
-                        .unwrap_or_else(|| "bin".into());
-                    (bytes, ext, "sidecar")
-                }
-                FullCover::Embedded(bytes, mime) => (bytes, ext_of(&mime).to_string(), "embedded"),
-            };
-            let rel = format!("{DIR}/{change_id}/cover.{ext}");
-            std::fs::write(dir.join(format!("cover.{ext}")), &bytes).map_err(refuse)?;
-            Ok(CoverBefore {
-                saved_as: Some(rel),
-                source: source.into(),
-            })
-        }
+/// The sidecar names a cover apply writes or deletes (`musaic_tags::sidecar`),
+/// matched without regard to case so that nothing it could replace on a
+/// case-insensitive volume is missed.
+fn is_cover_sidecar(name: &str) -> bool {
+    matches!(
+        name.to_ascii_lowercase().as_str(),
+        "cover.jpg" | "cover.jpeg" | "cover.png"
+    )
+}
+
+fn cover_copy(
+    dir: &Path,
+    change_id: &str,
+    album_dir: &Path,
+    names: &[String],
+) -> Result<CoverBefore, ToolError> {
+    let mut out = CoverBefore::default();
+    // The names as the folder lists them: on a case-insensitive volume
+    // `cover.JPG` and `cover.jpg` are one file and must be saved once.
+    let mut sidecar_names: Vec<String> = std::fs::read_dir(album_dir)
+        .map_err(refuse)?
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| is_cover_sidecar(n) && album_dir.join(n).is_file())
+        .collect();
+    sidecar_names.sort();
+    for name in sidecar_names {
+        let bytes = std::fs::read(album_dir.join(&name)).map_err(refuse)?;
+        std::fs::create_dir_all(dir.join("sidecars")).map_err(refuse)?;
+        std::fs::write(dir.join("sidecars").join(&name), &bytes).map_err(refuse)?;
+        out.sidecars.push(SidecarBefore {
+            saved_as: format!("{DIR}/{change_id}/sidecars/{name}"),
+            name,
+        });
     }
+    let pictures = dir.join("pictures");
+    for name in names {
+        let flac = FlacFile::open(&album_dir.join(name)).map_err(refuse)?;
+        let mut saved = Vec::new();
+        for p in flac.pictures() {
+            // Named by content: one copy per distinct picture across files.
+            let digest = Sha256::digest(&p.data);
+            let hex: String = digest[..8].iter().map(|b| format!("{b:02x}")).collect();
+            let file = format!("{hex}.{}", ext_of(&p.mime));
+            let target = pictures.join(&file);
+            if !target.is_file() {
+                std::fs::create_dir_all(&pictures).map_err(refuse)?;
+                std::fs::write(&target, &p.data).map_err(refuse)?;
+            }
+            saved.push(PictureBefore {
+                saved_as: format!("{DIR}/{change_id}/pictures/{file}"),
+                kind: p.kind,
+                mime: p.mime.clone(),
+                description: p.desc.clone(),
+                width: p.width,
+                height: p.height,
+                depth: p.depth,
+                colors: p.colors,
+            });
+        }
+        out.embedded.insert(name.clone(), saved);
+    }
+    Ok(out)
 }
 
 /// Record the before-image of applying `patch` (with the renames `diff`
@@ -234,7 +325,7 @@ pub fn record(
                 }),
             },
             cover: if patch.cover.is_some() {
-                Some(cover_copy(&dir, &id, row)?)
+                Some(cover_copy(&dir, &id, Path::new(&row.album.path), &names)?)
             } else {
                 None
             },

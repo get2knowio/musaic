@@ -93,7 +93,8 @@ nothing. Only you can decide; no tool can.
 
 Before an assistant's change writes anything, Musaic records the prior value (or absence) of
 every tag field it touches, the prior file and folder names, and, for a cover, a copy of
-the prior cover, under `<config>/agent-changes/<id>/` (and in the database). The record is
+all the prior cover art (the `cover.*` sidecar files and every picture embedded in each
+track), under `<config>/agent-changes/<id>/` (and in the database). The record is
 kept for 90 days. If it cannot be written the change is refused and nothing is written.
 There is no Undo button yet; the record is what an undo will use.
 

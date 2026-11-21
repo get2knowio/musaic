@@ -17,6 +17,7 @@ use musaic_scan::flacmeta;
 use musaic_services::agent_changes::{ALBUM_PREFIX, BeforeImage, Prior, TRACK_PREFIX};
 use musaic_services::library_ops::{RenameParts, rename_album_with_plan};
 use musaic_tags::apply::{FIELD_TO_VORBIS, TRACK_FIELD_TO_VORBIS};
+use musaic_tags::flac::{FlacFile, Picture};
 use serde_json::json;
 
 const ALL: &[K] = &[
@@ -266,31 +267,74 @@ fn a_rename_apply_is_undone_by_reversing_the_recorded_names() {
     assert_eq!(tag_state(Path::new(&c.path)), tags_before);
 }
 
+/// The cover art a cover apply replaces: every sidecar a cover apply can
+/// write or delete, and every file's PICTURE blocks.
+type Art = (BTreeMap<String, Vec<u8>>, BTreeMap<String, Vec<Picture>>);
+
+fn art_state(dir: &Path) -> Art {
+    let mut sidecars = BTreeMap::new();
+    let mut pictures = BTreeMap::new();
+    for e in std::fs::read_dir(dir).unwrap().flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        if name.to_ascii_lowercase().starts_with("cover.") {
+            sidecars.insert(name, std::fs::read(e.path()).unwrap());
+        } else if name.ends_with(".flac") {
+            let f = FlacFile::open(&e.path()).unwrap();
+            pictures.insert(name, f.pictures().into_iter().cloned().collect());
+        }
+    }
+    (sidecars, pictures)
+}
+
+fn picture(kind: u32, mime: &str, desc: &str, data: &[u8]) -> Picture {
+    Picture {
+        kind,
+        mime: mime.into(),
+        desc: desc.into(),
+        width: 7,
+        height: 5,
+        depth: 24,
+        colors: 0,
+        data: data.to_vec(),
+    }
+}
+
 #[test]
-fn a_cover_is_copied_byte_for_byte_before_it_could_be_replaced() {
+fn a_cover_apply_is_undone_by_restoring_the_sidecars_and_every_embedded_picture() {
     let c = case();
     let conn = musaic_db::open_connection(c.w.app.db_path()).unwrap();
     let lib = c.w.app.library_dir();
-    // An album that has a cover (a sidecar file or an embedded picture).
-    let ops = c.w.app.ops();
-    let with_cover = ops
-        .library()
-        .list_albums(false)
+    let dir = Path::new(&c.path);
+
+    // Prior art that a single saved cover could not restore: a `cover.jpg`
+    // and a competing `cover.png` (the apply deletes it), a front and a back
+    // cover in the first file, one shared picture in the others, none in the
+    // last.
+    let mut flacs: Vec<String> = std::fs::read_dir(dir)
         .unwrap()
-        .albums
-        .into_iter()
-        .find(|a| {
-            ops.library()
-                .cover(a.id(), musaic_app::ops::library::CoverSize::Full)
-                .is_ok()
-        })
-        .expect("the synthetic library has an album with a cover");
-    let row =
-        musaic_services::agent_read::cached_row(&conn, lib.as_deref(), with_cover.id()).unwrap();
-    let original = match musaic_services::covers::full_cover(&row.album.path, &row.json).unwrap() {
-        musaic_services::covers::FullCover::Disk(p) => std::fs::read(p).unwrap(),
-        musaic_services::covers::FullCover::Embedded(b, _) => b,
-    };
+        .flatten()
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.ends_with(".flac"))
+        .collect();
+    flacs.sort();
+    assert!(flacs.len() >= 3, "the case needs three files: {flacs:?}");
+    std::fs::write(dir.join("cover.jpg"), b"prior sidecar jpg").unwrap();
+    std::fs::write(dir.join("cover.png"), b"prior sidecar png").unwrap();
+    let shared = picture(3, "image/jpeg", "", b"shared embedded front");
+    for (i, name) in flacs.iter().enumerate() {
+        let mut f = FlacFile::open(&dir.join(name)).unwrap();
+        f.clear_pictures();
+        if i == 0 {
+            f.add_picture(picture(3, "image/png", "front", b"first file front"));
+            f.add_picture(picture(4, "image/jpeg", "back", b"first file back"));
+        } else if i + 1 < flacs.len() {
+            f.add_picture(shared.clone());
+        }
+        f.save().unwrap();
+    }
+    let before = art_state(dir);
+
+    let row = musaic_services::agent_read::cached_row(&conn, lib.as_deref(), &c.album).unwrap();
     let patch: musaic_commands::tools::fix::ProposedPatch = serde_json::from_value(
         json!({"cover": {"source": "url", "url": "https://example.com/x.jpg"}}),
     )
@@ -311,12 +355,66 @@ fn a_cover_is_copied_byte_for_byte_before_it_could_be_replaced() {
     )
     .unwrap();
     let rows = musaic_db::agent::list_changes(&conn).unwrap();
-    let image: BeforeImage = serde_json::from_str(&rows[0].before).unwrap();
-    let saved = image.cover.unwrap();
-    assert!(matches!(saved.source.as_str(), "sidecar" | "embedded"));
-    let copy = c.w.scratch.config.join(saved.saved_as.unwrap());
-    assert_eq!(std::fs::read(copy).unwrap(), original, "not re-encoded");
     assert_eq!(rows[0].id, id);
+    let image: BeforeImage = serde_json::from_str(&rows[0].before).unwrap();
+    let saved = image.cover.clone().unwrap();
+    let names: Vec<&str> = saved.sidecars.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(names, ["cover.jpg", "cover.png"]);
+    assert_eq!(saved.embedded.len(), flacs.len(), "every file is listed");
+    let copies: std::collections::BTreeSet<&str> = saved
+        .embedded
+        .values()
+        .flatten()
+        .map(|p| p.saved_as.as_str())
+        .collect();
+    assert_eq!(copies.len(), 3, "a picture the files share is saved once");
+
+    // What a cover apply does to the files: one new picture in every file,
+    // a new `cover.jpg`, the competing sidecar deleted.
+    musaic_tags::apply::apply_album_files(
+        dir,
+        &Default::default(),
+        &Default::default(),
+        &Default::default(),
+        Some(musaic_tags::apply::CoverInput {
+            bytes: b"the new cover",
+            mime: Some("image/jpeg"),
+        }),
+        false,
+        &mut |_| {},
+    )
+    .unwrap();
+    let during = art_state(dir);
+    assert_ne!(during.0, before.0, "the apply replaced the sidecars");
+    assert_ne!(during.1, before.1, "the apply replaced the embedded art");
+
+    // Replay: the sidecars as they were (and no `cover.jpg` that was not
+    // there), then every file's PICTURE blocks rebuilt from the record.
+    let config = &c.w.scratch.config;
+    for e in std::fs::read_dir(dir).unwrap().flatten() {
+        let name = e.file_name().to_string_lossy().into_owned();
+        if name.to_ascii_lowercase().starts_with("cover.")
+            && !saved.sidecars.iter().any(|s| s.name == name)
+        {
+            std::fs::remove_file(e.path()).unwrap();
+        }
+    }
+    for s in &saved.sidecars {
+        std::fs::copy(config.join(&s.saved_as), dir.join(&s.name)).unwrap();
+    }
+    for (name, pictures) in &saved.embedded {
+        let mut f = FlacFile::open(&dir.join(name)).unwrap();
+        f.clear_pictures();
+        for p in pictures {
+            f.add_picture(p.to_picture(std::fs::read(config.join(&p.saved_as)).unwrap()));
+        }
+        f.save().unwrap();
+    }
+    assert_eq!(
+        art_state(dir),
+        before,
+        "the sidecars and every embedded picture are back byte for byte"
+    );
     // Pruning removes the row and its directory.
     assert_eq!(
         musaic_db::agent::prune_changes(&conn, "2099-01-01T00:00:00Z").unwrap(),
