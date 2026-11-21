@@ -71,8 +71,6 @@ export default function BackupPanel({
     queryFn: listDbSnapshots,
     staleTime: 10_000,
   });
-  const settings = useSettings();
-  const updateSettings = useUpdateSettings();
   const qc = useQueryClient();
 
   const refetchAll = () => {
@@ -171,68 +169,7 @@ export default function BackupPanel({
         {/* Current DB stats */}
         {dbInfo.data && <CurrentDbCard info={dbInfo.data} aiReady={ai.ready} />}
 
-        {/* Snapshot retention settings */}
-        <div className="border-t border-line pt-4 space-y-2.5">
-          <div className="text-xs mono uppercase tracking-[0.06em] text-fg-4">
-            Snapshot policy
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            <label className="text-sm flex items-center gap-2">
-              <span className="text-fg-2">Keep last</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={settings.data?.snapshot_retention_count ?? 10}
-                disabled={settings.isLoading || updateSettings.isPending}
-                onBlur={(e) => {
-                  const n = Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0));
-                  if (n !== settings.data?.snapshot_retention_count) {
-                    updateSettings.mutate({ snapshot_retention_count: n });
-                  }
-                }}
-                onChange={(e) => {
-                  // Let the user type freely; commit on blur.
-                  qc.setQueryData(["settings"], {
-                    ...settings.data,
-                    snapshot_retention_count: parseInt(e.target.value, 10) || 0,
-                  });
-                }}
-                className="w-16 h-7 px-2 text-sm bg-bg border border-line rounded tabular-nums focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
-              />
-              <span className="text-fg-2">snapshots</span>
-            </label>
-            <span className="text-fg-4">·</span>
-            <label className="text-sm flex items-center gap-2">
-              <span className="text-fg-2">at least</span>
-              <input
-                type="number"
-                min={0}
-                step="0.5"
-                value={settings.data?.snapshot_min_interval_hours ?? 24}
-                disabled={settings.isLoading || updateSettings.isPending}
-                onBlur={(e) => {
-                  const v = Math.max(0, parseFloat(e.target.value) || 0);
-                  if (v !== settings.data?.snapshot_min_interval_hours) {
-                    updateSettings.mutate({ snapshot_min_interval_hours: v });
-                  }
-                }}
-                onChange={(e) => {
-                  qc.setQueryData(["settings"], {
-                    ...settings.data,
-                    snapshot_min_interval_hours: parseFloat(e.target.value) || 0,
-                  });
-                }}
-                className="w-16 h-7 px-2 text-sm bg-bg border border-line rounded tabular-nums focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30"
-              />
-              <span className="text-fg-2">hours apart</span>
-            </label>
-          </div>
-          <p className="text-xs text-fg-4 leading-relaxed">
-            0 retention disables snapshotting. 0 hours forces a fresh snapshot every
-            time the app starts (useful when actively editing).
-          </p>
-        </div>
+        <SnapshotPolicy />
 
         {/* Action buttons */}
         <div className="border-t border-line pt-4 flex flex-wrap gap-2">
@@ -312,6 +249,164 @@ export default function BackupPanel({
         />
       )}
     </section>
+  );
+}
+
+const POLICY_INPUT_CLASS =
+  "w-16 h-7 px-2 text-sm bg-bg border border-line rounded tabular-nums focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30";
+
+/** The retention count as a whole number 0..100, or null when the text is not one. */
+function parseRetention(text: string): number | null {
+  const t = text.trim();
+  if (!/^\d+$/.test(t)) return null;
+  const n = Number(t);
+  return n <= 100 ? n : null;
+}
+
+/** The interval as a non-negative number (fractions allowed), or null. */
+function parseHours(text: string): number | null {
+  const t = text.trim();
+  if (!/^(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+  const v = Number(t);
+  return Number.isFinite(v) ? v : null;
+}
+
+/**
+ * Both snapshot-policy fields are held as a local draft and written
+ * together by one explicit Save. Typing never touches the settings cache,
+ * and a failed save leaves the draft in place for another try.
+ */
+function SnapshotPolicy() {
+  const settings = useSettings();
+  const update = useUpdateSettings();
+  const savedCount = settings.data?.snapshot_retention_count;
+  const savedHours = settings.data?.snapshot_min_interval_hours;
+  const [count, setCount] = useState<string | null>(null);
+  const [hours, setHours] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<
+    { kind: "saved" } | { kind: "failed"; message: string } | null
+  >(null);
+
+  // A field the user has not edited follows the saved value.
+  const countText = count ?? String(savedCount ?? 10);
+  const hoursText = hours ?? String(savedHours ?? 24);
+  const parsedCount = parseRetention(countText);
+  const parsedHours = parseHours(hoursText);
+  const valid = parsedCount !== null && parsedHours !== null;
+  const dirty =
+    settings.data !== undefined &&
+    (parsedCount !== savedCount || parsedHours !== savedHours);
+
+  const onSave = async () => {
+    if (!valid) return;
+    setOutcome(null);
+    try {
+      await update.mutateAsync({
+        snapshot_retention_count: parsedCount,
+        snapshot_min_interval_hours: parsedHours,
+      });
+      setCount(null);
+      setHours(null);
+      setOutcome({ kind: "saved" });
+    } catch (e) {
+      setOutcome({
+        kind: "failed",
+        message: (e as Error).message || "The settings could not be written.",
+      });
+    }
+  };
+
+  const edited = () => setOutcome(null);
+
+  return (
+    <form
+      className="border-t border-line pt-4 space-y-2.5"
+      aria-labelledby="snapshot-policy-heading"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void onSave();
+      }}
+    >
+      <div
+        id="snapshot-policy-heading"
+        className="text-xs mono uppercase tracking-[0.06em] text-fg-4"
+      >
+        Snapshot policy
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="text-sm flex items-center gap-2">
+          <span className="text-fg-2">Keep last</span>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            value={countText}
+            disabled={settings.isLoading || update.isPending}
+            aria-invalid={parsedCount === null}
+            onChange={(e) => {
+              setCount(e.target.value);
+              edited();
+            }}
+            className={POLICY_INPUT_CLASS}
+          />
+          <span className="text-fg-2">snapshots</span>
+        </label>
+        <span className="text-fg-4">·</span>
+        <label className="text-sm flex items-center gap-2">
+          <span className="text-fg-2">at least</span>
+          <input
+            type="number"
+            min={0}
+            step="0.5"
+            value={hoursText}
+            disabled={settings.isLoading || update.isPending}
+            aria-invalid={parsedHours === null}
+            onChange={(e) => {
+              setHours(e.target.value);
+              edited();
+            }}
+            className={POLICY_INPUT_CLASS}
+          />
+          <span className="text-fg-2">hours apart</span>
+        </label>
+      </div>
+      <p className="text-xs text-fg-4 leading-relaxed">
+        0 retention disables snapshotting. 0 hours forces a fresh snapshot every
+        time the app starts (useful when actively editing). Keep last is a whole
+        number from 0 to 100; hours may be fractional (0.5 is half an hour).
+      </p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          type="submit"
+          disabled={!dirty || !valid || update.isPending}
+          className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5"
+        >
+          {update.isPending ? (
+            <><Loader2 className="w-3.5 h-3.5 spin" /> Saving…</>
+          ) : (
+            "Save snapshot policy"
+          )}
+        </button>
+        <div aria-live="polite" className="text-xs">
+          {!valid && (
+            <span className="text-warn">
+              Keep last must be a whole number from 0 to 100, and hours a number
+              of 0 or more.
+            </span>
+          )}
+          {valid && outcome?.kind === "saved" && (
+            <span className="text-ok">Snapshot policy saved.</span>
+          )}
+        </div>
+      </div>
+      {outcome?.kind === "failed" && (
+        <p role="alert" className="text-xs text-err leading-relaxed">
+          Snapshot policy was not saved: {outcome.message} Your changes are still
+          here; check the message and press Save snapshot policy to try again.
+        </p>
+      )}
+    </form>
   );
 }
 
