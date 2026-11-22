@@ -345,7 +345,9 @@ and the slice's targeted tests passing.
   - `frontend/src/hooks/useReview.test.ts`: approvals counted in the badge, unavailable vs empty;
   - `frontend/src/hooks/useLibraryEventsStream.test.ts`: the `AgentStateChanged` invalidation;
   - `frontend/src/pages/settingsNavigation.test.tsx`: the new section.
-- [ ] T058 [US4] Verify in the real app (the `run` skill; `cargo run -p musaic-desktop -- --config-dir "$(mktemp -d)/config" --dev-memory-secrets --network offline`): pair, set a policy, drive an approval through `musaic-cli --dev-credentials`, approve it in the Review inbox, and revoke. Delete the screenshots and temp dirs afterwards.
+- [X] T058 [US4] Verify in the real app (the `run` skill; `cargo run -p musaic-desktop -- --config-dir "$(mktemp -d)/config" --dev-memory-secrets --network offline`): pair, set a policy, drive an approval through `musaic-cli --dev-credentials`, approve it in the Review inbox, and revoke. Delete the screenshots and temp dirs afterwards.
+
+  Done 2026-11-22 against `musaic-api` + Vite (same React UI and `/api/agent/*` routes; Tauri computer-use unavailable in this session) on a scratch config with a synthetic-library copy, `--verification-memory-secrets --network offline`: paired "T058 helper" with `tags.write` Ask in Settings → Assistants; CLI `--dev-credentials` `fix-preview` / `fix-apply` returned `awaiting_approval`; Review showed the card and Approve ran (genre `T058 Genre` written, operation `succeeded`); Revoke confirmed in Settings; `doctor` then reported pairing `none`. Scratch config and library removed.
 
 **Checkpoint S6**: `npm run lint && npm run typecheck && npm run typecheck:test && npm test && npm run build` pass, and `cargo test -p musaic-api` passes.
 
