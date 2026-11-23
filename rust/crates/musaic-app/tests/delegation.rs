@@ -507,7 +507,9 @@ fn a_saved_scan_makes_waiting_legacy_work_claimable_when_the_album_returns() {
     let mut w = common::agent_world();
     let lib = common::configure(&w.app, &w.scratch);
     let album = lib.join("Aurora Fields - First Light [FLAC]");
-    let album_path = album.canonicalize().unwrap();
+    // The scanner's resolver: on Windows canonicalize() leaves a `\\?\` prefix
+    // that the album id never hashes.
+    let album_path = musaic_scan::py_resolve(&album);
     let album_id = musaic_core::album_id(album_path.to_str().unwrap());
     let away = w.scratch.tmp.path().join("album temporarily absent");
     std::fs::rename(&album, &away).unwrap();
