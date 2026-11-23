@@ -27,19 +27,56 @@ fn state(config: &std::path::Path, store: Arc<MemoryStore>) -> AppState {
 }
 
 fn http(port: u16, method: &str, path: &str, token: Option<&str>, body: &Value) -> (u16, Value) {
-    let body = body.to_string();
+    // A request the guard refuses is answered before its body is read, and the
+    // server then closes the connection. With unread bytes left, the close can
+    // reach the client as a reset, sometimes before the response does: send a
+    // GET without a body, keep whatever arrived before a reset, and ask again
+    // when nothing did.
+    for _ in 0..5 {
+        if let Some(raw) = http_once(port, method, path, token, body) {
+            return parse(&raw);
+        }
+    }
+    panic!("{method} {path}: the connection was reset five times");
+}
+
+fn http_once(
+    port: u16,
+    method: &str,
+    path: &str,
+    token: Option<&str>,
+    body: &Value,
+) -> Option<String> {
+    let body = if method == "GET" {
+        String::new()
+    } else {
+        body.to_string()
+    };
     let mut s = TcpStream::connect(("127.0.0.1", port)).unwrap();
     let auth = token
         .map(|t| format!("Authorization: Bearer {t}\r\n"))
         .unwrap_or_default();
-    write!(
-        s,
+    let request = format!(
         "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/json\r\n{auth}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
-    )
-    .unwrap();
-    let mut raw = String::new();
-    s.read_to_string(&mut raw).unwrap();
+    );
+    // A refused request can be closed while it is still being written.
+    let _ = s.write_all(request.as_bytes());
+    let mut raw = Vec::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        match s.read(&mut buf) {
+            Ok(0) => break,
+            Ok(n) => raw.extend_from_slice(&buf[..n]),
+            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+            Err(_) => break,
+        }
+    }
+    let raw = String::from_utf8_lossy(&raw).into_owned();
+    raw.contains("\r\n\r\n").then_some(raw)
+}
+
+fn parse(raw: &str) -> (u16, Value) {
     let (head, text) = raw.split_once("\r\n\r\n").expect("a response");
     let status: u16 = head.split_whitespace().nth(1).unwrap().parse().unwrap();
     // The body may be chunked; take the JSON between the first '{' and last '}'.
