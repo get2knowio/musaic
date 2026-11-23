@@ -4,6 +4,9 @@
 //!
 //! Skills, Resources and the prompt: contracts/skills.md tests 1 to 5.
 //! Events: contracts/events.md tests 1, 2, 6, 7, 9 and 10.
+//!
+//! The wire shapes pinned here were checked against the extension
+//! specifications (`docs/mcp.md`, Compatibility notes, names the commits).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex};
@@ -432,13 +435,18 @@ async fn legacy_sessions_have_no_skill_methods_but_serve_the_same_resources() {
         .await;
     assert_eq!(read["result"]["contents"][0]["text"], want);
     let list = old.request("resources/list", json!({})).await;
-    assert!(
-        list["result"]["resources"]
-            .as_array()
+    let resources = list["result"]["resources"].as_array().unwrap();
+    // SKILL.md's resource takes `name` and `description` from its frontmatter.
+    let entry = resources.iter().find(|r| r["uri"] == SKILL_URI).unwrap();
+    assert_eq!(entry["mimeType"], "text/markdown");
+    assert_eq!(entry["name"], "musaic-work-delegation", "{entry}");
+    assert!(entry["description"].is_string());
+    assert!(resources.iter().filter(|r| r["uri"] != SKILL_URI).all(|r| {
+        r["uri"]
+            .as_str()
             .unwrap()
-            .iter()
-            .any(|r| r["uri"] == SKILL_URI && r["mimeType"] == "text/markdown")
-    );
+            .ends_with(r["name"].as_str().unwrap())
+    }));
     let prompts = old.request("prompts/list", json!({})).await;
     assert_eq!(
         prompts["result"]["prompts"][0]["name"],
@@ -562,6 +570,11 @@ async fn poll_bootstraps_with_a_cursor_then_returns_new_work() {
     );
     assert_eq!(r["result"]["resultType"], "complete");
     assert_eq!(r["result"]["data"], Value::Null);
+    // Poll carries the cursor at the response level only.
+    assert!(r["result"]["events"][0].get("cursor").is_none(), "{r}");
+    for key in ["cursor", "truncated", "hasMore", "nextPollMs"] {
+        assert!(r["result"].get(key).is_some(), "{key}: {r}");
+    }
     // data holds exactly the five keys.
     let data = r["result"]["events"][0]["data"].as_object().unwrap();
     let mut keys: Vec<&str> = data.keys().map(String::as_str).collect();
@@ -598,29 +611,40 @@ async fn poll_bootstraps_with_a_cursor_then_returns_new_work() {
         .request("events/poll", json!({"name": "musaic.nope.v1"}))
         .await;
     assert_eq!(unknown["error"]["code"], -32023, "{unknown}");
+    assert_eq!(unknown["error"]["data"], json!({"kind": "event"}));
 }
 
 #[tokio::test]
-async fn subscribe_is_unsupported_and_events_need_modern_and_a_declaration() {
+async fn subscribe_is_unsupported_and_events_need_the_modern_profile() {
     let shared = fresh();
     let mut c = start(&shared, "a").modern(true);
     for m in ["events/subscribe", "events/unsubscribe"] {
         let r = c.request(m, json!({"name": EVENT_REQUESTED})).await;
         assert_eq!(r["error"]["code"], -32026, "{m}: {r}");
+        assert_eq!(
+            r["error"]["data"],
+            json!({"feature": "deliveryMode", "value": "webhook"}),
+            "{m}: {r}"
+        );
     }
-    // Test 10: an undeclared extension, and a legacy session.
+    // A client MAY declare the extension; one that does not is still served.
     let mut undeclared = start(&shared, "b").modern(false);
+    let list = undeclared.request("events/list", json!({})).await;
+    assert_eq!(list["result"]["resultType"], "complete", "{list}");
+    let poll = undeclared
+        .request("events/poll", json!({"name": EVENT_REQUESTED}))
+        .await;
+    assert!(poll["result"]["cursor"].is_string(), "{poll}");
+    // Test 10: a legacy session.
     let mut old = start(&shared, "c").legacy().await;
-    for client in [&mut undeclared, &mut old] {
-        for (m, p) in [
-            ("events/list", json!({})),
-            ("events/poll", json!({"name": EVENT_REQUESTED})),
-            ("events/stream", json!({"name": EVENT_REQUESTED})),
-            ("events/subscribe", json!({"name": EVENT_REQUESTED})),
-        ] {
-            let r = client.request(m, p).await;
-            assert_eq!(r["error"]["code"], -32601, "{m}: {r}");
-        }
+    for (m, p) in [
+        ("events/list", json!({})),
+        ("events/poll", json!({"name": EVENT_REQUESTED})),
+        ("events/stream", json!({"name": EVENT_REQUESTED})),
+        ("events/subscribe", json!({"name": EVENT_REQUESTED})),
+    ] {
+        let r = old.request(m, p).await;
+        assert_eq!(r["error"]["code"], -32601, "{m}: {r}");
     }
 }
 
@@ -718,8 +742,17 @@ async fn revoking_ends_a_stream_with_terminated_and_a_waiting_poll_with_forbidde
     let done = s.notification(Duration::from_secs(10)).await.unwrap();
     assert_eq!(done["method"], "notifications/events/terminated", "{done}");
     assert_eq!(done["params"]["error"]["code"], -32024);
+    assert_eq!(
+        done["params"]["_meta"]["io.modelcontextprotocol/subscriptionId"],
+        json!(id)
+    );
+    // StreamEventsResult: `resultType` and the subscription id, nothing else.
     let fin = s.response(id, Duration::from_secs(10)).await;
-    assert_eq!(fin["result"]["resultType"], "complete", "{fin}");
+    assert_eq!(
+        fin["result"],
+        json!({"resultType": "complete", "_meta": {"io.modelcontextprotocol/subscriptionId": id}}),
+        "{fin}"
+    );
     let r = p
         .request(
             "events/poll",
@@ -822,6 +855,11 @@ async fn the_ninth_concurrent_stream_is_refused_and_a_slot_frees_on_cancel() {
         .request("events/stream", json!({"name": EVENT_REQUESTED}))
         .await;
     assert_eq!(ninth["error"]["code"], -32025, "{ninth}");
+    assert_eq!(
+        ninth["error"]["data"],
+        json!({"limit": "streams", "max": 8}),
+        "{ninth}"
+    );
     c.send(
         json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId": ids[0]}}),
     )

@@ -43,7 +43,9 @@ pub const HEARTBEAT_MAX_MS: u32 = 60_000;
 pub const MAX_WAITING_POLLS: usize = 4;
 pub const MAX_STREAMS: usize = 8;
 
-/// JSON-RPC codes of the Events errors. Provisional upstream.
+/// JSON-RPC codes of the Events errors, as the Events specification's Error
+/// Handling table assigns them (`ext-events`, `specification/beta/events`).
+/// `CallbackEndpointError` (-32027) is webhook-only and never sent here.
 pub mod rpc {
     pub const INVALID_PARAMS: i32 = -32602;
     pub const METHOD_NOT_FOUND: i32 = -32601;
@@ -54,15 +56,47 @@ pub mod rpc {
 }
 
 /// The JSON-RPC code a bridge error maps to; `None` for a non-event error
-/// (the adapter reports those as an internal error).
+/// (the adapter reports those as an internal error). A missing pairing is an
+/// authorization failure like a revoked one, so a host that is told to stop
+/// does not read it as a server fault.
 pub fn rpc_code(code: ToolErrorCode) -> Option<i32> {
     match code {
         ToolErrorCode::EventInvalid | ToolErrorCode::InvalidInput => Some(rpc::INVALID_PARAMS),
         ToolErrorCode::EventNotFound => Some(rpc::NOT_FOUND),
         ToolErrorCode::EventForbidden
         | ToolErrorCode::Forbidden
-        | ToolErrorCode::PairingRevoked => Some(rpc::FORBIDDEN),
+        | ToolErrorCode::PairingRevoked
+        | ToolErrorCode::NotPaired => Some(rpc::FORBIDDEN),
         ToolErrorCode::EventLimit => Some(rpc::RESOURCE_EXHAUSTED),
+        _ => None,
+    }
+}
+
+/// `data` of `NotFound` for an unknown or removed event type.
+pub fn not_found_data() -> Value {
+    json!({"kind": "event"})
+}
+
+/// `data` of `ResourceExhausted`: which limit, and its ceiling.
+pub fn limit_data(limit: &str, max: usize) -> Value {
+    json!({"limit": limit, "max": max})
+}
+
+/// The limit a bridge `EVENT_LIMIT` names (the app's only event limit).
+pub const LIMIT_WAITING_POLLS: &str = "waitingPolls";
+/// The adapter's own limit on open streams.
+pub const LIMIT_STREAMS: &str = "streams";
+
+/// `data` of `Unsupported` for `events/subscribe` and `events/unsubscribe`.
+pub fn webhook_unsupported_data() -> Value {
+    json!({"feature": "deliveryMode", "value": "webhook"})
+}
+
+/// The typed `data` the specification attaches to an error of this code.
+pub fn rpc_data(code: ToolErrorCode) -> Option<Value> {
+    match code {
+        ToolErrorCode::EventNotFound => Some(not_found_data()),
+        ToolErrorCode::EventLimit => Some(limit_data(LIMIT_WAITING_POLLS, MAX_WAITING_POLLS)),
         _ => None,
     }
 }
@@ -289,10 +323,13 @@ pub fn events_catalog_json() -> String {
         "events": descriptors(STREAM_SUPPORTED),
         "errors": [
             {"name": "InvalidParams", "code": rpc::INVALID_PARAMS},
-            {"name": "NotFound", "code": rpc::NOT_FOUND},
+            {"name": "NotFound", "code": rpc::NOT_FOUND, "data": not_found_data()},
             {"name": "Forbidden", "code": rpc::FORBIDDEN},
-            {"name": "ResourceExhausted", "code": rpc::RESOURCE_EXHAUSTED},
-            {"name": "Unsupported", "code": rpc::UNSUPPORTED},
+            {"name": "ResourceExhausted", "code": rpc::RESOURCE_EXHAUSTED, "data": [
+                limit_data(LIMIT_WAITING_POLLS, MAX_WAITING_POLLS),
+                limit_data(LIMIT_STREAMS, MAX_STREAMS),
+            ]},
+            {"name": "Unsupported", "code": rpc::UNSUPPORTED, "data": webhook_unsupported_data()},
         ],
         "limits": {
             "maxEvents": MAX_EVENTS,
@@ -330,7 +367,7 @@ pub fn events_catalog_markdown() -> String {
     out.push_str(&format!(
         "`events/poll` takes `name`, optional `arguments`, `cursor`, `maxAgeMs` and `maxEvents` (1 to {MAX_EVENTS}, default {DEFAULT_MAX_EVENTS}). \
          A missing cursor returns no events and the current cursor. A cursor that is unusable (undecodable, from another library, older than the 7 days kept, or older than `maxAgeMs`) returns `truncated: true`, no events and a fresh cursor: read the work list once, then continue from that cursor. \
-         `nextPollMs` suggests the next poll.\n\n",
+         The cursor is at the response level (events in a poll carry none). `nextPollMs` suggests the next poll; with `hasMore: true`, poll again at once.\n\n",
     ));
     out.push_str("## Streaming\n\n");
     out.push_str(&format!(
@@ -343,21 +380,25 @@ pub fn events_catalog_markdown() -> String {
             rpc::INVALID_PARAMS,
             "arguments do not match the schema, or a bad `maxEvents`",
         ),
-        ("NotFound", rpc::NOT_FOUND, "an unknown event name"),
+        (
+            "NotFound",
+            rpc::NOT_FOUND,
+            "an unknown event name; `data`: `{\"kind\": \"event\"}`",
+        ),
         (
             "Forbidden",
             rpc::FORBIDDEN,
-            "the pairing is revoked or may not read work",
+            "the pairing is missing, revoked or may not read work",
         ),
         (
             "ResourceExhausted",
             rpc::RESOURCE_EXHAUSTED,
-            "more than 4 waiting polls for the pairing, or 8 streams in the process",
+            "more than 4 waiting polls for the pairing (`data.limit`: `waitingPolls`), or 8 streams in the process (`streams`); `data.max` is the ceiling",
         ),
         (
             "Unsupported",
             rpc::UNSUPPORTED,
-            "`events/subscribe` and `events/unsubscribe` (webhook delivery is not offered)",
+            "`events/subscribe` and `events/unsubscribe` (webhook delivery is not offered); `data`: `{\"feature\": \"deliveryMode\", \"value\": \"webhook\"}`",
         ),
     ] {
         out.push_str(&format!("| {name} | {code} | {when} |\n"));
@@ -480,11 +521,32 @@ mod tests {
 
     #[test]
     fn the_error_codes_map_to_the_documented_numbers() {
+        // The numbers of the Events specification's Error Handling table.
         assert_eq!(rpc_code(ToolErrorCode::EventNotFound), Some(-32023));
         assert_eq!(rpc_code(ToolErrorCode::EventForbidden), Some(-32024));
+        assert_eq!(rpc_code(ToolErrorCode::NotPaired), Some(-32024));
+        assert_eq!(rpc_code(ToolErrorCode::PairingRevoked), Some(-32024));
         assert_eq!(rpc_code(ToolErrorCode::EventLimit), Some(-32025));
+        assert_eq!(rpc::UNSUPPORTED, -32026);
         assert_eq!(rpc_code(ToolErrorCode::EventInvalid), Some(-32602));
         assert_eq!(rpc_code(ToolErrorCode::Internal), None);
+    }
+
+    #[test]
+    fn the_error_data_has_the_specified_discriminators() {
+        assert_eq!(
+            rpc_data(ToolErrorCode::EventNotFound),
+            Some(json!({"kind": "event"}))
+        );
+        assert_eq!(
+            rpc_data(ToolErrorCode::EventLimit),
+            Some(json!({"limit": "waitingPolls", "max": 4}))
+        );
+        assert_eq!(rpc_data(ToolErrorCode::EventForbidden), None);
+        assert_eq!(
+            webhook_unsupported_data(),
+            json!({"feature": "deliveryMode", "value": "webhook"})
+        );
     }
 
     #[test]

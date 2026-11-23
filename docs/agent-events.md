@@ -38,7 +38,7 @@ Arguments (all optional): `kinds`, `states`; any other key is refused.
 
 ## Polling
 
-`events/poll` takes `name`, optional `arguments`, `cursor`, `maxAgeMs` and `maxEvents` (1 to 100, default 50). A missing cursor returns no events and the current cursor. A cursor that is unusable (undecodable, from another library, older than the 7 days kept, or older than `maxAgeMs`) returns `truncated: true`, no events and a fresh cursor: read the work list once, then continue from that cursor. `nextPollMs` suggests the next poll.
+`events/poll` takes `name`, optional `arguments`, `cursor`, `maxAgeMs` and `maxEvents` (1 to 100, default 50). A missing cursor returns no events and the current cursor. A cursor that is unusable (undecodable, from another library, older than the 7 days kept, or older than `maxAgeMs`) returns `truncated: true`, no events and a fresh cursor: read the work list once, then continue from that cursor. The cursor is at the response level (events in a poll carry none). `nextPollMs` suggests the next poll; with `hasMore: true`, poll again at once.
 
 ## Streaming
 
@@ -49,7 +49,7 @@ Arguments (all optional): `kinds`, `states`; any other key is refused.
 | Name | Code | When |
 | --- | --- | --- |
 | InvalidParams | -32602 | arguments do not match the schema, or a bad `maxEvents` |
-| NotFound | -32023 | an unknown event name |
-| Forbidden | -32024 | the pairing is revoked or may not read work |
-| ResourceExhausted | -32025 | more than 4 waiting polls for the pairing, or 8 streams in the process |
-| Unsupported | -32026 | `events/subscribe` and `events/unsubscribe` (webhook delivery is not offered) |
+| NotFound | -32023 | an unknown event name; `data`: `{"kind": "event"}` |
+| Forbidden | -32024 | the pairing is missing, revoked or may not read work |
+| ResourceExhausted | -32025 | more than 4 waiting polls for the pairing (`data.limit`: `waitingPolls`), or 8 streams in the process (`streams`); `data.max` is the ceiling |
+| Unsupported | -32026 | `events/subscribe` and `events/unsubscribe` (webhook delivery is not offered); `data`: `{"feature": "deliveryMode", "value": "webhook"}` |

@@ -2,7 +2,7 @@
 name: musaic-work-delegation
 description: Research albums for the Musaic music-library app. Use when asked to process pending Musaic work, identify an album, correct its metadata or find cover art through the Musaic tools.
 metadata:
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # Musaic work delegation

@@ -1,7 +1,7 @@
 {
   "files": [
     {
-      "digest": "sha256:e6af1e59a9a05eda854d146af00d97ab64bc3367c6592f169bb11a563fbbf3e1",
+      "digest": "sha256:692f61f4ead285f8b07c699bde8944e965155eb68a78cddbb0711e528c29429b",
       "path": "SKILL.md",
       "size": 4961
     },
@@ -16,9 +16,9 @@
       "size": 1084
     },
     {
-      "digest": "sha256:5e3f891bbd23b39bf5213612f04385520e19b247aa5615c17cd9729190937905",
+      "digest": "sha256:3feaaf0f9e4dff6f3d31d2790dcb0198ebc722981a27e33290328971703740b3",
       "path": "references/events.md",
-      "size": 2514
+      "size": 2790
     },
     {
       "digest": "sha256:5279a7b10657613136f08bbd49ab85639c6927721240cb52c09cc96b66fb9ad2",
@@ -46,5 +46,5 @@
       "size": 2554
     }
   ],
-  "version": "1.0.0"
+  "version": "1.0.1"
 }

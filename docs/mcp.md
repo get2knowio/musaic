@@ -23,12 +23,14 @@ requests (or calls `server/discover`) is served the modern profile; a host that 
 | Skills (`skills/list`, `skills/get`) | yes (extension `io.modelcontextprotocol/skills`) | `-32601` |
 | Resources (the skill's files) | yes | yes |
 | Prompt `musaic_research_album` | yes | yes |
-| Events (`events/list`, `events/poll`, `events/stream`) | when the request declares `io.modelcontextprotocol/events` | `-32601` |
+| Events (`events/list`, `events/poll`, `events/stream`) | yes (extension `io.modelcontextprotocol/events`) | `-32601` |
 
 The extensions are declared once in the server's capabilities. The handlers decide: a legacy
-session, or a request that does not declare the Events extension, gets `-32601`
-(method not found). `musaic_capabilities.extensions` lists what the server offers;
-what your host negotiated is on the pairing in **Settings, Agents** ("reported by the host").
+session gets `-32601` (method not found) for `skills/*` and `events/*`. A host may declare
+the Events extension in its per-request capabilities; Musaic serves `events/*` either way, as
+the Events specification makes the client's declaration optional.
+`musaic_capabilities.extensions` lists what the server offers; what your host negotiated is
+on the pairing in **Settings, Agents** ("reported by the host").
 
 ## The skill
 
@@ -117,9 +119,11 @@ A waiting stream or poll holds one parked call in the app (never a buffer per li
 no lock on your library: a scan or a tool call is not slowed by it. At most four waiting
 polls per pairing and eight streams per CLI process.
 
-Errors (the codes are provisional upstream): `-32602` invalid parameters, `-32023` unknown
-event name, `-32024` pairing revoked or not allowed to read work, `-32025` too many waiting
-polls or streams, `-32026` unsupported, `-32601` the method is not offered to this session.
+Errors: `-32602` invalid parameters, `-32023` unknown event name (`data: {"kind": "event"}`),
+`-32024` pairing missing, revoked or not allowed to read work, `-32025` too many waiting polls
+or streams (`data.limit` `waitingPolls` or `streams`, `data.max`), `-32026` unsupported
+(`data: {"feature": "deliveryMode", "value": "webhook"}`), `-32601` the method is not offered
+to this session.
 
 ## Connecting your own agent host
 
@@ -163,18 +167,44 @@ validation and signatures, replay protection, delivery expiry and audit.
 - An event's content is `data` and its type is `name` (the earlier Musaic notes called these
   `payload` and `type`).
 - Skills are fetched by the URI of `SKILL.md`, not by name.
-- rmcp 3.11.0 implements Skills; Events are implemented here to the documented wire
-  contract through custom requests. The `ext-events` and `ext-skills` repositories were not
-  read for this release; shapes follow the published overview pages and may differ in
-  detail.
-- The Events error codes `-32023` to `-32026` are provisional upstream.
+- rmcp 3.11.0 implements Skills; Events are implemented here through custom requests.
+- Both halves were checked field by field against the extension specifications:
+  `modelcontextprotocol/ext-events` at `c77b84395eff0ae32f53b0516c2214fe276ed050`
+  (`specification/beta/events/events.mdx`), and `modelcontextprotocol/ext-skills` at
+  `1631b3f193c9bd90c5693743d7e0fc39faf266d3` (`specification/beta/skills.mdx`,
+  `schema/beta/schema.ts`). The check is of the code and the conformance harness, not of a
+  real host. Confirmed as implemented: the extension ids and settings objects; `resultType: "complete"`
+  on every result; the `events/list` descriptor (`name`, `description`, `delivery`,
+  `inputSchema`, `payloadSchema`); the `events/poll` request (`name`, `arguments`, `cursor`,
+  `maxAgeMs`, `maxEvents`) and result (`events`, `cursor`, `truncated`, `hasMore`,
+  `nextPollMs`); the occurrence fields (`eventId`, `name`, `timestamp`, `data`, `cursor`);
+  the notification names `notifications/events/active`, `event`, `heartbeat` and
+  `terminated`, their params and `_meta["io.modelcontextprotocol/subscriptionId"]` set to the
+  request id; the granted `heartbeatMs` (default 30 000) and a heartbeat whenever it passes
+  with nothing sent; cancellation by `notifications/cancelled`; the error numbers
+  (`NotFound -32023`, `Forbidden -32024`, `ResourceExhausted -32025`, `Unsupported -32026`,
+  now assigned, not provisional); the Skills entry (`uri`, verbatim `frontmatter`, a complete
+  `resources` list of `uri`, `sha256:<hex>` `digest` and `size`), `ttlMs` and `cacheScope` on
+  `skills/list` and `skills/get`, `-32602` for an unknown skill or resource, and the
+  `resources` capability alongside the extension.
+- Changed to match: a request that does not declare the Events extension is now served
+  (the client's declaration is optional; it was refused with `-32601`); `events/poll` events
+  no longer carry a per-event `cursor` (push only); the final `events/stream` result carries
+  the subscription id in `_meta`; `NotFound`, `ResourceExhausted` and `Unsupported` carry
+  their typed `data`; a missing pairing maps to `Forbidden`, not an internal error; the
+  `SKILL.md` resource in `resources/list` is named from its frontmatter (`name`).
+- Not used, as the specification allows: `notifications/events/error` (a transient failure
+  is retried silently while heartbeats continue), `listChanged` (the event types are fixed),
+  `nextCursor` (one page), `directoryRead`, and webhook delivery with its
+  `CallbackEndpointError` (`-32027`). The Streamable HTTP routing headers do not apply to
+  stdio.
 - Results observed on real hosts are in
   `specs/005-skills-events-agent-hosts/evidence/compatibility.md`; harness results are not
   host results.
 
 ## Migrating from the earlier notes
 
-An agent that polled `musaic_work_list` keeps working. To use events, declare the Events
-extension on 2026-07-28 requests, list work once, then poll or stream from the cursor. Work
-that was already queued when Musaic was upgraded has no event until its state changes, so
-always list work at start.
+An agent that polled `musaic_work_list` keeps working. To use events, send 2026-07-28
+requests (declaring the Events extension is optional), list work once, then poll or stream
+from the cursor. Work that was already queued when Musaic was upgraded has no event until
+its state changes, so always list work at start.

@@ -1,6 +1,6 @@
 # Contract: Skills, Resources and the prompt
 
-Target: extension `io.modelcontextprotocol/skills` (Beta) on protocol revision `2026-07-28`.
+Target: extension `io.modelcontextprotocol/skills` (Beta) on protocol revision `2026-07-28`, checked against `modelcontextprotocol/ext-skills` at `1631b3f1` (#368).
 
 ## Capability (in `server/discover`)
 
@@ -36,7 +36,7 @@ Params `{ "uri": "skill://musaic-work-delegation/SKILL.md" }`. Result `{ "result
 
 ## `resources/list`, `resources/read` (both profiles)
 
-`resources/list` returns each served file: `uri`, `name` (file name), `mimeType: "text/markdown"`, and for `SKILL.md` the frontmatter `name`/`description`. `resources/read` returns `contents: [{uri, mimeType, text}]` with exactly the embedded bytes.
+`resources/list` returns each served file: `uri`, `name` (the file name; for `SKILL.md` the frontmatter `name`), `mimeType: "text/markdown"`, and for `SKILL.md` the frontmatter `description`. `resources/read` returns `contents: [{uri, mimeType, text}]` with exactly the embedded bytes.
 
 ## Refusals
 

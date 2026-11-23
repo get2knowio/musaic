@@ -12,8 +12,9 @@
 //! * `events/subscribe` and `events/unsubscribe` are webhook delivery, which
 //!   is not offered (`Unsupported`).
 //!
-//! Every method answers only on the 2026-07-28 profile and only when the
-//! request declares the Events extension; anything else is `-32601`.
+//! Every method answers only on the 2026-07-28 profile; a legacy session
+//! gets `-32601`. A client MAY declare the extension in its per-request
+//! capabilities but need not, so a modern request is served either way.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -21,8 +22,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::{Duration, Instant};
 
 use musaic_commands::events::{
-    EVENTS_EXTENSION_ID, HEARTBEAT_DEFAULT_MS, HEARTBEAT_MAX_MS, HEARTBEAT_MIN_MS, MAX_STREAMS,
-    MAX_WAIT_MS, PollParams, PollResult, rpc, rpc_code,
+    HEARTBEAT_DEFAULT_MS, HEARTBEAT_MAX_MS, HEARTBEAT_MIN_MS, LIMIT_STREAMS, MAX_STREAMS,
+    MAX_WAIT_MS, PollParams, PollResult, limit_data, rpc, rpc_code, rpc_data,
+    webhook_unsupported_data,
 };
 use musaic_commands::{ToolError, ToolErrorCode};
 use rmcp::model::{CustomNotification, CustomRequest, CustomResult, ErrorCode, ServerNotification};
@@ -37,13 +39,6 @@ const SUBSCRIPTION_ID: &str = "io.modelcontextprotocol/subscriptionId";
 /// reached (it may be restarting); a stream survives that.
 const RETRY_AFTER: Duration = Duration::from_secs(5);
 
-fn declares_events(context: &RequestContext<RoleServer>) -> bool {
-    context
-        .client_capabilities()
-        .and_then(|c| c.extensions)
-        .is_some_and(|e| e.contains_key(EVENTS_EXTENSION_ID))
-}
-
 fn method_not_found(method: &str) -> McpError {
     McpError::new(ErrorCode::METHOD_NOT_FOUND, method.to_string(), None)
 }
@@ -51,14 +46,18 @@ fn method_not_found(method: &str) -> McpError {
 /// The JSON-RPC error of a bridge error.
 fn rpc_error(e: &ToolError) -> McpError {
     match rpc_code(e.code) {
-        Some(code) => McpError::new(ErrorCode(code), e.message.clone(), None),
+        Some(code) => McpError::new(ErrorCode(code), e.message.clone(), rpc_data(e.code)),
         None => McpError::internal_error(e.message.clone(), None),
     }
 }
 
 fn error_object(e: &ToolError) -> Value {
     let code = rpc_code(e.code).unwrap_or(-32603);
-    json!({"code": code, "message": e.message})
+    let mut error = json!({"code": code, "message": e.message});
+    if let Some(data) = rpc_data(e.code) {
+        error["data"] = data;
+    }
+    error
 }
 
 /// Parameters of `events/poll` and `events/stream`, as the wire has them.
@@ -98,10 +97,10 @@ pub(crate) async fn handle(
         method,
         "events/list" | "events/poll" | "events/stream" | "events/subscribe" | "events/unsubscribe"
     ) || !modern(&context)
-        || !declares_events(&context)
     {
         return Err(method_not_found(method));
     }
+    server.events_used.store(true, Ordering::Relaxed);
     server.observe(&context);
     match method {
         "events/list" => {
@@ -122,6 +121,15 @@ pub(crate) async fn handle(
                 .await?
                 .map_err(|e| rpc_error(&e))?;
             let mut value = serde_json::to_value(result).expect("a poll result is JSON");
+            // Poll carries the cursor at the response level; a per-event
+            // cursor is for push (and webhook) delivery only.
+            if let Some(events) = value["events"].as_array_mut() {
+                for event in events {
+                    if let Some(obj) = event.as_object_mut() {
+                        obj.remove("cursor");
+                    }
+                }
+            }
             value["resultType"] = json!("complete");
             Ok(CustomResult::new(value))
         }
@@ -130,7 +138,7 @@ pub(crate) async fn handle(
         _ => Err(McpError::new(
             ErrorCode(rpc::UNSUPPORTED),
             "webhook delivery is not offered; use events/stream or events/poll",
-            None,
+            Some(webhook_unsupported_data()),
         )),
     }
 }
@@ -189,7 +197,7 @@ async fn stream(
         return Err(McpError::new(
             ErrorCode(rpc::RESOURCE_EXHAUSTED),
             "too many open event streams in this process",
-            None,
+            Some(limit_data(LIMIT_STREAMS, MAX_STREAMS)),
         ));
     };
     let heartbeat_ms = heartbeat
@@ -201,7 +209,14 @@ async fn stream(
         subscription: serde_json::to_value(&context.id).unwrap_or(Value::Null),
         context,
     };
-    let done = || Ok(CustomResult::new(json!({"resultType": "complete"})));
+    // `StreamEventsResult`: empty but for the subscription id, as
+    // `SubscriptionsListenResult` is.
+    let done = || {
+        Ok(CustomResult::new(json!({
+            "resultType": "complete",
+            "_meta": { SUBSCRIPTION_ID: notifier.subscription },
+        })))
+    };
 
     // The first poll establishes the cursor (the head for none) and says
     // whether the one given was unusable.

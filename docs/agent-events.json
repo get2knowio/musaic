@@ -6,6 +6,9 @@
     },
     {
       "code": -32023,
+      "data": {
+        "kind": "event"
+      },
       "name": "NotFound"
     },
     {
@@ -14,10 +17,24 @@
     },
     {
       "code": -32025,
+      "data": [
+        {
+          "limit": "waitingPolls",
+          "max": 4
+        },
+        {
+          "limit": "streams",
+          "max": 8
+        }
+      ],
       "name": "ResourceExhausted"
     },
     {
       "code": -32026,
+      "data": {
+        "feature": "deliveryMode",
+        "value": "webhook"
+      },
       "name": "Unsupported"
     }
   ],

@@ -90,6 +90,9 @@ struct Server {
     observe_sends: Arc<Mutex<()>>,
     /// The host fetched a skill (list, get or a skill resource).
     skills_used: Arc<AtomicBool>,
+    /// The host called an `events/*` method (declaring the extension is
+    /// optional for a client, so use counts as much as a declaration).
+    events_used: Arc<AtomicBool>,
     /// Streams open in this process (the cap is in `events`).
     streams: Arc<std::sync::atomic::AtomicUsize>,
 }
@@ -265,7 +268,7 @@ impl Server {
             tasks: request_declares_tasks(context),
             skills: self.skills_used.load(Ordering::Relaxed)
                 || has(musaic_commands::events::SKILLS_EXTENSION_ID),
-            events: has(EVENTS_EXTENSION_ID),
+            events: self.events_used.load(Ordering::Relaxed) || has(EVENTS_EXTENSION_ID),
         };
         let changed = {
             let mut last = self
@@ -355,7 +358,9 @@ impl ServerHandler for Server {
             caps.build()
         };
         // The extensions are declared once; the handlers answer `skills/*` and
-        // `events/*` on the 2026-07-28 profile only (research D1).
+        // `events/*` on the 2026-07-28 profile only (research D1). Events
+        // settings `{}`: the two event types never change at run time, so
+        // `listChanged` stays at its default, false.
         let mut caps = caps;
         caps.extensions
             .get_or_insert_with(Default::default)
@@ -611,6 +616,7 @@ where
         observed: Arc::default(),
         observe_sends: Arc::default(),
         skills_used: Arc::default(),
+        events_used: Arc::default(),
         streams: Arc::default(),
     };
     let running = match Gate(server).serve((reader, writer)).await {

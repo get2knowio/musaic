@@ -71,14 +71,15 @@ pub(crate) fn resources() -> ListResourcesResult {
         .entries
         .iter()
         .map(|e| {
-            let r = Resource::new(e.uri.clone(), file_name(e))
-                .with_mime_type(MARKDOWN)
-                .with_size(e.size as u64);
+            // The SKILL.md resource is named and described from its
+            // frontmatter (Skills specification, Resource Metadata).
             if e.path == skill::ENTRY {
-                r.with_description(b.description())
+                Resource::new(e.uri.clone(), b.name()).with_description(b.description())
             } else {
-                r
+                Resource::new(e.uri.clone(), file_name(e))
             }
+            .with_mime_type(MARKDOWN)
+            .with_size(e.size as u64)
         })
         .collect();
     ListResourcesResult::with_all_items(items)
