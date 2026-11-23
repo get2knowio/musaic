@@ -248,7 +248,7 @@ impl BeforeImage {
 }
 
 pub struct ChangeInput<'a> {
-    pub pairing_id: &'a str,
+    pub pairing_id: Option<&'a str>,
     pub proposal_id: &'a str,
     pub approval_id: Option<&'a str>,
     pub now: &'a str,
@@ -504,7 +504,7 @@ pub fn record_spec(
             conn,
             &musaic_db::agent::ChangeRow {
                 id: id.clone(),
-                pairing_id: input.pairing_id.to_string(),
+                pairing_id: input.pairing_id.map(str::to_owned),
                 proposal_id: input.proposal_id.to_string(),
                 approval_id: input.approval_id.map(str::to_string),
                 album_id: row.id().to_string(),
@@ -530,12 +530,19 @@ pub fn record_spec(
 
 /// Mark the change `applied`, `partial` or `failed` with the outcome that was
 /// reported to the agent.
-pub fn finish(conn: &Connection, id: &str, state: &str, outcome: &str) {
-    if let Err(e) = musaic_db::agent::finish_change(conn, id, state, outcome) {
-        musaic_log::error(
-            "musaic.agent",
-            &format!("change {id} could not be finished: {e}"),
-        );
+pub fn finish(conn: &Connection, id: &str, state: &str, outcome: &str) -> Result<(), ToolError> {
+    match musaic_db::agent::finish_change(conn, id, state, outcome) {
+        Ok(true) => Ok(()),
+        result => {
+            musaic_log::error(
+                "musaic.agent",
+                &format!("change {id} could not be finished: {result:?}"),
+            );
+            Err(ToolError::new(
+                ToolErrorCode::Unavailable,
+                "The final change record could not be saved. Check the backup and confirmed file results.",
+            ))
+        }
     }
 }
 

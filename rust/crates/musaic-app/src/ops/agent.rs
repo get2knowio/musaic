@@ -152,7 +152,7 @@ pub struct ApprovalRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangeRecord {
     pub id: String,
-    pub pairing_id: String,
+    pub pairing_id: Option<String>,
     pub pairing_name: String,
     /// The album's id now (after a folder rename, the new one).
     pub album_id: String,
@@ -490,19 +490,26 @@ impl Agent<'_> {
     /// it are denied. `NotFound` for an unknown id; revoking twice is `Ok`.
     pub fn revoke_pairing(&self, id: &str) -> Result<PairingRecord, AgentError> {
         let app = self.app;
+        let _guard = app.gate().begin_work().map_err(OpError::from)?;
         let conn = conn(app)?;
-        let Some(row) = musaic_db::agent::get_pairing(&conn, id)? else {
+        let tx = musaic_db::immediate(&conn)?;
+        let Some(row) = musaic_db::agent::get_pairing(&tx, id)? else {
             return Err(tool_err(ToolErrorCode::NotFound, "no such pairing"));
         };
         let now = app.now_iso();
-        let revoked = musaic_db::agent::revoke_pairing(&conn, id, &now)?;
+        let revoked = musaic_db::agent::revoke_pairing(&tx, id, &now)?;
+        let cards = crate::agent::deny_cards_of(app, &tx, id)?;
+        tx.commit()?;
         app.0.agent.drop_tokens_of(id);
         let cfg = config_id(app);
         let _ = musaic_secrets::agent::delete_secret(app.0.agent_secrets.as_ref(), &cfg, id);
         crate::agent::remove_dev_credential(app.config_dir(), id);
         if revoked {
             self.sync_index(&conn);
-            crate::agent::deny_cards_of(app, &conn, id, "pairing revoked");
+            if !cards.is_empty() {
+                self.publish(AgentWhat::Approvals, cards);
+            }
+            crate::agent::delegation::publish_pending(app, &conn);
             app.log().info(LOG_TARGET, &format!("pairing {id} revoked"));
             self.publish(AgentWhat::Pairings, vec![id.to_string()]);
         }
@@ -530,7 +537,9 @@ impl Agent<'_> {
             *d == Decision::Ask
                 && matches!(
                     k,
-                    PermissionKind::LibraryRead | PermissionKind::ProposalSubmit
+                    PermissionKind::LibraryRead
+                        | PermissionKind::ProposalSubmit
+                        | PermissionKind::WorkCancel
                 )
         }) {
             return Err(AgentError::Tool(ToolError::invalid(
@@ -692,6 +701,38 @@ impl Agent<'_> {
         }
     }
 
+    pub fn task_create(
+        &self,
+        p: &Principal,
+        input: &musaic_commands::tools::task::TaskCreateInput,
+    ) -> Result<musaic_commands::tools::task::TaskSnapshot, ToolError> {
+        crate::agent::tasks::create(self.app, p, input)
+    }
+
+    pub fn task_get(
+        &self,
+        p: &Principal,
+        input: &musaic_commands::tools::task::TaskInput,
+    ) -> Result<musaic_commands::tools::task::TaskSnapshot, ToolError> {
+        crate::agent::tasks::get(self.app, p, input)
+    }
+
+    pub fn task_update(
+        &self,
+        p: &Principal,
+        input: &musaic_commands::tools::task::TaskUpdateInput,
+    ) -> Result<(), ToolError> {
+        crate::agent::tasks::update(self.app, p, input)
+    }
+
+    pub fn task_cancel(
+        &self,
+        p: &Principal,
+        input: &musaic_commands::tools::task::TaskInput,
+    ) -> Result<(), ToolError> {
+        crate::agent::tasks::cancel(self.app, p, input)
+    }
+
     // --------------------------------------------------- authorization
 
     // ------------------------------------------------------------ tools
@@ -707,6 +748,9 @@ impl Agent<'_> {
     ) -> Result<ToolOutput, ToolError> {
         let app = self.app;
         let tool = call.tool_id();
+        if crate::agent::delegation::handles(&call) {
+            return crate::agent::delegation::call(app, principal, call);
+        }
         let kinds: &[PermissionKind] = match &call {
             ToolCall::Capabilities(_)
             | ToolCall::LibraryList(_)
@@ -721,6 +765,7 @@ impl Agent<'_> {
             | ToolCall::ScanStart(_)
             | ToolCall::ChecksStart(_)
             | ToolCall::AnalysisStart(_) => &[],
+            _ => unreachable!("delegation tools were dispatched above"),
         };
         if !kinds.is_empty() {
             let decision = crate::agent::run::authorize(app, principal, kinds)?;
@@ -752,6 +797,7 @@ impl Agent<'_> {
             ToolCall::OperationCancel(i) => {
                 ToolOutput::OperationCancel(run::operation_cancel(app, principal, &i)?)
             }
+            _ => unreachable!("delegation tools were dispatched above"),
         })
     }
 

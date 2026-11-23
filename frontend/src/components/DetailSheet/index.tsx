@@ -14,6 +14,7 @@ import FindingsSection from "./FindingsSection";
 import MoreMenu from "./MoreMenu";
 import MyTagsSection from "./MyTagsSection";
 import Section from "./Section";
+import { ResearchGroup, RequestResearch } from "../ResearchGroup";
 import HintDialog from "./HintDialog";
 import RemoveAlbumDialog from "./RemoveAlbumDialog";
 import { subscribePanelFocus, takePanelFocusRequest } from "./panelFocus";
@@ -263,7 +264,7 @@ function SheetBody({
   // shown here; Review still lists it.
   const corrections = useCorrections({
     album: displayAlbum,
-    activeJob,
+    activeJob: activeJob?.result?.delegated ? null : activeJob,
     resolution,
     tracks: tracks.data?.tracks ?? (tracks.isError ? [] : undefined),
     coverRequested,
@@ -493,7 +494,9 @@ function SheetBody({
         {/* In-flight job banner — shown while a job for THIS album is queued
             or running. Queued jobs offer an inline Cancel; running jobs
             can't be cancelled (the worker is mid-call). */}
-        {isQueued && activeJob && (
+        {activeJob?.result?.delegated && <ResearchGroup job={activeJob} />}
+        {!activeJob && !ai.ready && !isMissing && !isApplying && <RequestResearch onRequest={(kind,hint)=>queueJob(kind,hint,false)} pending={enqueue.isPending} />}
+        {isQueued && activeJob && !activeJob.result?.delegated && (
           <div className="mx-4 my-3 rounded-md border border-accent/40 bg-accent-soft p-3 text-sm flex items-center gap-2.5">
             <Loader2 className="w-4 h-4 spin text-accent shrink-0" />
             <div className="flex-1 min-w-0">
@@ -519,7 +522,8 @@ function SheetBody({
         {/* Failed-job banner — surfaces the most recent failure for this
             album so the user can Retry / inspect inline, instead of navigating
             to Review and finding the row. */}
-        {recentFailedJob && (
+        {recentFailedJob?.result?.delegated && <ResearchGroup job={recentFailedJob} />}
+        {recentFailedJob && !recentFailedJob.result?.delegated && (
           <div className="mx-4 my-3 rounded-md border border-err/40 bg-err-soft p-3 text-sm flex items-start gap-2.5">
             <AlertTriangle className="w-4 h-4 text-err shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">

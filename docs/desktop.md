@@ -267,6 +267,10 @@ address) so the guard can check both. `musaic-api`'s loopback server writes
 The webview manages pairings and decides approvals through the ordinary `/api/agent/*`
 routes (launch cookie required), refreshed by the `AgentStateChanged` bus event.
 
+Research requests and the operations behind MCP Tasks are stored in the same library database as the albums. The desktop resolves an album locally when it can. An assistant can claim unresolved metadata or cover research while the bridge is running. Review groups the results by album request. Approving a proposal checks the current files and saves a before-image for Undo.
+
+The quit dialog lists external claims separately from local work. Closing the app leaves those claims to expire. Reopening with the same library preserves an unexpired claim. Restoring a database or switching libraries invalidates existing claims and Task handles.
+
 ## Options
 
 `--config-dir DIR` / `MUSAIC_CONFIG_DIR`, `--port N` / `MUSAIC_PORT` (default

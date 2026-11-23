@@ -1542,6 +1542,28 @@ fn a_restore_running_refuses_an_allowed_apply_and_a_revoked_pairing_loses_its_ca
 }
 
 #[test]
+fn restoring_a_snapshot_expires_previews_even_when_the_album_still_matches() {
+    let f = fix_world(ALL_KINDS);
+    f.set_policy(K::TagsWrite, Decision::Allow);
+    let before = f.files();
+    let preview = f.preview(GENRE("Restored preview")).unwrap();
+    let backup = f.w.app.ops().database().backup().unwrap();
+    f.w.app
+        .ops()
+        .database()
+        .restore_from(&backup.file.path)
+        .unwrap();
+    assert_eq!(
+        f.apply(&preview, "old-preview-after-restore")
+            .unwrap_err()
+            .code,
+        ToolErrorCode::ProposalExpired
+    );
+    assert_eq!(f.files(), before);
+    assert!(f.preview(GENRE("Fresh preview")).is_ok());
+}
+
+#[test]
 fn the_agent_can_cancel_only_while_the_card_waits() {
     let f = fix_world(ALL_KINDS);
     let before = f.files();
@@ -1823,10 +1845,12 @@ fn no_tool_can_approve_deny_or_change_policy() {
 }
 
 #[test]
-fn a_restart_expires_every_pending_card() {
+fn a_restart_keeps_a_pending_card_and_its_operation() {
     let f = fix_world(ALL_KINDS);
     let prev = f.preview(GENRE("Restart")).unwrap();
-    f.apply(&prev, "key-restart-01").unwrap();
+    let handle = f.apply(&prev, "key-restart-01").unwrap();
+    let op_id = handle["operationId"].as_str().unwrap();
+    let card_id = handle["approvalId"].as_str().unwrap();
     assert_eq!(f.cards(ApprovalFilter::Pending).len(), 1);
     let Fix { w, .. } = f;
     let AgentWorld {
@@ -1846,17 +1870,20 @@ fn a_restart_expires_every_pending_card() {
         .build()
         .unwrap();
     let ops = app2.ops();
-    assert!(
-        ops.agent()
-            .list_approvals(ApprovalFilter::Pending)
-            .unwrap()
-            .is_empty()
-    );
-    let all = ops.agent().list_approvals(ApprovalFilter::All).unwrap();
-    assert_eq!(
-        (all[0].state.as_str(), all[0].reason.as_deref()),
-        ("expired", Some("app restarted"))
-    );
+    let pending = ops.agent().list_approvals(ApprovalFilter::Pending).unwrap();
+    assert_eq!(pending[0].id, card_id);
+    let conn = musaic_db::open_connection(app2.db_path()).unwrap();
+    let op = musaic_db::agent_operations::get(&conn, op_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(op.state, "awaiting_approval");
+    assert_eq!(op.approval_id.as_deref(), Some(card_id));
+    let card = ops.agent().decide_approval(card_id, true).unwrap();
+    assert_eq!(card.state, "approved");
+    let op = musaic_db::agent_operations::get(&conn, op_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(op.state, "succeeded");
 }
 
 // ------------------------------------------------------------ compute starts
@@ -2006,13 +2033,22 @@ fn checks_start_findings_equal_a_direct_run_and_the_same_key_gives_the_same_hand
 #[test]
 fn cancelling_a_check_run_stops_it_between_checks_with_partial_counts() {
     let (w, p, _) = compute_world();
-    // A write lock on the database holds the first check at its first write, so
-    // the cancel arrives while the run is still in progress, without timing.
-    let blocker = musaic_db::open_connection(w.app.db_path()).unwrap();
-    blocker.execute_batch("BEGIN IMMEDIATE").unwrap();
+    let door = Arc::new(Door::default());
+    let hold = door.clone();
+    w.app.bus().register(
+        Topic::Kind(EventKind::ChecksRerunFinished),
+        Subscriber::from_fn(move |_| {
+            if hold.entered() == 0 {
+                hold.wait();
+            }
+            Ok(())
+        })
+        .key("hold-between-checks")
+        .name("hold-between-checks"),
+    );
     let h = out_json(w.call(&p, "musaic_checks_start", json!({"checkIds": ["track-gaps", "no-cover-art", "inconsistent-artist-sort"], "idempotencyKey": "key-cancel-0001"})));
     let op = h["operationId"].as_str().unwrap().to_string();
-    std::thread::sleep(Duration::from_millis(200));
+    eventually("the first check to complete", || door.entered() > 0);
     let running = out_json(w.call(&p, "musaic_operation_get", json!({"operationId": op})));
     assert_eq!(running["state"], "running");
     assert_eq!(running["counts"]["done"], 0);
@@ -2021,15 +2057,12 @@ fn cancelling_a_check_run_stops_it_between_checks_with_partial_counts() {
         (c["cancellation"].as_str(), c["state"].as_str()),
         (Some("requested"), Some("running"))
     );
-    blocker.execute_batch("ROLLBACK").unwrap();
+    door.open();
     let done = finished(&w, &p, &op);
     assert_eq!(done["state"], "cancelled", "{done}");
     assert_eq!(done["counts"]["total"], 3);
-    assert!(
-        done["counts"]["done"].as_u64().unwrap() < 3,
-        "stopped at a boundary: {done}"
-    );
-    assert!(done["result"]["checks"].as_array().unwrap().len() < 3);
+    assert_eq!(done["counts"]["done"], 1, "stopped at a boundary: {done}");
+    assert_eq!(done["result"]["checks"].as_array().unwrap().len(), 1);
 }
 
 #[test]
@@ -2295,19 +2328,28 @@ fn list_tools_returns_the_generated_catalog_and_its_digest() {
 /// operation ends Failed with FORBIDDEN, no work ran, and the activity log
 /// records the refusal and no start (`start_still_allowed`).
 fn assert_refused_start(w: &AgentWorld, pairing: &str, op: &str, tool: &str) {
-    let snap = w.app.0.agent.operation_any(op).expect("the operation");
+    let db = musaic_db::open_connection(w.app.db_path()).unwrap();
+    let snap = musaic_db::agent_operations::get(&db, op)
+        .unwrap()
+        .expect("the operation");
+    let error: Option<musaic_commands::ToolError> = snap
+        .error
+        .as_deref()
+        .map(|value| serde_json::from_str(value).unwrap());
     assert_eq!(
         snap.state,
-        musaic_commands::tools::operation::OperationState::Failed
+        musaic_commands::tools::operation::OperationState::Failed.as_str()
     );
     assert_eq!(
-        snap.error.as_ref().map(|e| e.code),
+        error.as_ref().map(|e| e.code),
         Some(ToolErrorCode::Forbidden),
-        "{:?}",
-        snap.error
+        "{error:?}"
     );
     assert!(snap.result.is_none(), "no work ran: {:?}", snap.result);
-    assert_eq!(snap.counts, Default::default());
+    assert_eq!(
+        serde_json::from_str::<musaic_commands::tools::operation::Counts>(&snap.counts).unwrap(),
+        Default::default()
+    );
     let act = w.app.ops().agent().activity(pairing).unwrap();
     assert!(
         act.iter()
@@ -2430,4 +2472,222 @@ fn approving_a_start_after_its_kind_turned_to_refuse_starts_nothing() {
     }
     std::thread::sleep(Duration::from_millis(100));
     assert_eq!(files_digest(a.path()), before, "no analysis wrote tags");
+}
+
+#[test]
+fn task_mapping_rolls_back_on_outbox_failure_and_recovers_on_retry() {
+    use musaic_commands::tools::task::{TaskCreateInput, TaskInput, TaskUpdateInput};
+
+    let w = agent_world();
+    let id = w.pair("durable", COMPUTE).pairing.id;
+    let p = w.login(&id);
+    let args = json!({"checkIds":["track-gaps"],"idempotencyKey":"task-atomic-test"});
+    let handle = out_json(w.call(&p, "musaic_checks_start", args.clone()));
+    let operation_id = handle["operationId"].as_str().unwrap().to_string();
+    let create = TaskCreateInput {
+        operation_id: operation_id.clone(),
+    };
+    let conn = musaic_db::open_connection(w.app.db_path()).unwrap();
+    conn.execute_batch(
+        "CREATE TRIGGER fail_task_event BEFORE INSERT ON delegation_audit
+         WHEN NEW.transition='task_created' BEGIN SELECT RAISE(ABORT,'interrupted'); END;",
+    )
+    .unwrap();
+    let ops = w.app.ops();
+    let agent = ops.agent();
+    assert_eq!(
+        agent.task_create(&p, &create).unwrap_err().code,
+        ToolErrorCode::Internal
+    );
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM mcp_tasks", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+    conn.execute_batch("DROP TRIGGER fail_task_event").unwrap();
+    let replay = out_json(w.call(&p, "musaic_checks_start", args));
+    assert_eq!(replay["operationId"], operation_id);
+    let task = agent.task_create(&p, &create).unwrap();
+    assert_eq!(
+        agent.task_create(&p, &create).unwrap().task_id,
+        task.task_id
+    );
+    let read = TaskInput {
+        task_id: task.task_id.clone(),
+    };
+
+    // Supply an internal input request to exercise the generic replay
+    // mechanism, independently from the desktop's approval card.
+    conn.execute(
+        "INSERT INTO mcp_task_inputs(task_id,input_key,request) VALUES(?1,'roots',?2)",
+        [&task.task_id, &json!({"method":"roots/list"}).to_string()],
+    )
+    .unwrap();
+    let pending = agent.task_get(&p, &read).unwrap();
+    assert!(pending.pending_inputs.contains_key("roots"));
+    let update = |roots| TaskUpdateInput {
+        task_id: task.task_id.clone(),
+        input_responses: [("roots".into(), roots)].into(),
+    };
+    let mut mixed = update(json!({"roots":[]}));
+    mixed
+        .input_responses
+        .insert("never-issued".into(), json!({}));
+    agent.task_update(&p, &mixed).unwrap();
+    agent.task_update(&p, &update(json!({"roots":[]}))).unwrap();
+    agent
+        .task_update(&p, &update(json!({"roots":[{}]})))
+        .unwrap();
+    assert!(agent.task_get(&p, &read).unwrap().pending_inputs.is_empty());
+    let count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM delegation_audit WHERE transition='task_input_received'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(count, 1);
+    assert_eq!(
+        agent.list_approvals(ApprovalFilter::Pending).unwrap()[0].state,
+        "pending"
+    );
+
+    agent.task_cancel(&p, &read).unwrap();
+    let task = agent.task_get(&p, &read).unwrap();
+    assert_eq!(task.operation.state.as_str(), "cancelled");
+    assert_eq!(task.ttl_ms, Some(604_800_000));
+    w.clock.advance(604_800);
+    agent.expire_due();
+    let expired = agent.task_get(&p, &read).unwrap_err();
+    assert_eq!(expired.code, ToolErrorCode::TaskExpired);
+    assert_eq!(expired.details.unwrap()["operationId"], operation_id);
+    let op = out_json(w.call(
+        &p,
+        "musaic_operation_get",
+        json!({"operationId":operation_id}),
+    ));
+    assert_eq!(op["state"], "cancelled");
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM mcp_task_inputs", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+}
+
+#[test]
+fn restored_database_fences_task_handles_and_old_approvals() {
+    use musaic_commands::tools::task::{TaskCreateInput, TaskInput};
+
+    let w = agent_world();
+    let id = w.pair("restore", COMPUTE).pairing.id;
+    let p = w.login(&id);
+    let handle = out_json(w.call(
+        &p,
+        "musaic_checks_start",
+        json!({"checkIds":["track-gaps"],"idempotencyKey":"task-restore-test"}),
+    ));
+    let operation_id = handle["operationId"].as_str().unwrap().to_string();
+    let ops = w.app.ops();
+    let agent = ops.agent();
+    let snapshot = agent
+        .task_create(
+            &p,
+            &TaskCreateInput {
+                operation_id: operation_id.clone(),
+            },
+        )
+        .unwrap();
+    let read = TaskInput {
+        task_id: snapshot.task_id,
+    };
+    let backup_path = w.scratch.tmp.path().join("backup.db");
+    let conn = musaic_db::open_connection(w.app.db_path()).unwrap();
+    conn.execute("VACUUM INTO ?1", [backup_path.to_str().unwrap()])
+        .unwrap();
+    drop(conn);
+    let restoring = w.app.gate().begin_restore().unwrap();
+    assert_eq!(
+        agent.task_get(&p, &read).unwrap_err().code,
+        ToolErrorCode::Restoring
+    );
+    drop(restoring);
+    ops.database().restore_from(&backup_path).unwrap();
+    assert_eq!(
+        agent.task_get(&p, &read).unwrap_err().code,
+        ToolErrorCode::StaleContext
+    );
+    assert_eq!(
+        w.call(
+            &p,
+            "musaic_operation_get",
+            json!({"operationId":operation_id})
+        )
+        .unwrap_err()
+        .code,
+        ToolErrorCode::StaleContext
+    );
+    assert!(
+        agent
+            .list_approvals(ApprovalFilter::Pending)
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn interrupted_apply_reports_confirmed_file_outcomes_and_needs_a_new_preview() {
+    let f = fix_world(ALL_KINDS);
+    let preview = f.preview(GENRE("Interrupted")).unwrap();
+    let handle = f.apply(&preview, "key-crash-apply-case").unwrap();
+    let id = handle["operationId"].as_str().unwrap();
+    let approval = handle["approvalId"].as_str().unwrap();
+    let now =
+        (f.w.app
+            .now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()) as i64;
+    let conn = musaic_db::open_connection(f.w.app.db_path()).unwrap();
+    let tx = musaic_db::immediate(&conn).unwrap();
+    assert!(
+        musaic_db::agent::decide_approval(&tx, approval, "approved", None, &f.w.app.now_iso())
+            .unwrap()
+    );
+    assert!(musaic_db::agent_operations::start(&tx, id, now).unwrap());
+    musaic_db::agent_operations::checkpoint(&tx, id, "ch_test_confirmed").unwrap();
+    let partial = json!({"apply":{"files":[{"fileName":"01.flac","status":"ok"}],"renamed":false}});
+    musaic_db::agent_operations::progress(
+        &tx,
+        id,
+        now,
+        r#"{"done":1,"total":2,"failed":0}"#,
+        Some(&partial.to_string()),
+    )
+    .unwrap();
+    tx.commit().unwrap();
+    drop(conn);
+    let Fix { w, .. } = f;
+    let AgentWorld {
+        app,
+        scratch,
+        clock,
+        store,
+    } = w;
+    drop(app);
+    let new = musaic_app::App::builder(&scratch.config)
+        .agent_secrets(store)
+        .clock(clock.wall())
+        .subscribers(false)
+        .auto_snapshot(false)
+        .ai_worker(false)
+        .build()
+        .unwrap();
+    let conn = musaic_db::open_connection(new.db_path()).unwrap();
+    let op = musaic_db::agent_operations::get(&conn, id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(op.state, "failed");
+    assert_eq!(op.result.as_deref(), Some(partial.to_string().as_str()));
+    let error: musaic_commands::ToolError = serde_json::from_str(&op.error.unwrap()).unwrap();
+    assert_eq!(error.code, ToolErrorCode::Unavailable);
+    assert!(error.message.contains("preview remaining edits again"));
+    assert_eq!(error.details.unwrap()["changeId"], "ch_test_confirmed");
 }

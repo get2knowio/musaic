@@ -4,6 +4,9 @@
 //! recording machine's paths, so the id check reads the unmodified database
 //! from the private test data.
 
+#[path = "support/delegation_schema.rs"]
+mod delegation_schema;
+
 use std::path::PathBuf;
 
 use musaic_db::{BACKUP_FILE_NAME, Db, Error, Opened, SCHEMA_VERSION, album_id, settings};
@@ -92,6 +95,7 @@ fn v16_is_backed_up_then_migrated() {
     want.push(("fingerprint_rejects".into(), 0));
     want.push(("check_inputs".into(), 0));
     want.extend(agent_tables());
+    want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     // Rows with a recording came from a completed lookup; the
@@ -351,6 +355,7 @@ fn v17_is_migrated_without_a_backup() {
     want.push(("fingerprint_rejects".into(), 0));
     want.push(("check_inputs".into(), 0));
     want.extend(agent_tables());
+    want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     let (done, matched, impls): (i64, i64, i64) = db
@@ -428,6 +433,7 @@ fn v18_is_migrated_without_a_backup() {
     let mut want = before;
     want.push(("check_inputs".into(), 0));
     want.extend(agent_tables());
+    want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
     // The new index is there and covers the inputs query.
@@ -514,6 +520,30 @@ fn agent_tables() -> Vec<(String, i64)> {
     .collect()
 }
 
+/// Delegation imports each legacy job, with two children for a combined job.
+fn delegation_tables(conn: &Connection) -> Vec<(String, i64)> {
+    let children: i64 = conn
+        .query_row(
+            "SELECT COALESCE(SUM(CASE job_type WHEN 'metadata+cover' THEN 2
+           WHEN 'metadata' THEN 1 WHEN 'cover' THEN 1 ELSE 0 END), 0) FROM ai_jobs",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    delegation_schema::OBJECTS
+        .iter()
+        .filter(|(ty, _, _)| *ty == "table")
+        .map(|(_, table, _)| {
+            let expected = match *table {
+                "library_epoch" => 1,
+                "delegated_work" | "delegation_audit" | "delegation_outbox" => children,
+                _ => 0,
+            };
+            (table.to_string(), expected)
+        })
+        .collect()
+}
+
 /// A v19 database (the previous release's) is migrated in place to v20 with
 /// no backup file: every table keeps its rows, every album row keeps every
 /// value it had, the two new albums columns are NULL on every row ("not
@@ -554,12 +584,12 @@ fn v19_is_migrated_to_v20_without_a_backup() {
             backup: None
         }
     );
-    assert_eq!(SCHEMA_VERSION, 21);
-    assert_eq!(db.schema_version().unwrap(), 21);
+    assert_eq!(db.schema_version().unwrap(), SCHEMA_VERSION);
     assert!(musaic_db::existing_backup(dir.path()).is_none());
     let c = db.connection();
     let mut want = before.clone();
     want.extend(agent_tables());
+    want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(
         table_counts(c),
@@ -608,7 +638,7 @@ fn v19_is_migrated_to_v20_without_a_backup() {
 
     let fresh_dir = tempfile::tempdir().unwrap();
     let (fresh, _) = Db::open_or_create(fresh_dir.path().join("library.db")).unwrap();
-    assert_eq!(fresh.schema_version().unwrap(), 21);
+    assert_eq!(fresh.schema_version().unwrap(), SCHEMA_VERSION);
     assert_eq!(cols(fresh.connection()), migrated_cols);
 }
 
@@ -663,12 +693,19 @@ fn rejects_follow_renames_and_deletes() {
 /// A v20 database (the previous release's) gains the agent tables in place:
 /// no backup, every existing row kept, and a second open changes nothing.
 #[test]
-fn v20_is_migrated_to_v21_without_a_backup() {
+fn v20_is_migrated_to_current_without_a_backup() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("library.db");
     {
         let (db, _) = Db::open_or_create(&path).unwrap();
         let c = db.connection();
+        for (_, table, _) in delegation_schema::OBJECTS
+            .iter()
+            .rev()
+            .filter(|(ty, _, _)| *ty == "table")
+        {
+            c.execute(&format!("DROP TABLE {table}"), []).unwrap();
+        }
         for t in [
             "agent_activity",
             "agent_approvals",
@@ -695,7 +732,7 @@ fn v20_is_migrated_to_v21_without_a_backup() {
             backup: None
         }
     );
-    assert_eq!(db.schema_version().unwrap(), 21);
+    assert_eq!(db.schema_version().unwrap(), SCHEMA_VERSION);
     assert!(musaic_db::existing_backup(dir.path()).is_none());
     let counts = table_counts(db.connection());
     for (name, rows) in agent_tables() {

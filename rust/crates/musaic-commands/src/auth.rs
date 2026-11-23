@@ -119,6 +119,25 @@ fn proof(
     hex_encode(&m.finalize().into_bytes())
 }
 
+/// Stable across reconnects so a retried claim can recover its original
+/// credential. The database stores only its verifier.
+pub fn work_lease_token(
+    secret: &[u8],
+    pairing_id: &str,
+    library_epoch: &str,
+    work_id: &str,
+    key: &str,
+) -> String {
+    proof(
+        secret,
+        "musaic-agent/v1/work-lease",
+        pairing_id,
+        library_epoch,
+        work_id,
+        key,
+    )
+}
+
 pub fn client_proof(
     secret: &[u8],
     pairing_id: &str,

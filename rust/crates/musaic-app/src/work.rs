@@ -31,6 +31,8 @@ pub struct WorkSnapshot {
     /// An AI provider is ready ([`crate::App::ai_ready`]); without
     /// one the prompt names no AI ("a job").
     pub ai_ready: bool,
+    /// Research leased to an external assistant, independent of local work guards.
+    pub external_claims: usize,
 }
 
 /// The title of the confirmation dialog.
@@ -58,12 +60,23 @@ impl WorkSnapshot {
 
     /// Nothing running: quit without asking.
     pub fn is_idle(&self) -> bool {
-        self.running().is_empty()
+        self.running().is_empty() && self.external_claims == 0
     }
 
     /// The confirmation message when quitting should ask first, else `None`.
     pub fn quit_prompt(&self) -> Option<String> {
         let running = self.running();
+        if self.external_claims > 0 {
+            let research = "An assistant has claimed research. It can send updates again when Musaic reopens. Its claim can expire while Musaic is closed.";
+            return Some(if running.is_empty() {
+                format!("{research} Quit anyway?")
+            } else {
+                format!(
+                    "Quitting stops local work ({}). {research} Quit anyway?",
+                    running.join(", ")
+                )
+            });
+        }
         if running.is_empty() {
             return None;
         }
@@ -153,6 +166,7 @@ mod tests {
             restoring: false,
             scan_running: true,
             pool_running: true,
+            external_claims: 0,
             ai_ready: true,
         };
         assert_eq!(
@@ -170,6 +184,7 @@ mod tests {
             restoring: false,
             scan_running: true,
             pool_running: true,
+            external_claims: 0,
             ai_ready: false,
         };
         let p = s.quit_prompt().unwrap();

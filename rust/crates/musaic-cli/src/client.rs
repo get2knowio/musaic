@@ -16,6 +16,7 @@ use musaic_commands::auth::{
     client_proof, config_dir_id, random_hex, verify_server_proof,
 };
 use musaic_commands::descriptor::{self, Descriptor};
+use musaic_commands::tools::task::{TaskCreateInput, TaskInput, TaskSnapshot, TaskUpdateInput};
 use musaic_commands::{ToolError, ToolErrorCode};
 use serde_json::Value;
 
@@ -268,9 +269,13 @@ impl Client {
     /// Call a tool; the result object, or the tool's error. A 401 renews the
     /// token once and tries again.
     pub fn call(&self, tool_id: &str, input: &Value) -> Result<Value, ToolError> {
+        self.post_authenticated(&format!("tools/{tool_id}"), input)
+    }
+
+    fn post_authenticated(&self, method: &str, input: &Value) -> Result<Value, ToolError> {
         for attempt in 0..2 {
             let (port, token) = self.session(attempt == 1)?;
-            let url = format!("http://127.0.0.1:{port}/__musaic/agent/v1/tools/{tool_id}");
+            let url = format!("http://127.0.0.1:{port}/__musaic/agent/v1/{method}");
             let (status, v) = match post_json(&agent(CALL_TIMEOUT), &url, Some(&token), input) {
                 Ok(r) => r,
                 Err(_) => {
@@ -305,10 +310,45 @@ impl Client {
             "the app did not accept the token",
         ))
     }
+
+    fn task_request<T: serde::de::DeserializeOwned>(
+        &self,
+        method: &str,
+        input: &impl serde::Serialize,
+    ) -> Result<T, ToolError> {
+        let input = serde_json::to_value(input).expect("a typed request is JSON");
+        let result = self.post_authenticated(method, &input)?;
+        serde_json::from_value(result).map_err(|_| {
+            err(
+                ToolErrorCode::Internal,
+                "the app's Task answer was not understood",
+            )
+        })
+    }
 }
 
 impl musaic_mcp::Backend for Client {
     fn call_tool(&self, tool_id: &str, input: Value) -> Result<Value, ToolError> {
         self.call(tool_id, &input)
+    }
+
+    fn supports_tasks(&self) -> bool {
+        true
+    }
+
+    fn create_task(&self, input: TaskCreateInput) -> Result<TaskSnapshot, ToolError> {
+        self.task_request("tasks/create", &input)
+    }
+
+    fn get_task(&self, input: TaskInput) -> Result<TaskSnapshot, ToolError> {
+        self.task_request("tasks/get", &input)
+    }
+
+    fn update_task(&self, input: TaskUpdateInput) -> Result<(), ToolError> {
+        self.task_request("tasks/update", &input)
+    }
+
+    fn cancel_task(&self, input: TaskInput) -> Result<(), ToolError> {
+        self.task_request("tasks/cancel", &input)
     }
 }

@@ -34,8 +34,9 @@ use musaic_services::library_ops::{RenameParts, rename_album_to_templates};
 use sha2::{Digest, Sha256};
 
 use super::proposal::PROPOSAL_TTL;
-use super::{Operation, OperationSnapshot, Principal, new_operation_id, parse_kinds, to_json_text};
+use super::{Principal, new_operation_id, operations, parse_kinds, to_json_text};
 use crate::App;
+use musaic_db::agent_operations::{self as operation_db, NewOperation};
 
 const LOG_TARGET: &str = "musaic.agent";
 
@@ -49,25 +50,12 @@ pub fn conn(app: &App) -> Result<rusqlite::Connection, ToolError> {
     })
 }
 
-fn db_err(e: impl std::fmt::Display) -> ToolError {
+pub(super) fn db_err(e: impl std::fmt::Display) -> ToolError {
     musaic_log::error(LOG_TARGET, &format!("a database step failed: {e}"));
     ToolError::new(
         ToolErrorCode::Internal,
         "the database could not be read or written",
     )
-}
-
-/// A restore running refuses work: nothing is read through the file it swaps.
-pub fn check_not_restoring(app: &App) -> Result<(), ToolError> {
-    let (_, restoring) = app.0.gate.snapshot();
-    if restoring {
-        Err(ToolError::new(
-            ToolErrorCode::Restoring,
-            "a restore is running; try again when it ends",
-        ))
-    } else {
-        Ok(())
-    }
 }
 
 pub(crate) fn apply_guard(app: &App) -> Result<musaic_services::gate::WorkGuard, ToolError> {
@@ -171,21 +159,13 @@ fn without_paths(app: &App, text: &str, album_path: &str) -> String {
     out
 }
 
-fn input_digest(parts: &[&str]) -> String {
+pub(super) fn input_digest(parts: &[&str]) -> String {
     let mut h = Sha256::new();
     for p in parts {
         h.update((p.len() as u64).to_be_bytes());
         h.update(p.as_bytes());
     }
     hex_encode(&h.finalize())
-}
-
-fn snapshot_handle(s: &OperationSnapshot) -> OperationHandle {
-    OperationHandle {
-        operation_id: s.id.clone(),
-        state: s.state,
-        approval_id: s.approval_id.clone(),
-    }
 }
 
 // ----------------------------------------------------------------- apply
@@ -197,10 +177,17 @@ struct Report {
 }
 
 /// Everything an apply needs to be sure of at the moment it runs (FR-036).
+enum PreviewDigest {
+    Proposal(String),
+    DesktopReview(String),
+}
+
 struct Validated {
     row: musaic_services::albums::AlbumRow,
     patch: ProposedPatch,
-    proposal: musaic_db::agent::ProposalRow,
+    base_revision: String,
+    digest: PreviewDigest,
+    cover_bytes: Option<Vec<u8>>,
 }
 
 /// An approved start's last check: the pairing is not revoked and no kind it
@@ -322,7 +309,9 @@ fn revalidate(
     Ok(Validated {
         row,
         patch,
-        proposal,
+        base_revision: proposal.base_revision,
+        digest: PreviewDigest::Proposal(proposal.digest),
+        cover_bytes: None,
     })
 }
 
@@ -344,10 +333,76 @@ fn run_apply(
     principal_id: &str,
     proposal_id: &str,
     approval_id: Option<&str>,
+    op_id: &str,
 ) -> Result<Report, ToolError> {
     let _guard = apply_guard(app)?;
     let mut conn = conn(app)?;
     let v = revalidate(app, &conn, principal_id, proposal_id, approval_id.is_some())?;
+    apply_validated(
+        app,
+        &mut conn,
+        v,
+        Some(principal_id),
+        proposal_id,
+        approval_id,
+        Some(op_id),
+    )
+}
+
+/// Apply a desktop-approved work result with the same before-image and
+/// per-file outcome as a paired fix. The caller holds the work guard and
+/// has atomically reserved this exact result for a single apply.
+pub(crate) fn apply_research(
+    app: &App,
+    conn: &mut rusqlite::Connection,
+    row: musaic_services::albums::AlbumRow,
+    patch: ProposedPatch,
+    preview_digest: &str,
+    cover_bytes: Option<Vec<u8>>,
+    work: &musaic_db::delegated_work::WorkRow,
+) -> Result<(), ToolError> {
+    if revision_of(&row) != work.base_revision || row.missing_since.is_some() {
+        return Err(ToolError::new(
+            ToolErrorCode::StaleRevision,
+            "the reviewed album changed",
+        ));
+    }
+    let v = Validated {
+        row,
+        patch,
+        digest: PreviewDigest::DesktopReview(preview_digest.into()),
+        cover_bytes,
+        base_revision: work.base_revision.clone(),
+    };
+    let report = apply_validated(
+        app,
+        conn,
+        v,
+        work.principal_id.as_deref(),
+        work.result_id.as_deref().ok_or_else(|| {
+            ToolError::new(
+                ToolErrorCode::StaleContext,
+                "the reviewed result is unavailable",
+            )
+        })?,
+        None,
+        None,
+    )?;
+    if let Some(err) = report.error {
+        return Err(err);
+    }
+    Ok(())
+}
+
+fn apply_validated(
+    app: &App,
+    conn: &mut rusqlite::Connection,
+    v: Validated,
+    principal_id: Option<&str>,
+    proposal_id: &str,
+    approval_id: Option<&str>,
+    op_id: Option<&str>,
+) -> Result<Report, ToolError> {
     let lib = app.library_dir();
     let names: Vec<String> = file_facts(&v.row.album.path)
         .into_iter()
@@ -356,10 +411,16 @@ fn run_apply(
     let parts = apply_parts(&v.patch, &names)?;
     // Derive the change again from the files as they are: the stored diff is a
     // label only.
-    let plan = app.with_apply_env(&mut conn, |env| {
-        agent_proposal::plan(env, &v.row, &v.proposal.base_revision, &v.patch)
+    let plan = app.with_apply_env(conn, |env| {
+        agent_proposal::plan(env, &v.row, &v.base_revision, &v.patch)
     })?;
-    if plan.digest != v.proposal.digest {
+    let matches = match &v.digest {
+        PreviewDigest::Proposal(digest) => *digest == plan.digest,
+        PreviewDigest::DesktopReview(digest) => {
+            *digest == crate::desktop_research::review_digest(&plan, v.cover_bytes.as_deref())
+        }
+    };
+    if !matches {
         return Err(ToolError::new(
             ToolErrorCode::DigestMismatch,
             "the change no longer matches its digest",
@@ -367,7 +428,7 @@ fn run_apply(
     }
     let now = app.now_iso();
     let change_id = agent_changes::record(
-        &conn,
+        conn,
         app.config_dir(),
         &ChangeInput {
             pairing_id: principal_id,
@@ -380,6 +441,14 @@ fn run_apply(
         &plan.diff,
     )?;
 
+    if let Some(id) = op_id {
+        operation_db::checkpoint(conn, id, &change_id).map_err(db_err)?;
+    }
+    let review_progress = if op_id.is_none() {
+        Some(self::conn(app)?)
+    } else {
+        None
+    };
     let album_id = v.row.id().to_string();
     let album_path = v.row.album.path.clone();
     let mut files: Vec<FileOutcome> = Vec::new();
@@ -389,10 +458,11 @@ fn run_apply(
     // The pipeline's own track-number renames, for the after-image.
     let mut step1_renamed: std::collections::BTreeMap<String, String> = Default::default();
     let cover_url = match &v.patch.cover {
+        _ if v.cover_bytes.is_some() => None,
         None => None,
         Some(musaic_commands::tools::fix::CoverPatch::Url { url }) => Some(url.clone()),
         Some(musaic_commands::tools::fix::CoverPatch::Resolution) => {
-            match agent_proposal::anchored_cover(&conn, &album_id) {
+            match agent_proposal::anchored_cover(conn, &album_id) {
                 Some(u) => Some(u),
                 None => {
                     first_error = Some("the album no longer has a cover candidate".into());
@@ -401,7 +471,9 @@ fn run_apply(
             }
         }
     };
-    if first_error.is_none() && (v.patch.tags.is_some() || cover_url.is_some()) {
+    if first_error.is_none()
+        && (v.patch.tags.is_some() || cover_url.is_some() || v.cover_bytes.is_some())
+    {
         let req = ApplyRequest {
             album_id: album_id.clone(),
             album_path: album_path.clone(),
@@ -428,11 +500,20 @@ fn run_apply(
                 tracks: parts.track_clear.clone(),
             },
             cover_url,
+            cover_bytes: v.cover_bytes,
             dry_run: false,
             ..Default::default()
         };
-        app.with_apply_env(&mut conn, |env| {
+        app.with_apply_env(conn, |env| {
             apply_album_changes(env, &req, &mut |ev| {
+                let report_progress = matches!(
+                    &ev,
+                    ApplyEvent::Tags(
+                        TagEvent::FileDone(_)
+                            | TagEvent::FileRenamed { .. }
+                            | TagEvent::Done { .. }
+                    ) | ApplyEvent::CoverSaved { .. }
+                );
                 match ev {
                     ApplyEvent::Tags(TagEvent::FileDone(c)) => {
                         if c.saved {
@@ -478,6 +559,46 @@ fn run_apply(
                     }
                     _ => {}
                 }
+                if report_progress
+                    && (!files.is_empty() || cover.is_some() || !step1_renamed.is_empty())
+                {
+                    let partial = ApplyResult {
+                        files: files.clone(),
+                        cover: cover.clone(),
+                        renamed: !step1_renamed.is_empty(),
+                        album_id_after: None,
+                    };
+                    if let Some(id) = op_id {
+                        operations::progress(
+                            app,
+                            id,
+                            Counts {
+                                done: files.iter().filter(|f| f.status == FileStatus::Ok).count()
+                                    as u32,
+                                total: names.len() as u32,
+                                failed: files
+                                    .iter()
+                                    .filter(|f| f.status == FileStatus::Failed)
+                                    .count() as u32,
+                            },
+                            Some(OperationResult {
+                                apply: Some(partial),
+                                ..Default::default()
+                            }),
+                        );
+                    } else if let Some(conn) = &review_progress
+                        && let Err(error) = musaic_db::agent::checkpoint_change(
+                            conn,
+                            &change_id,
+                            &to_json_text(&partial),
+                        )
+                    {
+                        musaic_log::error(
+                            LOG_TARGET,
+                            &format!("could not record confirmed research changes: {error}"),
+                        );
+                    }
+                }
                 std::ops::ControlFlow::Continue(())
             })
         });
@@ -490,7 +611,7 @@ fn run_apply(
         let now = app.now_iso();
         match rename_album_to_templates(
             RenameParts {
-                conn: &mut conn,
+                conn,
                 bus: app.bus(),
                 library_dir: lib.as_deref(),
                 now: &now,
@@ -527,15 +648,15 @@ fn run_apply(
     };
     // What the change left, for the desktop's Undo to compare with later.
     if change_state != "failed"
-        && let Some(before) = agent_changes::load_before(&conn, &change_id)
+        && let Some(before) = agent_changes::load_before(conn, &change_id)
     {
         let final_id = album_id_after.clone().unwrap_or_else(|| album_id.clone());
-        let final_path = cached_row(&conn, lib.as_deref(), &final_id)
+        let final_path = cached_row(conn, lib.as_deref(), &final_id)
             .map(|r| r.album.path.clone())
             .unwrap_or_else(|_| album_path.clone());
         let after =
             agent_changes::read_after(&final_id, Path::new(&final_path), &before, &step1_renamed);
-        agent_changes::save_after(&conn, app.config_dir(), &change_id, &after);
+        agent_changes::save_after(conn, app.config_dir(), &change_id, &after);
     }
     let result = ApplyResult {
         files,
@@ -543,14 +664,17 @@ fn run_apply(
         renamed,
         album_id_after,
     };
-    agent_changes::finish(&conn, &change_id, change_state, &to_json_text(&result));
+    let record_error =
+        agent_changes::finish(conn, &change_id, change_state, &to_json_text(&result)).err();
     Ok(Report {
         result,
-        error: error_text.map(|m| {
-            ToolError::new(
-                ToolErrorCode::Unavailable,
-                format!("not everything was applied: {m}"),
-            )
+        error: record_error.or_else(|| {
+            error_text.map(|m| {
+                ToolError::new(
+                    ToolErrorCode::Unavailable,
+                    format!("not everything was applied: {m}"),
+                )
+            })
         }),
         change_state,
     })
@@ -569,7 +693,8 @@ fn finish_apply_operation(
             } else {
                 OperationState::Failed
             };
-            app.0.agent.finish_operation(
+            operations::finish_operation(
+                app,
                 op_id,
                 state,
                 Some(OperationResult {
@@ -581,12 +706,28 @@ fn finish_apply_operation(
             state
         }
         Err(e) => {
-            app.0
-                .agent
-                .finish_operation(op_id, OperationState::Failed, None, Some(e));
+            operations::finish_operation(app, op_id, OperationState::Failed, None, Some(e));
             OperationState::Failed
         }
     }
+}
+
+const APPLY_TOOL: &str = "musaic_fix_apply";
+
+fn apply_output(op: operation_db::Operation) -> Result<FixApplyOutput, ToolError> {
+    let op = operations::output(op)?;
+    if op.result.is_none()
+        && op.state == OperationState::Failed
+        && let Some(error) = op.error
+    {
+        return Err(error);
+    }
+    Ok(FixApplyOutput {
+        operation_id: op.operation_id,
+        state: op.state,
+        approval_id: op.approval_id,
+        result: op.result.and_then(|r| r.apply),
+    })
 }
 
 /// `musaic_fix_apply`.
@@ -595,38 +736,28 @@ pub fn fix_apply(
     p: &Principal,
     input: &FixApplyInput,
 ) -> Result<FixApplyOutput, ToolError> {
-    let hub = &app.0.agent;
+    let _guard = operations::guard(app)?;
     let conn = conn(app)?;
+    let digest = input_digest(&[&input.proposal_id, &input.digest]);
+    if let Some(op) = operations::replay(
+        &conn,
+        &p.pairing_id,
+        APPLY_TOOL,
+        &input.idempotency_key,
+        &digest,
+    )? {
+        return apply_output(op);
+    }
     let proposal = musaic_db::agent::get_proposal(&conn, &input.proposal_id)
         .map_err(db_err)?
         .filter(|pr| pr.pairing_id == p.pairing_id)
         .ok_or_else(|| ToolError::new(ToolErrorCode::NotFound, "no such proposal"))?;
-    let digest_in = input_digest(&[&input.proposal_id, &input.digest]);
-    if let Some(found) = hub.idempotent(&p.pairing_id, &input.idempotency_key, &digest_in) {
-        return match found {
-            Ok(op_id) => {
-                let s = hub.operation(&op_id, &p.pairing_id).ok_or_else(|| {
-                    ToolError::new(ToolErrorCode::NotFound, "that operation is gone")
-                })?;
-                Ok(FixApplyOutput {
-                    operation_id: s.id,
-                    state: s.state,
-                    approval_id: s.approval_id,
-                    result: s.result.and_then(|r| r.apply),
-                })
-            }
-            Err(()) => Err(ToolError::new(
-                ToolErrorCode::IdempotencyConflict,
-                "that idempotency key was used with different input",
-            )),
-        };
-    }
     if proposal.digest != input.digest {
         record_activity(
             app,
             &p.pairing_id,
             &p.pairing_name,
-            "musaic_fix_apply",
+            APPLY_TOOL,
             "refused:DIGEST_MISMATCH",
         );
         return Err(ToolError::new(
@@ -639,7 +770,7 @@ pub fn fix_apply(
             app,
             &p.pairing_id,
             &p.pairing_name,
-            "musaic_fix_apply",
+            APPLY_TOOL,
             "refused:PROPOSAL_EXPIRED",
         );
         return Err(ToolError::new(
@@ -647,99 +778,78 @@ pub fn fix_apply(
             "the proposal expired; preview it again",
         ));
     }
-    let kinds = parse_kinds(&proposal.kinds);
-    let decision = authorize(app, p, &kinds)?;
+    let decision = authorize(app, p, &parse_kinds(&proposal.kinds))?;
     if decision == Decision::Refuse {
-        return Err(refuse_forbidden(app, p, "musaic_fix_apply"));
+        return Err(refuse_forbidden(app, p, APPLY_TOOL));
     }
-    check_not_restoring(app)?;
     let op_id = new_operation_id();
-    let op = Operation::new(&op_id, &p.pairing_id, "musaic_fix_apply", app.now());
-    hub.register_operation(op);
-    hub.remember_idempotent(&p.pairing_id, &input.idempotency_key, &digest_in, &op_id);
-    match decision {
-        Decision::Ask => {
-            let now = app.now();
-            let card_id = format!("ap_{}", random_hex(8));
-            let inserted = musaic_db::agent::insert_approval(
-                &conn,
-                &musaic_db::agent::ApprovalRow {
-                    id: card_id.clone(),
-                    pairing_id: p.pairing_id.clone(),
-                    action: "fix_apply".into(),
-                    proposal_id: Some(proposal.id.clone()),
-                    request: None,
-                    request_digest: proposal.digest.clone(),
-                    album_revision: Some(proposal.base_revision.clone()),
-                    kinds: proposal.kinds.clone(),
-                    state: "pending".into(),
-                    reason: None,
-                    created_at: musaic_db::backup::iso_seconds(now),
-                    expires_at: musaic_db::backup::iso_seconds(now + PROPOSAL_TTL),
-                    decided_at: None,
-                    operation_id: Some(op_id.clone()),
-                },
-            )
-            .map_err(db_err);
-            if let Err(e) = inserted {
-                abandon_start(app, &p.pairing_id, &input.idempotency_key, &op_id, &e);
-                return Err(e);
-            }
-            hub.update_operation(&op_id, |o| {
-                o.state = OperationState::AwaitingApproval;
-                o.approval_id = Some(card_id.clone());
-            });
-            record_activity(
-                app,
-                &p.pairing_id,
-                &p.pairing_name,
-                "musaic_fix_apply",
-                "awaiting_approval",
-            );
-            publish_approvals(app, vec![card_id.clone()]);
-            Ok(FixApplyOutput {
-                operation_id: op_id,
-                state: OperationState::AwaitingApproval,
-                approval_id: Some(card_id),
-                result: None,
-            })
+    let card = (decision == Decision::Ask).then(|| {
+        let now = app.now();
+        musaic_db::agent::ApprovalRow {
+            id: format!("ap_{}", random_hex(8)),
+            pairing_id: p.pairing_id.clone(),
+            action: "fix_apply".into(),
+            proposal_id: Some(proposal.id.clone()),
+            request: None,
+            request_digest: proposal.digest.clone(),
+            album_revision: Some(proposal.base_revision.clone()),
+            kinds: proposal.kinds.clone(),
+            state: "pending".into(),
+            reason: None,
+            created_at: musaic_db::backup::iso_seconds(now),
+            expires_at: musaic_db::backup::iso_seconds(now + PROPOSAL_TTL),
+            decided_at: None,
+            operation_id: Some(op_id.clone()),
         }
-        _ => {
-            let outcome = run_apply(app, &p.pairing_id, &proposal.id, None);
-            let outcome_text = match &outcome {
-                Ok(r) if r.error.is_none() => "ok".to_string(),
-                Ok(r) => format!("failed:{}", r.change_state),
-                Err(e) => format!("refused:{}", e.code),
-            };
-            // A refusal before any write is the call's own error.
-            if let Err(e) = &outcome {
-                abandon_start(app, &p.pairing_id, &input.idempotency_key, &op_id, e);
-                record_activity(
-                    app,
-                    &p.pairing_id,
-                    &p.pairing_name,
-                    "musaic_fix_apply",
-                    &outcome_text,
-                );
-                return Err(e.clone());
-            }
-            let state = finish_apply_operation(app, &op_id, outcome);
-            record_activity(
-                app,
-                &p.pairing_id,
-                &p.pairing_name,
-                "musaic_fix_apply",
-                &outcome_text,
-            );
-            let s = hub.operation(&op_id, &p.pairing_id);
-            Ok(FixApplyOutput {
-                operation_id: op_id,
-                state,
-                approval_id: None,
-                result: s.and_then(|s| s.result).and_then(|r| r.apply),
-            })
-        }
+    });
+    let (op, created) = operations::register(
+        app,
+        &NewOperation {
+            id: &op_id,
+            principal_id: &p.pairing_id,
+            tool: APPLY_TOOL,
+            key: &input.idempotency_key,
+            input_digest: &digest,
+            command: &input.proposal_id,
+            cancellable: false,
+            approval_id: card.as_ref().map(|card| card.id.as_str()),
+            now: operations::now(app),
+        },
+        card.as_ref(),
+    )?;
+    if !created {
+        return apply_output(op);
     }
+    if let Some(card) = card {
+        record_activity(
+            app,
+            &p.pairing_id,
+            &p.pairing_name,
+            APPLY_TOOL,
+            "awaiting_approval",
+        );
+        publish_approvals(app, vec![card.id]);
+        return apply_output(op);
+    }
+    let outcome = run_apply(app, &p.pairing_id, &proposal.id, None, &op_id);
+    let outcome_text = match &outcome {
+        Ok(r) if r.error.is_none() => "ok".to_string(),
+        Ok(r) => format!("failed:{}", r.change_state),
+        Err(e) => format!("refused:{}", e.code),
+    };
+    finish_apply_operation(app, &op_id, outcome);
+    record_activity(
+        app,
+        &p.pairing_id,
+        &p.pairing_name,
+        APPLY_TOOL,
+        &outcome_text,
+    );
+    apply_output(
+        operation_db::get(&conn, &op_id)
+            .map_err(db_err)?
+            .expect("the operation was registered"),
+    )
 }
 
 // ----------------------------------------------------------------- starts
@@ -747,7 +857,7 @@ pub fn fix_apply(
 /// What a worker thread runs.
 #[derive(Clone)]
 pub enum Compute {
-    Scan,
+    Scan(ScanStartInput),
     Checks(ChecksStartInput),
     Analysis(AnalysisStartInput),
 }
@@ -755,7 +865,7 @@ pub enum Compute {
 impl Compute {
     fn action(&self) -> &'static str {
         match self {
-            Compute::Scan => "scan_start",
+            Compute::Scan(_) => "scan_start",
             Compute::Checks(_) => "checks_start",
             Compute::Analysis(_) => "analysis_start",
         }
@@ -763,7 +873,7 @@ impl Compute {
 
     fn tool(&self) -> &'static str {
         match self {
-            Compute::Scan => "musaic_scan_start",
+            Compute::Scan(_) => "musaic_scan_start",
             Compute::Checks(_) => "musaic_checks_start",
             Compute::Analysis(_) => "musaic_analysis_start",
         }
@@ -771,7 +881,7 @@ impl Compute {
 
     fn kinds(&self) -> Vec<PermissionKind> {
         match self {
-            Compute::Scan | Compute::Checks(_) => vec![PermissionKind::ComputeScan],
+            Compute::Scan(_) | Compute::Checks(_) => vec![PermissionKind::ComputeScan],
             Compute::Analysis(_) => vec![PermissionKind::ComputeAnalyze, PermissionKind::TagsWrite],
         }
     }
@@ -779,7 +889,7 @@ impl Compute {
     /// The request as stored on a card, and read back on approval.
     fn request_text(&self) -> String {
         match self {
-            Compute::Scan => "{}".to_string(),
+            Compute::Scan(i) => to_json_text(i),
             Compute::Checks(i) => to_json_text(i),
             Compute::Analysis(i) => to_json_text(i),
         }
@@ -787,7 +897,7 @@ impl Compute {
 
     pub fn from_card(action: &str, request: Option<&str>) -> Option<Compute> {
         match action {
-            "scan_start" => Some(Compute::Scan),
+            "scan_start" => serde_json::from_str(request?).ok().map(Compute::Scan),
             "checks_start" => serde_json::from_str(request?).ok().map(Compute::Checks),
             "analysis_start" => serde_json::from_str(request?).ok().map(Compute::Analysis),
             _ => None,
@@ -804,11 +914,15 @@ fn spawn_worker(app: &App, op_id: &str, work: Compute) -> Result<(), ToolError> 
             "Musaic is shutting down",
         ));
     }
+    let guard = operations::guard(app)?;
     let app2 = app.clone();
     let id = op_id.to_string();
     let handle = std::thread::Builder::new()
         .name(format!("agent-op-{op_id}"))
-        .spawn(move || worker(&app2, &id, work))
+        .spawn(move || {
+            let _guard = guard;
+            worker(&app2, &id, work);
+        })
         .map_err(|_| ToolError::new(ToolErrorCode::Unavailable, "the work could not be started"))?;
     app.0.agent.keep_worker(handle);
     Ok(())
@@ -819,35 +933,51 @@ fn op_error(code: ToolErrorCode, message: &str) -> Option<ToolError> {
 }
 
 fn cancelled(app: &App, id: &str) -> bool {
-    app.0
-        .agent
-        .operation_any(id)
-        .is_some_and(|s| s.cancel.load(Ordering::SeqCst))
+    cancel_flag(app, id).load(Ordering::SeqCst)
 }
 
-/// The operation's cancel flag, handed to the services so a check run stops
-/// between albums and an analysis between files.
+/// Check runs stop between albums, and analysis stops between files.
 fn cancel_flag(app: &App, id: &str) -> Arc<AtomicBool> {
-    app.0
-        .agent
-        .operation_any(id)
-        .map(|s| s.cancel)
-        .unwrap_or_default()
+    app.0.agent.cancellation_flag(id)
 }
 
 fn worker(app: &App, op_id: &str, work: Compute) {
-    app.0.agent.set_state(op_id, OperationState::Running);
-    let hub = &app.0.agent;
-    let (pairing_id, tool) = hub
-        .operation_any(op_id)
-        .map(|s| (s.pairing_id, s.tool))
-        .unwrap_or_default();
-    let (state, result, error) = match work {
-        Compute::Scan => run_scan(app, op_id),
+    let Ok(Some(op)) = conn(app).and_then(|conn| operation_db::get(&conn, op_id).map_err(db_err))
+    else {
+        return;
+    };
+    let pairing_id = op.principal_id;
+    let tool = work.tool();
+    let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match work {
+        Compute::Scan(i) => run_scan(app, op_id, &i),
         Compute::Checks(i) => run_checks(app, op_id, &i),
         Compute::Analysis(i) => run_analysis(app, op_id, &i),
+    }));
+    let state = match outcome {
+        Ok((state, result, error)) => {
+            operations::finish_operation(app, op_id, state, result, error);
+            state
+        }
+        Err(_) => {
+            let error = ToolError::new(ToolErrorCode::Internal, "the worker stopped unexpectedly");
+            let _ = operations::transact(app, |conn| {
+                operation_db::finish(
+                    conn,
+                    op_id,
+                    &operation_db::Finish {
+                        state: OperationState::Failed.as_str(),
+                        result: None,
+                        error: Some(&to_json_text(&error)),
+                        execution_failed: true,
+                        now: operations::now(app),
+                    },
+                )
+                .map_err(db_err)
+            });
+            app.0.agent.forget_cancellation_flag(op_id);
+            OperationState::Failed
+        }
     };
-    hub.finish_operation(op_id, state, result, error);
     let name = conn(app)
         .ok()
         .and_then(|c| {
@@ -867,40 +997,48 @@ fn worker(app: &App, op_id: &str, work: Compute) {
 
 type Finished = (OperationState, Option<OperationResult>, Option<ToolError>);
 
-fn run_scan(app: &App, op_id: &str) -> Finished {
+fn run_scan(app: &App, op_id: &str, input: &ScanStartInput) -> Finished {
     use musaic_services::ScanStatus;
-    let hub = &app.0.agent;
-    if let Err(e) = app.ops().scan().start(false) {
-        let code = match e {
-            crate::ops::OpError::Busy { .. } => ToolErrorCode::Busy,
-            crate::ops::OpError::NoLibrary { .. } => ToolErrorCode::NoLibrary,
-            _ => ToolErrorCode::Internal,
-        };
-        return (
-            OperationState::Failed,
-            None,
-            op_error(code, "the scan could not be started"),
-        );
+    if cancelled(app, op_id) {
+        return (OperationState::Cancelled, None, None);
     }
+    if let Err(error) = verify_scan_root(app, &input.configured_root_id) {
+        return (OperationState::Failed, None, Some(error));
+    }
+    let scan = match app.ops().scan().start_observed() {
+        Ok(scan) => scan,
+        Err(e) => {
+            let code = match e {
+                crate::ops::OpError::Busy { .. } => ToolErrorCode::Busy,
+                crate::ops::OpError::NoLibrary { .. } => ToolErrorCode::NoLibrary,
+                _ => ToolErrorCode::Internal,
+            };
+            return (
+                OperationState::Failed,
+                None,
+                op_error(code, "the scan could not be started"),
+            );
+        }
+    };
     let mut cancel_sent = false;
-    let mut idle_polls = 0;
+    let mut recorded = Counts::default();
     loop {
-        let st = app.ops().scan().status();
-        hub.set_counts(
-            op_id,
-            Counts {
-                done: st.scanned as u32,
-                total: st.total as u32,
-                failed: 0,
-            },
-        );
+        let st = scan.state();
+        let counts = Counts {
+            done: st.scanned as u32,
+            total: st.total as u32,
+            failed: 0,
+        };
+        if recorded != counts {
+            operations::progress(app, op_id, counts, None);
+            recorded = counts;
+        }
         if cancelled(app, op_id) && !cancel_sent {
             cancel_sent = true;
-            app.ops().scan().cancel();
+            app.log_scan_cancel(&scan.cancel());
         }
         match st.status {
             ScanStatus::Running => {}
-            ScanStatus::Idle if idle_polls < 50 => idle_polls += 1,
             ScanStatus::Done => {
                 return (
                     OperationState::Succeeded,
@@ -935,7 +1073,6 @@ fn run_scan(app: &App, op_id: &str) -> Finished {
 }
 
 fn run_checks(app: &App, op_id: &str, input: &ChecksStartInput) -> Finished {
-    let hub = &app.0.agent;
     let ids: Vec<String> = match &input.check_ids {
         Some(ids) => ids.clone(),
         None => app
@@ -956,13 +1093,15 @@ fn run_checks(app: &App, op_id: &str, input: &ChecksStartInput) -> Finished {
     let mut summaries = Vec::new();
     let cancel = cancel_flag(app, op_id);
     let cancelled_run = musaic_checks::CheckError::Cancelled.to_string();
-    hub.set_counts(
+    operations::progress(
+        app,
         op_id,
         Counts {
             done,
             total,
             failed,
         },
+        None,
     );
     let stop = |summaries| {
         (
@@ -1008,13 +1147,18 @@ fn run_checks(app: &App, op_id: &str, input: &ChecksStartInput) -> Finished {
             findings,
             failed: bad,
         });
-        hub.set_counts(
+        operations::progress(
+            app,
             op_id,
             Counts {
                 done,
                 total,
                 failed,
             },
+            Some(OperationResult {
+                checks: Some(summaries.clone()),
+                ..Default::default()
+            }),
         );
     }
     let state = if failed == 0 {
@@ -1035,17 +1179,18 @@ fn run_checks(app: &App, op_id: &str, input: &ChecksStartInput) -> Finished {
 fn run_analysis(app: &App, op_id: &str, input: &AnalysisStartInput) -> Finished {
     use crate::ops::analyze::AnalyzeOutcome as Outcome;
     use musaic_services::analyze::AnalysisKind as Kind;
-    let hub = &app.0.agent;
     let total = input.album_ids.len() as u32;
     let (mut done, mut failed) = (0u32, 0u32);
     let mut items = Vec::new();
-    hub.set_counts(
+    operations::progress(
+        app,
         op_id,
         Counts {
             done,
             total,
             failed,
         },
+        None,
     );
     let conn = conn(app).ok();
     let cancel = cancel_flag(app, op_id);
@@ -1121,13 +1266,18 @@ fn run_analysis(app: &App, op_id: &str, input: &AnalysisStartInput) -> Finished 
             });
         }
         done += 1;
-        hub.set_counts(
+        operations::progress(
+            app,
             op_id,
             Counts {
                 done,
                 total,
                 failed,
             },
+            Some(OperationResult {
+                analysis: Some(items.clone()),
+                ..Default::default()
+            }),
         );
     }
     let state = if failed == 0 {
@@ -1150,19 +1300,8 @@ fn run_analysis(app: &App, op_id: &str, input: &AnalysisStartInput) -> Finished 
     )
 }
 
-/// A start that failed after its operation was registered: the operation ends
-/// `failed` and its idempotency key is free again, so a retry is not handed
-/// an operation that never runs.
-fn abandon_start(app: &App, pairing_id: &str, key: &str, op_id: &str, e: &ToolError) {
-    let hub = &app.0.agent;
-    hub.forget_idempotent(pairing_id, key);
-    hub.finish_operation(op_id, OperationState::Failed, None, Some(e.clone()));
-}
-
-/// Start (or queue for approval) a scan, a check run or an analysis. The same
-/// idempotency key and input return the same handle; the same key with other
-/// input is refused. `validate` runs after the idempotency lookup and before
-/// anything is created.
+/// Start or enqueue an operation. Its idempotency key and any approval
+/// commit with the operation before it can be returned or scheduled.
 pub fn start_compute(
     app: &App,
     p: &Principal,
@@ -1170,20 +1309,18 @@ pub fn start_compute(
     key: &str,
     validate: impl FnOnce() -> Result<(), ToolError>,
 ) -> Result<OperationHandle, ToolError> {
-    let hub = &app.0.agent;
+    let _guard = operations::guard(app)?;
     let request = work.request_text();
-    let digest_in = input_digest(&[work.tool(), &request]);
-    if let Some(found) = hub.idempotent(&p.pairing_id, key, &digest_in) {
-        return match found {
-            Ok(op_id) => hub
-                .operation(&op_id, &p.pairing_id)
-                .map(|s| snapshot_handle(&s))
-                .ok_or_else(|| ToolError::new(ToolErrorCode::NotFound, "that operation is gone")),
-            Err(()) => Err(ToolError::new(
-                ToolErrorCode::IdempotencyConflict,
-                "that idempotency key was used with different input",
-            )),
-        };
+    let digest = input_digest(&[work.tool(), &request]);
+    let conn = conn(app)?;
+    if let Some(op) = operations::replay(&conn, &p.pairing_id, work.tool(), key, &digest)? {
+        return operations::handle(&op);
+    }
+    if app.is_shutting_down() {
+        return Err(ToolError::new(
+            ToolErrorCode::Unavailable,
+            "Musaic is shutting down",
+        ));
     }
     validate()?;
     let kinds = work.kinds();
@@ -1192,46 +1329,44 @@ pub fn start_compute(
         return Err(refuse_forbidden(app, p, work.tool()));
     }
     let op_id = new_operation_id();
-    hub.register_operation(Operation::new(
-        &op_id,
-        &p.pairing_id,
-        work.tool(),
-        app.now(),
-    ));
-    hub.remember_idempotent(&p.pairing_id, key, &digest_in, &op_id);
-    if decision == Decision::Ask {
+    let card = (decision == Decision::Ask).then(|| {
         let now = app.now();
-        let card_id = format!("ap_{}", random_hex(8));
-        let inserted = conn(app).and_then(|conn| {
-            musaic_db::agent::insert_approval(
-                &conn,
-                &musaic_db::agent::ApprovalRow {
-                    id: card_id.clone(),
-                    pairing_id: p.pairing_id.clone(),
-                    action: work.action().into(),
-                    proposal_id: None,
-                    request: Some(request.clone()),
-                    request_digest: input_digest(&[work.action(), &request]),
-                    album_revision: None,
-                    kinds: to_json_text(&kinds.iter().map(|k| k.as_str()).collect::<Vec<_>>()),
-                    state: "pending".into(),
-                    reason: None,
-                    created_at: musaic_db::backup::iso_seconds(now),
-                    expires_at: musaic_db::backup::iso_seconds(now + PROPOSAL_TTL),
-                    decided_at: None,
-                    operation_id: Some(op_id.clone()),
-                },
-            )
-            .map_err(db_err)
-        });
-        if let Err(e) = inserted {
-            abandon_start(app, &p.pairing_id, key, &op_id, &e);
-            return Err(e);
+        musaic_db::agent::ApprovalRow {
+            id: format!("ap_{}", random_hex(8)),
+            pairing_id: p.pairing_id.clone(),
+            action: work.action().into(),
+            proposal_id: None,
+            request: Some(request.clone()),
+            request_digest: input_digest(&[work.action(), &request]),
+            album_revision: None,
+            kinds: to_json_text(&kinds.iter().map(|k| k.as_str()).collect::<Vec<_>>()),
+            state: "pending".into(),
+            reason: None,
+            created_at: musaic_db::backup::iso_seconds(now),
+            expires_at: musaic_db::backup::iso_seconds(now + PROPOSAL_TTL),
+            decided_at: None,
+            operation_id: Some(op_id.clone()),
         }
-        hub.update_operation(&op_id, |o| {
-            o.state = OperationState::AwaitingApproval;
-            o.approval_id = Some(card_id.clone());
-        });
+    });
+    let (op, created) = operations::register(
+        app,
+        &NewOperation {
+            id: &op_id,
+            principal_id: &p.pairing_id,
+            tool: work.tool(),
+            key,
+            input_digest: &digest,
+            command: &request,
+            cancellable: true,
+            approval_id: card.as_ref().map(|card| card.id.as_str()),
+            now: operations::now(app),
+        },
+        card.as_ref(),
+    )?;
+    if !created {
+        return operations::handle(&op);
+    }
+    if let Some(card) = card {
         record_activity(
             app,
             &p.pairing_id,
@@ -1239,23 +1374,21 @@ pub fn start_compute(
             work.tool(),
             "awaiting_approval",
         );
-        publish_approvals(app, vec![card_id.clone()]);
-        return Ok(OperationHandle {
-            operation_id: op_id,
-            state: OperationState::AwaitingApproval,
-            approval_id: Some(card_id),
-        });
+        publish_approvals(app, vec![card.id]);
+    } else {
+        record_activity(app, &p.pairing_id, &p.pairing_name, work.tool(), "started");
+        if let Err(e) = spawn_worker(app, &op_id, work) {
+            operations::finish_operation(
+                app,
+                &op_id,
+                OperationState::Failed,
+                None,
+                Some(e.clone()),
+            );
+            return Err(e);
+        }
     }
-    record_activity(app, &p.pairing_id, &p.pairing_name, work.tool(), "started");
-    if let Err(e) = spawn_worker(app, &op_id, work) {
-        abandon_start(app, &p.pairing_id, key, &op_id, &e);
-        return Err(e);
-    }
-    Ok(OperationHandle {
-        operation_id: op_id,
-        state: OperationState::Running,
-        approval_id: None,
-    })
+    operations::handle(&op)
 }
 
 pub fn scan_start(
@@ -1263,23 +1396,28 @@ pub fn scan_start(
     p: &Principal,
     input: &ScanStartInput,
 ) -> Result<OperationHandle, ToolError> {
-    let root = input.configured_root_id.clone();
-    start_compute(app, p, Compute::Scan, &input.idempotency_key, || {
-        let lib = app.library_dir().filter(|l| !l.is_empty()).ok_or_else(|| {
-            ToolError::new(ToolErrorCode::NoLibrary, "no library folder is configured")
-        })?;
-        let resolved = musaic_scan::py_resolve(Path::new(&lib))
-            .to_string_lossy()
-            .into_owned();
-        if musaic_commands::auth::config_dir_id(&resolved) == root {
-            Ok(())
-        } else {
-            Err(ToolError::new(
-                ToolErrorCode::NotFound,
-                "no such library root",
-            ))
-        }
-    })
+    start_compute(
+        app,
+        p,
+        Compute::Scan(input.clone()),
+        &input.idempotency_key,
+        || verify_scan_root(app, &input.configured_root_id),
+    )
+}
+
+fn verify_scan_root(app: &App, root: &str) -> Result<(), ToolError> {
+    let lib = app.library_dir().filter(|l| !l.is_empty()).ok_or_else(|| {
+        ToolError::new(ToolErrorCode::NoLibrary, "no library folder is configured")
+    })?;
+    let resolved = musaic_scan::py_resolve(Path::new(&lib));
+    if musaic_commands::auth::config_dir_id(&resolved.to_string_lossy()) == root {
+        Ok(())
+    } else {
+        Err(ToolError::new(
+            ToolErrorCode::NotFound,
+            "no such library root",
+        ))
+    }
 }
 
 pub fn checks_start(
@@ -1319,28 +1457,15 @@ pub fn analysis_start(
 
 // -------------------------------------------------------------- operations
 
-fn output_of(s: OperationSnapshot) -> OperationGetOutput {
-    OperationGetOutput {
-        operation_id: s.id,
-        tool: s.tool.to_string(),
-        state: s.state,
-        counts: s.counts,
-        approval_id: s.approval_id,
-        result: s.result,
-        error: s.error,
-    }
-}
-
 pub fn operation_get(
     app: &App,
     p: &Principal,
     input: &OperationGetInput,
 ) -> Result<OperationGetOutput, ToolError> {
-    app.0
-        .agent
-        .operation(&input.operation_id, &p.pairing_id)
-        .map(output_of)
-        .ok_or_else(|| ToolError::new(ToolErrorCode::NotFound, "no such operation"))
+    let _guard = operations::guard(app)?;
+    let conn = conn(app)?;
+    let row = operation_db::get(&conn, &input.operation_id).map_err(db_err)?;
+    operations::output(operations::checked(&conn, row, &p.pairing_id)?)
 }
 
 pub fn operation_cancel(
@@ -1348,58 +1473,61 @@ pub fn operation_cancel(
     p: &Principal,
     input: &OperationCancelInput,
 ) -> Result<OperationCancelOutput, ToolError> {
-    let hub = &app.0.agent;
-    let s = hub
-        .operation(&input.operation_id, &p.pairing_id)
-        .ok_or_else(|| ToolError::new(ToolErrorCode::NotFound, "no such operation"))?;
-    let out = |state, cancellation| OperationCancelOutput {
-        operation_id: s.id.clone(),
+    let (state, cancellation, card, flag) = operations::transact(app, |conn| {
+        let row = operation_db::get(conn, &input.operation_id).map_err(db_err)?;
+        let row = operations::checked(conn, row, &p.pairing_id)?;
+        let state = operations::state(&row)?;
+        if state.is_finished() {
+            return Ok((state, Cancellation::AlreadyFinished, None, None));
+        }
+        if state == OperationState::AwaitingApproval
+            && let Some(card) = row.approval_id
+            && musaic_db::agent::decide_approval(
+                conn,
+                &card,
+                "denied",
+                Some("cancelled by assistant"),
+                &app.now_iso(),
+            )
+            .map_err(db_err)?
+        {
+            operations::finish_on(
+                conn,
+                &row.id,
+                OperationState::Cancelled,
+                None,
+                None,
+                operations::now(app),
+            )?;
+            return Ok((
+                OperationState::Cancelled,
+                Cancellation::Requested,
+                Some(card),
+                None,
+            ));
+        }
+        if !row.cancellable {
+            return Ok((state, Cancellation::NotCancellable, None, None));
+        }
+        operation_db::request_cancel(conn, &row.id, operations::now(app)).map_err(db_err)?;
+        Ok((
+            state,
+            Cancellation::Requested,
+            None,
+            Some(cancel_flag(app, &row.id)),
+        ))
+    })?;
+    if let Some(flag) = flag {
+        flag.store(true, Ordering::SeqCst);
+    }
+    if let Some(card) = card {
+        publish_approvals(app, vec![card]);
+    }
+    Ok(OperationCancelOutput {
+        operation_id: input.operation_id.clone(),
         state,
         cancellation,
-    };
-    if s.state.is_finished() {
-        return Ok(out(s.state, Cancellation::AlreadyFinished));
-    }
-    if s.state == OperationState::AwaitingApproval {
-        // Cancelled before the user decided: the card is denied, nothing runs.
-        // Only a deny that won the card ends the operation here; if the user
-        // decided first (approved: the work is starting), it is treated as
-        // running below, so it never reads `cancelled` while it writes.
-        let denied = s.approval_id.as_ref().is_some_and(|card| {
-            conn(app).ok().is_some_and(|c| {
-                musaic_db::agent::decide_approval(
-                    &c,
-                    card,
-                    "denied",
-                    Some("cancelled by assistant"),
-                    &app.now_iso(),
-                )
-                .unwrap_or(false)
-            })
-        });
-        if denied {
-            if let Some(card) = &s.approval_id {
-                publish_approvals(app, vec![card.clone()]);
-            }
-            hub.finish_operation(&s.id, OperationState::Cancelled, None, None);
-            return Ok(out(OperationState::Cancelled, Cancellation::Requested));
-        }
-        let now = hub
-            .operation(&input.operation_id, &p.pairing_id)
-            .ok_or_else(|| ToolError::new(ToolErrorCode::NotFound, "no such operation"))?;
-        if now.state.is_finished() {
-            return Ok(out(now.state, Cancellation::AlreadyFinished));
-        }
-    }
-    // An apply that has started cannot be stopped (a tag write in progress is
-    // not interruptible); everything else stops at its next boundary: a scan
-    // through its own cancel, a check run before its next album, an analysis
-    // before its next file.
-    if s.tool == "musaic_fix_apply" {
-        return Ok(out(s.state, Cancellation::NotCancellable));
-    }
-    s.cancel.store(true, Ordering::SeqCst);
-    Ok(out(s.state, Cancellation::Requested))
+    })
 }
 
 // --------------------------------------------------------------- approvals
@@ -1407,26 +1535,31 @@ pub fn operation_cancel(
 /// Cards whose time has come become `expired` ("timed out"), and the
 /// operations waiting on them end `expired`. Returns the card ids.
 pub fn expire_due(app: &App) -> Vec<String> {
-    let Ok(conn) = conn(app) else {
-        return Vec::new();
-    };
-    let now = app.now_iso();
-    let ids = musaic_db::agent::expire_due(&conn, &now).unwrap_or_default();
-    for id in &ids {
-        if let Ok(Some(card)) = musaic_db::agent::get_approval(&conn, id)
-            && let Some(op) = card.operation_id
-        {
-            app.0.agent.finish_operation(
-                &op,
-                OperationState::Expired,
-                None,
-                Some(ToolError::new(
-                    ToolErrorCode::ApprovalExpired,
-                    "the approval timed out",
-                )),
-            );
+    let ids = operations::transact(app, |conn| {
+        let now = operations::now(app);
+        operation_db::prune_tasks(conn, now).map_err(db_err)?;
+        let ids =
+            musaic_db::agent::expire_due_in_transaction(conn, &app.now_iso()).map_err(db_err)?;
+        for id in &ids {
+            if let Some(card) = musaic_db::agent::get_approval(conn, id).map_err(db_err)?
+                && let Some(op) = card.operation_id
+            {
+                operations::finish_on(
+                    conn,
+                    &op,
+                    OperationState::Expired,
+                    None,
+                    Some(&ToolError::new(
+                        ToolErrorCode::ApprovalExpired,
+                        "the approval timed out",
+                    )),
+                    now,
+                )?;
+            }
         }
-    }
+        Ok(ids)
+    })
+    .unwrap_or_default();
     if !ids.is_empty() {
         publish_approvals(app, ids.clone());
     }
@@ -1441,19 +1574,43 @@ pub fn decide_approval(
     card_id: &str,
     approve: bool,
 ) -> Result<ApprovalOutcome, ToolError> {
-    let conn = conn(app)?;
-    // A card past its time is not decidable, whether or not the ticker ran.
+    let _guard = operations::guard(app)?;
     expire_due(app);
-    let Some(card) = musaic_db::agent::get_approval(&conn, card_id).map_err(db_err)? else {
-        return Err(ToolError::new(ToolErrorCode::NotFound, "no such approval"));
-    };
-    let now = app.now_iso();
-    let state = if approve { "approved" } else { "denied" };
-    let reason = (!approve).then_some("denied by the user");
-    if !musaic_db::agent::decide_approval(&conn, card_id, state, reason, &now).map_err(db_err)? {
+    let card = operations::transact(app, |conn| {
+        let Some(card) = musaic_db::agent::get_approval(conn, card_id).map_err(db_err)? else {
+            return Err(ToolError::new(ToolErrorCode::NotFound, "no such approval"));
+        };
+        if card.state != "pending" {
+            return Ok(None);
+        }
+        let op_id = card.operation_id.as_deref().unwrap_or_default();
+        let op = operation_db::get(conn, op_id).map_err(db_err)?;
+        operations::checked(conn, op, &card.pairing_id)?;
+        let state = if approve { "approved" } else { "denied" };
+        let reason = (!approve).then_some("denied by the user");
+        if !musaic_db::agent::decide_approval(conn, card_id, state, reason, &app.now_iso())
+            .map_err(db_err)?
+        {
+            return Ok(None);
+        }
+        if approve {
+            operation_db::start(conn, op_id, operations::now(app)).map_err(db_err)?;
+        } else {
+            operations::finish_on(
+                conn,
+                op_id,
+                OperationState::Denied,
+                None,
+                Some(&ToolError::new(ToolErrorCode::Denied, "the user denied it")),
+                operations::now(app),
+            )?;
+        }
+        Ok(Some(card))
+    })?;
+    let Some(card) = card else {
         return Ok(ApprovalOutcome::NotPending);
-    }
-    let hub = &app.0.agent;
+    };
+    let conn = conn(app)?;
     let op_id = card.operation_id.clone().unwrap_or_default();
     let pairing_name = musaic_db::agent::get_pairing(&conn, &card.pairing_id)
         .ok()
@@ -1467,12 +1624,6 @@ pub fn decide_approval(
         _ => "musaic_analysis_start",
     };
     if !approve {
-        hub.finish_operation(
-            &op_id,
-            OperationState::Denied,
-            None,
-            Some(ToolError::new(ToolErrorCode::Denied, "the user denied it")),
-        );
         record_activity(app, &card.pairing_id, &pairing_name, tool, "refused:DENIED");
         publish_approvals(app, vec![card_id.to_string()]);
         return Ok(ApprovalOutcome::Decided);
@@ -1480,9 +1631,8 @@ pub fn decide_approval(
     publish_approvals(app, vec![card_id.to_string()]);
     match card.action.as_str() {
         "fix_apply" => {
-            hub.set_state(&op_id, OperationState::Running);
             let proposal_id = card.proposal_id.clone().unwrap_or_default();
-            let outcome = run_apply(app, &card.pairing_id, &proposal_id, Some(card_id));
+            let outcome = run_apply(app, &card.pairing_id, &proposal_id, Some(card_id), &op_id);
             let text = match &outcome {
                 Ok(r) if r.error.is_none() => "ok".to_string(),
                 Ok(r) => format!("failed:{}", r.change_state),
@@ -1493,7 +1643,8 @@ pub fn decide_approval(
         }
         action => {
             let Some(work) = Compute::from_card(action, card.request.as_deref()) else {
-                hub.finish_operation(
+                operations::finish_operation(
+                    app,
                     &op_id,
                     OperationState::Failed,
                     None,
@@ -1511,12 +1662,12 @@ pub fn decide_approval(
                     tool,
                     &format!("refused:{}", e.code),
                 );
-                hub.finish_operation(&op_id, OperationState::Failed, None, Some(e));
+                operations::finish_operation(app, &op_id, OperationState::Failed, None, Some(e));
                 return Ok(ApprovalOutcome::Decided);
             }
             record_activity(app, &card.pairing_id, &pairing_name, tool, "started");
             if let Err(e) = spawn_worker(app, &op_id, work) {
-                hub.finish_operation(&op_id, OperationState::Failed, None, Some(e));
+                operations::finish_operation(app, &op_id, OperationState::Failed, None, Some(e));
             }
         }
     }

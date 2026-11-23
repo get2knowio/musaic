@@ -34,10 +34,12 @@ pub enum PermissionKind {
     CoversWrite,
     #[serde(rename = "files.rename")]
     FilesRename,
+    #[serde(rename = "work.cancel")]
+    WorkCancel,
 }
 
 impl PermissionKind {
-    pub const ALL: [PermissionKind; 7] = [
+    pub const ALL: [PermissionKind; 8] = [
         Self::LibraryRead,
         Self::ProposalSubmit,
         Self::ComputeScan,
@@ -45,6 +47,7 @@ impl PermissionKind {
         Self::TagsWrite,
         Self::CoversWrite,
         Self::FilesRename,
+        Self::WorkCancel,
     ];
 
     pub fn as_str(self) -> &'static str {
@@ -56,6 +59,7 @@ impl PermissionKind {
             Self::TagsWrite => "tags.write",
             Self::CoversWrite => "covers.write",
             Self::FilesRename => "files.rename",
+            Self::WorkCancel => "work.cancel",
         }
     }
 
@@ -68,6 +72,7 @@ impl PermissionKind {
     pub fn default_decision(self) -> Decision {
         match self {
             Self::LibraryRead | Self::ProposalSubmit => Decision::Allow,
+            Self::WorkCancel => Decision::Refuse,
             _ => Decision::Ask,
         }
     }

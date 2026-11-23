@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use musaic_services::ScanState;
 use musaic_services::gate::WorkGuard;
-use musaic_services::scan::{CancelScan, ScanSubscription};
+use musaic_services::scan::{CancelScan, ScanRun, ScanSubscription};
 
 use crate::App;
 
@@ -18,11 +18,20 @@ impl App {
     /// job runs ([`musaic_services::scan_run::start_scan_with`]), with this
     /// app's scan dependencies and log.
     pub(crate) fn start_scan(&self, lib: &str, force: bool, guard: WorkGuard) -> ScanState {
+        self.start_observed_scan(lib, force, guard).0
+    }
+
+    pub(crate) fn start_observed_scan(
+        &self,
+        lib: &str,
+        force: bool,
+        guard: WorkGuard,
+    ) -> (ScanState, ScanRun) {
         // The thumbnail pool is drained by `on_worker_done`, before the
         // terminal status and `LibraryScanCompleted` on every path; the guard
         // is dropped when the job returns, right after the terminal status.
         let (deps, _thumbs) = self.scan_deps_with_thumbs();
-        musaic_services::scan_run::start_scan_with(
+        musaic_services::scan_run::start_scan_observed(
             &self.0.scan,
             lib,
             force,
@@ -56,7 +65,12 @@ impl App {
     /// logged when it was accepted.
     pub(crate) fn cancel_scan(&self) -> CancelScan {
         let out = self.0.scan.cancel();
-        if let CancelScan::Requested(s) = &out {
+        self.log_scan_cancel(&out);
+        out
+    }
+
+    pub(crate) fn log_scan_cancel(&self, out: &CancelScan) {
+        if let CancelScan::Requested(s) = out {
             self.log().info(
                 musaic_services::scan_run::SCAN_TARGET,
                 &format!(
@@ -65,7 +79,6 @@ impl App {
                 ),
             );
         }
-        out
     }
 
     /// [`App::cancel_scan`], then wait up to `timeout` for the scan to end.

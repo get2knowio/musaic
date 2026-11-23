@@ -251,6 +251,11 @@ export function useLibraryEventsStream() {
       // changed. `what` names
       // the family; an unknown or missing one refreshes all of them.
       const what = parse(ev as MessageEvent)?.what;
+      if (what === "work") {
+        qc.invalidateQueries({ queryKey: ["research"] });
+        qc.invalidateQueries({ queryKey: ["jobs"] });
+        return;
+      }
       const known =
         what === "pairings" || what === "approvals" || what === "activity" || what === "changes";
       qc.invalidateQueries({ queryKey: known ? [...AGENT_QUERY_KEY, what] : AGENT_QUERY_KEY });
@@ -279,6 +284,7 @@ export function useLibraryEventsStream() {
  * /api/checks/stream channel refreshes them on every run start and end.
  */
 function resyncAllBusCaches(qc: QueryClient): void {
+  qc.invalidateQueries({ queryKey: ["research"] });
   qc.invalidateQueries({ queryKey: ["albums-snapshot"] });
   qc.invalidateQueries({ queryKey: ["tracks"] });
   qc.invalidateQueries({ queryKey: ["album-resolution"] });

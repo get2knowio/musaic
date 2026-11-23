@@ -135,34 +135,16 @@ fn enqueue_for_a_scanned_album_wakes_the_jobs_feed_with_a_new_list() {
 }
 
 #[test]
-fn enqueue_for_an_album_with_an_active_job_is_a_conflict_carrying_that_job() {
+fn repeated_research_joins_the_existing_request_and_distinct_kinds_can_coexist() {
     let (app, _s, albums) = scanned();
-    let first = app
-        .ops()
-        .jobs()
-        .enqueue(&albums[0], "metadata", "", true)
-        .unwrap();
-    let mut feed = app.ops().jobs().feed();
-    next_list(&mut feed);
-    match app.ops().jobs().enqueue(&albums[0], "cover", "", true) {
-        Err(OpError::Conflict {
-            message,
-            details: Some(Details::ExistingJob { job_id, status }),
-        }) => {
-            assert_eq!(job_id, first.id);
-            assert_eq!(status, "queued");
-            assert_eq!(
-                message,
-                format!(
-                    "Active job {} (queued) already exists for this album",
-                    first.id
-                )
-            );
-        }
-        other => panic!("{other:?}"),
-    }
-    assert_eq!(app.ops().jobs().list(None).unwrap().len(), 1);
-    assert!(feed.next(SHORT).is_none(), "a refusal wakes nobody");
+    let ops = app.ops();
+    let jobs = ops.jobs();
+    let first = jobs.enqueue(&albums[0], "metadata", "", true).unwrap();
+    let repeated = jobs.enqueue(&albums[0], "metadata", "", true).unwrap();
+    assert_eq!(first.id, repeated.id);
+    let cover = jobs.enqueue(&albums[0], "cover", "", true).unwrap();
+    assert_ne!(cover.id, first.id);
+    assert_eq!(jobs.list(None).unwrap().len(), 2);
 }
 
 #[test]

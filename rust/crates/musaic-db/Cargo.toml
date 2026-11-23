@@ -7,15 +7,17 @@ publish.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+tempfile.workspace = true
 musaic-core = { path = "../musaic-core" }
 rusqlite.workspace = true
+same-file = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
 musaic-scan = { path = "../musaic-scan" }
-serde_json.workspace = true
-tempfile.workspace = true
 
 [lints]
 workspace = true

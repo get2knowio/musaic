@@ -109,10 +109,24 @@ impl Library<'_> {
     /// path that is not a readable directory is `Rejected`, then the folder
     /// is stored and its snapshot dropped (the next scan re-reads it).
     pub fn set_library_dir(&self, dir: &str) -> Result<LibraryChoice, OpError> {
-        let _guard = self.app.gate().begin_work()?;
-        library_ops::set_library_dir(&self.app.0.config, self.app.0.home.as_deref(), dir, || {
-            self.conn()
-        })
+        // A root change invalidates leases and operation handles. Exclude workers
+        // for the whole config write and epoch rotation.
+        let _guard = self.app.gate().begin_restore()?;
+        let choice = library_ops::set_library_dir(
+            &self.app.0.config,
+            self.app.0.home.as_deref(),
+            dir,
+            || self.conn(),
+        )?;
+        let rotated = musaic_db::delegated_work::sync_root(
+            &self.conn()?,
+            choice.library_dir.as_deref(),
+            crate::desktop_research::millis(self.app.now()),
+        )?;
+        if rotated {
+            self.app.research_library_changed();
+        }
+        Ok(choice)
     }
 
     /// The albums of the configured library. `refresh` drops the library's

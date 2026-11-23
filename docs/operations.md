@@ -54,7 +54,7 @@ requirement FR-019.
 ## The inventory
 
 The table below has one row per row of `musaic_api::route_table()`, in registration order.
-**98 rows**: the 71 routes of the Python app, the 25 `EXTRA_ROUTES`, and 2 routing aliases
+**105 rows**: the 71 routes of the Python app, the 32 `EXTRA_ROUTES`, and 2 routing aliases
 (`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **94 rows are
 operation-bearing** (each names exactly one operation, which `operations_inventory.rs`
 checks); 4 are HTTP face only (the two aliases and the two static-file routes).
@@ -148,6 +148,9 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `POST` | `/api/checks/inconsistent-artist-sort/findings/{finding_id}/apply-sort` | fixes | thin adapter | guard; env assembly | `fixes.apply_cluster_sort` | SortResult | Busy, NotFound, Rejected, Internal | no | path int 422, body 422, guard, apply |
 | `POST` | `/api/checks/multi-disc-layout/findings/{finding_id}/convert` | fixes | thin adapter | guard (`Apply`); the `Accept: text/event-stream` choice between JSON and stream stays HTTP; convert env with a typed progress report (droppable); a refusal carries `reason_code`, `user_message`, `blockers` or the fresh `digest` as typed details | `fixes.convert_multi_disc` | ConversionRecord (the answer is the return value; the sink hears `Started`, then `Progress`) | Busy, Rejected, NotFound, Conflict (with details), Failed (with details), Internal | run | path int 422, body 422 (`digest`), guard, convert (re-derives the plan, refuses on a stale digest). With an `Accept` stream a refusal after the guard is a `refused` item, not a status |
 | `POST` | `/api/checks/multi-disc-layout/findings/{finding_id}/abandon-conversion` | fixes | thin adapter | guard (`Apply`); same refusal details | `fixes.abandon_multi_disc` | AbandonRecord | Busy, Rejected, NotFound, Conflict (with details), Failed (with details), Internal | no | path int 422, guard, abandon |
+| `GET` | `/api/research/groups/{group}` | jobs | thin adapter | jobs | `jobs.research_items` | Work and result summaries for one desktop review group | Database failure | no | desktop |
+| `POST` | `/api/research/{id}/preview/{digest}` | jobs | thin adapter | jobs | `jobs.research_preview` | Current diff and preview digest | Stale context, verification pending | no | desktop |
+| `POST` | `/api/research/{id}/decision` | jobs | thin adapter | jobs | `jobs.research_decide` | Apply, discard or retry outcome | Stale revision, partial write | no | desktop |
 | `GET` | `/api/ai/jobs` | jobs | thin adapter | status list splitting (values not trimmed; the HTTP face splits, the operation takes a slice); body construction | `jobs.list` | Vec of Job | Internal | no | default |
 | `POST` | `/api/ai/jobs` | jobs | thin adapter | guard; job-type check before the database; enqueue; 409 body carries the existing job; notification (in the operation) | `jobs.enqueue` | Job | Rejected, Busy, NotFound, Conflict (with the existing job), Internal | no | body 422, guard, job type (400), enqueue (404, 409) |
 | `DELETE` | `/api/ai/jobs` | jobs | thin adapter | guard; status-list meaning (400, 409 for `running`); notification | `jobs.delete_many` | DeletedJobs (count and statuses) | Rejected, Busy, Conflict, Internal | no | status missing 422, guard, status list (400), delete (409), notify jobs |
@@ -177,6 +180,10 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `POST` | `/__musaic/agent/v1/exchange` | agent | thin adapter | mutual HMAC proof of the pairing secret; every failure is one `NOT_PAIRED`; lockout after 5 failures in a minute | `agent.exchange` | ExchangeResponse (token, scopes, server proof) | NotPaired, LockedOut | no | guard, lockout, nonce, instance, pairing, secret, proof |
 | `GET` | `/__musaic/agent/v1/tools` | agent | thin adapter | bearer token; the catalog is rendered by musaic-commands | `agent.list_tools` | RegistryInfo | NotPaired | no | guard, token |
 | `POST` | `/__musaic/agent/v1/tools/{tool_id}` | agent | carries behaviour | bearer token; the body is parsed by `musaic_commands::parse_call` in the route; scope and policy decide before anything runs; reads take no work guard; writes take the apply guard after revalidation and a recorded before-image | `agent.call_tool` | ToolOutput (typed per tool) | the contract's tool errors, rendered as `{ok:false, error}` with status 200 | no | guard, token, parse, authorization, then the tool's own order |
+| `POST` | `/__musaic/agent/v1/tasks/create` | agent | thin adapter | bearer token and principal ownership | `agent.task_create` | Durable task handle | Typed task error | no | guard, token, operation |
+| `POST` | `/__musaic/agent/v1/tasks/get` | agent | thin adapter | bearer token and principal ownership | `agent.task_get` | Task state and terminal result | Typed task error | no | guard, token, operation |
+| `POST` | `/__musaic/agent/v1/tasks/update` | agent | thin adapter | bearer token and principal ownership | `agent.task_update` | Updated task snapshot | Typed task error | no | guard, token, operation |
+| `POST` | `/__musaic/agent/v1/tasks/cancel` | agent | thin adapter | bearer token and principal ownership | `agent.task_cancel` | Cancellation status | Typed task error | no | guard, token, operation |
 | `GET` | `/` | HTTP face only | thin adapter | static file: `index.html` of the built UI; 404 without a UI dir | - | - | - | no | default |
 | `GET` | `/{*full_path}` | HTTP face only | carries behaviour | static files and the SPA fallback; refuses `api/` paths, contains the path under the UI dir, `/assets/*` 404s when missing | - | - | - | no | default |
 
@@ -369,11 +376,7 @@ take the guard before the meaning validation, listed per row and below).
   `render::checks`. `check_ops::run_check_logged` takes a connection, not an opener, and no longer
   has an error type parameter.
 
-- The fixes group (slice 8). `fixes().fix` takes the guard (`Other`) before the finding is
-  looked up (a restore answers 409 even for an unknown finding), and calls
-  `ai_jobs_changed()` itself once the guard is released, only when a job was enqueued. With no
-  model backend a fix that would need one answers `ok: false` with the not-available message and
-  enqueues nothing (as before).
+- The fixes group takes the work guard before looking up a finding. A fix applies deterministic resolver changes and queues unresolved research through `jobs.enqueue`. Review shows the resulting group when the work transaction commits.
 - `quick_fix_all` is a run with a sink (`QuickFixEvent`: `Start`, `Progress`, `Done`, `Error`);
   `QuickFixItem` and its `sse_frame` are gone. A sink that answers `Gone` (or panics) stops the
   loop at the next finding, as a client that went away always did, and the one

@@ -72,6 +72,7 @@ pub fn capabilities(app: &App, principal: &Principal) -> Result<CapabilitiesOutp
         scopes: principal.scopes.clone(),
         policy,
         profiles: PROTOCOL_PROFILES.iter().map(|p| p.to_string()).collect(),
+        extensions: vec![musaic_commands::tools::task::EXTENSION_ID.into()],
         configured_roots,
     })
 }

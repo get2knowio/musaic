@@ -401,7 +401,7 @@ async fn a_paired_agent_reads_through_the_whole_stack_and_no_credential_reaches_
         serde_json::to_vec(&musaic_commands::catalog::catalog_with_digest()).unwrap()
     );
     let cat: Value = serde_json::from_slice(&g.body).unwrap();
-    assert_eq!(cat["tools"].as_array().unwrap().len(), 12);
+    assert_eq!(cat["tools"].as_array().unwrap().len(), 21);
     assert_eq!(
         cat["registryDigest"],
         musaic_commands::catalog::registry_digest()

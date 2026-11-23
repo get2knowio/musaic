@@ -439,6 +439,15 @@ impl AppBuilder {
             }
             let (db, opened) = Db::open_or_create(&db_path)?;
             startup::log_opened(&log, &db_path, &opened);
+            musaic_db::delegated_work::recover_reserved(
+                db.connection(),
+                crate::desktop_research::millis(clock()),
+            )?;
+            musaic_db::delegated_work::sync_root(
+                db.connection(),
+                config.load().library_dir.as_deref(),
+                crate::desktop_research::millis(clock()),
+            )?;
             // Secret rows leave SQLite on every open. This
             // is the process's only connection at this point, so nothing of
             // ours can block the scrub's checkpoint.
@@ -539,6 +548,10 @@ impl AppBuilder {
         let network = self.network.clone();
 
         let clock_for_agent = clock.clone();
+        let legacy_jobs = self.ai_provider.is_some() || self.ai_worker == Some(true);
+        let legacy_worker = self
+            .ai_worker
+            .unwrap_or(self.subscribers && self.ai_provider.is_some());
         let state = App(Arc::new(AppInner {
             config,
             db_path,
@@ -579,6 +592,7 @@ impl AppBuilder {
             agent_secrets,
             agent_index_store,
             agent_dev_credentials: self.agent_dev_credentials,
+            legacy_jobs,
             ai: crate::ai::AiQueue::new(
                 self.ai_provider
                     .unwrap_or_else(|| Arc::new(musaic_ai::Unconfigured)),
@@ -606,12 +620,14 @@ impl AppBuilder {
         if self.subscribers {
             crate::ai::start_job_log(&state);
         }
-        if self.ai_worker.unwrap_or(self.subscribers) {
+        if legacy_worker {
             state.0.ai.start(Arc::downgrade(&state.0));
         }
         if startup_scrub == (ScrubOutcome::Pending { retry: true }) {
             state.schedule_key_scrub_retry();
         }
+        crate::desktop_research::hydrate(&state, &musaic_db::open_connection(state.db_path())?)?;
+        crate::desktop_research::subscribe_legacy_hydration(&state);
         crate::agent::startup_housekeeping(&state);
         crate::agent::start_expiry_ticker(&state);
         if self.check_sweep {
@@ -695,6 +711,7 @@ pub struct AppInner {
     pub recording_canonical: musaic_services::recording_canonical::RecordingCanonicalCache,
     /// The AI job queue (signal, stream changes, provider, dispatcher).
     pub ai: crate::ai::AiQueue,
+    pub(crate) legacy_jobs: bool,
     /// Flips to `true` when the server begins shutting down; every
     /// SSE body watches it and ends (a clean end of stream, not a cut
     /// connection).
@@ -869,12 +886,23 @@ impl App {
     /// [`App::ai_ready`].
     pub fn work_snapshot(&self) -> crate::work::WorkSnapshot {
         let (kinds, restoring) = self.0.gate.running();
+        let _db = self.0.db_gate.read().unwrap_or_else(|e| e.into_inner());
         crate::work::WorkSnapshot {
             kinds,
             restoring,
             scan_running: self.0.scan.is_running(),
             pool_running: self.0.pool.is_running(),
             ai_ready: self.ai_ready(),
+            external_claims: open_conn(self.db_path())
+                .ok()
+                .and_then(|conn| {
+                    musaic_db::delegated_work::active_external_count(
+                        &conn,
+                        crate::desktop_research::millis(self.now()),
+                    )
+                    .ok()
+                })
+                .unwrap_or_default() as usize,
         }
     }
 

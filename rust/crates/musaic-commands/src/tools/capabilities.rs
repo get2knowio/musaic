@@ -36,5 +36,7 @@ pub struct CapabilitiesOutput {
     pub scopes: Vec<PermissionKind>,
     pub policy: BTreeMap<PermissionKind, Decision>,
     pub profiles: Vec<String>,
+    #[serde(default)]
+    pub extensions: Vec<String>,
     pub configured_roots: Vec<ConfiguredRoot>,
 }

@@ -200,6 +200,14 @@ impl<T: Transport> MusicBrainzClient<T> {
             .timeout(MB_TIMEOUT)
     }
 
+    /// A specific pressing by its release id.
+    pub fn release_request(release: &str) -> Request {
+        Request::get(MUSICBRAINZ, &format!("/ws/2/release/{release}"))
+            .query("fmt", "json")
+            .header("User-Agent", USER_AGENT)
+            .timeout(MB_TIMEOUT)
+    }
+
     /// The body of a 200 answer to `req` (sent to this client's origin).
     /// Any other status is [`ClientError::Status`]. What the resolver's
     /// `MusicBrainzSource` needs: it parses the bodies itself.

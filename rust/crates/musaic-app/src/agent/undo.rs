@@ -138,16 +138,19 @@ fn record_of(
         .and_then(|t| serde_json::from_str::<AfterImage>(t).ok())
         .map(|a| a.album_id)
         .unwrap_or_else(|| row.album_id.clone());
-    let pairing_name = names
-        .entry(row.pairing_id.clone())
-        .or_insert_with(|| {
-            musaic_db::agent::get_pairing(conn, &row.pairing_id)
-                .ok()
-                .flatten()
-                .map(|p| p.name)
-                .unwrap_or_default()
-        })
-        .clone();
+    let pairing_name = match &row.pairing_id {
+        Some(id) => names
+            .entry(id.clone())
+            .or_insert_with(|| {
+                musaic_db::agent::get_pairing(conn, id)
+                    .ok()
+                    .flatten()
+                    .map(|p| p.name)
+                    .unwrap_or_default()
+            })
+            .clone(),
+        None => "Musaic".into(),
+    };
     let blocked = check(app, conn, row).err();
     let summary = before
         .as_ref()
@@ -170,6 +173,14 @@ fn record_of(
         undoable: blocked.is_none(),
         reason: blocked.map(|b| b.reason()),
     }
+}
+
+pub(crate) fn research_change_undoable(
+    app: &App,
+    conn: &rusqlite::Connection,
+    change: &musaic_db::agent::ChangeRow,
+) -> bool {
+    check(app, conn, change).is_ok()
 }
 
 /// `agent.list_changes`.
@@ -267,7 +278,7 @@ pub fn undo_change(app: &App, change_id: &str) -> Result<UndoOutcome, AgentError
         &conn,
         app.config_dir(),
         &ChangeInput {
-            pairing_id: &row.pairing_id,
+            pairing_id: row.pairing_id.as_deref(),
             proposal_id: &row.proposal_id,
             approval_id: None,
             now: &now,
@@ -369,24 +380,32 @@ pub fn undo_change(app: &App, change_id: &str) -> Result<UndoOutcome, AgentError
         (Some(_), false) => "failed",
     };
     let outcome = serde_json::json!({ "albumId": album_id, "error": error }).to_string();
-    agent_changes::finish(&conn, &undo_id, state, &outcome);
+    agent_changes::finish(&conn, &undo_id, state, &outcome)?;
     if state != "failed" {
         let _ = musaic_db::agent::mark_change_undone(&conn, &row.id);
     }
-    let pairing_name = musaic_db::agent::get_pairing(&conn, &row.pairing_id)?
-        .map(|p| p.name)
-        .unwrap_or_default();
-    record_activity(
-        app,
-        &row.pairing_id,
-        &pairing_name,
-        "undo",
-        if state == "applied" { "ok" } else { state },
-    );
+    if let Some(pairing_id) = row.pairing_id.as_deref() {
+        let pairing_name = musaic_db::agent::get_pairing(&conn, pairing_id)?
+            .map(|p| p.name)
+            .unwrap_or_default();
+        record_activity(
+            app,
+            pairing_id,
+            &pairing_name,
+            "undo",
+            if state == "applied" { "ok" } else { state },
+        );
+    }
     app.bus().publish(&Event::AgentStateChanged {
         what: AgentWhat::Changes,
-        ids: vec![row.pairing_id.clone()],
+        ids: row.pairing_id.iter().cloned().collect(),
     });
+    if musaic_db::delegated_work::get(&conn, &row.proposal_id)?.is_some() {
+        app.bus().publish(&Event::AgentStateChanged {
+            what: AgentWhat::Work,
+            ids: vec![row.proposal_id.clone()],
+        });
+    }
     if state == "failed" {
         return Err(AgentError::Tool(ToolError::new(
             ToolErrorCode::Unavailable,

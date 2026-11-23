@@ -119,15 +119,18 @@ fn a_fix_that_is_not_attempted_says_so_instead_of_failing() {
 }
 
 #[test]
-fn with_no_model_backend_a_fix_that_needs_one_enqueues_nothing() {
+fn with_no_provider_a_cover_fix_queues_assistant_research() {
     let (app, _s) = checked();
     let jobs = app.subscribe_jobs();
     let id = finding_ids(&app, "no-cover-art")[0];
     let r = app.ops().fixes().fix("no-cover-art", id, "").unwrap();
-    assert!(!r.ok, "{r:?}");
-    assert!(r.job_id.is_none());
+    assert!(r.ok, "{r:?}");
+    let group = r.job_id.unwrap();
+    let items = app.ops().jobs().research_items(&group).unwrap();
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].kind, "cover.research");
     assert_eq!(job_rows(&app), 0);
-    assert!(!jobs.has_changed().unwrap(), "no job, no wake-up");
+    assert!(jobs.has_changed().unwrap());
 }
 
 #[test]

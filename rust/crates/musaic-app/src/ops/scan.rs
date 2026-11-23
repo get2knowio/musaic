@@ -226,6 +226,13 @@ impl Scan<'_> {
         Ok(self.app.start_scan(&lib, force, guard))
     }
 
+    /// Observe the exact scan started or joined by an agent operation.
+    pub(crate) fn start_observed(&self) -> Result<musaic_services::scan::ScanRun, OpError> {
+        let guard = self.app.gate().begin_work()?;
+        let lib = self.library()?;
+        Ok(self.app.start_observed_scan(&lib, false, guard).1)
+    }
+
     /// Start a scan unless one runs, and follow the current one from its first
     /// event. Takes the guard before it checks the library (a restore running
     /// is reported first); a guard a running scan makes unnecessary is

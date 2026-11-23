@@ -3,8 +3,8 @@
 //! fingerprinter rejected), v18 -> v19 (`check_inputs`: what each health
 //! check last ran against, for the background check sweep), v19 -> v20
 //! (each album's per-file disc numbers and the highest disc total its tags
-//! name), v20 -> v21 (the `agent_*` tables of the agent bridge), and the
-//! backup taken before the first.
+//! name), v20 -> v21 (the `agent_*` tables of the agent bridge), then
+//! v21 -> v22 (durable delegation and MCP Tasks).
 //!
 //! Backup rule: a database the Python app wrote (v16, or any older version
 //! [`crate::python_chain`] brings to v16 first) is copied, to
@@ -15,10 +15,8 @@
 //! is already there ([`existing_backup`]), an earlier interrupted attempt took
 //! it from the untouched file, and no second one is written (an attempt
 //! interrupted after the `v<N> -> v16` step finds a v16 file next time).
-//! A v17, v18, v19 or v20 database was written by this build: the v17 -> v18,
-//! v18 -> v19, v19 -> v20 and v20 -> v21 steps are additive and each runs in one
-//! transaction (an
-//! interruption leaves the file at the version it had), and no further
+//! The Rust schema steps are additive and each runs in one transaction.
+//! An interruption leaves the file at the version it had, and no further
 //! backup file is written, so no new copy of plaintext settings rows
 //! appears beside the database.
 
@@ -273,7 +271,7 @@ pub(crate) fn create_fresh(conn: &mut Connection) -> Result<()> {
 /// transaction (each re-checks the version, so a step another process
 /// already ran is skipped): the Python app's own chain to v16 for an older file
 /// ([`crate::python_chain`], one transaction as in the Python app), then v17,
-/// v18, v19, v20, v21.
+/// v18, v19, v20, v21, v22.
 pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     if found < PYTHON_SCHEMA_VERSION {
         crate::python_chain::to_python_version(conn)?;
@@ -292,6 +290,9 @@ pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     }
     if found <= 20 {
         v20_to_v21(conn)?;
+    }
+    if found <= 21 {
+        v21_to_v22(conn)?;
     }
     Ok(())
 }
@@ -372,6 +373,42 @@ pub(crate) fn v20_to_v21(conn: &mut Connection) -> Result<()> {
         for stmt in V21_STATEMENTS {
             tx.execute(stmt, [])?;
         }
+        tx.execute("UPDATE schema_version SET version = 21", [])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+fn v21_to_v22(conn: &Connection) -> Result<()> {
+    let tx = crate::immediate(conn)?;
+    let current: i64 = tx.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get(0)
+    })?;
+    if current == 21 {
+        // A locally resolved proposal has no pairing. Keep its undo alongside
+        // the paired changes without fabricating a principal or keyring item.
+        tx.execute_batch(
+            "ALTER TABLE agent_changes RENAME TO previous_agent_changes;
+             CREATE TABLE agent_changes (
+                id TEXT PRIMARY KEY,
+                pairing_id TEXT REFERENCES agent_pairings(id),
+                proposal_id TEXT NOT NULL,
+                approval_id TEXT,
+                album_id TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                state TEXT NOT NULL CHECK (state IN ('recorded','applied','partial','failed','undone')),
+                before TEXT NOT NULL,
+                outcome TEXT,
+                after TEXT,
+                undoes TEXT
+             );
+             INSERT INTO agent_changes SELECT * FROM previous_agent_changes ORDER BY rowid;
+             DROP TABLE previous_agent_changes;
+             CREATE INDEX agent_changes_proposal ON agent_changes(proposal_id);",
+        )?;
+        tx.execute_batch(include_str!("delegated_work.sql"))?;
+        tx.execute_batch(include_str!("operation_schema.sql"))?;
+        crate::delegated_work::migrate_legacy(&tx)?;
         tx.execute("UPDATE schema_version SET version = ?1", [SCHEMA_VERSION])?;
     }
     tx.commit()?;

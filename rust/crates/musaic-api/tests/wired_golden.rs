@@ -49,9 +49,7 @@ fn deltas() -> Vec<(
              members over the same 4 albums",
         ),
     ];
-    // No model backend in this build, so where
-    // the Python app queued an AI job the fix answers ok:false with the job's
-    // not-available message and no job id.
+    // The desktop now sends unresolved research to paired assistants.
     for (case, python_msg) in [
         (
             "fix track-gaps",
@@ -62,23 +60,15 @@ fn deltas() -> Vec<(
             "Asking Claude to identify this album on MusicBrainz",
         ),
     ] {
-        let why = "no model backend; the fix queues no AI job";
-        v.push((case, "/json/ok", json!(true), Some(json!(false)), why));
         v.push((
             case,
             "/json/message",
             json!(python_msg),
-            Some(json!(not_available())),
-            why,
+            Some(json!("Research requested. You can follow it in Review.")),
+            "research delegated to an assistant",
         ));
-        v.push((case, "/json/job_id", json!("<JOB>"), Some(Value::Null), why));
     }
     v
-}
-
-/// The not-available message of this build's provider.
-fn not_available() -> String {
-    musaic_ai::model_unavailable(&musaic_ai::Unconfigured).expect("no backend")
 }
 
 /// The Python app's finding id -> ours, and back.

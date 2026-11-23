@@ -286,7 +286,9 @@ async fn the_fix_never_writes_a_genre() {
     // A genre-only finding has nothing the fix may write.
     let (id, _) = r.finding(0).await.expect("still open");
     let body = r.fix(id).await.json();
-    assert_eq!(body["ok"], false, "{body}");
+    assert_eq!(body["ok"], true, "{body}");
+    assert!(body["job_id"].is_string(), "Unresolved genres go to Review");
+    assert!(!r.file_has_genre(0));
     // Album 3's year is still written: only the genre is left alone.
     assert_eq!(r.col(3, "year").as_deref(), Some("1999"));
     // A genre the user set is untouched too.

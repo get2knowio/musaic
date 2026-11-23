@@ -10,7 +10,8 @@ use musaic_commands::{ToolError, ToolErrorCode};
 use musaic_services::{agent_proposal, agent_read};
 
 use super::Principal;
-use super::run::{check_not_restoring, conn};
+use super::operations::guard;
+use super::run::conn;
 use crate::App;
 
 /// How long a proposal, and an approval card, stay valid.
@@ -22,7 +23,7 @@ pub fn fix_preview(
     input: &FixPreviewInput,
 ) -> Result<FixPreviewOutput, ToolError> {
     // A restore swaps the database file; do not read through it.
-    check_not_restoring(app)?;
+    let _guard = guard(app)?;
     let mut conn = conn(app)?;
     let lib = app.library_dir();
     let row = agent_read::cached_row(&conn, lib.as_deref(), &input.album_id)?;

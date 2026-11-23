@@ -152,6 +152,57 @@ pub async fn call_tool(
     }
 }
 
+async fn task_result<T: serde::Serialize + Send + 'static>(
+    action: impl FnOnce() -> Result<T, ToolError> + Send + 'static,
+) -> Response {
+    match blocking(action).await {
+        Ok(Ok(result)) => json_value(200, &json!({"ok": true, "result": result})),
+        Ok(Err(e)) => json_value(200, &tool_error_body(&e)),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ToolErrorCode::Internal,
+            "the request failed",
+        ),
+    }
+}
+
+fn task_request<T: serde::de::DeserializeOwned>(body: &Bytes) -> Result<T, ToolError> {
+    serde_json::from_slice(body)
+        .map_err(|_| ToolError::new(ToolErrorCode::InvalidInput, "the Task request is malformed"))
+}
+
+pub async fn task_create(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+    body: Bytes,
+) -> Response {
+    task_result(move || st.ops().agent().task_create(&p, &task_request(&body)?)).await
+}
+
+pub async fn task_get(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+    body: Bytes,
+) -> Response {
+    task_result(move || st.ops().agent().task_get(&p, &task_request(&body)?)).await
+}
+
+pub async fn task_update(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+    body: Bytes,
+) -> Response {
+    task_result(move || st.ops().agent().task_update(&p, &task_request(&body)?)).await
+}
+
+pub async fn task_cancel(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+    body: Bytes,
+) -> Response {
+    task_result(move || st.ops().agent().task_cancel(&p, &task_request(&body)?)).await
+}
+
 // ------------------------------------------------------- /api/agent/*
 
 fn api_error(e: AgentError) -> ApiError {

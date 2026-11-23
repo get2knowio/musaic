@@ -11,6 +11,9 @@
 //! [`expected_from_python`]; an unlisted difference fails, and so does an
 //! enumerated delta that no fixture exercised.
 
+#[path = "support/delegation_schema.rs"]
+mod delegation_schema;
+
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -243,7 +246,40 @@ fn migrate(v: i64) -> (tempfile::TempDir, PathBuf, Opened, Value) {
     let t1 = now();
     let mut ours = dump(db.connection());
     normalise_now(&mut ours, &golden(v)["python_app"]["after"], t0, t1);
+    normalise_delegation_ids(&mut ours);
     (dir, p, opened, ours)
+}
+
+/// UUID values differ on replay after a rolled-back migration. Keep the
+/// associations and every non-identifier field in the comparison.
+fn normalise_delegation_ids(dump: &mut Value) {
+    let tables = dump["tables"].as_object_mut().unwrap();
+    let mut ids = BTreeMap::new();
+    for (table, columns) in [
+        ("library_epoch", &["epoch"][..]),
+        ("delegated_work", &["id", "group_id", "library_epoch"]),
+        ("delegation_audit", &["work_id", "library_epoch"]),
+        ("delegation_outbox", &["work_id", "library_epoch"]),
+    ] {
+        let Some(table) = tables.get_mut(table) else {
+            continue;
+        };
+        let indexes: Vec<_> = table["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, column)| columns.contains(&column[1].as_str().unwrap()).then_some(i))
+            .collect();
+        for row in table["rows"].as_array_mut().unwrap() {
+            for index in &indexes {
+                let cell = &mut row[*index];
+                let next = ids.len();
+                let label = ids.entry(cell.as_str().unwrap().to_owned()).or_insert(next);
+                *cell = json!(format!("<delegation-{label}>"));
+            }
+        }
+    }
 }
 
 /// Which delta a comparison used (each must be used by some fixture).
@@ -256,7 +292,7 @@ impl Used {
     }
 }
 
-/// The Python app's `after` plus this build's v16 -> v21 steps, enumerated:
+/// The Python app's `after` plus this build's v16 -> v22 steps, enumerated:
 ///
 /// * D1: `schema_version` 16 -> [`SCHEMA_VERSION`];
 /// * D2: `track_fingerprints` gains
@@ -274,7 +310,9 @@ impl Used {
 ///   on every existing row, after the Python app's columns; its SQL is the
 ///   Python app's with them spliced in (checked separately, as D2's);
 /// * D8 (v21): the six `agent_*` tables (empty), their primary-key indexes
-///   and two named indexes, appended after D6's rows;
+///   and two named indexes, appended after D6's rows; v22 replaces the
+///   changes table and adds an index for review lookup;
+/// * D9 (v22): the delegated work, operation, and Task schema, with legacy jobs mapped;
 /// * D4: `journal_mode` is `wal` on both sides (no delta; listed
 ///   so a change shows up here);
 /// * D5: the v14 step leaves an ignored
@@ -300,7 +338,11 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
     // three.
     let om = ours["sqlite_master"].as_array().unwrap();
     let tm = theirs["sqlite_master"].as_array().unwrap();
-    assert_eq!(om.len(), tm.len() + 5 + 13, "v{v} sqlite_master length");
+    assert_eq!(
+        om.len(),
+        tm.len() + 5 + 14 + delegation_schema::OBJECTS.len(),
+        "v{v} sqlite_master length"
+    );
     for (o, t) in om.iter().zip(tm) {
         if t[1] == "track_fingerprints" && t[0] == "table" {
             assert_eq!(o.as_array().unwrap()[..3], t.as_array().unwrap()[..3]);
@@ -345,7 +387,7 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         "v{v} D6"
     );
     used.hit("D6");
-    let d8: Vec<&str> = om[tm.len() + 5..]
+    let d8: Vec<&str> = om[tm.len() + 5..tm.len() + 19]
         .iter()
         .map(|r| r[1].as_str().unwrap())
         .collect();
@@ -361,21 +403,34 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
             "agent_approvals",
             "sqlite_autoindex_agent_approvals_1",
             "idx_agent_approvals_state",
-            "agent_changes",
-            "sqlite_autoindex_agent_changes_1",
             "agent_activity",
             "idx_agent_activity_pairing",
+            "agent_changes",
+            "sqlite_autoindex_agent_changes_1",
+            "agent_changes_proposal",
         ],
         "v{v} D8"
     );
     used.hit("D8");
+    for (row, (ty, name, table)) in om[tm.len() + 19..].iter().zip(delegation_schema::OBJECTS) {
+        assert_eq!(
+            row.as_array().unwrap()[..3],
+            [json!(ty), json!(name), json!(table)]
+        );
+    }
+    used.hit("D9");
 
     // Tables.
     let ot = ours["tables"].as_object().unwrap();
     let tt = theirs["tables"].as_object().unwrap();
     let mut names: Vec<&String> = ot.keys().collect();
     names.retain(|n| {
-        *n != "fingerprint_rejects" && *n != "check_inputs" && !n.starts_with("agent_")
+        *n != "fingerprint_rejects"
+            && *n != "check_inputs"
+            && !n.starts_with("agent_")
+            && !delegation_schema::OBJECTS
+                .iter()
+                .any(|(ty, name, _)| *ty == "table" && *name == n.as_str())
     });
     let mut their_names: Vec<&String> = tt.keys().collect();
     names.sort();
@@ -512,7 +567,7 @@ fn every_old_version_ends_where_the_python_ends_plus_this_builds_deltas() {
         seen_v14_stamp |= ours.to_string().contains(PLACEHOLDER);
     }
     for k in [
-        "D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6", "D7-sql", "D7-rows", "D8",
+        "D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6", "D7-sql", "D7-rows", "D8", "D9",
     ] {
         assert!(used.0.contains_key(k), "delta {k} never exercised");
     }
@@ -650,7 +705,7 @@ fn remove_injection(p: &Path) {
 fn an_interrupted_migration_is_resumable_and_never_takes_a_second_backup() {
     for v in [3, 12, 15] {
         let (_d, _p, _o, clean) = migrate(v);
-        for at in [16, 17, 18, 19, SCHEMA_VERSION] {
+        for at in [16, 17, 18, 19, 20, 21, SCHEMA_VERSION] {
             let (dir, p) = fixture_copy(v);
             inject_failure_at(&p, at);
             let before = {
@@ -695,6 +750,7 @@ fn an_interrupted_migration_is_resumable_and_never_takes_a_second_backup() {
                 t0.min(t1) - 60.0,
                 t1,
             );
+            normalise_delegation_ids(&mut ours);
             assert_eq!(ours, clean, "v{v}@{at}: same end state");
             let backups: Vec<String> = std::fs::read_dir(dir.path())
                 .unwrap()

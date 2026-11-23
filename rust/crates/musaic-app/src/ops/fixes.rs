@@ -9,8 +9,7 @@
 //!
 //! [`Fixes::fix`] sends its own follow-up: a fix that fell through to the AI
 //! queue and enqueued a job wakes the dispatcher and every jobs feed once the
-//! job row is written. With no model backend such a fix answers a not-available
-//! message and enqueues nothing.
+//! job row is written. The desktop queues unresolved research for paired assistants.
 //!
 //! [`Fixes::quick_fix_all`] and [`Fixes::convert_multi_disc`] are runs with a
 //! sink, the shape of [`analyze`](super::analyze): every refusal is returned
@@ -79,6 +78,33 @@ impl Fixes<'_> {
         let guard = self.app.gate().begin_work()?;
         let conn = musaic_db::open_connection(self.app.db_path())?;
         let ids = self.app.0.ai.ids.clone();
+        if !self.app.0.legacy_jobs {
+            use musaic_services::check_fixes::{self, FixOutcome};
+            let outcome = self.app.with_fix_env(conn, |env| {
+                env.model_unavailable = None;
+                check_fixes::fix_finding(env, check_id, finding_id, hint)
+            })?;
+            return match outcome {
+                FixOutcome::Done(result) => Ok(result),
+                FixOutcome::NeedsAiJob(request) => {
+                    let job = self.app.ops().jobs().enqueue(
+                        &request.album_id,
+                        request.job_type,
+                        &request.hint,
+                        false,
+                    )?;
+                    let note = "Research requested. You can follow it in Review.";
+                    let message = request
+                        .applied_summary
+                        .map_or_else(|| note.to_owned(), |s| format!("{s}. {note}"));
+                    Ok(FixResult {
+                        ok: true,
+                        message,
+                        job_id: Some(job.id),
+                    })
+                }
+            };
+        }
         let run = self.app.with_fix_env(conn, |env| {
             fix_flow::fix_finding(env, check_id, finding_id, hint, &*ids, &|| {
                 self.app.now_iso()

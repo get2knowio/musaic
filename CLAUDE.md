@@ -33,7 +33,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 |---|---|
 | `musaic-core` | Shared primitives: album ids (first 16 hex chars of the SHA-1 of the album's resolved path), config (`config.json`, config dir), the album-field accessors, Python-compatible string helpers the stored data depends on |
 | `musaic-log` | Small logging facade for the lower crates; `musaic-app` installs the sink that writes `server.log` |
-| `musaic-db` | Opens, creates and migrates the SQLite database (schema v21; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots, and for folding the rows of a multi-disc set into one (`merge.rs`) |
+| `musaic-db` | Opens, creates and migrates the SQLite database (schema v22; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots, and for folding the rows of a multi-disc set into one (`merge.rs`) |
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |
@@ -45,10 +45,10 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 | `musaic-events` | In-process event bus, the post-scan / bulk-run guard flags, the subscriber catalog, the SSE relay core |
 | `musaic-checks` | Health-check framework: `Check` trait, registry of the eight checks, findings runner, post-scan reruns, the inputs digest each completed run records (`inputs.rs`) |
 | `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, the background check sweep, analysis (BPM / ReplayGain), check fixes, library operations, the multi-disc conversion (`multi_disc_convert.rs`; a set kept in several folders: `multi_disc_gather.rs`) |
-| `musaic-ai` | The job queue: persistence, worker loop, the resolver synthesizer; a provider trait with no network provider in this build |
+| `musaic-ai` | Deterministic resolver synthesis and historical job compatibility. The desktop persists unresolved research in `musaic-db::delegated_work` and delegates it to paired agents |
 | `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log; and the **operations surface**, `musaic_app::ops` (one module per group: system, library, scan, settings, database, tags, analyze, apply, checks, fixes, jobs), where every user-visible action lives with its guard, validation order, events and follow-up notifications (`docs/operations.md`) |
 | `musaic-api` | The HTTP face on axum, an adapter over `musaic_app::ops`: every `/api` route parses its request (`lax`), calls one operation and renders the result (`render/`) and the `OpError` status; also SSE framing, Host/Origin check, launch-cookie gate; and a standalone server binary (`musaic-api`) used for UI development |
-| `musaic-commands` | The agent tool contract, a leaf crate (no db, app, axum or tokio): the twelve typed tools and their schemas, permission kinds and `decide`, error codes, the pairing proofs, the descriptor, and the generated catalog (`docs/agent-tools.{json,md}`) |
+| `musaic-commands` | The agent tool contract, a leaf crate (no db, app, axum or tokio): the 21 typed tools and their schemas, permission kinds and `decide`, error codes, the pairing proofs, the descriptor, and the generated catalog (`docs/agent-tools.{json,md}`) |
 | `musaic-mcp` | The MCP adapter over the registry, on `rmcp` (pinned `=3.11.0`): stdio, both the 2026-07-28 and 2025-11-25 profiles |
 | `musaic-cli` | The bundled `musaic-cli`: the stdio MCP server, `call`, `doctor`, `setup`/`uninstall`, `catalog --check`. It must not link `musaic-db`, `rusqlite`, `musaic-app` or `musaic-api` (`tests/no_db_owner.rs`) |
 | `musaic-desktop` | The Tauri 2 shell: single-instance lock, loopback server, navigation lock, native dialogs, reveal in file manager, window state, quit handling |
@@ -226,6 +226,8 @@ the SSE relay). Callers never call those directly.
 
 A merge of several album rows into one (rule 6) has no event of its own: it is
 `AlbumRenamed(old, survivor)` per merged row, under `in_bulk_run`.
+
+Delegated work, review decisions and durable agent operations commit an audit entry and a reference-only outbox event in the same transaction. The app publishes pending events after commit. The Review UI refreshes on the `work` event family.
 
 `AgentStateChanged(what, ids)` reports that a pairing, an approval card, an agent's
 activity or its change records (an undo) changed (references only), so the UI refreshes

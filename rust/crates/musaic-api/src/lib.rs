@@ -130,6 +130,21 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
     ),
     (
         "GET",
+        "/api/research/groups/{group}",
+        "read a desktop research group; not a route of the Python app",
+    ),
+    (
+        "POST",
+        "/api/research/{id}/preview/{digest}",
+        "preview an immutable result against the current album; not a route of the Python app",
+    ),
+    (
+        "POST",
+        "/api/research/{id}/decision",
+        "record a desktop research decision; not a route of the Python app",
+    ),
+    (
+        "GET",
         AGENT_PAIRINGS_ROUTE,
         "the assistants paired with this app, for Settings -> Agents (the agent bridge); not a route of the Python app",
     ),
@@ -197,6 +212,26 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         "POST",
         agent_guard::TOOL,
         "call one agent tool; authorization, the work gate and the events are the operation's; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::TASK_CREATE,
+        "create an authenticated assistant task; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::TASK_GET,
+        "get an authenticated assistant task; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::TASK_UPDATE,
+        "update an authenticated assistant task; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::TASK_CANCEL,
+        "cancel an authenticated assistant task; not a route of the Python app",
     ),
 ];
 
@@ -529,6 +564,12 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             "/api/ai/jobs/{job_id}/acted-on",
             post(jobs::mark_job_acted_on),
         )
+        .route("/api/research/groups/{group}", get(jobs::research_items))
+        .route(
+            "/api/research/{id}/preview/{digest}",
+            post(jobs::research_preview),
+        )
+        .route("/api/research/{id}/decision", post(jobs::research_decide))
         .route("/api/ai/jobs/{job_id}/retry", post(jobs::retry_job))
         // Not Python app routes: the cover preview proxy ([`EXTRA_ROUTES`]).
         .route(

@@ -13,7 +13,7 @@ vi.mock("sonner", () => ({
 import AgentsPanel from "@/pages/SettingsAgents";
 import type { AgentPairing } from "@/lib/api";
 
-const allow = { "library.read": "allow", "proposal.submit": "allow", "compute.scan": "refuse", "compute.analyze": "refuse", "tags.write": "ask", "covers.write": "refuse", "files.rename": "refuse" } as const;
+const allow = { "library.read": "allow", "proposal.submit": "allow", "compute.scan": "refuse", "compute.analyze": "refuse", "tags.write": "ask", "covers.write": "refuse", "files.rename": "refuse", "work.cancel": "refuse" } as const;
 
 const helper: AgentPairing = {
   id: "p1",
@@ -70,8 +70,8 @@ describe("Assistants section", () => {
     renderPanel([]);
     const form = screen.getByRole("form", { name: "Pair an assistant" });
     const boxes = within(form).getAllByRole("checkbox") as HTMLInputElement[];
-    expect(boxes).toHaveLength(7);
-    expect(boxes.map((b) => b.checked)).toEqual([true, true, false, false, false, false, false]);
+    expect(boxes).toHaveLength(8);
+    expect(boxes.map((b) => b.checked)).toEqual([true, true, false, false, false, false, false, false]);
     expect(within(form).getByRole("button", { name: "Pair assistant" })).toBeDisabled();
   });
 
@@ -119,6 +119,8 @@ describe("Assistants section", () => {
     expect(sel("Scan the library")).toBeDisabled();
     expect(sel("Set covers")).toBeDisabled();
     expect(sel("Rename files and folders")).toBeDisabled();
+    expect(options(sel("Cancel delegated research"))).toEqual(["Allow", "Refuse"]);
+    expect(sel("Cancel delegated research")).toBeDisabled();
   });
 
   it("changing a policy sends only that kind and does not touch the cache itself", async () => {

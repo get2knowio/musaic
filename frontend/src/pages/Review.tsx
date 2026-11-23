@@ -374,7 +374,7 @@ export default function ReviewPage() {
       filter.kind === "check" && showIgnored
         ? (ignoredQ.data ?? []).filter((f) => f.check_id === filter.id && (!album || f.album_id === album))
         : [];
-    const failedJobs = filter.kind === "failed" ? visible.filter((i) => i.kind === "job") : [];
+    const failedJobs = filter.kind === "failed" ? visible.filter((i) => i.kind === "job" && !i.job.result?.delegated) : [];
     const bulk = check?.meta.bulk_action_label && check.open_count > 0 ? check : null;
     const bulkScope = bulk
       ? `${bulk.meta.bulk_action_label} works on all ${bulk.open_count} open ${bulk.meta.label} ` +

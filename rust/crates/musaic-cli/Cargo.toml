@@ -31,6 +31,7 @@ tokio = { version = "1", features = ["rt", "io-std", "io-util", "macros"] }
 
 [dev-dependencies]
 musaic-api = { path = "../musaic-api" }
+musaic-db = { path = "../musaic-db" }
 musaic-secrets = { path = "../musaic-secrets" }
 musaic-testdata = { path = "../musaic-testdata" }
 tempfile.workspace = true
