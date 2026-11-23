@@ -332,3 +332,18 @@ testAll if it changed anything.
 - **A number is ambiguous.** `specs/NNN-*` is checked first; otherwise it is a
   GitHub issue.
 - **Subagents run tests in the foreground.**
+- **A worktree build leaves a stale `musaic-testdata` in the shared target.**
+  That crate bakes its own source path in at compile time. After a worktree
+  that built with the shared `CARGO_TARGET_DIR` is removed, the main
+  checkout's tests panic in `musaic-testdata/src/lib.rs` ("public test data
+  … is missing", naming the removed worktree) by the hundred. Run
+  `cargo clean -p musaic-testdata` from `rust/` after removing worktrees and
+  before the integration test run. It is not a code failure.
+- **A worktree has no synthetic library and no `frontend/dist`.** An agent
+  that needs them symlinks the library from the main checkout (and removes
+  the link before committing) and copies `frontend/dist`.
+- **`macos-15` runners can be unavailable.** A required macOS job that ends
+  `cancelled` with "the job was not acquired by Runner" never ran. Re-run it
+  (`gh run rerun <id> --failed`); do not read it as a test failure.
+- **New tests compare paths with `/`.** Windows CI is required; normalise
+  separators before asserting on a relative path.
