@@ -567,6 +567,10 @@ Tool errors come back as a tool result with `isError` and `{code, message, detai
 - `RATE_LIMITED`
 - `TASK_EXPIRED`
 - `INTERNAL`
+- `EVENT_NOT_FOUND`
+- `EVENT_FORBIDDEN`
+- `EVENT_LIMIT`
+- `EVENT_INVALID`
 
 Transport errors are reported by the CLI, not by a tool:
 

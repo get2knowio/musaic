@@ -546,3 +546,67 @@ pub(crate) fn decide(
     crate::agent::delegation::publish_pending(app, &conn);
     Ok(())
 }
+
+/// One delegated work item as the Review page lists it (spec 005): its state,
+/// who holds it and how recently they showed life, and whether anyone is
+/// listening for it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DelegatedItem {
+    pub work_id: String,
+    pub album_id: String,
+    /// "Artist - Title" when the album is known; Missing albums are listed.
+    pub album_label: Option<String>,
+    pub kind: String,
+    pub state: String,
+    pub revision: i64,
+    pub holder: Option<String>,
+    pub last_heartbeat_at: Option<String>,
+    pub lease_expires_at: Option<String>,
+    pub attempts: i64,
+    pub max_attempts: i64,
+    pub last_error: Option<String>,
+    /// Queued, and no pairing has an active subscription to hear about it.
+    pub waiting_for_agent: bool,
+}
+
+/// The six listed states, read from the database only: it writes nothing and
+/// touches no file, so it is the same for an album whose folder is gone.
+pub(crate) fn delegated(app: &App) -> Result<Vec<DelegatedItem>, OpError> {
+    let conn = musaic_db::open_connection(app.db_path())?;
+    let listening = db_listening(app, &conn)?;
+    let lib = app.library_dir();
+    let mut out = Vec::new();
+    for item in db::desktop_items(&conn)? {
+        let row = item.row;
+        let album_label = crate::ops::agent::album_label(&conn, lib.as_deref(), &row.album_id);
+        out.push(DelegatedItem {
+            waiting_for_agent: row.state == "queued" && !listening,
+            holder: item.holder,
+            last_heartbeat_at: item.last_heartbeat_at.map(stamp),
+            lease_expires_at: row.lease_expires_at.map(stamp),
+            last_error: row.last_error.map(|e| {
+                e.chars()
+                    .filter(|c| !c.is_control())
+                    .take(200)
+                    .collect::<String>()
+            }),
+            work_id: row.id,
+            album_id: row.album_id,
+            album_label,
+            kind: row.kind,
+            state: row.state,
+            revision: row.revision,
+            attempts: row.attempts,
+            max_attempts: row.max_attempts,
+        });
+    }
+    Ok(out)
+}
+
+/// Whether any active pairing has a subscription (a parked or recent poll).
+fn db_listening(app: &App, conn: &Connection) -> Result<bool, OpError> {
+    Ok(musaic_db::agent::list_pairings(conn)?
+        .iter()
+        .any(|p| p.revoked_at.is_none() && app.0.agent.subscription_active(&p.id)))
+}

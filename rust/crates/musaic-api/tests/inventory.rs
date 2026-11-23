@@ -201,6 +201,8 @@ fn the_extra_route_list_is_exactly_this() {
             // Deliberate additions: the agent bridge (spec 003): the webview's
             // management routes, and the agent CLI's own route family.
             "GET /api/research/groups/{group}",
+            // Deliberate addition (spec 005): the delegated work in Review.
+            "GET /api/research/work",
             "POST /api/research/{id}/preview/{digest}",
             "POST /api/research/{id}/decision",
             "GET /api/agent/pairings",
@@ -212,6 +214,8 @@ fn the_extra_route_list_is_exactly_this() {
             "POST /api/agent/approvals/{approval_id}/approve",
             "POST /api/agent/approvals/{approval_id}/deny",
             "GET /api/agent/changes",
+            // Deliberate addition (spec 005): per-pairing diagnostics.
+            "GET /api/agent/diagnostics",
             "POST /api/agent/changes/{change_id}/undo",
             "POST /__musaic/agent/v1/hello",
             "POST /__musaic/agent/v1/exchange",
@@ -221,6 +225,11 @@ fn the_extra_route_list_is_exactly_this() {
             "POST /__musaic/agent/v1/tasks/get",
             "POST /__musaic/agent/v1/tasks/update",
             "POST /__musaic/agent/v1/tasks/cancel",
+            // Deliberate additions (spec 005): events and host observations.
+            "POST /__musaic/agent/v1/events/list",
+            "POST /__musaic/agent/v1/events/poll",
+            "POST /__musaic/agent/v1/session/observe",
+            "GET /__musaic/agent/v1/session",
         ]
     );
 }

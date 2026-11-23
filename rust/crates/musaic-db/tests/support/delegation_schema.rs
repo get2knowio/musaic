@@ -44,3 +44,23 @@ pub const OBJECTS: &[(&str, &str, &str)] = &[
         "mcp_task_inputs",
     ),
 ];
+
+/// The v23 objects in `sqlite_master` order, after [`OBJECTS`].
+#[allow(dead_code)] // not every test binary that includes this module uses it
+pub const V23_OBJECTS: &[(&str, &str, &str)] = &[
+    ("table", "delegation_events", "delegation_events"),
+    ("index", "delegation_events_epoch", "delegation_events"),
+    ("index", "delegation_events_age", "delegation_events"),
+    ("index", "delegation_events_work", "delegation_events"),
+    ("table", "delegation_event_state", "delegation_event_state"),
+    (
+        "table",
+        "agent_host_observations",
+        "agent_host_observations",
+    ),
+    (
+        "index",
+        "sqlite_autoindex_agent_host_observations_1",
+        "agent_host_observations",
+    ),
+];

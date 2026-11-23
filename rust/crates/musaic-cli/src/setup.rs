@@ -26,6 +26,8 @@ pub const ENTRY_NAME: &str = "musaic";
 pub struct HostPaths {
     pub claude_desktop: PathBuf,
     pub claude_code: PathBuf,
+    /// Claude Code's personal skills directory (`<home>/.claude/skills`).
+    pub claude_code_skills: PathBuf,
 }
 
 impl HostPaths {
@@ -45,6 +47,7 @@ impl HostPaths {
         Self {
             claude_desktop: desktop,
             claude_code: home.join(".claude.json"),
+            claude_code_skills: home.join(".claude/skills"),
         }
     }
 
@@ -354,7 +357,7 @@ fn civil_from_secs(secs: u64) -> String {
     )
 }
 
-fn stamp() -> String {
+pub(crate) fn stamp() -> String {
     let secs = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
@@ -367,7 +370,7 @@ struct Written {
     backup: Option<PathBuf>,
 }
 
-fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, text: &str) -> std::io::Result<()> {
     // A host config kept as a symlink (dotfiles) is updated where it points,
     // not replaced by a plain file.
     let resolved;

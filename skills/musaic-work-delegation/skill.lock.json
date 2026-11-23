@@ -1,0 +1,50 @@
+{
+  "files": [
+    {
+      "digest": "sha256:e6af1e59a9a05eda854d146af00d97ab64bc3367c6592f169bb11a563fbbf3e1",
+      "path": "SKILL.md",
+      "size": 4961
+    },
+    {
+      "digest": "sha256:33d8eb89a60c1af6d16cd9b30e56e38b9ccaf0313187d997a4e1c8ca59a3ac3c",
+      "path": "references/async-operations.md",
+      "size": 1246
+    },
+    {
+      "digest": "sha256:3db222f338b18967e051de1753001f79dea5f9ff6d0b3bf010104085f3ce91ae",
+      "path": "references/cover-research.md",
+      "size": 1084
+    },
+    {
+      "digest": "sha256:5e3f891bbd23b39bf5213612f04385520e19b247aa5615c17cd9729190937905",
+      "path": "references/events.md",
+      "size": 2514
+    },
+    {
+      "digest": "sha256:5279a7b10657613136f08bbd49ab85639c6927721240cb52c09cc96b66fb9ad2",
+      "path": "references/metadata-evidence.md",
+      "size": 3016
+    },
+    {
+      "digest": "sha256:a3dc04f3e6b84911a07d988d39c7345dd2f016bd6540c8e54bd94662ae4e667f",
+      "path": "references/recovery.md",
+      "size": 1598
+    },
+    {
+      "digest": "sha256:376e930130c9a8bcdfef0e046081ddf66bfc0e9f89119ad884906fe652684e8b",
+      "path": "references/result-schemas.md",
+      "size": 2229
+    },
+    {
+      "digest": "sha256:c74ef766bdf59835bbec20adf71b8bfdac7a04d2a52bd0b0547b3eab4cacc476",
+      "path": "references/tools.md",
+      "size": 6688
+    },
+    {
+      "digest": "sha256:bc2c5f70a351344842871bcfc4565fd2e5156e13e49f896b0fa16ff97655fbf8",
+      "path": "references/work-lifecycle.md",
+      "size": 2554
+    }
+  ],
+  "version": "1.0.0"
+}

@@ -55,6 +55,12 @@ codes! {
     RateLimited => "RATE_LIMITED",
     TaskExpired => "TASK_EXPIRED",
     Internal => "INTERNAL",
+    // Event errors (the events bridge routes; the MCP adapter maps them to
+    // JSON-RPC codes, `events::rpc_code`).
+    EventNotFound => "EVENT_NOT_FOUND",
+    EventForbidden => "EVENT_FORBIDDEN",
+    EventLimit => "EVENT_LIMIT",
+    EventInvalid => "EVENT_INVALID",
     // Transport errors (reported by the CLI, not by a tool).
     AppNotRunning => "APP_NOT_RUNNING",
     DescriptorInvalid => "DESCRIPTOR_INVALID",
@@ -137,7 +143,7 @@ mod tests {
                 format!("\"{}\"", c.as_str())
             );
         }
-        assert_eq!(ToolErrorCode::ALL.len(), 31);
+        assert_eq!(ToolErrorCode::ALL.len(), 35);
     }
 
     #[test]

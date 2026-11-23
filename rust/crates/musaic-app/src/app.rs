@@ -869,6 +869,10 @@ impl App {
     /// the work itself ([`Self::shutdown`] does what the lifespan does).
     pub fn begin_shutdown(&self) {
         self.0.shutting_down.send_replace(true);
+        // A parked event poll holds its HTTP request open for up to 25 s;
+        // woken now it sees the flag and answers, so the server's graceful
+        // drain is not held up by it.
+        self.0.agent.notify_events();
     }
 
     /// Whether [`Self::begin_shutdown`] was called.
@@ -940,6 +944,8 @@ impl App {
         self.0
             .net_cancel
             .store(true, std::sync::atomic::Ordering::SeqCst);
+        // Parked event polls end now instead of at their wait.
+        self.0.agent.notify_events();
         // The sweep first: it stops its request in flight at once, and it
         // must not start a batch after the scan below ends.
         let sweep_stopped = self.0.sweeper.stop_within(SHUTDOWN_SWEEP_WAIT);

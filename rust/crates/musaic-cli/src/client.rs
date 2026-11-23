@@ -16,6 +16,7 @@ use musaic_commands::auth::{
     client_proof, config_dir_id, random_hex, verify_server_proof,
 };
 use musaic_commands::descriptor::{self, Descriptor};
+use musaic_commands::events::{HostObservation, ListResult, PollParams, PollResult, SessionStatus};
 use musaic_commands::tools::task::{TaskCreateInput, TaskInput, TaskSnapshot, TaskUpdateInput};
 use musaic_commands::{ToolError, ToolErrorCode};
 use serde_json::Value;
@@ -26,6 +27,9 @@ use crate::credentials::CredentialSource;
 pub const HELLO_TIMEOUT: Duration = Duration::from_secs(2);
 /// A tool call can run long (an apply under the work gate).
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+/// An events poll may park in the app for up to `waitMs` (25 s at most); the
+/// read timeout exceeds it by a margin so a normal wait is never an error.
+pub const POLL_TIMEOUT: Duration = Duration::from_secs(25 + 30);
 
 struct Session {
     port: u16,
@@ -273,10 +277,19 @@ impl Client {
     }
 
     fn post_authenticated(&self, method: &str, input: &Value) -> Result<Value, ToolError> {
+        self.post_authenticated_within(method, input, CALL_TIMEOUT)
+    }
+
+    fn post_authenticated_within(
+        &self,
+        method: &str,
+        input: &Value,
+        timeout: Duration,
+    ) -> Result<Value, ToolError> {
         for attempt in 0..2 {
             let (port, token) = self.session(attempt == 1)?;
             let url = format!("http://127.0.0.1:{port}/__musaic/agent/v1/{method}");
-            let (status, v) = match post_json(&agent(CALL_TIMEOUT), &url, Some(&token), input) {
+            let (status, v) = match post_json(&agent(timeout), &url, Some(&token), input) {
                 Ok(r) => r,
                 Err(_) => {
                     // The app may have restarted (a new port and instance):
@@ -303,6 +316,43 @@ impl Client {
                     ToolErrorCode::Internal,
                     "the app's answer was not understood",
                 ))
+            };
+        }
+        Err(err(
+            ToolErrorCode::NotPaired,
+            "the app did not accept the token",
+        ))
+    }
+
+    /// `GET session`: what the app has stored of this pairing's host.
+    pub fn session_status(&self) -> Result<SessionStatus, ToolError> {
+        for attempt in 0..2 {
+            let (port, token) = self.session(attempt == 1)?;
+            let url = format!("http://127.0.0.1:{port}/__musaic/agent/v1/session");
+            let mut resp = match agent(HELLO_TIMEOUT)
+                .get(&url)
+                .header("authorization", format!("Bearer {token}"))
+                .call()
+            {
+                Ok(r) => r,
+                Err(_) if attempt == 0 => continue,
+                Err(_) => return Err(not_running()),
+            };
+            let status = resp.status().as_u16();
+            let text = resp.body_mut().read_to_string().unwrap_or_default();
+            let v: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
+            if status == 401 && attempt == 0 {
+                continue;
+            }
+            return if v["ok"] == Value::Bool(true) {
+                serde_json::from_value(v["result"].clone()).map_err(|_| {
+                    err(
+                        ToolErrorCode::Internal,
+                        "the session answer was not understood",
+                    )
+                })
+            } else {
+                Err(tool_error_of(&v))
             };
         }
         Err(err(
@@ -350,5 +400,26 @@ impl musaic_mcp::Backend for Client {
 
     fn cancel_task(&self, input: TaskInput) -> Result<(), ToolError> {
         self.task_request("tasks/cancel", &input)
+    }
+
+    fn events_list(&self) -> Result<ListResult, ToolError> {
+        self.task_request("events/list", &serde_json::json!({}))
+    }
+
+    fn events_poll(&self, params: PollParams) -> Result<PollResult, ToolError> {
+        let input = serde_json::to_value(&params).expect("a poll request is JSON");
+        let result = self.post_authenticated_within("events/poll", &input, POLL_TIMEOUT)?;
+        serde_json::from_value(result).map_err(|_| {
+            err(
+                ToolErrorCode::Internal,
+                "the app's poll answer was not understood",
+            )
+        })
+    }
+
+    fn observe_host(&self, observation: HostObservation) -> Result<(), ToolError> {
+        let input = serde_json::to_value(&observation).expect("an observation is JSON");
+        self.post_authenticated("session/observe", &input)
+            .map(|_| ())
     }
 }

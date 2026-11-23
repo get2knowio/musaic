@@ -10,6 +10,8 @@
 //! network; the operations in `ops::agent` do, through the services.
 
 pub(crate) mod delegation;
+pub(crate) mod events;
+pub mod hosts;
 pub mod hub_types;
 pub mod operations;
 pub mod proposal;
@@ -20,7 +22,7 @@ pub mod undo;
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
 
 use musaic_commands::PermissionKind;
@@ -38,6 +40,9 @@ pub const FAILURES_BEFORE_LOCKOUT: usize = 5;
 pub const FAILURE_WINDOW: Duration = Duration::from_secs(60);
 pub const FIRST_LOCKOUT: Duration = Duration::from_secs(60);
 pub const MAX_LOCKOUT: Duration = Duration::from_secs(15 * 60);
+/// A waiting poll this recent still counts as an active subscription.
+pub const SUBSCRIPTION_WINDOW: Duration = Duration::from_secs(90);
+const ANNOUNCE_EVERY: Duration = Duration::from_secs(5);
 
 struct Token {
     value: String,
@@ -59,6 +64,20 @@ struct State {
     tokens: Vec<Token>,
     lockout: Lockout,
     cancellation: HashMap<String, Arc<AtomicBool>>,
+    /// The latest authenticated request of each pairing (diagnostics).
+    last_seen: HashMap<String, SystemTime>,
+}
+
+type Waiting = Arc<Mutex<HashMap<String, (usize, SystemTime)>>>;
+
+/// The last diagnostics refresh published for a pairing.
+#[derive(Clone, Copy)]
+struct Announced {
+    at: SystemTime,
+    /// The rate limit refused a refresh since: one is still owed.
+    owed: bool,
+    /// Whether the subscription was active when it was published.
+    listening: bool,
 }
 
 /// The per-run agent state.
@@ -68,6 +87,15 @@ pub struct AgentHub {
     state: Mutex<State>,
     /// The `agent-op-*` threads, joined at shutdown.
     workers: Mutex<Vec<std::thread::JoinHandle<()>>>,
+    /// A counter that parked event polls wait on: the delegation publish,
+    /// a revocation and shutdown bump it. The table is the truth; this only
+    /// says "look again".
+    wake: Mutex<u64>,
+    wake_cv: Condvar,
+    /// Parked event polls per pairing and when one last parked.
+    waiting: Waiting,
+    /// When a diagnostics refresh was last published, per pairing.
+    announced: Mutex<HashMap<String, Announced>>,
 }
 
 impl AgentHub {
@@ -77,7 +105,171 @@ impl AgentHub {
             clock,
             state: Mutex::new(State::default()),
             workers: Mutex::new(Vec::new()),
+            wake: Mutex::new(0),
+            wake_cv: Condvar::new(),
+            waiting: Waiting::default(),
+            announced: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Wake every parked event poll.
+    pub fn notify_events(&self) {
+        *self
+            .wake
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) += 1;
+        self.wake_cv.notify_all();
+    }
+
+    /// The wake counter now; pass it to [`Self::wait_events`] after looking.
+    pub fn events_generation(&self) -> u64 {
+        *self
+            .wake
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Park until the counter moves past `seen` or `max` passes.
+    pub fn wait_events(&self, seen: u64, max: Duration) {
+        let guard = self
+            .wake
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _ = self
+            .wake_cv
+            .wait_timeout_while(guard, max, |g| *g == seen)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    }
+
+    /// Count a parked poll for `pairing`; `None` past `max` of them.
+    pub fn park_waiter(&self, pairing: &str, max: usize) -> Option<WaiterGuard> {
+        let now = self.now();
+        let mut map = self
+            .waiting
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let entry = map.entry(pairing.to_string()).or_insert((0, now));
+        if entry.0 >= max {
+            return None;
+        }
+        *entry = (entry.0 + 1, now);
+        Some(WaiterGuard {
+            waiting: Arc::clone(&self.waiting),
+            pairing: pairing.to_string(),
+        })
+    }
+
+    /// Records an events poll that did not park. A host that only polls
+    /// (the server asks it back every 30 seconds) is listening too.
+    pub fn note_poll(&self, pairing: &str) {
+        let now = self.now();
+        let mut map = self
+            .waiting
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        map.entry(pairing.to_string()).or_insert((0, now)).1 = now;
+    }
+
+    /// A poll is parked now, or the pairing polled within the last 90 seconds.
+    pub fn subscription_active(&self, pairing: &str) -> bool {
+        let (n, at) = self.waiting_of(pairing);
+        n > 0
+            || at.is_some_and(|t| {
+                self.now().duration_since(t).unwrap_or_default() < SUBSCRIPTION_WINDOW
+            })
+    }
+
+    /// Whether a diagnostics refresh may be published for `pairing` now (one
+    /// per pairing every five seconds). A refused one is owed, and
+    /// [`Self::due_announces`] hands it out later, so a change made inside
+    /// the window (the host's report or a first parked poll right after the
+    /// token exchange) still reaches the desktop.
+    pub fn allow_announce(&self, pairing: &str) -> bool {
+        let now = self.now();
+        let listening = self.subscription_active(pairing);
+        let mut map = self
+            .announced
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(a) = map.get_mut(pairing)
+            && now.duration_since(a.at).unwrap_or_default() < ANNOUNCE_EVERY
+        {
+            a.owed = true;
+            return false;
+        }
+        map.insert(
+            pairing.to_string(),
+            Announced {
+                at: now,
+                owed: false,
+                listening,
+            },
+        );
+        true
+    }
+
+    /// The pairings owed a diagnostics refresh now: one the rate limit held
+    /// back, or one whose subscription began or lapsed since its last refresh
+    /// (a lapse is the end of a window, which nothing else announces). Each
+    /// returned pairing counts as announced.
+    pub fn due_announces(&self) -> Vec<String> {
+        let now = self.now();
+        let pairings: Vec<String> = self
+            .announced
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .keys()
+            .cloned()
+            .collect();
+        let mut due = Vec::new();
+        for pairing in pairings {
+            let listening = self.subscription_active(&pairing);
+            let mut map = self
+                .announced
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let Some(a) = map.get_mut(&pairing) else {
+                continue;
+            };
+            if now.duration_since(a.at).unwrap_or_default() >= ANNOUNCE_EVERY
+                && (a.owed || a.listening != listening)
+            {
+                *a = Announced {
+                    at: now,
+                    owed: false,
+                    listening,
+                };
+                due.push(pairing);
+            }
+        }
+        due
+    }
+
+    /// Parked polls of a pairing now, and when one last parked.
+    pub fn waiting_of(&self, pairing: &str) -> (usize, Option<SystemTime>) {
+        self.waiting
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(pairing)
+            .map_or((0, None), |(n, t)| (*n, Some(*t)))
+    }
+
+    /// When the pairing last made an authenticated request.
+    pub fn last_seen(&self, pairing: &str) -> Option<SystemTime> {
+        self.lock().last_seen.get(pairing).copied()
+    }
+
+    /// Forget what is kept in memory about a pairing (revoke).
+    pub fn forget_pairing(&self, pairing: &str) {
+        self.lock().last_seen.remove(pairing);
+        self.waiting
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(pairing);
+        self.announced
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(pairing);
     }
 
     /// Remember a worker thread so shutdown can wait for it.
@@ -212,6 +404,7 @@ impl AgentHub {
         let expires_at = now + Duration::from_secs(TOKEN_TTL_SECS);
         let mut s = self.lock();
         s.tokens.retain(|t| t.expires_at > now);
+        s.last_seen.insert(principal.pairing_id.clone(), now);
         s.tokens.push(Token {
             value: value.clone(),
             principal,
@@ -224,13 +417,16 @@ impl AgentHub {
     /// constant time, so the time taken does not say how much matched.
     pub fn lookup_token(&self, presented: &str) -> Option<Principal> {
         let now = self.now();
-        let s = self.lock();
+        let mut s = self.lock();
         let mut found = None;
         for t in &s.tokens {
             let same = ct_eq(t.value.as_bytes(), presented.as_bytes());
             if same && t.expires_at > now {
                 found = Some(t.principal.clone());
             }
+        }
+        if let Some(p) = &found {
+            s.last_seen.insert(p.pairing_id.clone(), now);
         }
         found
     }
@@ -252,6 +448,24 @@ impl AgentHub {
 
     pub fn forget_cancellation_flag(&self, id: &str) {
         self.lock().cancellation.remove(id);
+    }
+}
+
+/// A parked event poll; dropping it frees the slot.
+pub struct WaiterGuard {
+    waiting: Waiting,
+    pairing: String,
+}
+
+impl Drop for WaiterGuard {
+    fn drop(&mut self) {
+        let mut map = self
+            .waiting
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(e) = map.get_mut(&self.pairing) {
+            e.0 = e.0.saturating_sub(1);
+        }
     }
 }
 
@@ -399,7 +613,7 @@ pub fn start_expiry_ticker(app: &crate::App) {
                     Some(inner) => {
                         let app = crate::App(inner);
                         app.ops().agent().expire_due();
-                        delegation::tick(&app);
+                        app.ops().agent().sweep_delegation();
                     }
                     None => return,
                 }

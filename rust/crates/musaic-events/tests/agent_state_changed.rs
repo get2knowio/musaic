@@ -59,6 +59,7 @@ fn an_agent_state_change_starts_nothing_and_reaches_the_relay() {
         AgentWhat::Approvals,
         AgentWhat::Activity,
         AgentWhat::Changes,
+        AgentWhat::Hosts,
     ] {
         bus.publish(&Event::AgentStateChanged {
             what,
@@ -72,7 +73,7 @@ fn an_agent_state_change_starts_nothing_and_reaches_the_relay() {
         0,
         "the sweep was not woken"
     );
-    for want in ["pairings", "approvals", "activity", "changes"] {
+    for want in ["pairings", "approvals", "activity", "changes", "hosts"] {
         let msg = conn.recv_timeout(Duration::from_secs(30)).expect("relayed");
         assert_eq!(&*msg.name, "AgentStateChanged");
         assert_eq!(
@@ -112,4 +113,21 @@ fn the_event_round_trips_through_its_class_name() {
         .is_err()
     );
     assert!(!EventKind::AgentStateChanged.is_album_scoped());
+}
+
+#[test]
+fn the_hosts_family_parses_and_names_itself() {
+    use musaic_events::{ArgValue, EventKind};
+    let what = AgentWhat::Hosts;
+    assert_eq!(AgentWhat::parse(what.as_str()), Some(what));
+    let ev = Event::from_fields(
+        "AgentStateChanged",
+        [
+            ("what", ArgValue::Str(what.as_str().into())),
+            ("ids", ArgValue::StrList(vec![])),
+        ],
+    )
+    .unwrap();
+    assert_eq!(ev.kind(), EventKind::AgentStateChanged);
+    assert_eq!(AgentWhat::Hosts.as_str(), "hosts");
 }

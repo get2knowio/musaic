@@ -1,0 +1,200 @@
+{
+  "errors": [
+    {
+      "code": -32602,
+      "name": "InvalidParams"
+    },
+    {
+      "code": -32023,
+      "name": "NotFound"
+    },
+    {
+      "code": -32024,
+      "name": "Forbidden"
+    },
+    {
+      "code": -32025,
+      "name": "ResourceExhausted"
+    },
+    {
+      "code": -32026,
+      "name": "Unsupported"
+    }
+  ],
+  "events": [
+    {
+      "delivery": [
+        "poll",
+        "push"
+      ],
+      "description": "Work became available to claim: it was created, requeued, released or retried.",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "kinds": {
+            "items": {
+              "enum": [
+                "metadata.identify",
+                "metadata.correct",
+                "cover.research"
+              ]
+            },
+            "type": "array"
+          },
+          "states": {
+            "items": {
+              "enum": [
+                "queued",
+                "claimed",
+                "running",
+                "awaiting_review",
+                "applied",
+                "discarded",
+                "failed",
+                "cancelled"
+              ]
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "musaic.work.requested.v1",
+      "payloadSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ]
+          },
+          "libraryEpoch": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "kind",
+          "state",
+          "revision",
+          "libraryEpoch"
+        ],
+        "type": "object"
+      }
+    },
+    {
+      "delivery": [
+        "poll",
+        "push"
+      ],
+      "description": "Delegated work changed state in any other way (claimed, running, awaiting review, applied, discarded, failed, cancelled).",
+      "inputSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "kinds": {
+            "items": {
+              "enum": [
+                "metadata.identify",
+                "metadata.correct",
+                "cover.research"
+              ]
+            },
+            "type": "array"
+          },
+          "states": {
+            "items": {
+              "enum": [
+                "queued",
+                "claimed",
+                "running",
+                "awaiting_review",
+                "applied",
+                "discarded",
+                "failed",
+                "cancelled"
+              ]
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "musaic.work.updated.v1",
+      "payloadSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ]
+          },
+          "libraryEpoch": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "kind",
+          "state",
+          "revision",
+          "libraryEpoch"
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "extension": "io.modelcontextprotocol/events",
+  "limits": {
+    "defaultMaxEvents": 50,
+    "heartbeatMs": {
+      "default": 30000,
+      "max": 60000,
+      "min": 5000
+    },
+    "maxEvents": 100,
+    "retentionDays": 7,
+    "streamsPerProcess": 8,
+    "waitingPollsPerPairing": 4
+  },
+  "revision": "2026-07-28"
+}

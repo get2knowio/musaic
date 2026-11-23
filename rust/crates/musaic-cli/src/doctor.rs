@@ -38,7 +38,12 @@ pub fn pid_alive(pid: u32) -> Option<bool> {
 }
 
 /// The report, and whether everything is healthy.
-pub fn report(client: &Client, config_dir: &Path, executable: &str) -> (Value, bool) {
+pub fn report(
+    client: &Client,
+    config_dir: &Path,
+    executable: &str,
+    paths: &crate::setup::HostPaths,
+) -> (Value, bool) {
     let mut healthy = true;
     let mut descriptor = json!({});
     let mut hello_ok = false;
@@ -75,7 +80,8 @@ pub fn report(client: &Client, config_dir: &Path, executable: &str) -> (Value, b
 
     let mut pairing = json!({"status": "unknown"});
     let mut scopes: Vec<String> = Vec::new();
-    let mut extensions = Vec::new();
+    let mut extensions: Vec<String> = Vec::new();
+    let mut session = json!({"hostReported": null});
     match client.choose_pairing() {
         Ok(id) => {
             pairing["id"] = json!(id);
@@ -83,13 +89,33 @@ pub fn report(client: &Client, config_dir: &Path, executable: &str) -> (Value, b
                 match client.call("musaic_capabilities", &json!({})) {
                     Ok(caps) => {
                         pairing["status"] = json!("active");
-                        let tasks = musaic_commands::tools::task::EXTENSION_ID;
-                        if caps["extensions"]
+                        extensions = caps["extensions"]
                             .as_array()
-                            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(tasks)))
-                        {
-                            extensions.push(tasks);
-                        }
+                            .map(|ids| {
+                                ids.iter()
+                                    .filter_map(Value::as_str)
+                                    .filter(|id| {
+                                        musaic_commands::events::OFFERED_EXTENSIONS.contains(id)
+                                    })
+                                    .map(str::to_string)
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        session = match client.session_status() {
+                            Ok(s) => json!({
+                                "hostReported": s.observation.as_ref().map(|o| json!({
+                                    "clientName": o.client_name,
+                                    "clientVersion": o.client_version,
+                                    "profile": o.profile,
+                                    "tasks": o.tasks,
+                                    "skills": o.skills,
+                                    "events": o.events,
+                                })),
+                                "subscriptionActive": s.subscription_active,
+                                "appSkillVersion": s.skill_version,
+                            }),
+                            Err(_) => json!({"hostReported": null}),
+                        };
                         scopes = caps["scopes"]
                             .as_array()
                             .map(|a| {
@@ -131,6 +157,8 @@ pub fn report(client: &Client, config_dir: &Path, executable: &str) -> (Value, b
             "transport": "stdio",
             "profiles": profiles,
             "extensions": extensions,
+            "skill": crate::skill_install::status(paths),
+            "session": session,
         }),
         healthy,
     )

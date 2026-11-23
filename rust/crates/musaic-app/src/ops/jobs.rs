@@ -10,7 +10,9 @@ use musaic_db::ai_jobs::{self, NewJob};
 use musaic_services::ai_jobs as queue;
 use rusqlite::Connection;
 
-pub use crate::desktop_research::{Preview as ResearchPreview, ReviewChild as ResearchItem};
+pub use crate::desktop_research::{
+    DelegatedItem, Preview as ResearchPreview, ReviewChild as ResearchItem,
+};
 pub use musaic_ai::provider::ProviderInfo;
 pub use musaic_db::ai_jobs::JobRow as Job;
 
@@ -137,6 +139,12 @@ impl Jobs<'_> {
     pub fn research_items(&self, group: &str) -> Result<Vec<ResearchItem>, OpError> {
         crate::desktop_research::children(self.app, &self.conn()?, group)
     }
+    /// The delegated work in its six listed states, with holder, heartbeat,
+    /// lease and whether anyone is listening for queued work. Reads only.
+    pub fn delegated_work(&self) -> Result<Vec<DelegatedItem>, OpError> {
+        crate::desktop_research::delegated(self.app)
+    }
+
     pub fn research_preview(&self, id: &str, digest: &str) -> Result<ResearchPreview, OpError> {
         crate::desktop_research::preview(self.app, id, digest)
     }

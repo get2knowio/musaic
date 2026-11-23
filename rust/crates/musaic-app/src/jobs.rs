@@ -19,6 +19,9 @@ impl App {
                 });
         }
         self.ai_jobs_changed();
+        // The epoch may have changed (a restore, another library folder):
+        // parked event polls answer `truncated` now, not at their wait.
+        self.0.agent.notify_events();
     }
 
     /// The providers this build has: the one the worker uses. The one source of

@@ -6,3 +6,4 @@ pub mod commands;
 pub mod credentials;
 pub mod doctor;
 pub mod setup;
+pub mod skill_install;

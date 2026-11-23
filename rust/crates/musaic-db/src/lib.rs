@@ -10,12 +10,14 @@
 //! identical schemas.
 
 pub mod agent;
+pub mod agent_hosts;
 pub mod agent_operations;
 pub mod ai_jobs;
 pub mod albums;
 pub mod backup;
 pub mod check_inputs;
 pub mod delegated_work;
+pub mod delegation_events;
 pub mod findings;
 pub mod fingerprints_ext;
 pub mod mb_anchor;
@@ -42,7 +44,7 @@ pub use musaic_core::album_id;
 pub use python_chain::OLDEST_SCHEMA_VERSION;
 
 /// Schema version this build reads and writes.
-pub const SCHEMA_VERSION: i64 = 22;
+pub const SCHEMA_VERSION: i64 = 23;
 /// Last schema version written by the Python app.
 pub const PYTHON_SCHEMA_VERSION: i64 = 16;
 

@@ -4,7 +4,8 @@
 //! check last ran against, for the background check sweep), v19 -> v20
 //! (each album's per-file disc numbers and the highest disc total its tags
 //! name), v20 -> v21 (the `agent_*` tables of the agent bridge), then
-//! v21 -> v22 (durable delegation and MCP Tasks).
+//! v21 -> v22 (durable delegation and MCP Tasks), then v22 -> v23 (the retained
+//! delegation event history and host observations).
 //!
 //! Backup rule: a database the Python app wrote (v16, or any older version
 //! [`crate::python_chain`] brings to v16 first) is copied, to
@@ -271,7 +272,7 @@ pub(crate) fn create_fresh(conn: &mut Connection) -> Result<()> {
 /// transaction (each re-checks the version, so a step another process
 /// already ran is skipped): the Python app's own chain to v16 for an older file
 /// ([`crate::python_chain`], one transaction as in the Python app), then v17,
-/// v18, v19, v20, v21, v22.
+/// v18, v19, v20, v21, v22, v23.
 pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     if found < PYTHON_SCHEMA_VERSION {
         crate::python_chain::to_python_version(conn)?;
@@ -293,6 +294,9 @@ pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
     }
     if found <= 21 {
         v21_to_v22(conn)?;
+    }
+    if found <= 22 {
+        v22_to_v23(conn)?;
     }
     Ok(())
 }
@@ -409,6 +413,19 @@ fn v21_to_v22(conn: &Connection) -> Result<()> {
         tx.execute_batch(include_str!("delegated_work.sql"))?;
         tx.execute_batch(include_str!("operation_schema.sql"))?;
         crate::delegated_work::migrate_legacy(&tx)?;
+        tx.execute("UPDATE schema_version SET version = 22", [])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+fn v22_to_v23(conn: &Connection) -> Result<()> {
+    let tx = crate::immediate(conn)?;
+    let current: i64 = tx.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get(0)
+    })?;
+    if current == 22 {
+        tx.execute_batch(include_str!("delegation_events.sql"))?;
         tx.execute("UPDATE schema_version SET version = ?1", [SCHEMA_VERSION])?;
     }
     tx.commit()?;

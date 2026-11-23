@@ -62,6 +62,14 @@
  *                                       activity or changes; prefix-matched,
  *                                       so every state / pairing under it
  *                                       refetches)
+ *     what = hosts                    → ["agent", "diagnostics"] (what a host
+ *                                       reported, the four facts) and
+ *                                       ["research", "work"] (whether queued
+ *                                       work is waiting for an agent)
+ *     what = pairings                 → also ["agent", "diagnostics"]
+ *     what = work                     → ["research"] (the delegated-work list
+ *                                       is ["research", "work"]) and
+ *                                       ["agent", "diagnostics"] (last claim)
  *   Album tags / cover / rename /     → also ["agent", "changes"]: whether
  *   missing, scans, bulk batches        an assistant's change can still be
  *                                       undone is derived from the files
@@ -87,7 +95,8 @@ import { ACOUSTID_PROMPT_QUERY_KEY } from "./useAcoustidPrompt";
 import { UI_PREFS_QUERY_KEY } from "./useUiPrefs";
 import { CHECKS_QUERY_KEY, FINDINGS_QUERY_KEY } from "./useChecks";
 import { SETTINGS_QUERY_KEY } from "./useJobs";
-import { AGENT_CHANGES_QUERY_KEY, AGENT_QUERY_KEY } from "./useAgents";
+import { AGENT_CHANGES_QUERY_KEY, AGENT_DIAGNOSTICS_QUERY_KEY, AGENT_QUERY_KEY } from "./useAgents";
+import { DELEGATED_WORK_QUERY_KEY } from "./useDelegatedWork";
 
 type EventPayload = {
   album_id?: string;
@@ -254,11 +263,20 @@ export function useLibraryEventsStream() {
       if (what === "work") {
         qc.invalidateQueries({ queryKey: ["research"] });
         qc.invalidateQueries({ queryKey: ["jobs"] });
+        qc.invalidateQueries({ queryKey: AGENT_DIAGNOSTICS_QUERY_KEY });
+        return;
+      }
+      if (what === "hosts") {
+        qc.invalidateQueries({ queryKey: AGENT_DIAGNOSTICS_QUERY_KEY });
+        // "Waiting for an agent" in Review follows the subscriptions too.
+        qc.invalidateQueries({ queryKey: DELEGATED_WORK_QUERY_KEY });
         return;
       }
       const known =
         what === "pairings" || what === "approvals" || what === "activity" || what === "changes";
       qc.invalidateQueries({ queryKey: known ? [...AGENT_QUERY_KEY, what] : AGENT_QUERY_KEY });
+      // A new pairing has its facts ("Paired") before its host ever connects.
+      if (what === "pairings") qc.invalidateQueries({ queryKey: AGENT_DIAGNOSTICS_QUERY_KEY });
     });
     es.addEventListener("LibraryScanStopped", () => {
       qc.invalidateQueries({ queryKey: ["albums-snapshot"] });

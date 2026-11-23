@@ -3,20 +3,30 @@
 //! database; a [`Backend`] (the CLI's client of the running app) does the
 //! work, and a domain failure becomes a tool result with `isError`.
 
+mod events;
 pub mod profile;
+mod prompts;
+mod skills;
 
 use std::borrow::Cow;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
+use musaic_commands::events::{
+    EVENTS_EXTENSION_ID, HostObservation, ListResult, PollParams, PollResult,
+};
 use musaic_commands::tools::operation::{OperationHandle, OperationState, POLL_INTERVAL_MS};
 use musaic_commands::tools::task::{TaskCreateInput, TaskInput, TaskSnapshot, TaskUpdateInput};
 use musaic_commands::{REGISTRY, ToolDef, ToolError, ToolErrorCode, find_tool};
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskMethod, CancelTaskParams,
-    ClientCapabilities, CreateTaskResult, DetailedTask, GetTaskMethod, GetTaskParams,
-    GetTaskResult, Implementation, JsonObject, ListToolsResult, MetaObject, PaginatedRequestParams,
-    ProtocolVersion, ServerCapabilities, ServerConfig, Task, TaskPayload, TaskStatus, Tool,
-    ToolAnnotations, UpdateTaskMethod, UpdateTaskParams,
+    ClientCapabilities, CreateTaskResult, CustomRequest, CustomResult, DetailedTask,
+    GetPromptRequestParams, GetPromptResponse, GetSkillRequestMethod, GetSkillRequestParams,
+    GetSkillResult, GetTaskMethod, GetTaskParams, GetTaskResult, Implementation, JsonObject,
+    ListPromptsResult, ListResourcesResult, ListSkillsRequestMethod, ListSkillsResult,
+    ListToolsResult, MetaObject, PaginatedRequestParams, ProtocolVersion,
+    ReadResourceRequestParams, ReadResourceResponse, ServerCapabilities, ServerConfig, Task,
+    TaskPayload, TaskStatus, Tool, ToolAnnotations, UpdateTaskMethod, UpdateTaskParams,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, ServiceExt};
@@ -46,6 +56,24 @@ pub trait Backend: Send + Sync + 'static {
     fn cancel_task(&self, _input: TaskInput) -> Result<(), ToolError> {
         Err(tasks_unavailable())
     }
+
+    /// The event types the app offers (`events/list`).
+    fn events_list(&self) -> Result<ListResult, ToolError> {
+        Err(events_unavailable())
+    }
+
+    /// One poll of the delegated-work history. `wait_ms` may park the call
+    /// in the app for up to 25 seconds, so the implementation's transport
+    /// timeout must exceed it.
+    fn events_poll(&self, _params: PollParams) -> Result<PollResult, ToolError> {
+        Err(events_unavailable())
+    }
+
+    /// Tell the app what this host negotiated (diagnostics only). A failure
+    /// is never a failure of the host's own request.
+    fn observe_host(&self, _observation: HostObservation) -> Result<(), ToolError> {
+        Ok(())
+    }
 }
 
 /// The error of running the server (transport setup or a broken pipe).
@@ -55,6 +83,15 @@ pub type ServeError = Box<dyn std::error::Error + Send + Sync>;
 struct Server {
     backend: Arc<dyn Backend>,
     version: Cow<'static, str>,
+    /// The last observation recorded, so the app hears of a change only. A
+    /// send that fails clears it, so the next request sends it again.
+    observed: Arc<Mutex<Option<HostObservation>>>,
+    /// One observation send at a time, so an older one never lands last.
+    observe_sends: Arc<Mutex<()>>,
+    /// The host fetched a skill (list, get or a skill resource).
+    skills_used: Arc<AtomicBool>,
+    /// Streams open in this process (the cap is in `events`).
+    streams: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 fn object(v: Value) -> Arc<JsonObject> {
@@ -75,6 +112,10 @@ fn tool_of(t: &ToolDef) -> Tool {
             Some(t.annotations.idempotent),
             Some(t.annotations.open_world),
         ))
+}
+
+fn events_unavailable() -> ToolError {
+    ToolError::new(ToolErrorCode::Unavailable, "the app does not offer events")
 }
 
 fn tasks_unavailable() -> ToolError {
@@ -204,6 +245,87 @@ fn detailed_task(snapshot: TaskSnapshot) -> Result<GetTaskResult, McpError> {
 }
 
 impl Server {
+    /// Remember what this request shows of the host and tell the app when it
+    /// changed. Best effort: never an error of the request.
+    fn observe(&self, context: &RequestContext<RoleServer>) {
+        let info = context.client_info();
+        let caps = context.client_capabilities();
+        let has = |id: &str| {
+            caps.as_ref()
+                .and_then(|c| c.extensions.as_ref())
+                .is_some_and(|e| e.contains_key(id))
+        };
+        let observation = HostObservation {
+            client_name: info.as_ref().map(|i| i.name.clone()).unwrap_or_default(),
+            client_version: info.as_ref().map(|i| i.version.clone()).unwrap_or_default(),
+            profile: context
+                .protocol_version()
+                .map(|v| v.as_str().to_string())
+                .unwrap_or_default(),
+            tasks: request_declares_tasks(context),
+            skills: self.skills_used.load(Ordering::Relaxed)
+                || has(musaic_commands::events::SKILLS_EXTENSION_ID),
+            events: has(EVENTS_EXTENSION_ID),
+        };
+        let changed = {
+            let mut last = self
+                .observed
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            if last.as_ref() == Some(&observation) {
+                false
+            } else {
+                *last = Some(observation.clone());
+                true
+            }
+        };
+        if changed {
+            let backend = Arc::clone(&self.backend);
+            let observed = Arc::clone(&self.observed);
+            let sends = Arc::clone(&self.observe_sends);
+            // Fire and forget on the blocking pool: the host's request never
+            // waits on, or fails because of, a diagnostics call.
+            drop(tokio::task::spawn_blocking(move || {
+                let _one = sends
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                let latest = |o: &HostObservation| {
+                    observed
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .as_ref()
+                        == Some(o)
+                };
+                // A newer observation was recorded meanwhile: its own send
+                // carries it, and this older one must not land after it.
+                if !latest(&observation) {
+                    return;
+                }
+                if backend.observe_host(observation.clone()).is_err() {
+                    // The app may not be running yet: forget the observation
+                    // so the next request of the host sends it again.
+                    let mut last = observed
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if last.as_ref() == Some(&observation) {
+                        *last = None;
+                    }
+                }
+            }));
+        }
+    }
+
+    fn require_modern<M: rmcp::model::ConstString>(
+        &self,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        if modern(context) {
+            Ok(())
+        } else {
+            Err(McpError::method_not_found::<M>())
+        }
+    }
+
     fn require_tasks<M: rmcp::model::ConstString>(
         &self,
         context: &RequestContext<RoleServer>,
@@ -222,12 +344,22 @@ impl Server {
 
 impl ServerHandler for Server {
     fn get_info(&self) -> ServerConfig {
-        let caps = ServerCapabilities::builder().enable_tools();
+        let caps = ServerCapabilities::builder()
+            .enable_tools()
+            .enable_resources()
+            .enable_prompts()
+            .enable_skills();
         let caps = if self.backend.supports_tasks() {
             caps.enable_tasks().build()
         } else {
             caps.build()
         };
+        // The extensions are declared once; the handlers answer `skills/*` and
+        // `events/*` on the 2026-07-28 profile only (research D1).
+        let mut caps = caps;
+        caps.extensions
+            .get_or_insert_with(Default::default)
+            .insert(EVENTS_EXTENSION_ID.to_string(), JsonObject::new());
         ServerConfig::new(caps)
             .with_server_info(Implementation::new("musaic", self.version.to_string()))
             .with_instructions(
@@ -239,11 +371,76 @@ impl ServerHandler for Server {
         Cow::Owned(profile::supported())
     }
 
-    async fn list_tools(
+    async fn list_skills(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListSkillsResult, McpError> {
+        self.require_modern::<ListSkillsRequestMethod>(&context)?;
+        self.skills_used.store(true, Ordering::Relaxed);
+        self.observe(&context);
+        Ok(skills::list())
+    }
+
+    async fn get_skill(
+        &self,
+        request: GetSkillRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetSkillResult, McpError> {
+        self.require_modern::<GetSkillRequestMethod>(&context)?;
+        self.skills_used.store(true, Ordering::Relaxed);
+        self.observe(&context);
+        skills::get(&request.uri)
+    }
+
+    async fn list_resources(
         &self,
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        Ok(skills::resources())
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResponse, McpError> {
+        self.skills_used.store(true, Ordering::Relaxed);
+        self.observe(&context);
+        Ok(skills::read(&request.uri)?.into())
+    }
+
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, McpError> {
+        Ok(prompts::list())
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResponse, McpError> {
+        Ok(prompts::get(&request)?.into())
+    }
+
+    async fn on_custom_request(
+        &self,
+        request: CustomRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CustomResult, McpError> {
+        events::handle(self, request, context).await
+    }
+
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
+        self.observe(&context);
         Ok(ListToolsResult::with_all_items(
             REGISTRY.iter().map(tool_of).collect(),
         ))
@@ -254,6 +451,7 @@ impl ServerHandler for Server {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
+        self.observe(&context);
         let Some(tool) = find_tool(&request.name) else {
             return Err(McpError::invalid_params("unknown tool", None));
         };
@@ -348,6 +546,53 @@ impl ServerHandler for Server {
     }
 }
 
+/// The service rmcp runs: the server with one check in front. rmcp refuses a
+/// `skills/get` whose URI is not a `SKILL.md` with a message that repeats the
+/// URI; a refusal here never echoes the request (contracts/skills.md), so the
+/// check runs before rmcp's own.
+struct Gate(Server);
+
+impl rmcp::Service<RoleServer> for Gate {
+    async fn handle_request(
+        &self,
+        request: rmcp::model::ClientRequest,
+        context: RequestContext<RoleServer>,
+    ) -> Result<rmcp::model::ServerResult, McpError> {
+        if let rmcp::model::ClientRequest::GetSkillRequest(r) = &request {
+            // On the older profile skills are not offered at all; rmcp's own
+            // URI check would otherwise answer first, echoing the URI.
+            if !modern(&context) {
+                return Err(McpError::method_not_found::<
+                    rmcp::model::GetSkillRequestMethod,
+                >());
+            }
+            if !skills::is_skill_md(&r.params.uri) {
+                return Err(McpError::invalid_params(
+                    musaic_commands::skill::UNKNOWN_RESOURCE,
+                    None,
+                ));
+            }
+        }
+        rmcp::Service::handle_request(&self.0, request, context).await
+    }
+
+    async fn handle_notification(
+        &self,
+        notification: rmcp::model::ClientNotification,
+        context: rmcp::service::NotificationContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        rmcp::Service::handle_notification(&self.0, notification, context).await
+    }
+
+    fn get_info(&self) -> ServerConfig {
+        rmcp::Service::get_info(&self.0)
+    }
+
+    fn supported_protocol_versions(&self) -> Cow<'static, [ProtocolVersion]> {
+        rmcp::Service::supported_protocol_versions(&self.0)
+    }
+}
+
 /// Serve MCP on a reader and writer until the reader reaches end of file.
 /// Nothing but protocol messages is written to `writer`.
 pub async fn serve_io<R, W>(
@@ -363,8 +608,12 @@ where
     let server = Server {
         backend,
         version: Cow::Owned(version.to_string()),
+        observed: Arc::default(),
+        observe_sends: Arc::default(),
+        skills_used: Arc::default(),
+        streams: Arc::default(),
     };
-    let running = match server.serve((reader, writer)).await {
+    let running = match Gate(server).serve((reader, writer)).await {
         Ok(r) => r,
         // The host closed the pipe before saying anything: a clean end.
         Err(rmcp::service::ServerInitializeError::ConnectionClosed(_)) => return Ok(()),

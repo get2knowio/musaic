@@ -18,3 +18,4 @@ workspace = true
 [dev-dependencies]
 tokio = { version = "1", features = ["rt", "io-std", "io-util", "macros", "time"] }
 jsonschema = { version = "0.33", default-features = false }
+sha2 = "0.11"

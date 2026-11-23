@@ -134,6 +134,11 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         "read a desktop research group; not a route of the Python app",
     ),
     (
+        "GET",
+        "/api/research/work",
+        "the delegated work in its six listed states with holder, heartbeat, lease and whether anyone is listening; for Review; not a route of the Python app",
+    ),
+    (
         "POST",
         "/api/research/{id}/preview/{digest}",
         "preview an immutable result against the current album; not a route of the Python app",
@@ -189,6 +194,11 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         "the recent changes assistants applied, each with whether Undo would run now, for Settings -> Assistants; not a route of the Python app",
     ),
     (
+        "GET",
+        AGENT_DIAGNOSTICS_ROUTE,
+        "per pairing, four separate facts with times (paired, bridge reachable, subscription active, last work claimed) and what the host reported; for Settings -> Agents; not a route of the Python app",
+    ),
+    (
         "POST",
         AGENT_UNDO_ROUTE,
         "undo an assistant's applied change from its recorded before-image: only the person at the window can, and only while the album still holds what the change left; not a route of the Python app",
@@ -233,6 +243,26 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         agent_guard::TASK_CANCEL,
         "cancel an authenticated assistant task; not a route of the Python app",
     ),
+    (
+        "POST",
+        agent_guard::EVENTS_LIST,
+        "the delegated-work event types an agent may read; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::EVENTS_POLL,
+        "one poll of the delegated-work event history after a cursor, optionally waiting a bounded time; not a route of the Python app",
+    ),
+    (
+        "POST",
+        agent_guard::SESSION_OBSERVE,
+        "the agent CLI tells the app what its host negotiated (name, version, profile, extensions); diagnostics only; not a route of the Python app",
+    ),
+    (
+        "GET",
+        agent_guard::SESSION,
+        "the pairing's own stored host observation and subscription state, for `doctor`; not a route of the Python app",
+    ),
 ];
 
 /// The agent bridge's routes for the webview ([`EXTRA_ROUTES`]).
@@ -245,6 +275,7 @@ pub const AGENT_APPROVE_ROUTE: &str = "/api/agent/approvals/{approval_id}/approv
 pub const AGENT_DENY_ROUTE: &str = "/api/agent/approvals/{approval_id}/deny";
 pub const AGENT_CHANGES_ROUTE: &str = "/api/agent/changes";
 pub const AGENT_UNDO_ROUTE: &str = "/api/agent/changes/{change_id}/undo";
+pub const AGENT_DIAGNOSTICS_ROUTE: &str = "/api/agent/diagnostics";
 
 /// `GET` / `PUT /api/ui-prefs` ([`EXTRA_ROUTES`]).
 pub const UI_PREFS_ROUTE: &str = "/api/ui-prefs";
@@ -564,6 +595,7 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             "/api/ai/jobs/{job_id}/acted-on",
             post(jobs::mark_job_acted_on),
         )
+        .route("/api/research/work", get(jobs::research_work))
         .route("/api/research/groups/{group}", get(jobs::research_items))
         .route(
             "/api/research/{id}/preview/{digest}",
@@ -599,6 +631,7 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             get(agent::list_changes).query(&["pairing"]),
         )
         .route(AGENT_UNDO_ROUTE, post(agent::undo_change))
+        .route(AGENT_DIAGNOSTICS_ROUTE, get(agent::diagnostics))
         .route("/api/ai/queue/resume", post(jobs::resume_queue))
         .route("/api/ai/providers", get(jobs::ai_providers))
         .route("/", get(system::spa_root))

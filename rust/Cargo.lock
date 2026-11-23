@@ -2955,6 +2955,7 @@ dependencies = [
  "musaic-commands",
  "rmcp",
  "serde_json",
+ "sha2 0.11.1",
  "tokio",
 ]
 

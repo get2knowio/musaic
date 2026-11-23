@@ -146,6 +146,18 @@ fn type_text(schema: &Value, root: &Value) -> String {
     t
 }
 
+/// One tool's input and output as `name (type, required)` lines, for the
+/// skill's generated tool reference.
+pub(crate) fn tool_fields(t: &ToolDef) -> (Vec<String>, Vec<String>) {
+    let input = (t.input_schema)();
+    let output = (t.output_schema)();
+    let mut i = Vec::new();
+    properties(&input, &input, &mut i, 0);
+    let mut o = Vec::new();
+    properties(&output, &output, &mut o, 0);
+    (i, o)
+}
+
 /// The catalog as Markdown, with a trailing newline.
 pub fn catalog_markdown() -> String {
     let mut m = String::new();

@@ -11,6 +11,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   createAgentPairing,
   decideAgentApproval,
+  getAgentDiagnostics,
   listAgentActivity,
   listAgentApprovals,
   listAgentChanges,
@@ -31,6 +32,19 @@ export function useAgentPairings() {
   return useQuery({
     queryKey: ["agent", "pairings"],
     queryFn: listAgentPairings,
+    staleTime: Infinity, // AgentStateChanged keeps it fresh
+  });
+}
+
+/** The four facts per pairing. Refreshed by `AgentStateChanged(hosts)` and by
+ * the `work` family (a claim changes "last work claimed"); times shown are
+ * the time the backend recorded, so nothing here ticks on its own. */
+export const AGENT_DIAGNOSTICS_QUERY_KEY = ["agent", "diagnostics"] as const;
+
+export function useAgentDiagnostics() {
+  return useQuery({
+    queryKey: AGENT_DIAGNOSTICS_QUERY_KEY,
+    queryFn: getAgentDiagnostics,
     staleTime: Infinity, // AgentStateChanged keeps it fresh
   });
 }

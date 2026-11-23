@@ -80,6 +80,7 @@ afterEach(() => vi.unstubAllGlobals());
 function renderPanel() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["agent", "pairings"], [helper]);
+  qc.setQueryData(["agent", "diagnostics"], []);
   render(
     <QueryClientProvider client={qc}>
       <AgentsPanel />
