@@ -273,10 +273,13 @@ fn no_crate_opens_a_listener_beyond_the_loopback_server() {
                     let text = std::fs::read_to_string(&p).unwrap();
                     for needle in ["TcpListener::bind", "UdpSocket::bind", "UnixListener::bind"] {
                         if text.contains(needle) {
-                            hits.push(format!(
-                                "{} ({needle})",
-                                p.strip_prefix(&crates).unwrap().display()
-                            ));
+                            // One spelling on every platform.
+                            let rel = p
+                                .strip_prefix(&crates)
+                                .unwrap()
+                                .to_string_lossy()
+                                .replace('\\', "/");
+                            hits.push(format!("{rel} ({needle})"));
                         }
                     }
                 }

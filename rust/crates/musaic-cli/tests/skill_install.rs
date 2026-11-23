@@ -48,7 +48,8 @@ fn files_under(root: &Path) -> Vec<String> {
                         .strip_prefix(base)
                         .unwrap()
                         .to_string_lossy()
-                        .into_owned(),
+                        // One spelling on every platform.
+                        .replace('\\', "/"),
                 );
             }
         }
