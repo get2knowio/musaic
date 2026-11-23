@@ -1152,3 +1152,64 @@ export function decideResearch(item:ResearchItem, action:"apply"|"discard"|"retr
     method:"POST",body:JSON.stringify({revision:preview?.revision ?? item.revision,action,digest:item.digest,previewDigest:preview?.digest}),
   });
 }
+
+// --- Agent hosts and delegated work (spec 005) ---
+
+/** What a paired host reported about itself ("reported by the host"). */
+export interface AgentHostReport {
+  clientName: string;
+  clientVersion: string;
+  profile: string;
+  tasks: boolean;
+  skills: boolean;
+  events: boolean;
+  observedAt: string;
+}
+
+/** Four separate facts about one pairing, each with the time it was last
+ * true; none of them says "ready". */
+export interface AgentDiagnostics {
+  pairingId: string;
+  name: string;
+  scopes: AgentKind[];
+  revoked: boolean;
+  paired: { at: string };
+  reachable: { at: string | null };
+  subscription: { active: boolean; at: string | null };
+  lastClaim: { at: string | null; workId: string | null };
+  host: AgentHostReport | null;
+}
+
+export function getAgentDiagnostics(): Promise<AgentDiagnostics[]> {
+  return request("/api/agent/diagnostics");
+}
+
+export type DelegatedWorkState = "queued" | "claimed" | "running" | "awaiting_review" | "failed" | "cancelled";
+
+export interface DelegatedWorkItem {
+  workId: string;
+  albumId: string;
+  albumLabel: string | null;
+  kind: string;
+  state: DelegatedWorkState;
+  revision: number;
+  holder: string | null;
+  lastHeartbeatAt: string | null;
+  leaseExpiresAt: string | null;
+  attempts: number;
+  maxAttempts: number;
+  lastError: string | null;
+  waitingForAgent: boolean;
+}
+
+export function listDelegatedWork(): Promise<DelegatedWorkItem[]> {
+  return request("/api/research/work");
+}
+
+/** Retry failed or cancelled delegated work through the existing decision call. */
+export function retryDelegatedWork(item: Pick<DelegatedWorkItem, "workId" | "revision">) {
+  return request<{ ok: boolean }>(`/api/research/${encodeURIComponent(item.workId)}/decision`, {
+    method: "POST",
+    body: JSON.stringify({ revision: item.revision, action: "retry" }),
+  });
+}

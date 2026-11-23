@@ -39,6 +39,13 @@ Open an album and choose **Request assistant research**. Select metadata, cover 
 
 Open the album's research card in Review to inspect each recommendation, its sources, confidence and uncertainties. **Preview changes** compares the proposal with the current files. **Apply reviewed changes** applies that preview and records the previous values for Undo. **Discard result** closes the item. If verification needs a network lookup, reopen the preview when connected. Unsupported historical results remain available for inspection. A library switch or database restore invalidates old claims and previews.
 
+## Skills, events and your own host
+
+Musaic also serves a work-delegation skill and a history of delegated-work events over MCP, and
+shows what each connected host has done in **Settings, Agents** and **Review, Delegated work**.
+You connect and run your own agent; Musaic never starts one. See [mcp.md](mcp.md) for the
+profiles, the skill, `musaic-cli setup --skill`, events, cursors and the diagnostics.
+
 ## Follow a long-running tool call
 
 On the 2026-07-28 profile, hosts that declare Tasks support on a supported request receive a Task handle. Keep the operation ID as well. A host can reconnect and poll the same Task, respond to a pending input or request cancellation. Desktop approval is still required for a research proposal. Cancellation finishes at a safe boundary and preserves any changes already made. An interrupted file write requires a new preview before any remaining changes can be applied.
@@ -174,8 +181,9 @@ revoke pairings you no longer use.
 
 `musaic-cli doctor` prints one JSON document: the executable and version, the descriptor
 (`ok`, `absent`, `stale` or `invalid`), the pairing's status, its scopes, the transport and
-the MCP profiles the server speaks (`mcp-2026-07-28`, `mcp-2025-11-25`) and the extensions
-supported by the modern profile. It prints no secret and makes no tool call but `capabilities`. Exit code 0 means
+the MCP profiles the server speaks (`mcp-2026-07-28`, `mcp-2025-11-25`), the extensions
+the server offers (Tasks, Skills, Events), the installed skill version and what the host
+reported about itself. It prints no secret and makes no tool call but `capabilities`. Exit code 0 means
 healthy, 1 means a problem was found. For the other commands: 0 success, 2 a tool error,
 3 a transport error (app not running and similar), 64 usage.
 

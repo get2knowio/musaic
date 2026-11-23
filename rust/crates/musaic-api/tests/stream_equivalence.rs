@@ -669,3 +669,47 @@ async fn each_feeds_first_http_frame_is_the_rendering_of_its_first_value() {
         .expect("the relayed event");
     assert_eq!(next().await, render::system::library_event_frame(&event));
 }
+
+// ------------------------------------------------------- agent state events
+
+/// The `hosts` family of `AgentStateChanged` reaches the library-events
+/// stream as the rendering of what the operation's own subscription gets.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_hosts_event_is_relayed_as_the_rendering_of_the_bus_event() {
+    let w = World::new();
+    let ops_side = w.st.ops().system().library_events();
+    let resp = w
+        .app
+        .clone()
+        .oneshot(get("/api/library-events/stream"))
+        .await
+        .unwrap();
+    let mut body = resp.into_body();
+    let mut text = String::new();
+    async fn until(body: &mut Body, text: &mut String, needle: &str) {
+        while !text.contains(needle) {
+            let frame = tokio::time::timeout(Duration::from_secs(10), body.frame())
+                .await
+                .expect("a frame in time")
+                .expect("the stream stays open")
+                .unwrap();
+            if let Ok(data) = frame.into_data() {
+                text.push_str(&String::from_utf8_lossy(&data));
+            }
+        }
+    }
+    until(&mut body, &mut text, "event: ready").await;
+    w.st.bus().publish(&Event::AgentStateChanged {
+        what: musaic_events::AgentWhat::Hosts,
+        ids: vec!["pairing-1".into()],
+    });
+    let mine = tokio::task::spawn_blocking(move || ops_side.next(Duration::from_secs(10)))
+        .await
+        .unwrap()
+        .expect("the operation's subscription hears the event");
+    assert_eq!(mine.name(), "AgentStateChanged");
+    let frame = render::system::library_event_frame(&mine);
+    until(&mut body, &mut text, "AgentStateChanged").await;
+    assert!(text.contains(&frame), "{text}\nvs\n{frame}");
+    assert!(frame.contains(r#""what": "hosts""#), "{frame}");
+}

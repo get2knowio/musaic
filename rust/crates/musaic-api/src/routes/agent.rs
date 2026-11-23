@@ -19,7 +19,8 @@ use axum::extract::{Path as UrlPath, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use musaic_app::ops::agent::{
-    ActivityRecord, AgentError, ApprovalFilter, ApprovalRecord, ChangeRecord, PairingRecord,
+    ActivityRecord, AgentError, ApprovalFilter, ApprovalRecord, ChangeRecord, PairingDiagnostics,
+    PairingRecord,
 };
 use musaic_commands::auth::ExchangeRequest;
 use musaic_commands::{Decision, PermissionKind, ToolError, ToolErrorCode, parse_call};
@@ -38,7 +39,9 @@ fn status_of(code: ToolErrorCode) -> StatusCode {
         | ToolErrorCode::PairingRevoked
         | ToolErrorCode::InstanceMismatch => StatusCode::UNAUTHORIZED,
         ToolErrorCode::LockedOut => StatusCode::TOO_MANY_REQUESTS,
-        ToolErrorCode::Forbidden => StatusCode::FORBIDDEN,
+        ToolErrorCode::Forbidden | ToolErrorCode::EventForbidden => StatusCode::FORBIDDEN,
+        ToolErrorCode::EventNotFound => StatusCode::NOT_FOUND,
+        ToolErrorCode::EventLimit => StatusCode::TOO_MANY_REQUESTS,
         ToolErrorCode::Busy | ToolErrorCode::Restoring => StatusCode::CONFLICT,
         ToolErrorCode::Unavailable => StatusCode::SERVICE_UNAVAILABLE,
         ToolErrorCode::Internal => StatusCode::INTERNAL_SERVER_ERROR,
@@ -201,6 +204,60 @@ pub async fn task_cancel(
     body: Bytes,
 ) -> Response {
     task_result(move || st.ops().agent().task_cancel(&p, &task_request(&body)?)).await
+}
+
+pub async fn events_list(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+) -> Response {
+    task_result(move || st.ops().agent().events_list(&p)).await
+}
+
+pub async fn events_poll(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+    body: Bytes,
+) -> Response {
+    task_result(move || {
+        let params: musaic_commands::events::PollParams =
+            serde_json::from_slice(&body).map_err(|_| {
+                ToolError::new(ToolErrorCode::EventInvalid, "the poll request is malformed")
+            })?;
+        st.ops().agent().events_poll(&p, &params)
+    })
+    .await
+}
+
+pub async fn observe_host(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+    body: Bytes,
+) -> Response {
+    // A bad body is stored as nothing: this never fails a host's session.
+    let observation: Option<musaic_commands::events::HostObservation> =
+        serde_json::from_slice(&body).ok();
+    task_result(move || {
+        if let Some(observation) = observation {
+            st.ops().agent().observe_host(&p, &observation);
+        }
+        Ok(json!({}))
+    })
+    .await
+}
+
+pub async fn session_status(
+    State(st): State<AppState>,
+    Extension(Authed(p)): Extension<Authed>,
+) -> Response {
+    match blocking(move || st.ops().agent().session_status(&p)).await {
+        Ok(Ok(s)) => json_value(200, &json!({"ok": true, "result": s})),
+        Ok(Err(e)) => agent_family_error(e),
+        Err(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            ToolErrorCode::Internal,
+            "the request failed",
+        ),
+    }
 }
 
 // ------------------------------------------------------- /api/agent/*
@@ -448,6 +505,35 @@ async fn decide(st: AppState, approval_id: String, approve: bool) -> ApiResult {
             .decide_approval(&approval_id, approve)
             .map_err(api_error)?;
         ok_value(card_json(&card))
+    })
+    .await?
+}
+
+fn diagnostics_json(d: &PairingDiagnostics) -> Value {
+    let host = d.host.as_ref().map(|h| {
+        json!({
+            "clientName": h.client_name, "clientVersion": h.client_version,
+            "profile": h.profile, "tasks": h.tasks, "skills": h.skills,
+            "events": h.events, "observedAt": h.observed_at,
+        })
+    });
+    json!({
+        "pairingId": d.pairing_id,
+        "name": d.name,
+        "scopes": d.scopes.iter().map(|k| k.as_str()).collect::<Vec<_>>(),
+        "revoked": d.revoked,
+        "paired": {"at": d.paired_at},
+        "reachable": {"at": d.reachable_at},
+        "subscription": {"active": d.subscription_active, "at": d.subscription_at},
+        "lastClaim": {"at": d.last_claim_at, "workId": d.last_claim_work_id},
+        "host": host,
+    })
+}
+
+pub async fn diagnostics(State(st): State<AppState>) -> ApiResult {
+    blocking(move || {
+        let list = st.ops().agent().diagnostics().map_err(api_error)?;
+        ok_value(Value::Array(list.iter().map(diagnostics_json).collect()))
     })
     .await?
 }

@@ -38,6 +38,7 @@ use sha2::{Digest, Sha256};
 use super::error::OpError;
 use crate::App;
 pub use crate::agent::Principal;
+pub use crate::agent::hosts::{HostRecord, PairingDiagnostics};
 
 /// Pairings that may be active at once.
 pub const MAX_ACTIVE_PAIRINGS: i64 = 20;
@@ -501,6 +502,10 @@ impl Agent<'_> {
         let cards = crate::agent::deny_cards_of(app, &tx, id)?;
         tx.commit()?;
         app.0.agent.drop_tokens_of(id);
+        app.0.agent.forget_pairing(id);
+        let _ = musaic_db::agent_hosts::delete(&conn, id);
+        // Parked event polls re-check their pairing and answer Forbidden.
+        app.0.agent.notify_events();
         let cfg = config_id(app);
         let _ = musaic_secrets::agent::delete_secret(app.0.agent_secrets.as_ref(), &cfg, id);
         crate::agent::remove_dev_credential(app.config_dir(), id);
@@ -633,6 +638,7 @@ impl Agent<'_> {
                     let _ =
                         musaic_db::agent::insert_activity(&conn, &row.id, &now, "exchange", "ok");
                 }
+                crate::agent::hosts::announce(app, &row.id);
                 self.publish(AgentWhat::Activity, vec![row.id]);
                 Ok(ExchangeResponse {
                     token,
@@ -731,6 +737,54 @@ impl Agent<'_> {
         input: &musaic_commands::tools::task::TaskInput,
     ) -> Result<(), ToolError> {
         crate::agent::tasks::cancel(self.app, p, input)
+    }
+
+    /// The event types this app offers (`events/list`). The pairing must be
+    /// active and allowed to read work (`EVENT_FORBIDDEN` otherwise).
+    pub fn events_list(
+        &self,
+        p: &Principal,
+    ) -> Result<musaic_commands::events::ListResult, ToolError> {
+        crate::agent::events::events_list(self.app, p)
+    }
+
+    /// One poll of the delegated-work history after a cursor. With
+    /// `wait_ms` set and nothing to report it parks, holding no work guard
+    /// and no connection, until a delegation publish, a revocation, shutdown
+    /// or the wait ends, then looks once more. At most four polls of one
+    /// pairing park (`EVENT_LIMIT`).
+    pub fn events_poll(
+        &self,
+        p: &Principal,
+        params: &musaic_commands::events::PollParams,
+    ) -> Result<musaic_commands::events::PollResult, ToolError> {
+        crate::agent::events::events_poll(self.app, p, params)
+    }
+
+    /// Record what a paired host's stdio process reports. Never fails a
+    /// session: bad values are cleaned or dropped. Publishes
+    /// `AgentStateChanged(hosts)` when what is stored changed.
+    pub fn observe_host(
+        &self,
+        p: &Principal,
+        observation: &musaic_commands::events::HostObservation,
+    ) {
+        crate::agent::hosts::observe_host(self.app, p, observation);
+    }
+
+    /// The pairing's own stored host observation and subscription state, for
+    /// `doctor`.
+    pub fn session_status(
+        &self,
+        p: &Principal,
+    ) -> Result<musaic_commands::events::SessionStatus, AgentError> {
+        crate::agent::hosts::session_status(self.app, p)
+    }
+
+    /// Per pairing, four separate facts with times and what the host reported
+    /// (desktop only). Nothing here says "ready".
+    pub fn diagnostics(&self) -> Result<Vec<PairingDiagnostics>, AgentError> {
+        crate::agent::hosts::diagnostics(self.app)
     }
 
     // --------------------------------------------------- authorization
@@ -864,6 +918,16 @@ impl Agent<'_> {
     /// publishes [`AgentWhat::Changes`].
     pub fn undo_change(&self, change_id: &str) -> Result<UndoOutcome, AgentError> {
         crate::agent::undo::undo_change(self.app, change_id)
+    }
+
+    /// The app's periodic delegation upkeep: expire lapsed leases, publish
+    /// what is pending, drop event history older than seven days, and publish
+    /// the diagnostics refreshes that are owed (`AgentStateChanged(hosts)`: one
+    /// the rate limit held back, or a subscription that lapsed). The app calls
+    /// it every 30 seconds.
+    pub fn sweep_delegation(&self) {
+        crate::agent::delegation::tick(self.app);
+        crate::agent::hosts::flush(self.app);
     }
 
     /// Expire the cards whose time has come ("timed out"). The app calls it

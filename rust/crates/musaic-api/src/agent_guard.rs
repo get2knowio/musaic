@@ -44,6 +44,10 @@ pub const TASK_CREATE: &str = "/__musaic/agent/v1/tasks/create";
 pub const TASK_GET: &str = "/__musaic/agent/v1/tasks/get";
 pub const TASK_UPDATE: &str = "/__musaic/agent/v1/tasks/update";
 pub const TASK_CANCEL: &str = "/__musaic/agent/v1/tasks/cancel";
+pub const EVENTS_LIST: &str = "/__musaic/agent/v1/events/list";
+pub const EVENTS_POLL: &str = "/__musaic/agent/v1/events/poll";
+pub const SESSION_OBSERVE: &str = "/__musaic/agent/v1/session/observe";
+pub const SESSION: &str = "/__musaic/agent/v1/session";
 
 /// The largest request body.
 pub const MAX_BODY: usize = 256 * 1024;
@@ -58,6 +62,10 @@ pub const ROUTES: &[(&str, &str)] = &[
     ("POST", TASK_GET),
     ("POST", TASK_UPDATE),
     ("POST", TASK_CANCEL),
+    ("POST", EVENTS_LIST),
+    ("POST", EVENTS_POLL),
+    ("POST", SESSION_OBSERVE),
+    ("GET", SESSION),
 ];
 
 /// Who is on the other end of the connection and which port they reached.
@@ -223,6 +231,10 @@ pub fn agent_router(state: AppState) -> Router {
         .route(TASK_GET, on(MethodFilter::POST, agent::task_get))
         .route(TASK_UPDATE, on(MethodFilter::POST, agent::task_update))
         .route(TASK_CANCEL, on(MethodFilter::POST, agent::task_cancel))
+        .route(EVENTS_LIST, on(MethodFilter::POST, agent::events_list))
+        .route(EVENTS_POLL, on(MethodFilter::POST, agent::events_poll))
+        .route(SESSION_OBSERVE, on(MethodFilter::POST, agent::observe_host))
+        .route(SESSION, get(agent::session_status))
         .route_layer(middleware::from_fn_with_state(state.clone(), guard))
         .route_layer(middleware::from_fn(crate::tag_route))
         .fallback(|| async {

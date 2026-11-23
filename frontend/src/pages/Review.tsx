@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { BulkQuickFixDialog } from "@/components/BulkQuickFixDialog";
 import { ApprovalRow } from "@/components/ApprovalRow";
+import { DelegatedWork } from "@/components/DelegatedWork";
 import { FindingRow } from "@/components/FindingRow";
 import { SourceNotice } from "@/components/SourceNotice";
 import {
@@ -627,6 +628,7 @@ export default function ReviewPage() {
         </nav>
         <div ref={scroller} tabIndex={-1} className="flex-1 min-h-0 min-w-0 overflow-y-auto outline-none px-5 py-4">
           {detail()}
+          {view.kind === "inbox" && view.filter.kind === "all" && !album && <DelegatedWork />}
         </div>
       </div>
 

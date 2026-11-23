@@ -177,7 +177,7 @@ pub(crate) fn migrate_legacy(tx: &Transaction<'_>) -> Result<()> {
                  VALUES (?1,?2,?3,?4,?5,'',?6,'{}',?7,?8,?9,?9,?10,?11,?12)",
                 params![id,group,kind,album,epoch,state,digest,created,updated,DEFAULT_MAX_ATTEMPTS,error,legacy],
             )?;
-            record_change(tx, &epoch, Some(&id), None, "migrated", updated)?;
+            record_audit(tx, &epoch, Some(&id), None, "migrated", updated)?;
         }
     }
     Ok(())
@@ -212,6 +212,53 @@ pub fn list(conn: &Connection, filter: List<'_>) -> Result<Vec<WorkRow>> {
         ],
         work,
     )?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// The latest claim a principal made: when it started and which work.
+pub fn last_claim_of(conn: &Connection, principal: &str) -> Result<Option<(i64, String)>> {
+    Ok(conn
+        .query_row(
+            "SELECT started_at, work_id FROM work_attempts WHERE principal_id=?1
+             ORDER BY started_at DESC, generation DESC LIMIT 1",
+            [principal],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?)
+}
+
+/// One row of the desktop's delegated-work list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DesktopItem {
+    pub row: WorkRow,
+    /// The holder's pairing name while the work is claimed or running.
+    pub holder: Option<String>,
+    pub last_heartbeat_at: Option<i64>,
+}
+
+/// The six states the desktop lists for the current library epoch, held work
+/// first, newest first within a state. Missing albums are listed too: the
+/// list reads rows and touches no file.
+pub fn desktop_items(conn: &Connection) -> Result<Vec<DesktopItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT w.*, p.name AS holder_name, a.last_heartbeat_at AS heartbeat
+         FROM delegated_work w
+         LEFT JOIN agent_pairings p ON p.id=w.principal_id AND w.state IN ('claimed','running')
+         LEFT JOIN work_attempts a ON a.work_id=w.id AND a.generation=w.claim_generation
+              AND w.state IN ('claimed','running')
+         WHERE w.library_epoch=(SELECT epoch FROM library_epoch WHERE singleton=1)
+           AND w.state IN ('queued','claimed','running','awaiting_review','failed','cancelled')
+         ORDER BY CASE w.state WHEN 'running' THEN 0 WHEN 'claimed' THEN 1 WHEN 'queued' THEN 2
+                  WHEN 'awaiting_review' THEN 3 WHEN 'failed' THEN 4 ELSE 5 END,
+                  w.created_at DESC, w.id",
+    )?;
+    let rows = stmt.query_map([], |r| {
+        Ok(DesktopItem {
+            row: work(r)?,
+            holder: r.get("holder_name")?,
+            last_heartbeat_at: r.get("heartbeat")?,
+        })
+    })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
@@ -390,14 +437,16 @@ pub struct OutboxRow {
     pub operation_id: Option<String>,
 }
 
-pub fn record_change(
+/// Audit and notification only; no event-history row. The v21 -> v22 step
+/// uses it because the history tables do not exist yet at that point.
+pub(crate) fn record_audit(
     conn: &Connection,
     epoch: &str,
     work_id: Option<&str>,
     operation_id: Option<&str>,
     transition: &str,
     now: i64,
-) -> Result<()> {
+) -> Result<i64> {
     let sequence: i64 = conn.query_row(
         "INSERT INTO delegation_audit(library_epoch,work_id,operation_id,transition,recorded_at)
          VALUES (?1,?2,?3,?4,?5) RETURNING sequence",
@@ -408,6 +457,28 @@ pub fn record_change(
         "INSERT INTO delegation_outbox(sequence,library_epoch,work_id,operation_id) VALUES (?1,?2,?3,?4)",
         params![sequence,epoch,work_id,operation_id],
     )?;
+    Ok(sequence)
+}
+
+/// Commit the audit row, the notification reference and, when a work item is
+/// new or its stored state differs from the one its last event reported, one
+/// event-history row. All of it is in the caller's transaction, so a change
+/// and its event are never apart (FR-015). A change that leaves the state as
+/// it was (a renewal, a repeated progress report, a regrouping) writes no
+/// event. The event names the work's state and revision as stored now, so
+/// callers record after the update.
+pub fn record_change(
+    conn: &Connection,
+    epoch: &str,
+    work_id: Option<&str>,
+    operation_id: Option<&str>,
+    transition: &str,
+    now: i64,
+) -> Result<()> {
+    let sequence = record_audit(conn, epoch, work_id, operation_id, transition, now)?;
+    if let Some(id) = work_id {
+        crate::delegation_events::record(conn, sequence, epoch, id, now)?;
+    }
     Ok(())
 }
 
@@ -596,8 +667,8 @@ pub fn claim_with_context(
         ],
     )?;
     tx.execute(
-        "INSERT INTO work_attempts(work_id,generation,principal_id,lease_token_hash,started_at,expires_at)
-         VALUES (?1,?2,?3,?4,?5,?6)",
+        "INSERT INTO work_attempts(work_id,generation,principal_id,lease_token_hash,started_at,expires_at,last_heartbeat_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?5)",
         params![row.id,generation,claim.principal_id,claim.lease_token_hash,claim.now,expires],
     )?;
     record_change(
@@ -698,8 +769,8 @@ pub fn renew(conn: &Connection, lease: Lease<'_>) -> QueueResult<i64> {
         params![row.id,expires,lease.now],
     )?;
     tx.execute(
-        "UPDATE work_attempts SET expires_at=?3 WHERE work_id=?1 AND generation=?2",
-        params![row.id, lease.claim_generation, expires],
+        "UPDATE work_attempts SET expires_at=?3,last_heartbeat_at=?4 WHERE work_id=?1 AND generation=?2",
+        params![row.id, lease.claim_generation, expires, lease.now],
     )?;
     record_change(
         &tx,
@@ -724,7 +795,8 @@ pub fn progress(
         Err(refusal) => return Ok(Err(refusal)),
     };
     let n = tx.execute(
-        "UPDATE work_attempts SET progress_sequence=?3,stage=?4,completed=?5,total=?6,message=?7
+        "UPDATE work_attempts SET progress_sequence=?3,stage=?4,completed=?5,total=?6,message=?7,
+            last_heartbeat_at=?8
          WHERE work_id=?1 AND generation=?2 AND progress_sequence<?3",
         params![
             row.id,
@@ -733,7 +805,8 @@ pub fn progress(
             progress.stage,
             progress.completed,
             progress.total,
-            progress.message
+            progress.message,
+            lease.now
         ],
     )?;
     if n == 0 {
@@ -1407,6 +1480,9 @@ fn rotate_in(tx: &Transaction<'_>, root: Option<&str>, now: i64) -> Result<Strin
         "DELETE FROM delegation_outbox WHERE library_epoch<>?1",
         [&new],
     )?;
+    // The event history is per epoch too; a cursor of the old epoch is
+    // answered as truncated, so nothing needs the old rows.
+    crate::delegation_events::drop_other_epochs(tx, &new)?;
     record_change(tx, &new, None, None, "epoch_changed", now)?;
     Ok(new)
 }

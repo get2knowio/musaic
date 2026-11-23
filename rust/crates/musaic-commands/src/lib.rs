@@ -7,7 +7,9 @@ pub mod call;
 pub mod catalog;
 pub mod descriptor;
 pub mod errors;
+pub mod events;
 pub mod kinds;
+pub mod skill;
 pub mod tools;
 #[cfg(any(windows, test))]
 pub mod windows_acl;

@@ -313,6 +313,7 @@ impl Used {
 ///   and two named indexes, appended after D6's rows; v22 replaces the
 ///   changes table and adds an index for review lookup;
 /// * D9 (v22): the delegated work, operation, and Task schema, with legacy jobs mapped;
+///   v23 appends the delegation event history and host observation tables;
 /// * D4: `journal_mode` is `wal` on both sides (no delta; listed
 ///   so a change shows up here);
 /// * D5: the v14 step leaves an ignored
@@ -340,7 +341,7 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
     let tm = theirs["sqlite_master"].as_array().unwrap();
     assert_eq!(
         om.len(),
-        tm.len() + 5 + 14 + delegation_schema::OBJECTS.len(),
+        tm.len() + 5 + 14 + delegation_schema::OBJECTS.len() + delegation_schema::V23_OBJECTS.len(),
         "v{v} sqlite_master length"
     );
     for (o, t) in om.iter().zip(tm) {
@@ -412,7 +413,11 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         "v{v} D8"
     );
     used.hit("D8");
-    for (row, (ty, name, table)) in om[tm.len() + 19..].iter().zip(delegation_schema::OBJECTS) {
+    for (row, (ty, name, table)) in om[tm.len() + 19..].iter().zip(
+        delegation_schema::OBJECTS
+            .iter()
+            .chain(delegation_schema::V23_OBJECTS),
+    ) {
         assert_eq!(
             row.as_array().unwrap()[..3],
             [json!(ty), json!(name), json!(table)]
@@ -428,6 +433,9 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         *n != "fingerprint_rejects"
             && *n != "check_inputs"
             && !n.starts_with("agent_")
+            && !delegation_schema::V23_OBJECTS
+                .iter()
+                .any(|(ty, name, _)| *ty == "table" && *name == n.as_str())
             && !delegation_schema::OBJECTS
                 .iter()
                 .any(|(ty, name, _)| *ty == "table" && *name == n.as_str())

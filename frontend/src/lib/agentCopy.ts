@@ -99,3 +99,34 @@ export function timeLeftText(expiresAt: string, now: number = Date.now()): strin
   const h = Math.floor(min / 60);
   return `${h} h ${min % 60} min left`;
 }
+
+/** "3 minutes ago" for a time the backend recorded, or "never". The page
+ * shows the time it was last true; it does not tick on its own. */
+export function ago(iso: string | null | undefined, now: Date = new Date()): string {
+  if (!iso) return "never";
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return iso;
+  const secs = Math.max(0, Math.round((now.getTime() - t) / 1000));
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} ${mins === 1 ? "minute" : "minutes"} ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours} ${hours === 1 ? "hour" : "hours"} ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+/** The four facts Settings shows for each pairing, in this order. */
+export const AGENT_FACT_LABEL = {
+  paired: "Paired",
+  reachable: "Bridge reachable",
+  subscription: "Subscription active",
+  claimed: "Last work claimed",
+} as const;
+
+/** What to tell an agent so it processes waiting work when the person asks. */
+export const PROCESS_PENDING_INSTRUCTIONS =
+  "Process pending Musaic work using the musaic-work-delegation skill: call musaic_capabilities, list queued work with musaic_work_list, then get, claim, research and complete each item.";
+
+/** Why Musaic cannot say "ready": what each fact does and does not show. */
+export const AGENT_FACTS_NOTE =
+  "These are separate facts, each with the time it was last true. Musaic does not know whether the assistant will act on waiting work unless it is listening now.";

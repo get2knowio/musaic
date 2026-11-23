@@ -68,6 +68,8 @@ pub enum AgentWhat {
     Changes,
     Work,
     Operations,
+    /// What a paired host negotiated or last did changed (diagnostics).
+    Hosts,
 }
 
 impl AgentWhat {
@@ -79,6 +81,7 @@ impl AgentWhat {
             AgentWhat::Changes => "changes",
             AgentWhat::Work => "work",
             AgentWhat::Operations => "operations",
+            AgentWhat::Hosts => "hosts",
         }
     }
 
@@ -90,6 +93,7 @@ impl AgentWhat {
             AgentWhat::Changes,
             AgentWhat::Work,
             AgentWhat::Operations,
+            AgentWhat::Hosts,
         ]
         .into_iter()
         .find(|w| w.as_str() == s)

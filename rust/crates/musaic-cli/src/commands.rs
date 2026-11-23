@@ -97,10 +97,15 @@ pub fn tools() -> Outcome {
 
 /// `doctor`.
 pub fn doctor(client: &Client, config_dir: &Path) -> Outcome {
+    doctor_with(client, config_dir, &crate::setup::HostPaths::from_env())
+}
+
+/// `doctor` with the host locations given (tests use a temporary home).
+pub fn doctor_with(client: &Client, config_dir: &Path, paths: &crate::setup::HostPaths) -> Outcome {
     let exe = std::env::current_exe()
         .map(|p| p.display().to_string())
         .unwrap_or_else(|_| "musaic-cli".into());
-    let (json, healthy) = crate::doctor::report(client, config_dir, &exe);
+    let (json, healthy) = crate::doctor::report(client, config_dir, &exe, paths);
     Outcome {
         json,
         code: if healthy { EXIT_OK } else { EXIT_PROBLEMS },

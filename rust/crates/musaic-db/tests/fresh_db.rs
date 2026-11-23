@@ -174,10 +174,29 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
         ("index", "sqlite_autoindex_agent_changes_1", "agent_changes"),
         ("index", "agent_changes_proposal", "agent_changes"),
     ];
+    // v23: the delegation event history and host observations (one
+    // migration; the ALTER of work_attempts adds no sqlite_master row).
+    let v23: &[(&str, &str, &str)] = &[
+        ("table", "delegation_events", "delegation_events"),
+        ("index", "delegation_events_epoch", "delegation_events"),
+        ("index", "delegation_events_age", "delegation_events"),
+        ("index", "delegation_events_work", "delegation_events"),
+        ("table", "delegation_event_state", "delegation_event_state"),
+        (
+            "table",
+            "agent_host_observations",
+            "agent_host_observations",
+        ),
+        (
+            "index",
+            "sqlite_autoindex_agent_host_observations_1",
+            "agent_host_observations",
+        ),
+    ];
     let mut used = vec![false; changed.len()];
     assert_eq!(
         ours.len(),
-        theirs.len() + added.len() + delegation_schema::OBJECTS.len()
+        theirs.len() + added.len() + delegation_schema::OBJECTS.len() + v23.len()
     );
     for (o, t) in ours.iter().zip(&theirs) {
         assert_eq!(
@@ -205,7 +224,7 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
     );
     for (o, (ty, name, table)) in ours[theirs.len()..]
         .iter()
-        .zip(added.iter().chain(delegation_schema::OBJECTS))
+        .zip(added.iter().chain(delegation_schema::OBJECTS).chain(v23))
     {
         assert_eq!((o.0.as_str(), o.1.as_str()), (*ty, *name));
         assert_eq!(o.2, *table);

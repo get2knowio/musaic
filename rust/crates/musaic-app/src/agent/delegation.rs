@@ -469,6 +469,8 @@ pub(crate) fn publish_pending(app: &App, conn: &Connection) {
         }
         if batch.iter().any(|row| row.work_id.is_some()) {
             app.ai_jobs_changed();
+            // Wake parked event polls; they read the table, not this batch.
+            app.0.agent.notify_events();
         }
         if let Some(last) = batch.last() {
             db::ack_outbox(conn, &last.library_epoch, last.sequence)?;
@@ -488,6 +490,7 @@ pub(crate) fn tick(app: &App) {
         let conn = musaic_db::open_connection(app.db_path())?;
         db::expire(&conn, now_ms(app))?;
         publish_pending(app, &conn);
+        crate::agent::events::prune(app, &conn);
         Ok(())
     })();
     if let Err(error) = result {

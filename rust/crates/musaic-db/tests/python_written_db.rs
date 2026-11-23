@@ -532,10 +532,12 @@ fn delegation_tables(conn: &Connection) -> Vec<(String, i64)> {
         .unwrap();
     delegation_schema::OBJECTS
         .iter()
+        .chain(delegation_schema::V23_OBJECTS)
         .filter(|(ty, _, _)| *ty == "table")
         .map(|(_, table, _)| {
             let expected = match *table {
-                "library_epoch" => 1,
+                // The v23 singletons are seeded by the migration.
+                "library_epoch" | "delegation_event_state" => 1,
                 "delegated_work" | "delegation_audit" | "delegation_outbox" => children,
                 _ => 0,
             };
@@ -699,8 +701,9 @@ fn v20_is_migrated_to_current_without_a_backup() {
     {
         let (db, _) = Db::open_or_create(&path).unwrap();
         let c = db.connection();
-        for (_, table, _) in delegation_schema::OBJECTS
+        for (_, table, _) in delegation_schema::V23_OBJECTS
             .iter()
+            .chain(delegation_schema::OBJECTS)
             .rev()
             .filter(|(ty, _, _)| *ty == "table")
         {

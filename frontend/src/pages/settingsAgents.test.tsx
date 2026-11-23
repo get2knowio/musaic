@@ -49,6 +49,7 @@ afterEach(() => vi.unstubAllGlobals());
 function renderPanel(pairings: AgentPairing[] | null) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   if (pairings) qc.setQueryData(["agent", "pairings"], pairings);
+  qc.setQueryData(["agent", "diagnostics"], []);
   render(
     <QueryClientProvider client={qc}>
       <AgentsPanel />
@@ -180,5 +181,95 @@ describe("Assistants section", () => {
     expect(list.textContent).toContain("Refused (forbidden)");
     expect(list.textContent).toContain("Done");
     expect(list.textContent).toContain("musaic_albums_list");
+  });
+});
+
+describe("Assistant diagnostics", () => {
+  const base = {
+    pairingId: "p1",
+    name: "Helper",
+    scopes: ["library.read"],
+    revoked: false,
+    paired: { at: "2026-11-23T10:00:00Z" },
+    reachable: { at: null },
+    subscription: { active: false, at: null },
+    lastClaim: { at: null, workId: null },
+    host: null,
+  };
+
+  function renderWith(diagnostics: unknown) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(["agent", "pairings"], [helper]);
+    qc.setQueryData(["agent", "diagnostics"], diagnostics);
+    render(
+      <QueryClientProvider client={qc}>
+        <AgentsPanel />
+      </QueryClientProvider>,
+    );
+    return qc;
+  }
+
+  it("a pairing that never connected shows Paired and nothing else", () => {
+    renderWith([base]);
+    const list = document.querySelector("dl[aria-label='What Helper has done']")!;
+    const text = list.textContent ?? "";
+    expect(text).toContain("Paired");
+    expect(text).toContain("Bridge reachable");
+    expect(text).toMatch(/Bridge reachable\s*not yet/);
+    expect(text).toMatch(/Subscription active\s*no/);
+    expect(text).toMatch(/Last work claimed\s*never/);
+    expect(text).not.toContain("Host");
+  });
+
+  it("never says ready, and shows the host as reported by the host", () => {
+    renderWith([
+      {
+        ...base,
+        reachable: { at: new Date().toISOString() },
+        subscription: { active: true, at: new Date().toISOString() },
+        host: {
+          clientName: "Some Host",
+          clientVersion: "1.2",
+          profile: "2026-07-28",
+          tasks: true,
+          skills: false,
+          events: true,
+          observedAt: new Date().toISOString(),
+        },
+      },
+    ]);
+    const body = document.body.textContent ?? "";
+    expect(body.toLowerCase()).not.toContain("ready");
+    expect(body).toContain("Some Host 1.2");
+    expect(body).toContain("reported by the host");
+    expect(body).toContain("protocol 2026-07-28");
+    expect(body).toContain("extensions: Tasks, Events");
+    expect(body).toMatch(/Subscription active\s*yes, listening now/);
+    // Listening: no instructions needed.
+    expect(screen.queryByRole("button", { name: "Process pending Musaic work" })).toBeNull();
+  });
+
+  it("offers the Process pending Musaic work disclosure with the keyboard when nobody is listening", () => {
+    renderWith([base]);
+    const button = screen.getByRole("button", { name: "Process pending Musaic work" });
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    button.focus();
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByText(/Process pending Musaic work using the musaic-work-delegation skill/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
+  });
+
+  it("a revoked pairing has no diagnostics", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(["agent", "pairings"], [old]);
+    qc.setQueryData(["agent", "diagnostics"], [{ ...base, pairingId: "p2", name: "Old one", revoked: true }]);
+    render(
+      <QueryClientProvider client={qc}>
+        <AgentsPanel />
+      </QueryClientProvider>,
+    );
+    expect(document.querySelector("dl")).toBeNull();
   });
 });

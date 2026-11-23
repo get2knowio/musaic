@@ -98,6 +98,22 @@
       "transport": false
     },
     {
+      "code": "EVENT_NOT_FOUND",
+      "transport": false
+    },
+    {
+      "code": "EVENT_FORBIDDEN",
+      "transport": false
+    },
+    {
+      "code": "EVENT_LIMIT",
+      "transport": false
+    },
+    {
+      "code": "EVENT_INVALID",
+      "transport": false
+    },
+    {
       "code": "APP_NOT_RUNNING",
       "transport": true
     },
@@ -1507,6 +1523,10 @@
                   "RATE_LIMITED",
                   "TASK_EXPIRED",
                   "INTERNAL",
+                  "EVENT_NOT_FOUND",
+                  "EVENT_FORBIDDEN",
+                  "EVENT_LIMIT",
+                  "EVENT_INVALID",
                   "APP_NOT_RUNNING",
                   "DESCRIPTOR_INVALID",
                   "NOT_PAIRED",
@@ -1871,6 +1891,10 @@
                   "RATE_LIMITED",
                   "TASK_EXPIRED",
                   "INTERNAL",
+                  "EVENT_NOT_FOUND",
+                  "EVENT_FORBIDDEN",
+                  "EVENT_LIMIT",
+                  "EVENT_INVALID",
                   "APP_NOT_RUNNING",
                   "DESCRIPTOR_INVALID",
                   "NOT_PAIRED",
@@ -2243,6 +2267,10 @@
                   "RATE_LIMITED",
                   "TASK_EXPIRED",
                   "INTERNAL",
+                  "EVENT_NOT_FOUND",
+                  "EVENT_FORBIDDEN",
+                  "EVENT_LIMIT",
+                  "EVENT_INVALID",
                   "APP_NOT_RUNNING",
                   "DESCRIPTOR_INVALID",
                   "NOT_PAIRED",
@@ -2586,6 +2614,10 @@
                   "RATE_LIMITED",
                   "TASK_EXPIRED",
                   "INTERNAL",
+                  "EVENT_NOT_FOUND",
+                  "EVENT_FORBIDDEN",
+                  "EVENT_LIMIT",
+                  "EVENT_INVALID",
                   "APP_NOT_RUNNING",
                   "DESCRIPTOR_INVALID",
                   "NOT_PAIRED",

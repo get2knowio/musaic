@@ -75,6 +75,12 @@ fn upgrades_every_legacy_state_grouped_once_and_retains_raw_history() {
     let (dir, db) = db();
     let file = dir.path().join("library.db");
     let conn = db.connection();
+    // The v23 tables arrived after this upgrade path; a v21 file has none.
+    conn.execute_batch(
+        "DROP TABLE delegation_events; DROP TABLE delegation_event_state;
+         DROP TABLE agent_host_observations;",
+    )
+    .unwrap();
     for (_, name, _) in delegation_schema::OBJECTS
         .iter()
         .rev()

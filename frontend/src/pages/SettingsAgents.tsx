@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   useAgentActivity,
   useAgentChanges,
+  useAgentDiagnostics,
   useAgentPairings,
   useCreateAgentPairing,
   useRevokeAgentPairing,
@@ -21,7 +22,16 @@ import {
   type AgentPairing,
   type AgentPairingCreated,
 } from "@/lib/api";
-import { AGENT_DECISION_LABEL, AGENT_KIND_LABEL, decisionsFor, outcomeText } from "@/lib/agentCopy";
+import {
+  AGENT_DECISION_LABEL,
+  AGENT_FACTS_NOTE,
+  AGENT_FACT_LABEL,
+  AGENT_KIND_LABEL,
+  PROCESS_PENDING_INSTRUCTIONS,
+  ago,
+  decisionsFor,
+  outcomeText,
+} from "@/lib/agentCopy";
 import { errorText } from "@/lib/errors";
 
 /** Read and propose are the safe starting scopes; the rest are opt-in. */
@@ -231,6 +241,7 @@ function PairingRow({ pairing, onRevoke }: { pairing: AgentPairing; onRevoke: ()
         <span className="mx-1.5">·</span>Paired {when(pairing.createdAt)}
         <span className="mx-1.5">·</span>Last used {when(pairing.lastUsedAt)}
       </div>
+      {!isRevoked && <Diagnostics pairing={pairing} />}
       {!isRevoked && (
         <div role="group" aria-label={`Permissions for ${pairing.name}`} className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-1 items-center text-sm">
           {AGENT_KINDS.map((kind) => {
@@ -286,6 +297,94 @@ function PairingRow({ pairing, onRevoke }: { pairing: AgentPairing; onRevoke: ()
         {changesOpen && <ChangesList pairing={pairing} />}
       </div>
     </li>
+  );
+}
+
+/** Four separate facts about the pairing, each with when it was last true,
+ * and what the host reported about itself. There is no single "ready": the
+ * facts say what has happened, not what will. */
+function Diagnostics({ pairing }: { pairing: AgentPairing }) {
+  const diagnostics = useAgentDiagnostics();
+  const [copied, setCopied] = useState(false);
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
+  const d = Array.isArray(diagnostics.data) ? diagnostics.data.find((x) => x.pairingId === pairing.id) : undefined;
+  if (diagnostics.isError && !diagnostics.data) {
+    return <p className="text-xs text-fg-3">Couldn't load what this assistant has done.</p>;
+  }
+  if (!d) return null;
+  const facts: [string, string][] = [
+    [AGENT_FACT_LABEL.paired, ago(d.paired.at)],
+    [AGENT_FACT_LABEL.reachable, d.reachable.at ? ago(d.reachable.at) : "not yet"],
+    [
+      AGENT_FACT_LABEL.subscription,
+      d.subscription.active ? "yes, listening now" : d.subscription.at ? `no (last listened ${ago(d.subscription.at)})` : "no",
+    ],
+    [AGENT_FACT_LABEL.claimed, d.lastClaim.at ? ago(d.lastClaim.at) : "never"],
+  ];
+  const host = d.host;
+  const extensions = host
+    ? [host.tasks && "Tasks", host.skills && "Skills", host.events && "Events"].filter(Boolean).join(", ") || "none"
+    : "";
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(PROCESS_PENDING_INSTRUCTIONS);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  };
+  return (
+    <div className="space-y-1.5" data-diagnostics={pairing.id}>
+      <dl aria-label={`What ${pairing.name} has done`} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
+        {facts.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-fg-3">{label}</dt>
+            <dd className="text-fg-2">{value}</dd>
+          </div>
+        ))}
+        {host && (
+          <>
+            <dt className="text-fg-3">Host</dt>
+            <dd className="text-fg-2">
+              {host.clientName || "unnamed"} {host.clientVersion} <span className="text-fg-4">(reported by the host)</span>
+              {host.profile && <span className="ml-1.5">· protocol {host.profile}</span>}
+              <span className="ml-1.5">· extensions: {extensions}</span>
+            </dd>
+          </>
+        )}
+      </dl>
+      <p className="text-xs text-fg-4">{AGENT_FACTS_NOTE}</p>
+      {!d.subscription.active && (
+        <>
+          <button
+            type="button"
+            onClick={() => setInstructionsOpen((o) => !o)}
+            aria-expanded={instructionsOpen}
+            aria-controls={`pending-${pairing.id}`}
+            className="inline-flex items-center gap-1 text-xs text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent rounded-sm"
+          >
+            {instructionsOpen ? <ChevronDown className="w-3 h-3" aria-hidden /> : <ChevronRight className="w-3 h-3" aria-hidden />}
+            Process pending Musaic work
+          </button>
+          <div id={`pending-${pairing.id}`} hidden={!instructionsOpen} className="space-y-1.5">
+            {instructionsOpen && (
+              <>
+                <p className="text-xs text-fg-2">
+                  This assistant is not listening for new work. Ask it to start with these words, or set up
+                  your assistant's own schedule or hook if you want it to check regularly:
+                </p>
+                <pre className="mono text-xs bg-panel rounded border border-line px-2 py-1.5 whitespace-pre-wrap select-all">
+                  {PROCESS_PENDING_INSTRUCTIONS}
+                </pre>
+                <button type="button" onClick={() => void copy()} className={BUTTON}>
+                  {copied ? "Copied" : "Copy"}
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

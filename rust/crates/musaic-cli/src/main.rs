@@ -46,9 +46,13 @@ struct SetupArgs {
     /// Print what would change and change nothing.
     #[arg(long)]
     dry_run: bool,
-    /// claude-desktop, claude-code or all.
-    #[arg(long, default_value = "all")]
-    host: String,
+    /// claude-desktop, claude-code or all (with --skill: claude-code).
+    #[arg(long)]
+    host: Option<String>,
+    /// Install (or with `uninstall`, remove) the bundled work-delegation skill
+    /// in the host's skills directory instead of the MCP entry.
+    #[arg(long)]
+    skill: bool,
 }
 
 #[derive(Subcommand)]
@@ -161,13 +165,17 @@ fn main() {
                 eprintln!("cannot find the docs directory; pass --dir");
                 std::process::exit(EXIT_USAGE);
             };
-            match catalog_cmd::run(mode, &dir) {
+            let skill = catalog_cmd::skill_dir_beside(&dir);
+            match catalog_cmd::run_all(mode, &dir, skill.as_deref()) {
                 Ok(r) if r.is_clean() => {}
                 Ok(r) => {
                     for f in &r.differing {
-                        eprintln!("{}: differs from the code", dir.join(f).display());
+                        eprintln!("{f}: differs from the code");
                     }
-                    if mode == catalog_cmd::Mode::Check {
+                    for n in &r.notes {
+                        eprintln!("{n}");
+                    }
+                    if mode == catalog_cmd::Mode::Check || !r.notes.is_empty() {
                         std::process::exit(1);
                     }
                 }
@@ -183,10 +191,19 @@ fn main() {
         }
         Command::Setup(a) | Command::Uninstall(a) => {
             let uninstall = matches!(cli.command, Command::Uninstall(_));
+            if a.skill {
+                let so = musaic_cli::skill_install::SkillOptions {
+                    dry_run: a.dry_run,
+                    host: a.host.clone().unwrap_or_else(|| "claude-code".into()),
+                    uninstall,
+                    paths: musaic_cli::setup::HostPaths::from_env(),
+                };
+                emit(musaic_cli::skill_install::run(&so));
+            }
             let mut opts =
                 musaic_cli::setup::Options::new(musaic_cli::setup::HostPaths::from_env());
             opts.dry_run = a.dry_run;
-            opts.host = a.host.clone();
+            opts.host = a.host.clone().unwrap_or_else(|| "all".into());
             opts.uninstall = uninstall;
             // Only a config dir given explicitly goes into the entry.
             opts.config_dir = cli.config_dir.clone();
@@ -222,6 +239,9 @@ fn main() {
                 });
             let backend: Arc<dyn musaic_mcp::Backend> = Arc::new(client);
             let r = rt.block_on(musaic_mcp::serve_stdio(backend, env!("CARGO_PKG_VERSION")));
+            // A waiting events poll can still be parked in a blocking thread
+            // (up to 25 s); the host has gone, so do not wait for it.
+            rt.shutdown_timeout(std::time::Duration::from_secs(1));
             if let Err(e) = r {
                 eprintln!("mcp: {e}");
                 std::process::exit(1);

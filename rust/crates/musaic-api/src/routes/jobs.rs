@@ -279,6 +279,10 @@ pub async fn ai_providers(State(st): State<AppState>) -> ApiResult {
     .await?
 }
 
+pub async fn research_work(State(st): State<AppState>) -> ApiResult {
+    blocking(move || crate::http::ok_value(json!(st.ops().jobs().delegated_work()?))).await?
+}
+
 pub async fn research_items(
     State(st): State<AppState>,
     UrlPath(group): UrlPath<String>,

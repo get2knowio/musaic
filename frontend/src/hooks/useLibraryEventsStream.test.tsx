@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLibraryEventsStream } from "@/hooks/useLibraryEventsStream";
+import { DELEGATED_WORK_QUERY_KEY } from "@/hooks/useDelegatedWork";
 import { MockEventSource } from "@/test/setup";
 
 function setup() {
@@ -175,7 +176,7 @@ describe("useLibraryEventsStream", () => {
   it("refreshes research and the jobs cache when submitted work changes", () => {
     const { invalidate, es } = setup();
     es.emit("AgentStateChanged", { what: "work", ids: ["item"] });
-    expect(keysOf(invalidate)).toEqual([["research"], ["jobs"]]);
+    expect(keysOf(invalidate)).toEqual([["research"], ["jobs"], ["agent", "diagnostics"]]);
   });
 
   it("AgentStateChanged invalidates only the named agent family", () => {
@@ -187,6 +188,8 @@ describe("useLibraryEventsStream", () => {
     expect(keysOf(invalidate)).toEqual([
       ["agent", "approvals"],
       ["agent", "pairings"],
+      // A new pairing's facts are shown before its host connects.
+      ["agent", "diagnostics"],
       ["agent", "activity"],
       ["agent", "changes"],
     ]);
@@ -197,6 +200,21 @@ describe("useLibraryEventsStream", () => {
     const { invalidate, es } = setup();
     es.emit("AgentStateChanged", { what: "other", ids: [] });
     expect(keysOf(invalidate)).toEqual([["agent"]]);
+  });
+
+  it("AgentStateChanged hosts refreshes the diagnostics and the delegated-work list", () => {
+    const { invalidate, es } = setup();
+    es.emit("AgentStateChanged", { what: "hosts", ids: ["p1"] });
+    // "Waiting for an agent" depends on whether anyone is listening.
+    expect(keysOf(invalidate)).toEqual([["agent", "diagnostics"], ["research", "work"]]);
+  });
+
+  it("AgentStateChanged work refreshes research (the delegated-work list) and the diagnostics", () => {
+    const { invalidate, es } = setup();
+    es.emit("AgentStateChanged", { what: "work", ids: ["w1"] });
+    expect(keysOf(invalidate)).toEqual([["research"], ["jobs"], ["agent", "diagnostics"]]);
+    // The delegated-work list sits under the key that is invalidated.
+    expect(DELEGATED_WORK_QUERY_KEY.slice(0, 1)).toEqual(["research"]);
   });
 
   it("SettingsChanged refreshes the settings, the AcoustID prompt and the UI preferences", () => {
