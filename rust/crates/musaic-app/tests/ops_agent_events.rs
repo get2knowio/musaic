@@ -7,10 +7,12 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::{AgentWorld, agent_world_scanned};
+use musaic_app::ops::Listening;
 use musaic_app::ops::agent::Principal;
+use musaic_app::ops::apply::{ApplyChanges, ApplyEvent, ApplyOutcome, TagEvent};
 use musaic_commands::auth::hex_encode;
 use musaic_commands::events::{
-    EVENT_REQUESTED, EVENT_UPDATED, EventArguments, PollParams, PollResult,
+    EVENT_REQUESTED, EVENT_UPDATED, EventArguments, MAX_WAIT_MS, PollParams, PollResult,
 };
 use musaic_commands::tools::work::{WorkKind, WorkState};
 use musaic_commands::{Decision, PermissionKind as K, ToolErrorCode as Code};
@@ -392,12 +394,69 @@ fn a_poll_without_news_ends_at_its_wait() {
     assert!(started.elapsed() >= Duration::from_millis(900));
 }
 
+/// One step of an apply as a letter, so two runs can be compared step by step.
+fn step(e: &ApplyEvent) -> char {
+    match e {
+        ApplyEvent::Tags(TagEvent::Start { .. }) => 'S',
+        ApplyEvent::Tags(TagEvent::FileStarted { .. }) => 'f',
+        ApplyEvent::Tags(TagEvent::FileDone(_)) => 'd',
+        ApplyEvent::Tags(TagEvent::FileRenamed { .. }) => 'r',
+        ApplyEvent::Tags(TagEvent::Done { .. }) => 'D',
+        ApplyEvent::UpdatedAlbum(_) => 'U',
+        other => panic!("unexpected {other:?}"),
+    }
+}
+
+/// A year apply on `album` run to its end: its steps, once the work guard is
+/// released and the background subscribers it woke have drained.
+fn apply_year(w: &AgentWorld, album: &str, year: &str) -> String {
+    let changes = ApplyChanges {
+        suggestions: vec![("year".into(), year.into())],
+        ..Default::default()
+    };
+    let mut steps = String::new();
+    let outcome = w
+        .app
+        .ops()
+        .apply()
+        .apply_changes(album, &changes, &mut |e| {
+            steps.push(step(&e));
+            Listening::Yes
+        })
+        .unwrap();
+    assert_eq!(outcome, ApplyOutcome::Finished);
+    assert!(w.app.bus().wait_background_idle(Duration::from_secs(30)));
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while w.app.gate().snapshot() != (0, false) {
+        assert!(Instant::now() < deadline, "the work guard was released");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    steps
+}
+
+/// The album's stored year.
+fn stored_year(w: &AgentWorld, album: &str) -> Option<String> {
+    let albums = w.app.ops().library().list_albums(false).unwrap().albums;
+    let a = albums.iter().find(|a| a.id() == album).unwrap();
+    a.iter()
+        .find(|(k, _)| *k == "year")
+        .and_then(|(_, v)| v.as_str().map(str::to_string))
+}
+
 #[test]
 fn the_fifth_waiting_poll_is_refused_and_parked_polls_delay_nothing() {
     let w = Arc::new(agent_world_scanned());
     let alice = researcher(&w, "Alice");
+    let album = w.app.ops().library().list_albums(false).unwrap().albums[0]
+        .id()
+        .to_string();
+    // The same apply with no poll parked, to compare against.
+    let alone = apply_year(&w, &album, "2031");
+    assert!(alone.starts_with('S') && alone.ends_with("DU"), "{alone}");
     let cursor = head(&w, &alice);
-    let parked: Vec<_> = (0..4).map(|_| waiting(&w, &alice, 8_000)).collect();
+    // The longest wait a poll may ask for, so only the revocation below ends
+    // them and "still parked" never depends on how fast this machine is.
+    let parked: Vec<_> = (0..4).map(|_| waiting(&w, &alice, MAX_WAIT_MS)).collect();
     // Give the four time to park: the fifth is refused at once.
     std::thread::sleep(Duration::from_millis(1_500));
     let mut fifth = params(EVENT_REQUESTED, Some(&cursor));
@@ -412,14 +471,24 @@ fn the_fifth_waiting_poll_is_refused_and_parked_polls_delay_nothing() {
         .code;
     assert!(started.elapsed() < Duration::from_secs(2));
     assert_eq!(code, Code::EventLimit);
-    // A concurrent tool call and a library scan are not delayed by them.
+    // A concurrent tool call, an album apply and a library scan are not
+    // delayed by them: each runs to its end while all four are still parked.
     let t = Instant::now();
     w.call(&alice, "musaic_work_list", json!({})).unwrap();
     assert!(t.elapsed() < Duration::from_secs(5));
     assert!(parked.iter().all(|h| !h.is_finished()), "still parked");
+    // The apply's events wake the parked polls, which find nothing for them
+    // and park again; the apply takes the same steps as with none parked.
+    let beside = apply_year(&w, &album, "2032");
+    assert_eq!(beside, alone, "the same run with four polls parked");
+    assert_eq!(stored_year(&w, &album).as_deref(), Some("2032"));
+    assert!(parked.iter().all(|h| !h.is_finished()), "still parked");
     let n = w.app.ops().scan().subscribe(false).unwrap().count();
     assert!(n > 2, "a scan ran to its end while four polls were parked");
     assert!(parked.iter().all(|h| !h.is_finished()), "still parked");
+    // Still four waiting: neither the apply nor the scan freed a slot.
+    let again = w.app.ops().agent().events_poll(&alice, &fifth);
+    assert_eq!(again.unwrap_err().code, Code::EventLimit);
     // Another pairing is not limited by Alice's polls.
     let bob = researcher(&w, "Bob");
     assert!(
