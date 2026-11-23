@@ -26,10 +26,12 @@
 pub mod agent;
 pub mod ai;
 pub mod app;
+mod desktop_research;
 pub mod envs;
 pub mod jobs;
 pub mod logging;
 pub mod ops;
+mod research;
 pub mod scan;
 pub mod work;
 

@@ -1011,6 +1011,11 @@ fn an_interrupted_merge_resumed_ends_where_an_uninterrupted_one_does() {
     finish(&mut straight);
 
     let mut resumed = set_of_three();
+    let epoch = musaic_db::delegated_work::epoch(straight.c()).unwrap();
+    resumed
+        .c()
+        .execute("UPDATE library_epoch SET epoch=?1", [epoch])
+        .unwrap();
     move_files(&resumed, &MOVES[..2]);
     // Crash. Resume: every move again (the first two are no-ops now).
     move_files(&resumed, &MOVES);

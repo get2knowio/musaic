@@ -9,35 +9,75 @@ use std::sync::Arc;
 use musaic_api::{AppState, Network};
 use rusqlite::Connection;
 
-/// A v19 database as the previous build left it, with a key row the OS
-/// keyring has not taken yet.
-fn make_v19(cfg: &Path) {
+/// The empty Python database with the v17 and v18 schema changes as shipped.
+fn make_v18(cfg: &Path) {
     std::fs::create_dir_all(cfg).unwrap();
     let p = cfg.join("library.db");
-    drop(musaic_db::Db::open_or_create(&p).unwrap());
-    let c = Connection::open(&p).unwrap();
-    c.execute_batch(
-        "DROP TABLE agent_activity; DROP TABLE agent_changes; DROP TABLE agent_approvals; \
-         DROP TABLE agent_proposals; DROP TABLE agent_policies; DROP TABLE agent_pairings; \
-         ALTER TABLE albums DROP COLUMN tag_disc_total; \
-         ALTER TABLE albums DROP COLUMN track_discs_json; \
-         UPDATE schema_version SET version = 19; \
-         INSERT INTO settings(key, value) VALUES ('acoustid_api_key', 'SECRET-KEY-VALUE'); \
-         INSERT INTO settings(key, value) VALUES ('snapshot_retention_count', '10');",
-    )
-    .unwrap();
+    std::fs::copy(musaic_testdata::public("db/v16-empty.db"), &p).unwrap();
+    Connection::open(&p)
+        .unwrap()
+        .execute_batch(
+            "ALTER TABLE track_fingerprints ADD COLUMN fingerprint_impl TEXT NOT NULL DEFAULT 'fpcalc';
+             ALTER TABLE track_fingerprints ADD COLUMN acoustid_lookup_state TEXT;
+             ALTER TABLE track_fingerprints ADD COLUMN acoustid_lookup_failures INTEGER NOT NULL DEFAULT 0;
+             ALTER TABLE track_fingerprints ADD COLUMN acoustid_retry_after TEXT;
+             CREATE TABLE fingerprint_rejects(
+                 album_id TEXT NOT NULL,
+                 filename TEXT NOT NULL,
+                 file_signature TEXT NOT NULL,
+                 fingerprint_impl TEXT NOT NULL,
+                 rejected_at TEXT NOT NULL,
+                 PRIMARY KEY (album_id, filename),
+                 FOREIGN KEY (album_id) REFERENCES albums(id) ON DELETE CASCADE ON UPDATE CASCADE
+             );
+             UPDATE schema_version SET version = 18;
+             INSERT INTO settings(key, value) VALUES ('acoustid_api_key', 'SECRET-KEY-VALUE');
+             INSERT INTO settings(key, value) VALUES ('snapshot_retention_count', '10');",
+        )
+        .unwrap();
 }
 
-/// A v18 database: [`make_v19`] without the v19 step.
-fn make_v18(cfg: &Path) {
-    make_v19(cfg);
+/// The v19 step over the v18 fixture.
+fn make_v19(cfg: &Path) {
+    make_v18(cfg);
     Connection::open(cfg.join("library.db"))
         .unwrap()
         .execute_batch(
-            "DROP INDEX idx_track_fingerprints_inputs; DROP TABLE check_inputs; \
-             UPDATE schema_version SET version = 18;",
+            "CREATE TABLE check_inputs(
+                 check_id TEXT NOT NULL,
+                 library_path TEXT NOT NULL,
+                 album_id TEXT NOT NULL,
+                 digest TEXT NOT NULL,
+                 checked_at TEXT NOT NULL,
+                 PRIMARY KEY (check_id, library_path, album_id)
+             );
+             CREATE INDEX idx_track_fingerprints_inputs ON track_fingerprints(
+                 album_id, filename, fingerprint_impl, last_computed_at,
+                 acoustid_recording_mbid, acoustid_score
+             );
+             UPDATE schema_version SET version = 19;",
         )
         .unwrap();
+}
+
+/// Commit the migration up through v21 and roll back the v22 transaction.
+fn make_v21(cfg: &Path) {
+    make_v19(cfg);
+    let p = cfg.join("library.db");
+    Connection::open(&p)
+        .unwrap()
+        .execute_batch(
+            "CREATE TRIGGER fixture_stop BEFORE UPDATE ON schema_version WHEN NEW.version=22
+             BEGIN SELECT RAISE(ABORT,'fixture stops at v21'); END;",
+        )
+        .unwrap();
+    let err = musaic_db::Db::open(&p).err().expect("the v22 step stopped");
+    assert!(err.to_string().contains("fixture stops at v21"), "{err}");
+    Connection::open(&p)
+        .unwrap()
+        .execute_batch("DROP TRIGGER fixture_stop;")
+        .unwrap();
+    assert_eq!(version(&p), 21);
 }
 
 fn version(p: &Path) -> i64 {
@@ -126,6 +166,50 @@ fn a_v19_database_is_copied_before_the_upgrade() {
         )
         .unwrap();
     assert_eq!(has_v20_columns, 0, "the copy is the v19 file as it was");
+}
+
+#[test]
+fn a_v21_copy_keeps_the_original_agent_change_schema_and_row() {
+    let d = tempfile::tempdir().unwrap();
+    let cfg = d.path().join("config");
+    make_v21(&cfg);
+    let path = cfg.join("library.db");
+    Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "INSERT INTO agent_pairings(id,name,scopes,secret_fingerprint,created_at)
+             VALUES ('agent','Fixture','[]','fingerprint','2026-11-22T00:00:00Z');
+             INSERT INTO agent_changes(id,pairing_id,proposal_id,album_id,created_at,state,before)
+             VALUES ('change','agent','proposal','album','2026-11-22T00:00:00Z','applied','{}');",
+        )
+        .unwrap();
+
+    drop(build(&cfg).unwrap());
+    let snaps = musaic_db::backup::list_snapshots(&snap_dir(&cfg)).unwrap();
+    assert_eq!(snaps.len(), 1);
+    assert_eq!(snaps[0].schema_version, Some(21));
+
+    let check = |path: &Path, not_null: bool| {
+        let conn = Connection::open(path).unwrap();
+        let required: bool = conn
+            .query_row(
+                "SELECT [notnull] FROM pragma_table_info('agent_changes') WHERE name='pairing_id'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let owner: String = conn
+            .query_row(
+                "SELECT pairing_id FROM agent_changes WHERE id='change'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(required, not_null);
+        assert_eq!(owner, "agent");
+    };
+    check(&snap_dir(&cfg).join(&snaps[0].filename), true);
+    check(&path, false);
 }
 
 #[test]

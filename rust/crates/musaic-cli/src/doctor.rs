@@ -75,6 +75,7 @@ pub fn report(client: &Client, config_dir: &Path, executable: &str) -> (Value, b
 
     let mut pairing = json!({"status": "unknown"});
     let mut scopes: Vec<String> = Vec::new();
+    let mut extensions = Vec::new();
     match client.choose_pairing() {
         Ok(id) => {
             pairing["id"] = json!(id);
@@ -82,6 +83,13 @@ pub fn report(client: &Client, config_dir: &Path, executable: &str) -> (Value, b
                 match client.call("musaic_capabilities", &json!({})) {
                     Ok(caps) => {
                         pairing["status"] = json!("active");
+                        let tasks = musaic_commands::tools::task::EXTENSION_ID;
+                        if caps["extensions"]
+                            .as_array()
+                            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some(tasks)))
+                        {
+                            extensions.push(tasks);
+                        }
                         scopes = caps["scopes"]
                             .as_array()
                             .map(|a| {
@@ -122,7 +130,7 @@ pub fn report(client: &Client, config_dir: &Path, executable: &str) -> (Value, b
             "scopes": scopes,
             "transport": "stdio",
             "profiles": profiles,
-            "extensions": [],
+            "extensions": extensions,
         }),
         healthy,
     )

@@ -11,6 +11,7 @@ import {
   useResumeQueue,
   useRetryJob,
 } from "@/hooks/useJobs";
+import { ResearchGroup } from "./ResearchGroup";
 import { fmtRelative } from "@/lib/relativeTime";
 import type { Job, JobStatus } from "@/lib/types";
 
@@ -99,6 +100,8 @@ export function JobRow({
       },
     });
   };
+
+  if (job.result?.delegated) return <ResearchGroup job={job} />;
 
   return (
     <div

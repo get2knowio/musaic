@@ -23,7 +23,7 @@ impl Backend for Fake {
             "musaic_capabilities" => Ok(json!({
                 "appVersion": "t", "contractVersion": "1", "registryDigest": "d", "instanceId": "i_1",
                 "scopes": ["library.read"], "policy": {"library.read": "allow"},
-                "profiles": ["mcp-2026-07-28"], "configuredRoots": []
+                "profiles": ["mcp-2026-07-28"], "extensions": [], "configuredRoots": []
             })),
             _ => Err(ToolError::new(ToolErrorCode::NotFound, "nothing here")),
         }
@@ -106,7 +106,7 @@ async fn legacy_initialize_list_and_call() {
 
     let list = c.request("tools/list", json!({})).await;
     let tools = list["result"]["tools"].as_array().expect("tools");
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 21);
     let ids: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(ids, REGISTRY.iter().map(|t| t.id).collect::<Vec<_>>());
     for t in tools {
@@ -154,7 +154,7 @@ async fn modern_discover_then_stateless_calls() {
         .await;
     assert_eq!(
         list["result"]["tools"].as_array().unwrap().len(),
-        12,
+        21,
         "{list}"
     );
     assert_eq!(list["result"]["resultType"], "complete");

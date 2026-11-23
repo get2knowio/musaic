@@ -4,6 +4,9 @@
 //! and with the Python app's own empty v16 file migrated by `Db::open`
 //! (testdata/db/v16-empty.db, written by the Python app).
 
+#[path = "support/delegation_schema.rs"]
+mod delegation_schema;
+
 use std::path::Path;
 
 use musaic_db::{BACKUP_FILE_NAME, Db, Error, Opened, SCHEMA_VERSION};
@@ -64,7 +67,7 @@ fn migrated_python_empty() -> (tempfile::TempDir, Vec<MasterRow>) {
 }
 
 /// A fresh database has exactly the schema of the Python app's
-/// empty v16 database after the v17 to v21 migrations, row for row in
+/// empty v16 database after the v17 to v22 migrations, row for row in
 /// sqlite_master.
 #[test]
 fn fresh_schema_equals_the_migrated_python_database() {
@@ -80,7 +83,7 @@ fn fresh_schema_equals_the_migrated_python_database() {
 /// Compared with what `db.bootstrap()` itself writes. The only
 /// differences are the migrations' (v17: `fingerprint_impl`; v18: AcoustID
 /// lookup outcome columns and `fingerprint_rejects`; v19: `check_inputs`
-/// and the fingerprint inputs index; v20: two albums columns; v21: the agent_* tables), enumerated
+/// and the fingerprint inputs index; v20: two albums columns; v21: the agent tables; v22: durable delegation), enumerated
 /// here; an unlisted difference or an
 /// unused delta fails.
 #[test]
@@ -165,13 +168,17 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
             "agent_approvals",
         ),
         ("index", "idx_agent_approvals_state", "agent_approvals"),
-        ("table", "agent_changes", "agent_changes"),
-        ("index", "sqlite_autoindex_agent_changes_1", "agent_changes"),
         ("table", "agent_activity", "agent_activity"),
         ("index", "idx_agent_activity_pairing", "agent_activity"),
+        ("table", "agent_changes", "agent_changes"),
+        ("index", "sqlite_autoindex_agent_changes_1", "agent_changes"),
+        ("index", "agent_changes_proposal", "agent_changes"),
     ];
     let mut used = vec![false; changed.len()];
-    assert_eq!(ours.len(), theirs.len() + added.len());
+    assert_eq!(
+        ours.len(),
+        theirs.len() + added.len() + delegation_schema::OBJECTS.len()
+    );
     for (o, t) in ours.iter().zip(&theirs) {
         assert_eq!(
             (&o.0, &o.1, &o.2),
@@ -196,14 +203,17 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
         used.iter().all(|u| *u),
         "unused delta: {changed:?} {used:?}"
     );
-    for (o, (ty, name, table)) in ours[theirs.len()..].iter().zip(added) {
+    for (o, (ty, name, table)) in ours[theirs.len()..]
+        .iter()
+        .zip(added.iter().chain(delegation_schema::OBJECTS))
+    {
         assert_eq!((o.0.as_str(), o.1.as_str()), (*ty, *name));
         assert_eq!(o.2, *table);
         let m = migrated.iter().find(|m| m.1 == o.1).unwrap();
         assert_eq!(o, m, "added row must be the migration's own");
     }
 
-    // schema_version: [16] -> [21] (v17, v18, v19, v20, then v21).
+    // schema_version: [16] -> the current version.
     let versions: Vec<i64> = conn
         .prepare("SELECT version FROM schema_version")
         .unwrap()

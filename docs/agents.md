@@ -8,7 +8,7 @@ catalog for programs).
 
 ## What an assistant can and cannot do
 
-Twelve tools, in three groups:
+The catalog has 21 tools in four groups.
 
 - **Read** (no approval ever needed, no network, nothing written): capabilities, list the
   albums, read one album (its tags, tracks and a revision), the resolution Musaic already
@@ -25,11 +25,25 @@ Twelve tools, in three groups:
   (ReplayGain then writes no album gain, which needs every track), and the album is
   rescanned as after a finished one.
 
+- **Research** uses nine tools to list, read, claim, renew, report progress, release, complete, fail or cancel requests. The pairing needs read access to inspect requests and permission to submit proposals to claim work. Cancellation has its own permission.
+
 An assistant cannot: run SQL or a shell, read a file path, read or write keys, delete or
 move anything outside the rename a proposal asks for, restore or download the database,
 change settings, change its own permissions or approve its own requests, or undo a change
 (only you can, below). Tool results
 carry ids and bare file and folder names, never a filesystem path.
+
+## Request research and review a result
+
+Open an album and choose **Request assistant research**. Select metadata, cover art or both, and optionally enter a hint. Musaic tries its resolver first. Unresolved requests appear in Review and wait for a paired assistant. You can keep browsing while it works. Keep Musaic open for the assistant to claim work, renew its lease or submit a result. A claim lasts five minutes and can be renewed. Quitting preserves the request. Use **Cancel research** to stop an outstanding request. A late result from the cancelled claim is refused.
+
+Open the album's research card in Review to inspect each recommendation, its sources, confidence and uncertainties. **Preview changes** compares the proposal with the current files. **Apply reviewed changes** applies that preview and records the previous values for Undo. **Discard result** closes the item. If verification needs a network lookup, reopen the preview when connected. Unsupported historical results remain available for inspection. A library switch or database restore invalidates old claims and previews.
+
+## Follow a long-running tool call
+
+On the 2026-07-28 profile, hosts that declare Tasks support on a supported request receive a Task handle. Keep the operation ID as well. A host can reconnect and poll the same Task, respond to a pending input or request cancellation. Desktop approval is still required for a research proposal. Cancellation finishes at a safe boundary and preserves any changes already made. An interrupted file write requires a new preview before any remaining changes can be applied.
+
+Active Tasks have an open-ended lifetime. Terminal results remain available for seven days. After expiry, look up the operation ID with `musaic_operation_get`. Other calls, including those from 2025-11-25 clients, retain the operation-handle interface.
 
 ## Pairing
 
@@ -161,7 +175,7 @@ revoke pairings you no longer use.
 `musaic-cli doctor` prints one JSON document: the executable and version, the descriptor
 (`ok`, `absent`, `stale` or `invalid`), the pairing's status, its scopes, the transport and
 the MCP profiles the server speaks (`mcp-2026-07-28`, `mcp-2025-11-25`) and the extensions
-(none). It prints no secret and makes no tool call but `capabilities`. Exit code 0 means
+supported by the modern profile. It prints no secret and makes no tool call but `capabilities`. Exit code 0 means
 healthy, 1 means a problem was found. For the other commands: 0 success, 2 a tool error,
 3 a transport error (app not running and similar), 64 usage.
 

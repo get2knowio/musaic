@@ -159,24 +159,9 @@ pub fn enqueue(
             i64::from(job.attach_cover)
         ],
     )?;
+    let inserted = get_job(&tx, &id)?.expect("job just inserted");
     tx.commit()?;
-    Ok(Ok(JobRow {
-        id,
-        album_id: job.album_id.to_string(),
-        album_path: job.album_path.to_string(),
-        album_title: job.album_title.to_string(),
-        job_type: job.job_type.to_string(),
-        hint: job.hint.to_string(),
-        status: "queued".into(),
-        result_json: None,
-        error: None,
-        acted_on_action: None,
-        created_at: now_iso.to_string(),
-        started_at: None,
-        completed_at: None,
-        acted_on_at: None,
-        attach_cover: job.attach_cover,
-    }))
+    Ok(Ok(inserted))
 }
 
 fn rows(conn: &Connection, sql: &str, p: &[&dyn rusqlite::ToSql]) -> Result<Vec<JobRow>> {
@@ -195,25 +180,30 @@ pub fn list_jobs(
     statuses: Option<&[String]>,
     limit: i64,
 ) -> Result<Vec<JobRow>> {
-    match statuses {
-        None => rows(
-            conn,
-            "SELECT * FROM ai_jobs ORDER BY created_at DESC LIMIT ?1",
-            &[&limit],
-        ),
-        Some([]) => Ok(Vec::new()),
-        Some(st) => {
-            let sql = format!(
-                "SELECT * FROM ai_jobs WHERE status IN ({}) ORDER BY created_at DESC LIMIT ?{}",
-                placeholders(st.len(), 1),
-                st.len() + 1
-            );
-            let mut p: Vec<&dyn rusqlite::ToSql> =
-                st.iter().map(|s| s as &dyn rusqlite::ToSql).collect();
-            p.push(&limit);
-            rows(conn, &sql, &p)
-        }
-    }
+    list_filtered(conn, statuses, limit, "1")
+}
+
+const UNMAPPED: &str = "NOT EXISTS (SELECT 1 FROM delegated_work WHERE legacy_job_id=ai_jobs.id)";
+
+pub fn list_unmapped(
+    conn: &Connection,
+    statuses: Option<&[String]>,
+    limit: i64,
+) -> Result<Vec<JobRow>> {
+    list_filtered(conn, statuses, limit, UNMAPPED)
+}
+
+fn list_filtered(
+    conn: &Connection,
+    statuses: Option<&[String]>,
+    limit: i64,
+    predicate: &str,
+) -> Result<Vec<JobRow>> {
+    let filter = statuses.map(|s| serde_json::to_string(s).expect("strings serialize"));
+    let sql = format!(
+        "SELECT * FROM ai_jobs WHERE {predicate} AND (?1 IS NULL OR status IN (SELECT value FROM json_each(?1))) ORDER BY created_at DESC LIMIT ?2"
+    );
+    rows(conn, &sql, &[&filter, &limit])
 }
 
 /// `jobs.get_job`.
@@ -230,7 +220,10 @@ pub fn get_job(conn: &Connection, job_id: &str) -> Result<Option<JobRow>> {
 /// `jobs.get_active_job_for_album`: the newest queued / running / completed
 /// job of the album.
 pub fn get_active_job_for_album(conn: &Connection, album_id: &str) -> Result<Option<JobRow>> {
-    let sql = active_sql("SELECT * FROM ai_jobs", " ORDER BY created_at DESC LIMIT 1");
+    let sql = active_sql(
+        "SELECT * FROM ai_jobs",
+        &format!(" AND {UNMAPPED} ORDER BY created_at DESC LIMIT 1"),
+    );
     let mut p: Vec<&dyn rusqlite::ToSql> = vec![&album_id];
     for s in &ACTIVE_STATUSES {
         p.push(s);
@@ -428,7 +421,7 @@ pub fn delete_jobs_by_status(conn: &Connection, statuses: &[String]) -> Result<u
         return Ok(0);
     }
     let sql = format!(
-        "DELETE FROM ai_jobs WHERE status IN ({})",
+        "DELETE FROM ai_jobs WHERE {UNMAPPED} AND status IN ({})",
         placeholders(statuses.len(), 1)
     );
     let p: Vec<&dyn rusqlite::ToSql> = statuses.iter().map(|s| s as &dyn rusqlite::ToSql).collect();

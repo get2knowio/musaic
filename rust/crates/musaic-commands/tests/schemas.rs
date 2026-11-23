@@ -13,8 +13,8 @@ fn walk(v: &Value, f: &mut dyn FnMut(&Value)) {
 }
 
 #[test]
-fn registry_has_twelve_tools_with_unique_names() {
-    assert_eq!(REGISTRY.len(), 12);
+fn registry_has_twenty_one_tools_with_unique_names() {
+    assert_eq!(REGISTRY.len(), 21);
     let mut ids = std::collections::BTreeSet::new();
     let mut cli = std::collections::BTreeSet::new();
     for t in &REGISTRY {
@@ -308,4 +308,85 @@ fn unsigned_integers_keep_a_lower_bound() {
         }
     });
     assert!(track_count);
+}
+
+#[test]
+fn delegated_tool_inputs_round_trip_and_bound_evidence() {
+    let work_id = "99eafac2-9d45-41da-93c5-24e420afea21";
+    let digest = "a".repeat(64);
+    let lease = json!({"workId":work_id, "claimGeneration":1, "leaseToken":"b".repeat(64)});
+    let mut done = lease.clone();
+    done["idempotencyKey"] = json!("complete-key");
+    done["inputDigest"] = json!(digest);
+    let evidence = json!({"source":"fixture:liner","retrievedAt":"2026-11-22T16:00:00Z","claim":"The liner lists the title","limitations":[]});
+    done["result"] = json!({
+        "schemaVersion":1,"workId":work_id,"kind":"metadata.correct","inputDigest":digest,
+        "outcome":"proposal","confidence":0.5,"uncertainties":[],"evidence":[evidence],
+        "recommendation":{"type":"metadata","identifiers":[],"albumFields":{"title":"Liner title"},"tracks":[]}
+    });
+    let bodies = [
+        ("musaic_work_list", json!({"state":"queued","limit":50})),
+        ("musaic_work_get", json!({"workId":work_id})),
+        (
+            "musaic_work_claim",
+            json!({"workId":work_id,"idempotencyKey":"claim-key"}),
+        ),
+        ("musaic_work_renew", lease.clone()),
+        (
+            "musaic_work_progress",
+            with_fields(
+                &lease,
+                json!({"sequence":1,"stage":"reviewing","completed":1,"total":2}),
+            ),
+        ),
+        ("musaic_work_complete", done.clone()),
+        (
+            "musaic_work_fail",
+            with_fields(
+                &lease,
+                json!({"code":"source_missing","message":"Source is unavailable","retryable":true}),
+            ),
+        ),
+        (
+            "musaic_work_release",
+            with_fields(&lease, json!({"reason":"Another source is needed"})),
+        ),
+        (
+            "musaic_work_cancel",
+            json!({"workId":work_id,"expectedRevision":1}),
+        ),
+    ];
+    for (id, body) in bodies {
+        let registry = musaic_commands::find_tool(id).unwrap();
+        let schema = (registry.input_schema)();
+        let validator = jsonschema::validator_for(&schema).unwrap();
+        assert!(
+            validator.is_valid(&body),
+            "{id}: {:?}",
+            validator.iter_errors(&body).collect::<Vec<_>>()
+        );
+        let call = parse_call(id, body.to_string().as_bytes()).unwrap();
+        assert_eq!(call.tool_id(), id);
+    }
+    done["result"]["evidence"] = json!(vec![evidence.clone(); 51]);
+    assert_eq!(
+        code("musaic_work_complete", done.clone()),
+        ToolErrorCode::InvalidResult
+    );
+    done["result"]["evidence"] = json!([evidence]);
+    done["result"]["evidence"][0]["retrievedAt"] = json!("not a timestamp");
+    assert_eq!(
+        code("musaic_work_complete", done.clone()),
+        ToolErrorCode::InvalidResult
+    );
+    done["result"]["schemaVersion"] = json!("potential secret");
+    let error = parse_call("musaic_work_complete", done.to_string().as_bytes()).unwrap_err();
+    assert_eq!(error.code, ToolErrorCode::InvalidResult);
+    assert!(!error.message.contains("potential secret"));
+}
+
+fn with_fields(base: &Value, fields: Value) -> Value {
+    let mut result = base.as_object().unwrap().clone();
+    result.extend(fields.as_object().unwrap().clone());
+    Value::Object(result)
 }

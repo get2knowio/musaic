@@ -278,3 +278,56 @@ pub async fn ai_providers(State(st): State<AppState>) -> ApiResult {
     })
     .await?
 }
+
+pub async fn research_items(
+    State(st): State<AppState>,
+    UrlPath(group): UrlPath<String>,
+) -> ApiResult {
+    blocking(move || crate::http::ok_value(json!(st.ops().jobs().research_items(&group)?))).await?
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReviewRequest {
+    action: String,
+    revision: i64,
+    digest: Option<String>,
+    preview_digest: Option<String>,
+}
+
+pub async fn research_decide(
+    State(st): State<AppState>,
+    UrlPath(id): UrlPath<String>,
+    body: Bytes,
+) -> ApiResult {
+    let r: ReviewRequest =
+        serde_json::from_slice(&body).map_err(|_| ApiError::new(400, "Invalid review decision"))?;
+    blocking(move || {
+        st.ops().jobs().research_decide(
+            &id,
+            r.revision,
+            r.digest.as_deref(),
+            &r.action,
+            r.preview_digest.as_deref(),
+        )?;
+        crate::http::ok_value(json!({"ok":true}))
+    })
+    .await?
+}
+
+pub async fn research_preview(
+    State(st): State<AppState>,
+    UrlPath((id, digest)): UrlPath<(String, String)>,
+) -> ApiResult {
+    blocking(move || {
+        use base64::Engine as _;
+        let preview = st.ops().jobs().research_preview(&id, &digest)?;
+        let mut value = json!(preview);
+        if let Some(thumb) = preview.cover_thumbnail {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(thumb);
+            value["coverThumbnail"] = json!(format!("data:image/jpeg;base64,{encoded}"));
+        }
+        crate::http::ok_value(value)
+    })
+    .await?
+}

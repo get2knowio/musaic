@@ -40,6 +40,7 @@ fn state(sb: &Sandbox, provider: Option<Arc<dyn Provider>>) -> AppState {
         .fingerprinting(common::no_key_fingerprinting())
         .subscribers(true)
         .auto_snapshot(false)
+        .ai_worker(true) // Exercise the historical provider worker against its recorded fixtures.
         .ping_interval(Duration::from_secs(30));
     if let Some(p) = provider {
         b = b.ai_provider(p);
@@ -386,6 +387,8 @@ async fn startup_recovers_jobs_left_running() {
     let jid;
     {
         let st = AppState::builder(&sb.cfg)
+            .ai_provider(Arc::new(ReplayProvider::new("claude")))
+            .ai_worker(false) // Seed the historical queue before simulating the crash.
             .secrets(Arc::new(musaic_secrets::MemoryStore::new()))
             .network(Network::Offline)
             .fingerprinting(common::no_key_fingerprinting())

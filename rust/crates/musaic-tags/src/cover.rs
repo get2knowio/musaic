@@ -43,6 +43,40 @@ fn open_header(bytes: &[u8]) -> Option<(Header, impl ImageDecoder)> {
     ))
 }
 
+/// Check a remotely proposed image before it can enter a review. Limit decoded
+/// size before attempting the full decode, even for a tiny compressed input.
+pub fn verify_image(bytes: &[u8]) -> Option<(u32, u32)> {
+    let image = decode_review_image(bytes)?;
+    Some((image.width(), image.height()))
+}
+
+/// Decode the actual proposed cover with the same resource limits at preview and apply.
+pub fn review_thumbnail(bytes: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    let image = decode_review_image(bytes)?;
+    let mut jpeg = Cursor::new(Vec::new());
+    image
+        .thumbnail(256, 256)
+        .to_rgb8()
+        .write_to(&mut jpeg, ImageFormat::Jpeg)
+        .ok()?;
+    Some((image.width(), image.height(), jpeg.into_inner()))
+}
+
+fn decode_review_image(bytes: &[u8]) -> Option<DynamicImage> {
+    let (header, mut decoder) = open_header(bytes)?;
+    let (w, h) = (header.width, header.height);
+    if w == 0 || h == 0 || w > 8192 || h > 8192 || u64::from(w) * u64::from(h) > 16_000_000 {
+        return None;
+    }
+    if header.format == ImageFormat::Jpeg && !jpeg_reaches_eoi(bytes) {
+        return None;
+    }
+    let mut limits = image::Limits::default();
+    limits.max_alloc = Some(128_000_000);
+    decoder.set_limits(limits).ok()?;
+    DynamicImage::from_decoder(decoder).ok()
+}
+
 /// Pixels Pillow would hand to its JPEG encoder, or `None` where Pillow's
 /// `save(format="JPEG")` raises (16-bit grayscale opens as mode `I;16`).
 fn pixels_for_jpeg(img: DynamicImage) -> Option<(Vec<u8>, u32, u32, JpegColor)> {

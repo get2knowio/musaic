@@ -62,6 +62,38 @@
       "transport": false
     },
     {
+      "code": "ALREADY_CLAIMED",
+      "transport": false
+    },
+    {
+      "code": "LEASE_EXPIRED",
+      "transport": false
+    },
+    {
+      "code": "STALE_GENERATION",
+      "transport": false
+    },
+    {
+      "code": "STALE_CONTEXT",
+      "transport": false
+    },
+    {
+      "code": "INVALID_RESULT",
+      "transport": false
+    },
+    {
+      "code": "POLICY_DENIED",
+      "transport": false
+    },
+    {
+      "code": "RATE_LIMITED",
+      "transport": false
+    },
+    {
+      "code": "TASK_EXPIRED",
+      "transport": false
+    },
+    {
       "code": "INTERNAL",
       "transport": false
     },
@@ -161,7 +193,8 @@
               "compute.analyze",
               "tags.write",
               "covers.write",
-              "files.rename"
+              "files.rename",
+              "work.cancel"
             ],
             "type": "string"
           }
@@ -180,6 +213,13 @@
           "contractVersion": {
             "description": "Always \"1\".",
             "type": "string"
+          },
+          "extensions": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "instanceId": {
             "type": "string"
@@ -206,6 +246,9 @@
                 "$ref": "#/$defs/Decision"
               },
               "tags.write": {
+                "$ref": "#/$defs/Decision"
+              },
+              "work.cancel": {
                 "$ref": "#/$defs/Decision"
               }
             },
@@ -971,7 +1014,8 @@
               "compute.analyze",
               "tags.write",
               "covers.write",
-              "files.rename"
+              "files.rename",
+              "work.cancel"
             ],
             "type": "string"
           },
@@ -1232,6 +1276,173 @@
       ],
       "outputSchema": {
         "$defs": {
+          "AnalysisItem": {
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "albumId",
+              "kind",
+              "status"
+            ],
+            "type": "object"
+          },
+          "ApplyResult": {
+            "properties": {
+              "albumIdAfter": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cover": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FileOutcome"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files": {
+                "items": {
+                  "$ref": "#/$defs/FileOutcome"
+                },
+                "type": "array"
+              },
+              "renamed": {
+                "description": "Whether the rename step ran and finished.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "files",
+              "renamed"
+            ],
+            "type": "object"
+          },
+          "CheckRunSummary": {
+            "properties": {
+              "checkId": {
+                "type": "string"
+              },
+              "failed": {
+                "type": "boolean"
+              },
+              "findings": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "checkId",
+              "findings",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "Counts": {
+            "properties": {
+              "done": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "done",
+              "total",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "FileOutcome": {
+            "description": "One file's outcome, by bare file name.",
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "fileName",
+              "status"
+            ],
+            "type": "object"
+          },
+          "FileStatus": {
+            "enum": [
+              "ok",
+              "failed",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "OperationResult": {
+            "description": "The result of a finished operation; only the part its tool produces is set.",
+            "properties": {
+              "analysis": {
+                "items": {
+                  "$ref": "#/$defs/AnalysisItem"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "apply": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ApplyResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checks": {
+                "items": {
+                  "$ref": "#/$defs/CheckRunSummary"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "scanAlbums": {
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
           "OperationState": {
             "enum": [
               "awaiting_approval",
@@ -1243,6 +1454,80 @@
               "expired"
             ],
             "type": "string"
+          },
+          "ToolError": {
+            "description": "A failure a tool reports: `{code, message, details?}`. The message never\nholds a path, a secret or an argument value.",
+            "properties": {
+              "code": {
+                "$ref": "#/$defs/ToolErrorCode"
+              },
+              "details": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ToolErrorCode": {
+            "description": "A stable error code.",
+            "oneOf": [
+              {
+                "enum": [
+                  "INVALID_INPUT",
+                  "NOT_FOUND",
+                  "MISSING_ALBUM",
+                  "STALE_REVISION",
+                  "PROPOSAL_EXPIRED",
+                  "DIGEST_MISMATCH",
+                  "APPROVAL_EXPIRED",
+                  "IDEMPOTENCY_CONFLICT",
+                  "CURSOR_STALE",
+                  "BUSY",
+                  "RESTORING",
+                  "NO_LIBRARY",
+                  "UNAVAILABLE",
+                  "ALREADY_CLAIMED",
+                  "LEASE_EXPIRED",
+                  "STALE_GENERATION",
+                  "STALE_CONTEXT",
+                  "INVALID_RESULT",
+                  "POLICY_DENIED",
+                  "RATE_LIMITED",
+                  "TASK_EXPIRED",
+                  "INTERNAL",
+                  "APP_NOT_RUNNING",
+                  "DESCRIPTOR_INVALID",
+                  "NOT_PAIRED",
+                  "PAIRING_REVOKED",
+                  "INSTANCE_MISMATCH",
+                  "LOCKED_OUT",
+                  "PROFILE_UNSUPPORTED"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "FORBIDDEN",
+                "description": "The scope or a Refuse policy denies it.",
+                "type": "string"
+              },
+              {
+                "const": "DENIED",
+                "description": "The user denied it.",
+                "type": "string"
+              }
+            ]
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1254,8 +1539,42 @@
               "null"
             ]
           },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Counts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ToolError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "operationId": {
             "type": "string"
+          },
+          "pollIntervalMs": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/OperationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "state": {
             "$ref": "#/$defs/OperationState"
@@ -1263,6 +1582,7 @@
         },
         "required": [
           "operationId",
+          "pollIntervalMs",
           "state"
         ],
         "title": "OperationHandle",
@@ -1320,6 +1640,173 @@
       ],
       "outputSchema": {
         "$defs": {
+          "AnalysisItem": {
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "albumId",
+              "kind",
+              "status"
+            ],
+            "type": "object"
+          },
+          "ApplyResult": {
+            "properties": {
+              "albumIdAfter": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cover": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FileOutcome"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files": {
+                "items": {
+                  "$ref": "#/$defs/FileOutcome"
+                },
+                "type": "array"
+              },
+              "renamed": {
+                "description": "Whether the rename step ran and finished.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "files",
+              "renamed"
+            ],
+            "type": "object"
+          },
+          "CheckRunSummary": {
+            "properties": {
+              "checkId": {
+                "type": "string"
+              },
+              "failed": {
+                "type": "boolean"
+              },
+              "findings": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "checkId",
+              "findings",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "Counts": {
+            "properties": {
+              "done": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "done",
+              "total",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "FileOutcome": {
+            "description": "One file's outcome, by bare file name.",
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "fileName",
+              "status"
+            ],
+            "type": "object"
+          },
+          "FileStatus": {
+            "enum": [
+              "ok",
+              "failed",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "OperationResult": {
+            "description": "The result of a finished operation; only the part its tool produces is set.",
+            "properties": {
+              "analysis": {
+                "items": {
+                  "$ref": "#/$defs/AnalysisItem"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "apply": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ApplyResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checks": {
+                "items": {
+                  "$ref": "#/$defs/CheckRunSummary"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "scanAlbums": {
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
           "OperationState": {
             "enum": [
               "awaiting_approval",
@@ -1331,6 +1818,80 @@
               "expired"
             ],
             "type": "string"
+          },
+          "ToolError": {
+            "description": "A failure a tool reports: `{code, message, details?}`. The message never\nholds a path, a secret or an argument value.",
+            "properties": {
+              "code": {
+                "$ref": "#/$defs/ToolErrorCode"
+              },
+              "details": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ToolErrorCode": {
+            "description": "A stable error code.",
+            "oneOf": [
+              {
+                "enum": [
+                  "INVALID_INPUT",
+                  "NOT_FOUND",
+                  "MISSING_ALBUM",
+                  "STALE_REVISION",
+                  "PROPOSAL_EXPIRED",
+                  "DIGEST_MISMATCH",
+                  "APPROVAL_EXPIRED",
+                  "IDEMPOTENCY_CONFLICT",
+                  "CURSOR_STALE",
+                  "BUSY",
+                  "RESTORING",
+                  "NO_LIBRARY",
+                  "UNAVAILABLE",
+                  "ALREADY_CLAIMED",
+                  "LEASE_EXPIRED",
+                  "STALE_GENERATION",
+                  "STALE_CONTEXT",
+                  "INVALID_RESULT",
+                  "POLICY_DENIED",
+                  "RATE_LIMITED",
+                  "TASK_EXPIRED",
+                  "INTERNAL",
+                  "APP_NOT_RUNNING",
+                  "DESCRIPTOR_INVALID",
+                  "NOT_PAIRED",
+                  "PAIRING_REVOKED",
+                  "INSTANCE_MISMATCH",
+                  "LOCKED_OUT",
+                  "PROFILE_UNSUPPORTED"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "FORBIDDEN",
+                "description": "The scope or a Refuse policy denies it.",
+                "type": "string"
+              },
+              {
+                "const": "DENIED",
+                "description": "The user denied it.",
+                "type": "string"
+              }
+            ]
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1342,8 +1903,42 @@
               "null"
             ]
           },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Counts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ToolError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "operationId": {
             "type": "string"
+          },
+          "pollIntervalMs": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/OperationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "state": {
             "$ref": "#/$defs/OperationState"
@@ -1351,6 +1946,7 @@
         },
         "required": [
           "operationId",
+          "pollIntervalMs",
           "state"
         ],
         "title": "OperationHandle",
@@ -1416,6 +2012,173 @@
       ],
       "outputSchema": {
         "$defs": {
+          "AnalysisItem": {
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "albumId",
+              "kind",
+              "status"
+            ],
+            "type": "object"
+          },
+          "ApplyResult": {
+            "properties": {
+              "albumIdAfter": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "cover": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/FileOutcome"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "files": {
+                "items": {
+                  "$ref": "#/$defs/FileOutcome"
+                },
+                "type": "array"
+              },
+              "renamed": {
+                "description": "Whether the rename step ran and finished.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "files",
+              "renamed"
+            ],
+            "type": "object"
+          },
+          "CheckRunSummary": {
+            "properties": {
+              "checkId": {
+                "type": "string"
+              },
+              "failed": {
+                "type": "boolean"
+              },
+              "findings": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "checkId",
+              "findings",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "Counts": {
+            "properties": {
+              "done": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "failed": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "done",
+              "total",
+              "failed"
+            ],
+            "type": "object"
+          },
+          "FileOutcome": {
+            "description": "One file's outcome, by bare file name.",
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "message": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "$ref": "#/$defs/FileStatus"
+              }
+            },
+            "required": [
+              "fileName",
+              "status"
+            ],
+            "type": "object"
+          },
+          "FileStatus": {
+            "enum": [
+              "ok",
+              "failed",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "OperationResult": {
+            "description": "The result of a finished operation; only the part its tool produces is set.",
+            "properties": {
+              "analysis": {
+                "items": {
+                  "$ref": "#/$defs/AnalysisItem"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "apply": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/ApplyResult"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checks": {
+                "items": {
+                  "$ref": "#/$defs/CheckRunSummary"
+                },
+                "type": [
+                  "array",
+                  "null"
+                ]
+              },
+              "scanAlbums": {
+                "minimum": 0,
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            },
+            "type": "object"
+          },
           "OperationState": {
             "enum": [
               "awaiting_approval",
@@ -1427,6 +2190,80 @@
               "expired"
             ],
             "type": "string"
+          },
+          "ToolError": {
+            "description": "A failure a tool reports: `{code, message, details?}`. The message never\nholds a path, a secret or an argument value.",
+            "properties": {
+              "code": {
+                "$ref": "#/$defs/ToolErrorCode"
+              },
+              "details": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          },
+          "ToolErrorCode": {
+            "description": "A stable error code.",
+            "oneOf": [
+              {
+                "enum": [
+                  "INVALID_INPUT",
+                  "NOT_FOUND",
+                  "MISSING_ALBUM",
+                  "STALE_REVISION",
+                  "PROPOSAL_EXPIRED",
+                  "DIGEST_MISMATCH",
+                  "APPROVAL_EXPIRED",
+                  "IDEMPOTENCY_CONFLICT",
+                  "CURSOR_STALE",
+                  "BUSY",
+                  "RESTORING",
+                  "NO_LIBRARY",
+                  "UNAVAILABLE",
+                  "ALREADY_CLAIMED",
+                  "LEASE_EXPIRED",
+                  "STALE_GENERATION",
+                  "STALE_CONTEXT",
+                  "INVALID_RESULT",
+                  "POLICY_DENIED",
+                  "RATE_LIMITED",
+                  "TASK_EXPIRED",
+                  "INTERNAL",
+                  "APP_NOT_RUNNING",
+                  "DESCRIPTOR_INVALID",
+                  "NOT_PAIRED",
+                  "PAIRING_REVOKED",
+                  "INSTANCE_MISMATCH",
+                  "LOCKED_OUT",
+                  "PROFILE_UNSUPPORTED"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "FORBIDDEN",
+                "description": "The scope or a Refuse policy denies it.",
+                "type": "string"
+              },
+              {
+                "const": "DENIED",
+                "description": "The user denied it.",
+                "type": "string"
+              }
+            ]
           }
         },
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -1438,8 +2275,42 @@
               "null"
             ]
           },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/Counts"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/ToolError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "operationId": {
             "type": "string"
+          },
+          "pollIntervalMs": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/OperationResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "state": {
             "$ref": "#/$defs/OperationState"
@@ -1447,6 +2318,7 @@
         },
         "required": [
           "operationId",
+          "pollIntervalMs",
           "state"
         ],
         "title": "OperationHandle",
@@ -1705,6 +2577,14 @@
                   "RESTORING",
                   "NO_LIBRARY",
                   "UNAVAILABLE",
+                  "ALREADY_CLAIMED",
+                  "LEASE_EXPIRED",
+                  "STALE_GENERATION",
+                  "STALE_CONTEXT",
+                  "INVALID_RESULT",
+                  "POLICY_DENIED",
+                  "RATE_LIMITED",
+                  "TASK_EXPIRED",
                   "INTERNAL",
                   "APP_NOT_RUNNING",
                   "DESCRIPTOR_INVALID",
@@ -1852,6 +2732,1423 @@
         "type": "object"
       },
       "title": "Cancel an operation"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "work-list",
+      "description": "List available research requests and your claimed work.",
+      "id": "musaic_work_list",
+      "inputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "state": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "WorkListInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "WorkSummary": {
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "attempts": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "availableAt": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "kind": {
+                "$ref": "#/$defs/WorkKind"
+              },
+              "maxAttempts": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "resultId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "state": {
+                "$ref": "#/$defs/WorkState"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "workId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workId",
+              "albumId",
+              "kind",
+              "state",
+              "revision",
+              "attempts",
+              "maxAttempts",
+              "createdAt",
+              "updatedAt",
+              "availableAt"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/$defs/WorkSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "WorkListOutput",
+        "type": "object"
+      },
+      "title": "List delegated work"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": true
+      },
+      "cliName": "work-get",
+      "description": "Read the immutable album context and input digest for a research request.",
+      "id": "musaic_work_get",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId"
+        ],
+        "title": "WorkGetInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkContext": {
+            "additionalProperties": false,
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "artist": {
+                "type": "string"
+              },
+              "hint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "schemaVersion": {
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "tracks": {
+                "items": {
+                  "$ref": "#/$defs/WorkTrack"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "albumId",
+              "title",
+              "artist",
+              "tracks"
+            ],
+            "type": "object"
+          },
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          },
+          "WorkSummary": {
+            "properties": {
+              "albumId": {
+                "type": "string"
+              },
+              "attempts": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "availableAt": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string"
+              },
+              "kind": {
+                "$ref": "#/$defs/WorkKind"
+              },
+              "maxAttempts": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "resultId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "state": {
+                "$ref": "#/$defs/WorkState"
+              },
+              "updatedAt": {
+                "type": "string"
+              },
+              "workId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workId",
+              "albumId",
+              "kind",
+              "state",
+              "revision",
+              "attempts",
+              "maxAttempts",
+              "createdAt",
+              "updatedAt",
+              "availableAt"
+            ],
+            "type": "object"
+          },
+          "WorkTrack": {
+            "additionalProperties": false,
+            "properties": {
+              "fileName": {
+                "type": "string"
+              },
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "trackId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "trackId",
+              "fileName"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "baseRevision": {
+            "type": "string"
+          },
+          "context": {
+            "$ref": "#/$defs/WorkContext"
+          },
+          "inputDigest": {
+            "type": "string"
+          },
+          "libraryEpoch": {
+            "type": "string"
+          },
+          "resultSchema": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "work": {
+            "$ref": "#/$defs/WorkSummary"
+          }
+        },
+        "required": [
+          "work",
+          "schemaVersion",
+          "libraryEpoch",
+          "baseRevision",
+          "inputDigest",
+          "context",
+          "resultSchema"
+        ],
+        "title": "WorkGetOutput",
+        "type": "object"
+      },
+      "title": "Get delegated work"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-claim",
+      "description": "Reserve this request for five minutes using an idempotency key.",
+      "id": "musaic_work_claim",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "idempotencyKey"
+        ],
+        "title": "WorkClaimInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "claimGeneration": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "inputDigest": {
+            "type": "string"
+          },
+          "leaseExpiresAt": {
+            "type": "string"
+          },
+          "leaseToken": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "claimGeneration",
+          "leaseToken",
+          "leaseExpiresAt",
+          "inputDigest"
+        ],
+        "title": "WorkClaimOutput",
+        "type": "object"
+      },
+      "title": "Claim delegated work"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-renew",
+      "description": "Extend the expiry of your current claim. Renew once a minute while you work.",
+      "id": "musaic_work_renew",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "claimGeneration": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "leaseToken": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "claimGeneration",
+          "leaseToken"
+        ],
+        "title": "WorkRenewInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "leaseExpiresAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "leaseExpiresAt"
+        ],
+        "title": "WorkRenewOutput",
+        "type": "object"
+      },
+      "title": "Renew a work lease"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-progress",
+      "description": "Update the current attempt using a monotonically increasing sequence.",
+      "id": "musaic_work_progress",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "claimGeneration": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "completed": {
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "leaseToken": {
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 500,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequence": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stage": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "claimGeneration",
+          "leaseToken",
+          "sequence",
+          "stage"
+        ],
+        "title": "WorkProgressInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "attempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "availableAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/WorkKind"
+          },
+          "maxAttempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resultId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/$defs/WorkState"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "albumId",
+          "kind",
+          "state",
+          "revision",
+          "attempts",
+          "maxAttempts",
+          "createdAt",
+          "updatedAt",
+          "availableAt"
+        ],
+        "title": "WorkSummary",
+        "type": "object"
+      },
+      "title": "Report work progress"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true,
+        "readOnlyHint": false
+      },
+      "cliName": "work-complete",
+      "description": "Submit bounded evidence and a recommendation for desktop review.",
+      "id": "musaic_work_complete",
+      "inputSchema": {
+        "$defs": {
+          "Evidence": {
+            "additionalProperties": false,
+            "properties": {
+              "claim": {
+                "type": "string"
+              },
+              "limitations": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "retrievedAt": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "source",
+              "retrievedAt",
+              "claim",
+              "limitations"
+            ],
+            "type": "object"
+          },
+          "MusicBrainzId": {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/$defs/MusicBrainzKind"
+              }
+            },
+            "required": [
+              "type",
+              "id"
+            ],
+            "type": "object"
+          },
+          "MusicBrainzKind": {
+            "enum": [
+              "release_group",
+              "release",
+              "recording"
+            ],
+            "type": "string"
+          },
+          "Recommendation": {
+            "oneOf": [
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "albumFields": {
+                    "additionalProperties": {
+                      "type": "string"
+                    },
+                    "type": "object"
+                  },
+                  "identifiers": {
+                    "items": {
+                      "$ref": "#/$defs/MusicBrainzId"
+                    },
+                    "maxItems": 100,
+                    "type": "array"
+                  },
+                  "tracks": {
+                    "items": {
+                      "$ref": "#/$defs/TrackChange"
+                    },
+                    "maxItems": 500,
+                    "type": "array"
+                  },
+                  "type": {
+                    "const": "metadata",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "identifiers",
+                  "albumFields",
+                  "tracks"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "height": {
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "rationale": {
+                    "type": "string"
+                  },
+                  "rightsUncertainty": {
+                    "type": "string"
+                  },
+                  "sourcePage": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "cover",
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "width": {
+                    "minimum": 0,
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "url",
+                  "sourcePage",
+                  "rationale",
+                  "rightsUncertainty"
+                ],
+                "type": "object"
+              },
+              {
+                "additionalProperties": false,
+                "properties": {
+                  "explanation": {
+                    "type": "string"
+                  },
+                  "question": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "unresolved",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "explanation",
+                  "question"
+                ],
+                "type": "object"
+              }
+            ]
+          },
+          "TrackChange": {
+            "additionalProperties": false,
+            "properties": {
+              "fields": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              "trackId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "trackId",
+              "fields"
+            ],
+            "type": "object"
+          },
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkOutcome": {
+            "enum": [
+              "proposal",
+              "no_match",
+              "needs_input"
+            ],
+            "type": "string"
+          },
+          "WorkResult": {
+            "additionalProperties": false,
+            "properties": {
+              "confidence": {
+                "maximum": 1,
+                "minimum": 0,
+                "type": "number"
+              },
+              "evidence": {
+                "items": {
+                  "$ref": "#/$defs/Evidence"
+                },
+                "maxItems": 50,
+                "type": "array"
+              },
+              "inputDigest": {
+                "type": "string"
+              },
+              "kind": {
+                "$ref": "#/$defs/WorkKind"
+              },
+              "outcome": {
+                "$ref": "#/$defs/WorkOutcome"
+              },
+              "recommendation": {
+                "$ref": "#/$defs/Recommendation"
+              },
+              "schemaVersion": {
+                "maximum": 1,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "uncertainties": {
+                "items": {
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "workId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "workId",
+              "kind",
+              "inputDigest",
+              "outcome",
+              "evidence",
+              "confidence",
+              "uncertainties",
+              "recommendation"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "claimGeneration": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+            "type": "string"
+          },
+          "inputDigest": {
+            "type": "string"
+          },
+          "leaseToken": {
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/$defs/WorkResult"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "claimGeneration",
+          "leaseToken",
+          "idempotencyKey",
+          "inputDigest",
+          "result"
+        ],
+        "title": "WorkCompleteInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "attempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "availableAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/WorkKind"
+          },
+          "maxAttempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resultId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/$defs/WorkState"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "albumId",
+          "kind",
+          "state",
+          "revision",
+          "attempts",
+          "maxAttempts",
+          "createdAt",
+          "updatedAt",
+          "availableAt"
+        ],
+        "title": "WorkSummary",
+        "type": "object"
+      },
+      "title": "Submit a research result"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-fail",
+      "description": "End this attempt and allow Musaic to decide whether to retry.",
+      "id": "musaic_work_fail",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "claimGeneration": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "leaseToken": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "claimGeneration",
+          "leaseToken",
+          "code",
+          "message",
+          "retryable"
+        ],
+        "title": "WorkFailInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "attempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "availableAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/WorkKind"
+          },
+          "maxAttempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resultId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/$defs/WorkState"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "albumId",
+          "kind",
+          "state",
+          "revision",
+          "attempts",
+          "maxAttempts",
+          "createdAt",
+          "updatedAt",
+          "availableAt"
+        ],
+        "title": "WorkSummary",
+        "type": "object"
+      },
+      "title": "Report failed research"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-release",
+      "description": "Give your current claim back without submitting a result.",
+      "id": "musaic_work_release",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "claimGeneration": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "leaseToken": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "claimGeneration",
+          "leaseToken",
+          "reason"
+        ],
+        "title": "WorkReleaseInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "attempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "availableAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/WorkKind"
+          },
+          "maxAttempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resultId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/$defs/WorkState"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "albumId",
+          "kind",
+          "state",
+          "revision",
+          "attempts",
+          "maxAttempts",
+          "createdAt",
+          "updatedAt",
+          "availableAt"
+        ],
+        "title": "WorkSummary",
+        "type": "object"
+      },
+      "title": "Release delegated work"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-cancel",
+      "description": "Cancel work by revision when explicitly allowed by the pairing policy.",
+      "id": "musaic_work_cancel",
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "expectedRevision": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "expectedRevision"
+        ],
+        "title": "WorkCancelInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "work.cancel"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          },
+          "WorkState": {
+            "enum": [
+              "queued",
+              "claimed",
+              "running",
+              "awaiting_review",
+              "applied",
+              "discarded",
+              "failed",
+              "cancelled"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "albumId": {
+            "type": "string"
+          },
+          "attempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "availableAt": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/$defs/WorkKind"
+          },
+          "maxAttempts": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resultId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "state": {
+            "$ref": "#/$defs/WorkState"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "workId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workId",
+          "albumId",
+          "kind",
+          "state",
+          "revision",
+          "attempts",
+          "maxAttempts",
+          "createdAt",
+          "updatedAt",
+          "availableAt"
+        ],
+        "title": "WorkSummary",
+        "type": "object"
+      },
+      "title": "Cancel delegated work"
     }
   ]
 }

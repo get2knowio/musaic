@@ -16,7 +16,21 @@ pub enum OperationState {
     Expired,
 }
 
+pub const POLL_INTERVAL_MS: u64 = 500;
+
 impl OperationState {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::AwaitingApproval => "awaiting_approval",
+            Self::Running => "running",
+            Self::Succeeded => "succeeded",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+            Self::Denied => "denied",
+            Self::Expired => "expired",
+        }
+    }
+
     pub fn is_finished(self) -> bool {
         !matches!(self, Self::AwaitingApproval | Self::Running)
     }
@@ -27,9 +41,31 @@ impl OperationState {
 #[serde(rename_all = "camelCase")]
 pub struct OperationHandle {
     pub operation_id: String,
+    pub poll_interval_ms: u64,
     pub state: OperationState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub approval_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counts: Option<Counts>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub result: Option<OperationResult>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<ToolError>,
+}
+
+impl OperationHandle {
+    /// Terminal reply of the original start tool, available through Tasks.
+    pub fn completed(operation: OperationGetOutput) -> Self {
+        Self {
+            operation_id: operation.operation_id,
+            poll_interval_ms: POLL_INTERVAL_MS,
+            state: operation.state,
+            approval_id: operation.approval_id,
+            counts: Some(operation.counts),
+            result: operation.result,
+            error: operation.error,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]

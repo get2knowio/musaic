@@ -2,34 +2,35 @@
 //!
 //! [`AgentHub`] holds what lives only for one app run: the instance id, the
 //! single-use nonces of the handshake, the access tokens, the lockout after
-//! failed exchanges, the registry of operations an agent started and the
-//! idempotency keys. Everything that must outlive a restart (pairings,
-//! policies, proposals, approval cards, before-images, activity) is in the
-//! database. Time comes from the app's wall clock, so tests script it.
+//! failed exchanges, and cancellation flags for live workers. Pairings,
+//! approvals, operations and Task mappings are persisted in the database.
+//! Time comes from the app's wall clock.
 //!
 //! Nothing in here writes to the library, takes the work guard or touches the
 //! network; the operations in `ops::agent` do, through the services.
 
+pub(crate) mod delegation;
 pub mod hub_types;
+pub mod operations;
 pub mod proposal;
 pub mod read;
 pub mod run;
+pub mod tasks;
 pub mod undo;
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
+use musaic_commands::PermissionKind;
 use musaic_commands::auth::{NONCE_TTL_SECS, TOKEN_TTL_SECS, ct_eq, random_hex};
-use musaic_commands::tools::operation::{Counts, OperationResult, OperationState};
-use musaic_commands::{PermissionKind, ToolError};
+use musaic_commands::tools::operation::OperationState;
 
-pub use hub_types::{Operation, OperationSnapshot, Principal};
+pub use hub_types::Principal;
 
 use crate::app::WallClock;
 
-/// The most operations the registry keeps; finished ones go oldest first.
-pub const MAX_OPERATIONS: usize = 1000;
 /// The most outstanding handshake nonces; the oldest is dropped past it.
 pub const MAX_NONCES: usize = 1024;
 /// Failed exchanges within [`FAILURE_WINDOW`] that lock exchanges.
@@ -57,10 +58,7 @@ struct State {
     nonces: HashMap<String, SystemTime>,
     tokens: Vec<Token>,
     lockout: Lockout,
-    operations: HashMap<String, Operation>,
-    order: VecDeque<String>,
-    /// `(pairing id, key)` -> `(input digest, operation id)`.
-    idempotency: HashMap<(String, String), (String, String)>,
+    cancellation: HashMap<String, Arc<AtomicBool>>,
 }
 
 /// The per-run agent state.
@@ -96,10 +94,8 @@ impl AgentHub {
     /// wait up to `wait` for the worker threads to end. Returns whether they
     /// all did.
     pub fn stop_workers(&self, wait: Duration) -> bool {
-        for op in self.lock().operations.values() {
-            if !op.state.is_finished() {
-                op.cancel.store(true, std::sync::atomic::Ordering::SeqCst);
-            }
+        for flag in self.lock().cancellation.values() {
+            flag.store(true, Ordering::SeqCst);
         }
         let deadline = std::time::Instant::now() + wait;
         loop {
@@ -246,131 +242,16 @@ impl AgentHub {
             .retain(|t| t.principal.pairing_id != pairing_id);
     }
 
-    // --------------------------------------------------------- operations
-
-    /// Register a new operation. A finished one is evicted, oldest first,
-    /// when the registry is full.
-    pub fn register_operation(&self, op: Operation) {
-        let mut s = self.lock();
-        while s.order.len() >= MAX_OPERATIONS {
-            let evict = s
-                .order
-                .iter()
-                .position(|id| s.operations.get(id).is_none_or(|o| o.state.is_finished()));
-            match evict {
-                Some(i) => {
-                    if let Some(id) = s.order.remove(i) {
-                        s.operations.remove(&id);
-                        // A key naming a forgotten operation would only
-                        // answer "gone"; it goes with it, so the map stays
-                        // bounded by the registry.
-                        s.idempotency.retain(|_, (_, op)| *op != id);
-                    }
-                }
-                // Nothing finished to evict: the registry is full of live
-                // work; grow rather than drop a running operation.
-                None => break,
-            }
-        }
-        s.order.push_back(op.id.clone());
-        s.operations.insert(op.id.clone(), op);
-    }
-
-    /// A copy of an operation's state, when `pairing_id` owns it.
-    pub fn operation(&self, id: &str, pairing_id: &str) -> Option<OperationSnapshot> {
+    pub fn cancellation_flag(&self, id: &str) -> Arc<AtomicBool> {
         self.lock()
-            .operations
-            .get(id)
-            .filter(|o| o.pairing_id == pairing_id)
-            .map(Operation::snapshot)
+            .cancellation
+            .entry(id.to_string())
+            .or_default()
+            .clone()
     }
 
-    /// A copy of an operation's state whoever owns it (the desktop's own
-    /// approve path).
-    pub fn operation_any(&self, id: &str) -> Option<OperationSnapshot> {
-        self.lock().operations.get(id).map(Operation::snapshot)
-    }
-
-    /// Change an operation under the lock.
-    pub fn update_operation<R>(&self, id: &str, f: impl FnOnce(&mut Operation) -> R) -> Option<R> {
-        self.lock().operations.get_mut(id).map(f)
-    }
-
-    /// Set an operation's state unless it is finished already; returns whether
-    /// it changed.
-    pub fn set_state(&self, id: &str, state: OperationState) -> bool {
-        self.update_operation(id, |o| {
-            if o.state.is_finished() {
-                false
-            } else {
-                o.state = state;
-                true
-            }
-        })
-        .unwrap_or(false)
-    }
-
-    /// Finish an operation with a result or an error (once).
-    pub fn finish_operation(
-        &self,
-        id: &str,
-        state: OperationState,
-        result: Option<OperationResult>,
-        error: Option<ToolError>,
-    ) {
-        self.update_operation(id, |o| {
-            if !o.state.is_finished() {
-                o.state = state;
-                o.result = result;
-                o.error = error;
-            }
-        });
-    }
-
-    pub fn set_counts(&self, id: &str, counts: Counts) {
-        self.update_operation(id, |o| o.counts = counts);
-    }
-
-    // -------------------------------------------------------- idempotency
-
-    /// The operation a pairing's key already names: `Some(Ok(id))` for the
-    /// same input, `Some(Err(()))` when the key was used with other input.
-    pub fn idempotent(
-        &self,
-        pairing_id: &str,
-        key: &str,
-        input_digest: &str,
-    ) -> Option<Result<String, ()>> {
-        self.lock()
-            .idempotency
-            .get(&(pairing_id.to_string(), key.to_string()))
-            .map(|(digest, op)| {
-                if digest == input_digest {
-                    Ok(op.clone())
-                } else {
-                    Err(())
-                }
-            })
-    }
-
-    pub fn remember_idempotent(
-        &self,
-        pairing_id: &str,
-        key: &str,
-        input_digest: &str,
-        operation_id: &str,
-    ) {
-        self.lock().idempotency.insert(
-            (pairing_id.to_string(), key.to_string()),
-            (input_digest.to_string(), operation_id.to_string()),
-        );
-    }
-
-    /// Forget a key (the operation it named was never created).
-    pub fn forget_idempotent(&self, pairing_id: &str, key: &str) {
-        self.lock()
-            .idempotency
-            .remove(&(pairing_id.to_string(), key.to_string()));
+    pub fn forget_cancellation_flag(&self, id: &str) {
+        self.lock().cancellation.remove(id);
     }
 }
 
@@ -411,62 +292,62 @@ pub fn remove_dev_credential(config_dir: &std::path::Path, pairing_id: &str) {
     let _ = std::fs::remove_file(dev_credential_path(config_dir, pairing_id));
 }
 
-/// Deny every pending card of a pairing (it was revoked), and end the
-/// operations waiting on them. Publishes the approvals change.
-pub fn deny_cards_of(
+/// Close pending approvals and their operations inside the pairing revocation
+/// transaction, returning the cards the desktop needs to refresh after commit.
+pub(crate) fn deny_cards_of(
     app: &crate::App,
-    conn: &rusqlite::Connection,
+    conn: &rusqlite::Transaction<'_>,
     pairing_id: &str,
-    reason: &str,
-) {
-    let now = app.now_iso();
+) -> Result<Vec<String>, musaic_commands::ToolError> {
     let mut ids = Vec::new();
-    let cards = musaic_db::agent::list_approvals(conn, Some("pending")).unwrap_or_default();
+    let cards = musaic_db::agent::list_approvals(conn, Some("pending")).map_err(run::db_err)?;
     for card in cards.into_iter().filter(|c| c.pairing_id == pairing_id) {
-        if musaic_db::agent::decide_approval(conn, &card.id, "denied", Some(reason), &now)
-            .unwrap_or(false)
+        if musaic_db::agent::decide_approval(
+            conn,
+            &card.id,
+            "denied",
+            Some("pairing revoked"),
+            &app.now_iso(),
+        )
+        .map_err(run::db_err)?
         {
             if let Some(op) = &card.operation_id {
-                app.0
-                    .agent
-                    .finish_operation(op, OperationState::Denied, None, None);
+                let error = musaic_commands::ToolError::new(
+                    musaic_commands::ToolErrorCode::Denied,
+                    "the pairing was revoked",
+                );
+                operations::finish_on(
+                    conn,
+                    op,
+                    OperationState::Denied,
+                    None,
+                    Some(&error),
+                    operations::now(app),
+                )?;
             }
             ids.push(card.id);
         }
     }
-    if !ids.is_empty() {
-        app.bus().publish(&musaic_events::Event::AgentStateChanged {
-            what: musaic_events::AgentWhat::Approvals,
-            ids,
-        });
-    }
+    Ok(ids)
 }
 
 /// How long proposals and before-images are kept.
 pub const PROPOSAL_KEEP: Duration = Duration::from_secs(7 * 24 * 3600);
 pub const CHANGE_KEEP: Duration = Duration::from_secs(90 * 24 * 3600);
 
-/// At startup: a restart ends the operation handles a card waits on, so every
-/// pending card expires ("app restarted"); old proposals and before-images
-/// are pruned, the latter with their directories. Failures are logged, never
-/// fatal.
+/// Recover durable operations and prune old proposals and before-images.
 pub fn startup_housekeeping(app: &crate::App) {
     let Ok(conn) = musaic_db::open_connection(app.db_path()) else {
         return;
     };
-    let now = app.now();
-    let at = musaic_db::backup::iso_seconds(now);
-    match musaic_db::agent::expire_all_pending(&conn, "app restarted", &at) {
-        Ok(ids) if !ids.is_empty() => app.log().info(
+    if let Err(e) = operations::recover(app, &conn) {
+        app.log().warn(
             "musaic.agent",
-            &format!("{} pending approval card(s) expired at start", ids.len()),
-        ),
-        Ok(_) => {}
-        Err(e) => app.log().warn(
-            "musaic.agent",
-            &format!("expiring pending cards failed: {e}"),
-        ),
+            &format!("recovering agent operations failed: {e}"),
+        );
     }
+    run::expire_due(app);
+    let now = app.now();
     let cutoff = |keep: Duration| musaic_db::backup::iso_seconds(now - keep);
     let _ = musaic_db::agent::prune_proposals(&conn, &cutoff(PROPOSAL_KEEP));
     if let Ok(ids) = musaic_db::agent::prune_changes(&conn, &cutoff(CHANGE_KEEP)) {
@@ -483,9 +364,9 @@ pub fn diff_of(
     serde_json::from_str(&proposal?.diff).ok()
 }
 
-/// A new operation id (`op_` + 16 hex).
+/// A new 128-bit operation ID.
 pub fn new_operation_id() -> String {
-    format!("op_{}", random_hex(8))
+    format!("op_{}", random_hex(16))
 }
 
 /// The kinds of an approval or proposal as stored (a JSON array of strings),
@@ -516,7 +397,9 @@ pub fn start_expiry_ticker(app: &crate::App) {
                 }
                 match weak.upgrade() {
                     Some(inner) => {
-                        crate::App(inner).ops().agent().expire_due();
+                        let app = crate::App(inner);
+                        app.ops().agent().expire_due();
+                        delegation::tick(&app);
                     }
                     None => return,
                 }
@@ -631,47 +514,6 @@ mod tests {
         advance(&t, 61);
         h.record_failure();
         assert!(h.locked_for().is_none());
-    }
-
-    #[test]
-    fn operations_are_owned_evicted_oldest_finished_first_and_idempotent() {
-        let t = start();
-        let h = hub_at(&t);
-        let mk =
-            |id: &str, pairing: &str| Operation::new(id, pairing, "musaic_scan_start", h.now());
-        h.register_operation(mk("op_1", "p_1"));
-        assert!(h.operation("op_1", "p_1").is_some());
-        assert!(
-            h.operation("op_1", "p_2").is_none(),
-            "not another pairing's"
-        );
-        h.finish_operation("op_1", OperationState::Succeeded, None, None);
-        h.finish_operation("op_1", OperationState::Failed, None, None);
-        assert_eq!(
-            h.operation("op_1", "p_1").unwrap().state,
-            OperationState::Succeeded
-        );
-        assert!(
-            !h.set_state("op_1", OperationState::Running),
-            "finished stays finished"
-        );
-        for i in 0..MAX_OPERATIONS {
-            h.register_operation(mk(&format!("op_x{i}"), "p_1"));
-        }
-        assert!(
-            h.operation("op_1", "p_1").is_none(),
-            "the finished one was evicted"
-        );
-        assert!(
-            h.operation("op_x0", "p_1").is_some(),
-            "running ones are kept"
-        );
-
-        assert!(h.idempotent("p_1", "k", "d1").is_none());
-        h.remember_idempotent("p_1", "k", "d1", "op_x0");
-        assert_eq!(h.idempotent("p_1", "k", "d1"), Some(Ok("op_x0".into())));
-        assert_eq!(h.idempotent("p_1", "k", "d2"), Some(Err(())));
-        assert!(h.idempotent("p_2", "k", "d1").is_none(), "per pairing");
     }
 
     #[test]

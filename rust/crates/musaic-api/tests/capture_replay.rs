@@ -292,6 +292,10 @@ const DELTAS: &[(&str, &str)] = &[
         "deliberate addition (issue #296): the multi-disc-layout check, which the Python app did not have, is listed with the checks (before filename-mismatch, never run in this capture)",
     ),
     (
+        "research_epoch",
+        "Changing the configured library invalidates cached research and operation handles.",
+    ),
+    (
         "checks_rerun_finished",
         "deliberate addition (issue #204): a batch of check runs that finished publishes ChecksRerunFinished (check and album ids only), which the library-events stream relays",
     ),
@@ -938,6 +942,13 @@ async fn api_offline_capture_replays() {
         .iter()
         .filter(|(e, d)| {
             match e.as_str() {
+                "AgentStateChanged"
+                    if *d == json!({"what":"work","ids":[]})
+                        || *d == json!({"what":"operations","ids":[]}) =>
+                {
+                    use_delta(&mut run.deltas_used, "research_epoch");
+                    false
+                }
                 "SettingsChanged" => {
                     // Names only, never a value.
                     assert!(d["keys"].is_array(), "{d}");

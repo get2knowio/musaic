@@ -35,7 +35,10 @@ fn a_healthy_setup_reports_everything_and_no_secret() {
         j["profiles"],
         serde_json::json!(["mcp-2026-07-28", "mcp-2025-11-25"])
     );
-    assert_eq!(j["extensions"], serde_json::json!([]));
+    assert_eq!(
+        j["extensions"],
+        serde_json::json!(["io.modelcontextprotocol/tasks"])
+    );
     assert_eq!(j["version"], env!("CARGO_PKG_VERSION"));
     assert!(j["executable"].as_str().is_some());
     let text = j.to_string();

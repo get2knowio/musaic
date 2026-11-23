@@ -40,6 +40,10 @@ pub const HELLO: &str = "/__musaic/agent/v1/hello";
 pub const EXCHANGE: &str = "/__musaic/agent/v1/exchange";
 pub const TOOLS: &str = "/__musaic/agent/v1/tools";
 pub const TOOL: &str = "/__musaic/agent/v1/tools/{tool_id}";
+pub const TASK_CREATE: &str = "/__musaic/agent/v1/tasks/create";
+pub const TASK_GET: &str = "/__musaic/agent/v1/tasks/get";
+pub const TASK_UPDATE: &str = "/__musaic/agent/v1/tasks/update";
+pub const TASK_CANCEL: &str = "/__musaic/agent/v1/tasks/cancel";
 
 /// The largest request body.
 pub const MAX_BODY: usize = 256 * 1024;
@@ -50,6 +54,10 @@ pub const ROUTES: &[(&str, &str)] = &[
     ("POST", EXCHANGE),
     ("GET", TOOLS),
     ("POST", TOOL),
+    ("POST", TASK_CREATE),
+    ("POST", TASK_GET),
+    ("POST", TASK_UPDATE),
+    ("POST", TASK_CANCEL),
 ];
 
 /// Who is on the other end of the connection and which port they reached.
@@ -211,6 +219,10 @@ pub fn agent_router(state: AppState) -> Router {
         .route(EXCHANGE, on(MethodFilter::POST, agent::exchange))
         .route(TOOLS, get(agent::list_tools))
         .route(TOOL, on(MethodFilter::POST, agent::call_tool))
+        .route(TASK_CREATE, on(MethodFilter::POST, agent::task_create))
+        .route(TASK_GET, on(MethodFilter::POST, agent::task_get))
+        .route(TASK_UPDATE, on(MethodFilter::POST, agent::task_update))
+        .route(TASK_CANCEL, on(MethodFilter::POST, agent::task_cancel))
         .route_layer(middleware::from_fn_with_state(state.clone(), guard))
         .route_layer(middleware::from_fn(crate::tag_route))
         .fallback(|| async {

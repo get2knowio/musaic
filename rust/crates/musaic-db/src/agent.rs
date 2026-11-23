@@ -330,34 +330,44 @@ fn expire_where(
     reason: &str,
     at: &str,
 ) -> Result<Vec<String>> {
-    let tx = crate::immediate(conn)?;
     let ids: Vec<String> = {
-        let mut stmt = tx.prepare(&format!(
+        let mut stmt = conn.prepare(&format!(
             "SELECT id FROM agent_approvals WHERE state = 'pending' {filter} ORDER BY created_at, id"
         ))?;
         let rows = stmt.query_map(bind, |r| r.get(0))?;
         rows.collect::<rusqlite::Result<_>>()?
     };
     for id in &ids {
-        tx.execute(
+        conn.execute(
             "UPDATE agent_approvals SET state = 'expired', reason = ?2, decided_at = ?3 \
              WHERE id = ?1 AND state = 'pending'",
             params![id, reason, at],
         )?;
     }
-    tx.commit()?;
     Ok(ids)
 }
 
 /// Every pending card becomes `expired` with `reason` (an app restart ends the
 /// operation handles a card waits on). Returns the ids.
 pub fn expire_all_pending(conn: &Connection, reason: &str, at: &str) -> Result<Vec<String>> {
-    expire_where(conn, "", &[], reason, at)
+    let tx = crate::immediate(conn)?;
+    let ids = expire_where(&tx, "", &[], reason, at)?;
+    tx.commit()?;
+    Ok(ids)
 }
 
 /// Pending cards whose expiry is at or before `now` become `expired` ("timed
 /// out"). Returns the ids.
 pub fn expire_due(conn: &Connection, now: &str) -> Result<Vec<String>> {
+    let tx = crate::immediate(conn)?;
+    let ids = expire_due_in_transaction(&tx, now)?;
+    tx.commit()?;
+    Ok(ids)
+}
+
+/// Expire cards in the caller's transaction so linked operations can finish
+/// with them.
+pub fn expire_due_in_transaction(conn: &Connection, now: &str) -> Result<Vec<String>> {
     expire_where(conn, "AND expires_at <= ?1", &[&now], "timed out", now)
 }
 
@@ -366,7 +376,7 @@ pub fn expire_due(conn: &Connection, now: &str) -> Result<Vec<String>> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChangeRow {
     pub id: String,
-    pub pairing_id: String,
+    pub pairing_id: Option<String>,
     pub proposal_id: String,
     pub approval_id: Option<String>,
     pub album_id: String,
@@ -431,12 +441,34 @@ pub fn get_change(conn: &Connection, id: &str) -> Result<Option<ChangeRow>> {
         .optional()?)
 }
 
+pub fn change_of_proposal(conn: &Connection, proposal_id: &str) -> Result<Option<ChangeRow>> {
+    Ok(conn
+        .query_row(
+            &format!(
+                "SELECT {CHANGE_COLS} FROM agent_changes WHERE proposal_id=?1 AND undoes IS NULL
+                ORDER BY rowid DESC LIMIT 1"
+            ),
+            [proposal_id],
+            change,
+        )
+        .optional()?)
+}
+
 pub fn list_changes(conn: &Connection) -> Result<Vec<ChangeRow>> {
     let mut stmt = conn.prepare(&format!(
         "SELECT {CHANGE_COLS} FROM agent_changes ORDER BY created_at, id"
     ))?;
     let rows = stmt.query_map([], change)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Keep confirmed file outcomes while a desktop review apply is still running.
+pub fn checkpoint_change(conn: &Connection, id: &str, outcome: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE agent_changes SET outcome=?2 WHERE id=?1 AND state='recorded' AND outcome IS NOT ?2",
+        params![id, outcome],
+    )?;
+    Ok(())
 }
 
 /// Move a change from `recorded` to `applied`, `partial` or `failed` with the
@@ -750,7 +782,7 @@ mod tests {
         insert_pairing(c, &pair("p_1", "2026-01-01T00:00:00Z"), 20).unwrap();
         let mk = |id: &str, at: &str| ChangeRow {
             id: id.into(),
-            pairing_id: "p_1".into(),
+            pairing_id: Some("p_1".into()),
             proposal_id: "pr_1".into(),
             approval_id: None,
             album_id: "0123456789abcdef".into(),

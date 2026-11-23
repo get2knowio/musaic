@@ -113,7 +113,6 @@ export function usePriorCoverAttempts(albumId: string | null | undefined): Job[]
 // ---- Mutations ----
 
 export function useEnqueueJob() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (args: {
       albumId: string;
@@ -124,11 +123,6 @@ export function useEnqueueJob() {
       // `attach_cover` field. Defaults true backend-side.
       attachCover?: boolean;
     }) => enqueueJob(args),
-    onSuccess: () => {
-      // The SSE stream will push the updated list shortly, but invalidate
-      // here so the UI updates instantly without waiting for the round trip.
-      qc.invalidateQueries({ queryKey: JOBS_QUERY_KEY });
-    },
   });
 }
 

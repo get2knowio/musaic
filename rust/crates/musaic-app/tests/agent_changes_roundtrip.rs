@@ -289,7 +289,7 @@ fn a_cover_apply_is_undone_by_restoring_the_sidecars_and_every_embedded_picture(
         &conn,
         c.w.app.config_dir(),
         &musaic_services::agent_changes::ChangeInput {
-            pairing_id: &c.p.pairing_id,
+            pairing_id: Some(&c.p.pairing_id),
             proposal_id: "pr_x",
             approval_id: None,
             now: "2027-01-15T08:00:00Z",

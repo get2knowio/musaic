@@ -728,25 +728,14 @@ async fn check_fix_routes_replay_the_python_app() {
     assert_eq!(run.w.state.gate().snapshot(), (0, false), "gate released");
 }
 
-// No model backend (the
-// default `musaic_ai::Unconfigured`). Where the Python app enqueued an AI job
-// (or answered the conflict with the job it had enqueued) the route answers
-// ok:false with the job's not-available message and queues nothing; the fix
-// that wrote resolver values first names what it wrote. The other fix steps
-// answer exactly as recorded. Fails on the old behaviour (job queued,
-// ok:true with a job id).
+// With the production provider-free builder, unresolved fixes are durable requests.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn without_a_model_backend_fixes_answer_not_available() {
+async fn without_a_model_backend_fixes_queue_research() {
     let g = svc::load_golden("check_fixes.json");
     let run = setup_with(&g, None, None).await;
     let ids = Ids::new(&run, &g);
-    let msg = musaic_ai::model_unavailable(&musaic_ai::Unconfigured).expect("no backend");
-    // No provider is ready, so the
-    // message names no AI; it is the text a job that needs a model fails with
-    // (musaic-ai worker_loop.rs, jobs_worker_http.rs).
-    assert_eq!(msg, musaic_ai::provider::NOT_AVAILABLE);
-    let jobs = |run: &Run| run.rows(&run.w.conn(), "SELECT id FROM ai_jobs").len();
-    let (mut refused, mut wrote_first, mut as_recorded) = (0, 0, 0);
+    let mut delegated = 0;
+    let mut as_recorded = 0;
     for st in g["steps"].as_array().unwrap() {
         if st["op"] != "fix_finding" {
             continue;
@@ -761,30 +750,29 @@ async fn without_a_model_backend_fixes_answer_not_available() {
             .contains(&json!("needs-ai-job"))
             || label == "fix tags-out-of-sync resolver";
         if ai_step {
-            let recorded = st["body"]["message"].as_str().unwrap();
-            let want = match recorded.strip_suffix("; also asking Claude to fill the rest") {
-                Some(applied) => {
-                    wrote_first += 1;
-                    format!("{applied}; {msg}")
-                }
-                None => msg.clone(),
-            };
             assert_eq!(got.status, 200, "{label}");
-            assert_eq!(
-                body,
-                json!({"ok": false, "message": want, "job_id": null}),
-                "{label}"
-            );
-            refused += 1;
+            assert_eq!(body["ok"], true, "{label}: {body}");
+            let actual = got.json();
+            let group = actual["job_id"].as_str().expect("review group");
+            let items = musaic_db::research_jobs::group(&run.w.conn(), group).unwrap();
+            assert!(!items.is_empty(), "{label}");
+            if label == "fix tags-out-of-sync resolver" {
+                assert!(
+                    body["message"]
+                        .as_str()
+                        .unwrap()
+                        .starts_with("Wrote 1 album field")
+                );
+            }
+            delegated += 1;
         } else {
             assert_eq!(json!(got.status), st["status"], "{label}: status");
             assert_eq!(body, st["body"], "{label}: body");
             as_recorded += 1;
         }
-        assert_eq!(jobs(&run), 0, "{label}: nothing queued");
+        assert!(run.rows(&run.w.conn(), "SELECT id FROM ai_jobs").is_empty());
     }
-    assert_eq!(refused, 8, "the Python app's AI-queue steps");
-    assert_eq!(wrote_first, 1, "fix tags-out-of-sync resolver");
+    assert_eq!(delegated, 8);
     assert_eq!(as_recorded, 7);
 }
 

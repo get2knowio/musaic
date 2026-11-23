@@ -200,6 +200,9 @@ fn the_extra_route_list_is_exactly_this() {
             "PUT /api/ui-prefs",
             // Deliberate additions: the agent bridge (spec 003): the webview's
             // management routes, and the agent CLI's own route family.
+            "GET /api/research/groups/{group}",
+            "POST /api/research/{id}/preview/{digest}",
+            "POST /api/research/{id}/decision",
             "GET /api/agent/pairings",
             "POST /api/agent/pairings",
             "DELETE /api/agent/pairings/{pairing_id}",
@@ -214,6 +217,10 @@ fn the_extra_route_list_is_exactly_this() {
             "POST /__musaic/agent/v1/exchange",
             "GET /__musaic/agent/v1/tools",
             "POST /__musaic/agent/v1/tools/{tool_id}",
+            "POST /__musaic/agent/v1/tasks/create",
+            "POST /__musaic/agent/v1/tasks/get",
+            "POST /__musaic/agent/v1/tasks/update",
+            "POST /__musaic/agent/v1/tasks/cancel",
         ]
     );
 }

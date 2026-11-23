@@ -7,6 +7,20 @@ use tokio::sync::watch;
 use crate::App;
 
 impl App {
+    pub(crate) fn research_library_changed(&self) {
+        for what in [
+            musaic_events::AgentWhat::Work,
+            musaic_events::AgentWhat::Operations,
+        ] {
+            self.bus()
+                .publish(&musaic_events::Event::AgentStateChanged {
+                    what,
+                    ids: Vec::new(),
+                });
+        }
+        self.ai_jobs_changed();
+    }
+
     /// The providers this build has: the one the worker uses. The one source of
     /// truth for which `ai_provider_id` values a settings patch accepts (issue
     /// #199).

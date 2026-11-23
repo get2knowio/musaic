@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::gate::{WorkGuard, WorkKind};
 use crate::host_log::HostLog;
-use crate::scan::{ScanDeps, ScanEvent, ScanEventKind, ScanService, ScanState, StartScan};
+use crate::scan::{ScanDeps, ScanEvent, ScanEventKind, ScanRun, ScanService, ScanState, StartScan};
 
 /// The logger name of scans (`musaic.services.scan`).
 pub const SCAN_TARGET: &str = "musaic.services.scan";
@@ -27,7 +27,19 @@ pub fn start_scan_with(
     guard: WorkGuard,
     log: Arc<dyn HostLog>,
 ) -> ScanState {
-    match scan.start_scan(lib, force, deps) {
+    start_scan_observed(scan, lib, force, deps, guard, log).0
+}
+
+pub fn start_scan_observed(
+    scan: &ScanService,
+    lib: &str,
+    force: bool,
+    deps: ScanDeps,
+    guard: WorkGuard,
+    log: Arc<dyn HostLog>,
+) -> (ScanState, ScanRun) {
+    let (start, run) = scan.start_observed_scan(lib, force, deps);
+    let state = match start {
         StartScan::AlreadyRunning(s) => s,
         StartScan::Started(s, job) => {
             let mut guard = guard;
@@ -48,7 +60,8 @@ pub fn start_scan_with(
                 .expect("spawn scan thread");
             s
         }
-    }
+    };
+    (state, run)
 }
 
 /// The end of a scan in the log: its status and counts (from the state and

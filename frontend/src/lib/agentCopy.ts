@@ -13,6 +13,7 @@ export const AGENT_KIND_LABEL: Record<AgentKind, string> = {
   "tags.write": "Change tags",
   "covers.write": "Set covers",
   "files.rename": "Rename files and folders",
+  "work.cancel": "Cancel delegated research",
 };
 
 export const AGENT_DECISION_LABEL: Record<AgentDecision, string> = {
@@ -23,7 +24,7 @@ export const AGENT_DECISION_LABEL: Record<AgentDecision, string> = {
 
 /** Reading and suggesting have no "ask" step: Allow or Refuse only. */
 export function decisionsFor(kind: string): AgentDecision[] {
-  return kind === "library.read" || kind === "proposal.submit" ? ["allow", "refuse"] : ["allow", "ask", "refuse"];
+  return kind === "library.read" || kind === "proposal.submit" || kind === "work.cancel" ? ["allow", "refuse"] : ["allow", "ask", "refuse"];
 }
 
 const OUTCOME_WORDS: Record<string, string> = {

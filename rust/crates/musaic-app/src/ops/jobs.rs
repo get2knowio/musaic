@@ -1,24 +1,16 @@
-//! The `jobs` group: the AI job queue. List and read jobs, enqueue one for an
-//! album, mark a completed one acted-on, retry a failed one, delete one or
-//! several, resume the queue, list the providers this build has, and the feed of
-//! the jobs list.
+//! Desktop research and historical jobs. The jobs feed projects metadata and
+//! cover requests into one card and wakes after committed changes. Each child
+//! has its own claim, result, review decision and revision.
 //!
-//! The writers take the restore gate's work guard first, before they look at
-//! their input (a restore running answers `Busy` even for a bad job type), and
-//! hold it until the work ends. Every one that changes the queue wakes the
-//! dispatcher and every jobs feed itself (`ai_jobs_changed()`), once the change
-//! is written: an enqueue, an acted-on, a retry, a delete that removed a row (a
-//! bulk delete only when it removed some) and a resume. A refusal, and an
-//! enqueue that met the album's active job, change nothing and wake nothing.
-//!
-//! An album that already has an active job answers `Conflict` with
-//! `Details::ExistingJob`, for the enqueue and for a retry whose album has
-//! another active job.
+//! Writers take the work guard before validating input. An unresolved request
+//! for the same album, kind and input reuses its existing work. Historical
+//! provider queues retain their original conflict and retry behavior.
 
-use musaic_db::ai_jobs::{self, LIST_LIMIT, NewJob};
+use musaic_db::ai_jobs::{self, NewJob};
 use musaic_services::ai_jobs as queue;
 use rusqlite::Connection;
 
+pub use crate::desktop_research::{Preview as ResearchPreview, ReviewChild as ResearchItem};
 pub use musaic_ai::provider::ProviderInfo;
 pub use musaic_db::ai_jobs::JobRow as Job;
 
@@ -80,16 +72,27 @@ pub struct Jobs<'a> {
 }
 
 fn queue_state(conn: &Connection) -> Result<QueueState, OpError> {
+    let (running, queued) = musaic_db::research_jobs::queue_counts(conn)?;
     Ok(QueueState {
         paused: musaic_ai::jobs::queue_paused(conn)?,
         max_parallel: musaic_ai::jobs::max_parallel(conn)?,
-        running: ai_jobs::count_running(conn)?,
-        queued: ai_jobs::count_queued(conn)?,
+        running,
+        queued,
     })
 }
 
+fn require_historical_job(conn: &Connection, id: &str) -> Result<(), OpError> {
+    if !musaic_db::research_jobs::group(conn, id)?.is_empty() {
+        return Err(OpError::Conflict {
+            message: "Use the research item's review actions.".into(),
+            details: None,
+        });
+    }
+    Ok(())
+}
+
 fn jobs_list(conn: &Connection) -> Result<JobsList, OpError> {
-    let jobs = ai_jobs::list_jobs(conn, None, LIST_LIMIT)?;
+    let jobs = crate::desktop_research::jobs(conn, None)?;
     Ok(JobsList {
         jobs,
         queue_state: queue_state(conn)?,
@@ -105,12 +108,16 @@ impl Jobs<'_> {
     /// empty slice, lists every status; the values are matched as given).
     pub fn list(&self, statuses: Option<&[String]>) -> Result<Vec<Job>, OpError> {
         let statuses = statuses.filter(|s| !s.is_empty());
-        Ok(ai_jobs::list_jobs(&self.conn()?, statuses, LIST_LIMIT)?)
+        Ok(crate::desktop_research::jobs(&self.conn()?, statuses)?)
     }
 
     /// One job. `NotFound` for an unknown id.
     pub fn get(&self, job_id: &str) -> Result<Job, OpError> {
-        ai_jobs::get_job(&self.conn()?, job_id)?.ok_or_else(|| OpError::NotFound {
+        let conn = self.conn()?;
+        if let Some(group) = crate::desktop_research::group_job(&conn, job_id)? {
+            return Ok(group);
+        }
+        ai_jobs::get_job(&conn, job_id)?.ok_or_else(|| OpError::NotFound {
             details: None,
             what: super::error::Subject::Job,
             id: job_id.to_string(),
@@ -120,7 +127,28 @@ impl Jobs<'_> {
 
     /// The album's newest queued, running or completed job, if any.
     pub fn active_for_album(&self, album_id: &str) -> Result<Option<Job>, OpError> {
-        Ok(ai_jobs::get_active_job_for_album(&self.conn()?, album_id)?)
+        let conn = self.conn()?;
+        if let Some(group) = musaic_db::research_jobs::active_group(&conn, album_id)? {
+            return Ok(crate::desktop_research::group_job(&conn, &group)?);
+        }
+        Ok(ai_jobs::get_active_job_for_album(&conn, album_id)?)
+    }
+
+    pub fn research_items(&self, group: &str) -> Result<Vec<ResearchItem>, OpError> {
+        crate::desktop_research::children(self.app, &self.conn()?, group)
+    }
+    pub fn research_preview(&self, id: &str, digest: &str) -> Result<ResearchPreview, OpError> {
+        crate::desktop_research::preview(self.app, id, digest)
+    }
+    pub fn research_decide(
+        &self,
+        id: &str,
+        revision: i64,
+        digest: Option<&str>,
+        action: &str,
+        preview: Option<&str>,
+    ) -> Result<(), OpError> {
+        crate::desktop_research::decide(self.app, id, revision, digest, action, preview)
     }
 
     /// The queue's state now.
@@ -131,10 +159,8 @@ impl Jobs<'_> {
     /// Queue a job of `job_type` (`metadata`, `cover` or `metadata+cover`) for an
     /// album, with the user's `hint` ("" for none).
     ///
-    /// Order: the work guard (`Busy`), the job type (`Rejected`), the album
-    /// (`NotFound` unless it is cached in the configured library), then the
-    /// enqueue (`Conflict` with the album's active job as `Details::ExistingJob`).
-    /// The album's title (else its directory name) and path go on the job.
+    /// Validate the work guard, job type and album before resolving locally.
+    /// Group unresolved research by matching input and retain verified local results.
     pub fn enqueue(
         &self,
         album_id: &str,
@@ -161,20 +187,20 @@ impl Jobs<'_> {
             .map(musaic_ai::Py::py_str)
             .unwrap_or_default();
         let ids = self.app.0.ai.ids.clone();
-        queue::enqueue(
-            &mut conn,
-            &NewJob {
-                album_id: &row.album.id,
-                album_path: &path,
-                album_title: &title,
-                job_type,
-                hint,
-                attach_cover,
-            },
-            &*ids,
-            &self.app.now_iso(),
-            &|| self.app.ai_jobs_changed(),
-        )
+        let job = NewJob {
+            album_id: &row.album.id,
+            album_path: &path,
+            album_title: &title,
+            job_type,
+            hint,
+            attach_cover,
+        };
+        if !self.app.0.legacy_jobs {
+            return crate::desktop_research::enqueue(self.app, &mut conn, &job);
+        }
+        queue::enqueue(&mut conn, &job, &*ids, &self.app.now_iso(), &|| {
+            self.app.ai_jobs_changed()
+        })
     }
 
     /// Record what the user did with a completed job's answer (`applied` or
@@ -184,6 +210,7 @@ impl Jobs<'_> {
     pub fn mark_acted_on(&self, job_id: &str, action: &str) -> Result<Job, OpError> {
         let _guard = self.app.gate().begin_work()?;
         let conn = self.conn()?;
+        require_historical_job(&conn, job_id)?;
         queue::mark_acted_on(
             &conn,
             job_id,
@@ -200,6 +227,7 @@ impl Jobs<'_> {
     pub fn retry(&self, job_id: &str) -> Result<Job, OpError> {
         let _guard = self.app.gate().begin_work()?;
         let mut conn = self.conn()?;
+        require_historical_job(&conn, job_id)?;
         queue::retry(&mut conn, job_id, &|| self.app.now_iso(), &|| {
             self.app.ai_jobs_changed()
         })
@@ -209,6 +237,7 @@ impl Jobs<'_> {
     pub fn delete(&self, job_id: &str) -> Result<DeletedJob, OpError> {
         let _guard = self.app.gate().begin_work()?;
         let conn = self.conn()?;
+        require_historical_job(&conn, job_id)?;
         queue::delete(&conn, job_id, &|| self.app.ai_jobs_changed())?;
         Ok(DeletedJob {
             id: job_id.to_string(),

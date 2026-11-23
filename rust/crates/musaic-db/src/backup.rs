@@ -425,6 +425,32 @@ pub fn restore_from(
         }
     };
     let live = db.path().to_path_buf();
+    // Prepare the restored epoch before its database can ever become the
+    // live file. A crash immediately after the rename cannot resurrect old
+    // task handles, leases or outbox announcements.
+    let prepared = (|| -> Result<_, RestoreError> {
+        let scratch = tempfile::tempdir_in(live.parent().unwrap_or(Path::new(".")))?;
+        let staged = scratch.path().join("restored.db");
+        std::fs::copy(upload, &staged)?;
+        let (restored, opened) = Db::open(&staged).map_err(RestoreError::OpenFailed)?;
+        let ms = now
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        crate::delegated_work::rotate_restored_epoch(restored.connection(), ms)
+            .map_err(RestoreError::OpenFailed)?;
+        close_checkpointed(restored)?;
+        Ok((scratch, staged, opened))
+    })();
+    let (_scratch, staged, opened) = match prepared {
+        Ok(result) => result,
+        Err(error) => {
+            return Err(Box::new(RestoreFailed {
+                error,
+                db: Some(db),
+            }));
+        }
+    };
     if let Err(error) = close_checkpointed(db) {
         let db = Db::open(&live).ok().map(|(d, _)| d);
         return Err(Box::new(RestoreFailed { error, db }));
@@ -443,7 +469,7 @@ pub fn restore_from(
                 moved.push((src, dst));
             }
         }
-        std::fs::copy(upload, &live)?;
+        rename_when_free(&staged, &live)?;
         Ok(())
     })();
     if let Err(e) = swap {
@@ -455,7 +481,7 @@ pub fn restore_from(
     }
 
     match Db::open(&live) {
-        Ok((db, opened)) => Ok((
+        Ok((db, _)) => Ok((
             db,
             RestoreInfo {
                 schema_version: info.schema_version,

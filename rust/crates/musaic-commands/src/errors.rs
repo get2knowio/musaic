@@ -46,6 +46,14 @@ codes! {
     Restoring => "RESTORING",
     NoLibrary => "NO_LIBRARY",
     Unavailable => "UNAVAILABLE",
+    AlreadyClaimed => "ALREADY_CLAIMED",
+    LeaseExpired => "LEASE_EXPIRED",
+    StaleGeneration => "STALE_GENERATION",
+    StaleContext => "STALE_CONTEXT",
+    InvalidResult => "INVALID_RESULT",
+    PolicyDenied => "POLICY_DENIED",
+    RateLimited => "RATE_LIMITED",
+    TaskExpired => "TASK_EXPIRED",
     Internal => "INTERNAL",
     // Transport errors (reported by the CLI, not by a tool).
     AppNotRunning => "APP_NOT_RUNNING",
@@ -129,7 +137,7 @@ mod tests {
                 format!("\"{}\"", c.as_str())
             );
         }
-        assert_eq!(ToolErrorCode::ALL.len(), 23);
+        assert_eq!(ToolErrorCode::ALL.len(), 31);
     }
 
     #[test]

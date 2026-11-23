@@ -124,8 +124,8 @@ fn standard_formats_only(v: &mut Value) {
 use PermissionKind::*;
 use tools::*;
 
-/// The twelve tools, in the order of contracts/tools.md.
-pub static REGISTRY: [ToolDef; 12] = [
+/// The tools, in catalog order.
+pub static REGISTRY: [ToolDef; 21] = [
     ToolDef {
         id: "musaic_capabilities",
         cli_name: "capabilities",
@@ -245,6 +245,96 @@ pub static REGISTRY: [ToolDef; 12] = [
         annotations: ann(false, false, true, false),
         input_schema: schema::<operation::OperationCancelInput>,
         output_schema: schema::<operation::OperationCancelOutput>,
+    },
+    ToolDef {
+        id: "musaic_work_list",
+        cli_name: "work-list",
+        title: "List delegated work",
+        description: "List available research requests and your claimed work.",
+        kinds: &[LibraryRead],
+        annotations: ann(true, false, true, false),
+        input_schema: schema::<work::WorkListInput>,
+        output_schema: schema::<work::WorkListOutput>,
+    },
+    ToolDef {
+        id: "musaic_work_get",
+        cli_name: "work-get",
+        title: "Get delegated work",
+        description: "Read the immutable album context and input digest for a research request.",
+        kinds: &[LibraryRead],
+        annotations: ann(true, false, true, false),
+        input_schema: schema::<work::WorkGetInput>,
+        output_schema: schema::<work::WorkGetOutput>,
+    },
+    ToolDef {
+        id: "musaic_work_claim",
+        cli_name: "work-claim",
+        title: "Claim delegated work",
+        description: "Reserve this request for five minutes using an idempotency key.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, true, false),
+        input_schema: schema::<work::WorkClaimInput>,
+        output_schema: schema::<work::WorkClaimOutput>,
+    },
+    ToolDef {
+        id: "musaic_work_renew",
+        cli_name: "work-renew",
+        title: "Renew a work lease",
+        description: "Extend the expiry of your current claim. Renew once a minute while you work.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, false, false),
+        input_schema: schema::<work::WorkRenewInput>,
+        output_schema: schema::<work::WorkRenewOutput>,
+    },
+    ToolDef {
+        id: "musaic_work_progress",
+        cli_name: "work-progress",
+        title: "Report work progress",
+        description: "Update the current attempt using a monotonically increasing sequence.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, true, false),
+        input_schema: schema::<work::WorkProgressInput>,
+        output_schema: schema::<work::WorkSummary>,
+    },
+    ToolDef {
+        id: "musaic_work_complete",
+        cli_name: "work-complete",
+        title: "Submit a research result",
+        description: "Submit bounded evidence and a recommendation for desktop review.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, true, true),
+        input_schema: schema::<work::WorkCompleteInput>,
+        output_schema: schema::<work::WorkSummary>,
+    },
+    ToolDef {
+        id: "musaic_work_fail",
+        cli_name: "work-fail",
+        title: "Report failed research",
+        description: "End this attempt and allow Musaic to decide whether to retry.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, false, false),
+        input_schema: schema::<work::WorkFailInput>,
+        output_schema: schema::<work::WorkSummary>,
+    },
+    ToolDef {
+        id: "musaic_work_release",
+        cli_name: "work-release",
+        title: "Release delegated work",
+        description: "Give your current claim back without submitting a result.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, false, false),
+        input_schema: schema::<work::WorkReleaseInput>,
+        output_schema: schema::<work::WorkSummary>,
+    },
+    ToolDef {
+        id: "musaic_work_cancel",
+        cli_name: "work-cancel",
+        title: "Cancel delegated work",
+        description: "Cancel work by revision when explicitly allowed by the pairing policy.",
+        kinds: &[LibraryRead, WorkCancel],
+        annotations: ann(false, false, true, false),
+        input_schema: schema::<work::WorkCancelInput>,
+        output_schema: schema::<work::WorkSummary>,
     },
 ];
 

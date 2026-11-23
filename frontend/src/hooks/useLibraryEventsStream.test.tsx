@@ -164,11 +164,18 @@ describe("useLibraryEventsStream", () => {
     const { invalidate, es } = setup();
     es.emit("open");
     expect(keysOf(invalidate)).toEqual([
+      ["research"],
       ["albums-snapshot"],
       ["tracks"],
       ["album-resolution"],
       ["agent"],
     ]);
+  });
+
+  it("refreshes research and the jobs cache when submitted work changes", () => {
+    const { invalidate, es } = setup();
+    es.emit("AgentStateChanged", { what: "work", ids: ["item"] });
+    expect(keysOf(invalidate)).toEqual([["research"], ["jobs"]]);
   });
 
   it("AgentStateChanged invalidates only the named agent family", () => {

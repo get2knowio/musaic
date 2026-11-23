@@ -274,6 +274,7 @@ export type JobType = "metadata" | "cover" | "metadata+cover";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "acted_on";
 
 export interface JobResult {
+  delegated?: boolean;
   /** Captured Claude transcript leading up to a failed job. Populated
    *  by the worker when the SDK call throws — provides context that
    *  the bare exception message ("exit code 1 …") usually doesn't.

@@ -11,6 +11,7 @@ use crate::tools::operation::{
     OperationCancelInput, OperationCancelOutput, OperationGetInput, OperationGetOutput,
     OperationHandle,
 };
+use crate::tools::work::*;
 use crate::tools::{
     Validate, album::*, analysis::AnalysisStartInput, checks::ChecksStartInput, findings::*,
     fix::*, library::*, resolution::*, scan::ScanStartInput,
@@ -31,6 +32,15 @@ pub enum ToolCall {
     AnalysisStart(AnalysisStartInput),
     OperationGet(OperationGetInput),
     OperationCancel(OperationCancelInput),
+    WorkList(WorkListInput),
+    WorkGet(WorkGetInput),
+    WorkClaim(WorkClaimInput),
+    WorkRenew(WorkRenewInput),
+    WorkProgress(WorkProgressInput),
+    WorkComplete(WorkCompleteInput),
+    WorkFail(WorkFailInput),
+    WorkRelease(WorkReleaseInput),
+    WorkCancel(WorkCancelInput),
 }
 
 impl ToolCall {
@@ -49,6 +59,15 @@ impl ToolCall {
             Self::AnalysisStart(_) => "musaic_analysis_start",
             Self::OperationGet(_) => "musaic_operation_get",
             Self::OperationCancel(_) => "musaic_operation_cancel",
+            Self::WorkList(_) => "musaic_work_list",
+            Self::WorkGet(_) => "musaic_work_get",
+            Self::WorkClaim(_) => "musaic_work_claim",
+            Self::WorkRenew(_) => "musaic_work_renew",
+            Self::WorkProgress(_) => "musaic_work_progress",
+            Self::WorkComplete(_) => "musaic_work_complete",
+            Self::WorkFail(_) => "musaic_work_fail",
+            Self::WorkRelease(_) => "musaic_work_release",
+            Self::WorkCancel(_) => "musaic_work_cancel",
         }
     }
 }
@@ -67,6 +86,11 @@ pub enum ToolOutput {
     Handle(OperationHandle),
     OperationGet(OperationGetOutput),
     OperationCancel(OperationCancelOutput),
+    WorkList(WorkListOutput),
+    WorkGet(WorkGetOutput),
+    WorkClaim(WorkClaimOutput),
+    WorkRenew(WorkRenewOutput),
+    WorkStatus(WorkSummary),
 }
 
 impl ToolOutput {
@@ -86,6 +110,11 @@ impl ToolOutput {
             Self::Handle(o) => v(o),
             Self::OperationGet(o) => v(o),
             Self::OperationCancel(o) => v(o),
+            Self::WorkList(o) => v(o),
+            Self::WorkGet(o) => v(o),
+            Self::WorkClaim(o) => v(o),
+            Self::WorkRenew(o) => v(o),
+            Self::WorkStatus(o) => v(o),
         }
     }
 }
@@ -96,14 +125,28 @@ fn input<T: DeserializeOwned + Validate>(body: &[u8]) -> Result<T, ToolError> {
     } else {
         body
     };
-    let parsed: T = serde_json::from_slice(body).map_err(|e| {
-        // The serde message names the field and the reason, never the value of
-        // a string field.
-        ToolError::new(
-            ToolErrorCode::InvalidInput,
-            format!("the input does not match the schema: {e}"),
-        )
+    let mut decoder = serde_json::Deserializer::from_slice(body);
+    let parsed: T = serde_path_to_error::deserialize(&mut decoder).map_err(|error| {
+        // The deserializer's display may quote an untrusted string.
+        let result = matches!(
+            error.path().iter().next(),
+            Some(serde_path_to_error::Segment::Map { key }) if key == "result"
+        );
+        if result {
+            ToolError::new(
+                ToolErrorCode::InvalidResult,
+                "the result does not match the schema",
+            )
+        } else {
+            ToolError::new(
+                ToolErrorCode::InvalidInput,
+                "the input does not match the schema",
+            )
+        }
     })?;
+    decoder
+        .end()
+        .map_err(|_| ToolError::new(ToolErrorCode::InvalidInput, "the input has extra data"))?;
     parsed.validate()?;
     Ok(parsed)
 }
@@ -124,6 +167,15 @@ pub fn parse_call(tool_id: &str, body: &[u8]) -> Result<ToolCall, ToolError> {
         "musaic_analysis_start" => ToolCall::AnalysisStart(input(body)?),
         "musaic_operation_get" => ToolCall::OperationGet(input(body)?),
         "musaic_operation_cancel" => ToolCall::OperationCancel(input(body)?),
+        "musaic_work_list" => ToolCall::WorkList(input(body)?),
+        "musaic_work_get" => ToolCall::WorkGet(input(body)?),
+        "musaic_work_claim" => ToolCall::WorkClaim(input(body)?),
+        "musaic_work_renew" => ToolCall::WorkRenew(input(body)?),
+        "musaic_work_progress" => ToolCall::WorkProgress(input(body)?),
+        "musaic_work_complete" => ToolCall::WorkComplete(input(body)?),
+        "musaic_work_fail" => ToolCall::WorkFail(input(body)?),
+        "musaic_work_release" => ToolCall::WorkRelease(input(body)?),
+        "musaic_work_cancel" => ToolCall::WorkCancel(input(body)?),
         _ => return Err(ToolError::new(ToolErrorCode::NotFound, "no such tool")),
     })
 }
@@ -133,7 +185,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_registry_tool_parses_and_names_itself() {
+    fn existing_tools_parse_and_name_themselves() {
         let bodies: [(&str, &str); 12] = [
             ("musaic_capabilities", "{}"),
             ("musaic_library_list", "{}"),

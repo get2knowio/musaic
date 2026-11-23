@@ -58,6 +58,7 @@ impl Database<'_> {
     /// and retried later.
     fn after_restore(&self, db: &Db) {
         self.app.scrub_keys(db, "after restore");
+        self.app.research_library_changed();
         self.app.0.resolver.invalidate(None);
     }
 

@@ -1,4 +1,4 @@
-//! Typed input and output of the twelve tools (contracts/tools.md). Every
+//! Typed input and output of the registered tools. Every
 //! input denies unknown fields and has a `validate()` that enforces the
 //! bounds; every output is an object.
 
@@ -12,6 +12,8 @@ pub mod library;
 pub mod operation;
 pub mod resolution;
 pub mod scan;
+pub mod task;
+pub mod work;
 
 use crate::errors::ToolError;
 

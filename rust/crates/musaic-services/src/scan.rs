@@ -331,6 +331,7 @@ impl ScanEvent {
 
 struct Inner {
     state: ScanState,
+    terminal: Arc<std::sync::OnceLock<ScanState>>,
     events: VecDeque<ScanEvent>,
     next_seq: u64,
     /// The worker passed the commit point (it is saving the snapshot): a
@@ -394,7 +395,12 @@ impl Shared {
     }
 
     fn update(&self, f: impl FnOnce(&mut ScanState)) {
-        f(&mut self.lock().state);
+        let mut g = self.lock();
+        f(&mut g.state);
+        if g.state.status.is_terminal() {
+            let _ = g.terminal.set(g.state.clone());
+        }
+        drop(g);
         self.changed.notify_all();
     }
 
@@ -419,6 +425,7 @@ impl Shared {
     fn finish(&self, f: impl FnOnce(&mut ScanState), kind: ScanEventKind) {
         let mut g = self.lock();
         f(&mut g.state);
+        let _ = g.terminal.set(g.state.clone());
         g.push(kind);
         drop(g);
         self.changed.notify_all();
@@ -503,6 +510,7 @@ impl ScanService {
             shared: Arc::new(Shared {
                 inner: Mutex::new(Inner {
                     state: ScanState::idle(),
+                    terminal: Arc::default(),
                     events: VecDeque::new(),
                     next_seq: 0,
                     saving: false,
@@ -536,11 +544,30 @@ impl ScanService {
 
     /// `start_scan(library_dir, force=...)`.
     pub fn start_scan(&self, library_dir: &str, force: bool, deps: ScanDeps) -> StartScan {
+        self.start_observed_scan(library_dir, force, deps).0
+    }
+
+    /// Attach a stable observer to the scan that starts or is already running.
+    pub fn start_observed_scan(
+        &self,
+        library_dir: &str,
+        force: bool,
+        deps: ScanDeps,
+    ) -> (StartScan, ScanRun) {
         let mut g = self.shared.lock();
         if g.state.status == ScanStatus::Running {
-            return StartScan::AlreadyRunning(g.state.clone());
+            let run = ScanRun {
+                service: self.clone(),
+                terminal: g.terminal.clone(),
+            };
+            return (StartScan::AlreadyRunning(g.state.clone()), run);
         }
         g.state = ScanState::idle();
+        g.terminal = Arc::default();
+        let run = ScanRun {
+            service: self.clone(),
+            terminal: g.terminal.clone(),
+        };
         g.state.library_dir = Some(library_dir.to_string());
         g.state.force = force;
         g.events.clear();
@@ -551,14 +578,17 @@ impl ScanService {
         let snapshot = g.state.clone();
         drop(g);
         self.shared.changed.notify_all();
-        StartScan::Started(
-            snapshot,
-            ScanJob {
-                shared: Arc::clone(&self.shared),
-                library_dir: library_dir.to_string(),
-                force,
-                deps,
-            },
+        (
+            StartScan::Started(
+                snapshot,
+                ScanJob {
+                    shared: Arc::clone(&self.shared),
+                    library_dir: library_dir.to_string(),
+                    force,
+                    deps,
+                },
+            ),
+            run,
         )
     }
 
@@ -583,7 +613,16 @@ impl ScanService {
     /// `cancelled` at its next directory or album, after the album being
     /// read.
     pub fn cancel(&self) -> CancelScan {
+        self.cancel_run(None)
+    }
+
+    fn cancel_run(&self, run: Option<&ScanRun>) -> CancelScan {
         let mut g = self.shared.lock();
+        if let Some(run) = run
+            && !Arc::ptr_eq(&g.terminal, &run.terminal)
+        {
+            return CancelScan::NotRunning(run.terminal_state());
+        }
         if g.state.status != ScanStatus::Running {
             return CancelScan::NotRunning(g.state.clone());
         }
@@ -646,6 +685,33 @@ impl ScanService {
             shared: Arc::clone(&self.shared),
             last_yielded: from_seq as i64 - 1,
         }
+    }
+}
+
+/// The scan attached when the operation started or joined. A later start
+/// can clear the shared event buffer while this handle still has the result.
+#[derive(Clone)]
+pub struct ScanRun {
+    service: ScanService,
+    terminal: Arc<std::sync::OnceLock<ScanState>>,
+}
+
+impl ScanRun {
+    fn terminal_state(&self) -> ScanState {
+        self.terminal.get().expect("a replaced scan ended").clone()
+    }
+
+    pub fn state(&self) -> ScanState {
+        let current = self.service.shared.lock();
+        if Arc::ptr_eq(&self.terminal, &current.terminal) {
+            current.state.clone()
+        } else {
+            self.terminal_state()
+        }
+    }
+
+    pub fn cancel(&self) -> CancelScan {
+        self.service.cancel_run(Some(self))
     }
 }
 

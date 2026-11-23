@@ -340,6 +340,8 @@ pub struct AiJobRequest {
     /// `metadata` | `cover`.
     pub job_type: &'static str,
     pub hint: String,
+    /// Local resolver changes already written before requesting further research.
+    pub applied_summary: Option<String>,
     /// What the Python app answers (`ok: true`, with the new job id) when the
     /// enqueue succeeds. On a conflict it answers `ok: false`, "Already has
     /// an active job ({status})" with the existing job's id instead.
@@ -486,6 +488,7 @@ fn ai_job(
         job_type,
         hint: hint.to_string(),
         message: message.into(),
+        applied_summary: None,
     })
 }
 
@@ -702,7 +705,13 @@ fn tags_fix(
         } else {
             format!("{applied}; also asking Claude to fill the rest")
         };
-        return Ok(ai_job(env, album_id, &brief, "metadata", "", msg));
+        let mut outcome = ai_job(env, album_id, &brief, "metadata", "", msg);
+        if !applied.is_empty()
+            && let FixOutcome::NeedsAiJob(request) = &mut outcome
+        {
+            request.applied_summary = Some(applied);
+        }
+        return Ok(outcome);
     }
     Ok(done(
         true,

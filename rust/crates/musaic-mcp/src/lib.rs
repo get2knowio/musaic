@@ -8,11 +8,15 @@ pub mod profile;
 use std::borrow::Cow;
 use std::sync::Arc;
 
+use musaic_commands::tools::operation::{OperationHandle, OperationState, POLL_INTERVAL_MS};
+use musaic_commands::tools::task::{TaskCreateInput, TaskInput, TaskSnapshot, TaskUpdateInput};
 use musaic_commands::{REGISTRY, ToolDef, ToolError, ToolErrorCode, find_tool};
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, CallToolResult, Implementation, JsonObject,
-    ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool,
-    ToolAnnotations,
+    CallToolRequestParams, CallToolResponse, CallToolResult, CancelTaskMethod, CancelTaskParams,
+    ClientCapabilities, CreateTaskResult, DetailedTask, GetTaskMethod, GetTaskParams,
+    GetTaskResult, Implementation, JsonObject, ListToolsResult, MetaObject, PaginatedRequestParams,
+    ProtocolVersion, ServerCapabilities, ServerConfig, Task, TaskPayload, TaskStatus, Tool,
+    ToolAnnotations, UpdateTaskMethod, UpdateTaskParams,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler, ServiceExt};
@@ -22,6 +26,26 @@ use tokio::io::{AsyncRead, AsyncWrite};
 /// What the adapter calls for a tool: blocking, one JSON object in and out.
 pub trait Backend: Send + Sync + 'static {
     fn call_tool(&self, tool_id: &str, input: Value) -> Result<Value, ToolError>;
+
+    fn supports_tasks(&self) -> bool {
+        false
+    }
+
+    fn create_task(&self, _input: TaskCreateInput) -> Result<TaskSnapshot, ToolError> {
+        Err(tasks_unavailable())
+    }
+
+    fn get_task(&self, _input: TaskInput) -> Result<TaskSnapshot, ToolError> {
+        Err(tasks_unavailable())
+    }
+
+    fn update_task(&self, _input: TaskUpdateInput) -> Result<(), ToolError> {
+        Err(tasks_unavailable())
+    }
+
+    fn cancel_task(&self, _input: TaskInput) -> Result<(), ToolError> {
+        Err(tasks_unavailable())
+    }
 }
 
 /// The error of running the server (transport setup or a broken pipe).
@@ -53,9 +77,158 @@ fn tool_of(t: &ToolDef) -> Tool {
         ))
 }
 
+fn tasks_unavailable() -> ToolError {
+    ToolError::new(
+        ToolErrorCode::Unavailable,
+        "the app does not support native Tasks",
+    )
+}
+
+fn request_declares_tasks(context: &RequestContext<RoleServer>) -> bool {
+    context
+        .meta
+        .client_capabilities()
+        .is_some_and(|caps| caps.supports_tasks())
+}
+
+fn modern(context: &RequestContext<RoleServer>) -> bool {
+    context
+        .peer
+        .peer_info()
+        .is_none_or(|info| info.protocol_version == ProtocolVersion::V_2026_07_28)
+        && context.protocol_version() == Some(ProtocolVersion::V_2026_07_28)
+}
+
+fn task_error(error: ToolError) -> McpError {
+    let data = Some(serde_json::to_value(&error).expect("a tool error is JSON"));
+    match error.code {
+        ToolErrorCode::Internal => McpError::internal_error(error.message, data),
+        code if code.is_transport() => McpError::internal_error(error.message, data),
+        _ => McpError::invalid_params(error.message, data),
+    }
+}
+
+async fn blocking<T: Send + 'static>(
+    f: impl FnOnce() -> Result<T, ToolError> + Send + 'static,
+) -> Result<Result<T, ToolError>, McpError> {
+    tokio::task::spawn_blocking(f)
+        .await
+        .map_err(|_| McpError::internal_error("the request could not be executed", None))
+}
+
+fn operation_meta(id: &str) -> MetaObject {
+    let mut value = JsonObject::new();
+    value.insert("musaic/operationId".into(), Value::String(id.to_string()));
+    MetaObject(value)
+}
+
+fn protocol_task(snapshot: &TaskSnapshot) -> Task {
+    let status = if snapshot.execution_failed {
+        TaskStatus::Failed
+    } else if snapshot.operation.state == OperationState::Cancelled {
+        TaskStatus::Cancelled
+    } else if snapshot.operation.state.is_finished() {
+        TaskStatus::Completed
+    } else if !snapshot.pending_inputs.is_empty() {
+        TaskStatus::InputRequired
+    } else {
+        TaskStatus::Working
+    };
+    let mut task = Task::new(
+        &snapshot.task_id,
+        status,
+        &snapshot.created_at,
+        &snapshot.updated_at,
+    )
+    .with_poll_interval_ms(POLL_INTERVAL_MS);
+    if let Some(ttl) = snapshot.ttl_ms {
+        task = task.with_ttl_ms(ttl);
+    }
+    if snapshot.operation.state == OperationState::AwaitingApproval && status == TaskStatus::Working
+    {
+        task = task.with_status_message("Waiting for a decision in the Musaic desktop app");
+    }
+    task
+}
+
+fn detailed_task(snapshot: TaskSnapshot) -> Result<GetTaskResult, McpError> {
+    let task = protocol_task(&snapshot);
+    let payload = match task.status {
+        TaskStatus::Working => TaskPayload::Working,
+        TaskStatus::Cancelled => TaskPayload::Cancelled,
+        TaskStatus::Failed => TaskPayload::Failed {
+            error: serde_json::to_value(McpError::internal_error(
+                "the worker stopped unexpectedly",
+                None,
+            ))
+            .expect("a protocol error is JSON")
+            .as_object()
+            .cloned()
+            .expect("an error is an object"),
+        },
+        TaskStatus::Completed => {
+            let is_error = snapshot.operation.state != OperationState::Succeeded;
+            let handle = OperationHandle::completed(snapshot.operation.clone());
+            let mut value = serde_json::to_value(handle).expect("an operation is JSON");
+            let result = if is_error {
+                if let Some(error) = &snapshot.operation.error {
+                    value["code"] = serde_json::json!(error.code);
+                    value["message"] = serde_json::json!(error.message);
+                }
+                CallToolResult::structured_error(value)
+            } else {
+                CallToolResult::structured(value)
+            };
+            TaskPayload::Completed {
+                result: serde_json::to_value(result)
+                    .expect("a tool result is JSON")
+                    .as_object()
+                    .cloned()
+                    .expect("a tool result is an object"),
+            }
+        }
+        TaskStatus::InputRequired => TaskPayload::InputRequired {
+            input_requests: serde_json::from_value(
+                serde_json::to_value(snapshot.pending_inputs)
+                    .expect("the pending requests are JSON"),
+            )
+            .map_err(|_| {
+                McpError::internal_error("the Task's input requests are malformed", None)
+            })?,
+        },
+        _ => return Err(McpError::internal_error("unknown Task state", None)),
+    };
+    let mut result = GetTaskResult::new(DetailedTask::new(task, payload));
+    result.meta = Some(operation_meta(&snapshot.operation.operation_id));
+    Ok(result)
+}
+
+impl Server {
+    fn require_tasks<M: rmcp::model::ConstString>(
+        &self,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        if !modern(context) || !self.backend.supports_tasks() {
+            return Err(McpError::method_not_found::<M>());
+        }
+        if !request_declares_tasks(context) {
+            return Err(McpError::missing_required_client_capability(
+                ClientCapabilities::builder().enable_tasks().build(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl ServerHandler for Server {
     fn get_info(&self) -> ServerConfig {
-        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
+        let caps = ServerCapabilities::builder().enable_tools();
+        let caps = if self.backend.supports_tasks() {
+            caps.enable_tasks().build()
+        } else {
+            caps.build()
+        };
+        ServerConfig::new(caps)
             .with_server_info(Implementation::new("musaic", self.version.to_string()))
             .with_instructions(
                 "Musaic agent tools. Call musaic_capabilities first. Changes to files wait for the user's approval in the Musaic app.",
@@ -79,7 +252,7 @@ impl ServerHandler for Server {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
         let Some(tool) = find_tool(&request.name) else {
             return Err(McpError::invalid_params("unknown tool", None));
@@ -87,21 +260,91 @@ impl ServerHandler for Server {
         let input = Value::Object(request.arguments.unwrap_or_default());
         let backend = Arc::clone(&self.backend);
         let id = tool.id;
-        let outcome = tokio::task::spawn_blocking(move || backend.call_tool(id, input))
-            .await
-            .unwrap_or_else(|_| {
-                Err(ToolError::new(
-                    ToolErrorCode::Internal,
-                    "the tool call failed",
-                ))
-            });
-        Ok(match outcome {
-            Ok(v) => CallToolResult::structured(v),
-            Err(e) => CallToolResult::structured_error(
-                serde_json::to_value(&e).expect("a tool error is JSON"),
-            ),
+        let negotiated =
+            modern(&context) && request_declares_tasks(&context) && self.backend.supports_tasks();
+        let long = matches!(
+            id,
+            "musaic_scan_start" | "musaic_analysis_start" | "musaic_checks_start"
+        );
+        match blocking(move || backend.call_tool(id, input)).await? {
+            Ok(value) if negotiated && long => {
+                let handle: OperationHandle = serde_json::from_value(value).map_err(|_| {
+                    McpError::internal_error("the operation did not return a handle", None)
+                })?;
+                let backend = Arc::clone(&self.backend);
+                let input = TaskCreateInput {
+                    operation_id: handle.operation_id.clone(),
+                };
+                match blocking(move || backend.create_task(input)).await? {
+                    Ok(snapshot) => Ok(CreateTaskResult::new(protocol_task(&snapshot))
+                        .with_meta(operation_meta(&handle.operation_id))
+                        .into()),
+                    // The terminal application operation remains available after
+                    // the Task's retention window, using its ordinary handle.
+                    Err(e) if e.code == ToolErrorCode::TaskExpired => {
+                        Ok(CallToolResult::structured(
+                            serde_json::to_value(handle).expect("a handle is JSON"),
+                        )
+                        .into())
+                    }
+                    Err(e) => Err(task_error(e)),
+                }
+            }
+            Ok(value) => Ok(CallToolResult::structured(value).into()),
+            Err(error) if modern(&context) && error.code.is_transport() => Err(task_error(error)),
+            Err(error) => Ok(CallToolResult::structured_error(
+                serde_json::to_value(error).expect("a tool error is JSON"),
+            )
+            .into()),
         }
-        .into())
+    }
+
+    async fn get_task(
+        &self,
+        request: GetTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<GetTaskResult, McpError> {
+        self.require_tasks::<GetTaskMethod>(&context)?;
+        let backend = Arc::clone(&self.backend);
+        let input = TaskInput {
+            task_id: request.task_id,
+        };
+        detailed_task(
+            blocking(move || backend.get_task(input))
+                .await?
+                .map_err(task_error)?,
+        )
+    }
+
+    async fn update_task(
+        &self,
+        request: UpdateTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        self.require_tasks::<UpdateTaskMethod>(&context)?;
+        let backend = Arc::clone(&self.backend);
+        let input = TaskUpdateInput {
+            task_id: request.task_id,
+            input_responses: request.input_responses,
+        };
+        blocking(move || backend.update_task(input))
+            .await?
+            .map_err(task_error)
+    }
+
+    async fn cancel_task(
+        &self,
+        request: CancelTaskParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<(), McpError> {
+        self.require_tasks::<CancelTaskMethod>(&context)?;
+        let backend = Arc::clone(&self.backend);
+        let input = TaskInput {
+            task_id: request.task_id,
+        };
+        blocking(move || backend.cancel_task(input))
+            .await?
+            .map_err(task_error)
     }
 }
 

@@ -979,6 +979,7 @@ export const AGENT_KINDS = [
   "tags.write",
   "covers.write",
   "files.rename",
+  "work.cancel",
 ] as const;
 export type AgentKind = (typeof AGENT_KINDS)[number];
 export type AgentDecision = "allow" | "ask" | "refuse";
@@ -1069,7 +1070,7 @@ export type AgentChangeState = "recorded" | "applied" | "partial" | "failed" | "
 /** One change an assistant applied (or the undo of one). */
 export interface AgentChange {
   id: string;
-  pairingId: string;
+  pairingId: string | null;
   pairingName: string;
   /** The album's id now (a folder rename changes it). */
   albumId: string;
@@ -1101,3 +1102,53 @@ export function undoAgentChange(id: string): Promise<AgentUndoResult> {
 }
 
 export { ApiError };
+
+export interface ResearchItem {
+  id: string;
+  kind: string;
+  state: string;
+  revision: number;
+  validation: string | null;
+  digest: string | null;
+  note: string | null;
+  historicalResult: string | null;
+  applyOutcome?: {
+    files: {fileName: string; status: string; message?: string}[];
+    cover?: {status: string; message?: string};
+    renamed: boolean;
+  } | null;
+  changeId?: string | null;
+  result: {
+    outcome: string;
+    evidence: {source:string; retrievedAt:string; claim:string; limitations:string[]}[];
+    confidence: number;
+    uncertainties: string[];
+    recommendation: {
+      type: string;
+      rationale?: string;
+      rightsUncertainty?: string;
+      question?: string;
+      explanation?: string;
+      url?: string;
+      identifiers?: {type:string;id:string}[];
+    };
+  } | null;
+}
+
+export interface ResearchPreview {
+  coverThumbnail?: string;
+  digest:string;
+  revision:number;
+  diff: AgentApprovalDiff;
+}
+export function researchItems(group:string) {
+  return request<ResearchItem[]>(`/api/research/groups/${encodeURIComponent(group)}`);
+}
+export function previewResearch(item:ResearchItem) {
+  return request<ResearchPreview>(`/api/research/${encodeURIComponent(item.id)}/preview/${encodeURIComponent(item.digest ?? "")}`,{method:"POST"});
+}
+export function decideResearch(item:ResearchItem, action:"apply"|"discard"|"retry"|"cancel", preview?:ResearchPreview) {
+  return request<{ok:boolean}>(`/api/research/${encodeURIComponent(item.id)}/decision`,{
+    method:"POST",body:JSON.stringify({revision:preview?.revision ?? item.revision,action,digest:item.digest,previewDigest:preview?.digest}),
+  });
+}
