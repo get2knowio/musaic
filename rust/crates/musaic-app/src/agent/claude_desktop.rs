@@ -273,10 +273,15 @@ impl HostEnv {
         if text.starts_with("/Volumes/") && (self.mount)(canonical) != MountKind::Writable {
             return Some(Unstable::DiskImage);
         }
-        if text.contains("/.mount_") {
+        // By component, not by text: the separator differs by platform.
+        let names: Vec<String> = canonical
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        if names.iter().any(|n| n.starts_with(".mount_")) {
             return Some(Unstable::AppImage);
         }
-        if text.contains("/AppTranslocation/") {
+        if names.iter().any(|n| n == "AppTranslocation") {
             return Some(Unstable::Translocated);
         }
         if !self.allow_temporary_program {

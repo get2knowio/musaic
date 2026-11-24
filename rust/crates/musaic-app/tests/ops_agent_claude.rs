@@ -253,6 +253,9 @@ fn the_command_shown_is_the_command_written_for_both_shapes() {
             "server/musaic-cli"
         };
         assert_eq!(names, ["manifest.json", "icon.png", entry]);
+        // A zip written on Windows records no Unix mode, and a bundle is
+        // only ever written for the platform it is made on.
+        #[cfg(unix)]
         assert_eq!(
             entries[2].2.map(|m| m & 0o111),
             Some(0o111),
@@ -304,7 +307,12 @@ fn config_dir_appears_only_for_a_non_default_directory() {
 fn a_program_location_with_spaces_quotes_and_non_ascii_is_one_argument() {
     let s = Setup::new();
     let mut env = s.env(Platform::Darwin);
-    let dir = s.p("Mü sic \"Q\"/App");
+    // Windows allows no double quote in a file name.
+    let dir = s.p(if cfg!(windows) {
+        "Mü sic 'Q'/App"
+    } else {
+        "Mü sic \"Q\"/App"
+    });
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(dir.join("musaic-cli"), b"cli").unwrap();
     env.executable = Some(dir.join("Musaic"));
