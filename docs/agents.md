@@ -122,7 +122,20 @@ says **Add an assistant**.
 Tested hosts: Claude Code 2.1.330 on macOS, with both profiles (it negotiates
 2026-07-28 by default, and 2025-11-25 with `MCP_PROTOCOL_NEGOTIATION=legacy`); see
 [the recorded connection](../specs/003-agent-bridge/evidence/host-connection.md). Claude
-Desktop has not been connected to a built Musaic yet.
+Desktop: see below.
+
+**Claude Desktop.** Either use **Connect Claude Desktop** in Settings, Assistants (the app
+writes a bundle and opens it; Claude Desktop asks before installing), or run
+`musaic-cli setup --host claude-desktop`. Not both: Claude would run two Musaic servers. Claude
+Desktop's list shows Musaic once even then, and removing the listed item stopped both in the
+recorded test. To remove: the extension is removed in Claude Desktop's extension settings;
+`musaic-cli uninstall --host claude-desktop` removes only the configuration entry it wrote, and
+says when the extension is still installed. The app finds an installed extension from the folder
+Claude Desktop unpacks it into (observed on macOS, Claude Desktop 6.28899.6; not documented, so
+"not detected" never proves nothing is installed). The extension runs the `musaic-cli` inside the
+app: if you move the app, connect again. The extension is not signed. Observed on macOS, Claude
+Desktop 6.28899.6; Windows is unverified (see
+`specs/007-claude-desktop-bundle/evidence/compatibility.md`).
 
 The CLI never starts Musaic. If the app is not running, a tool call answers
 `APP_NOT_RUNNING` ("Start Musaic, then try again"). With a non-default config folder pass
@@ -218,12 +231,19 @@ revoke pairings you no longer use.
 ## Troubleshooting
 
 `musaic-cli doctor` prints one JSON document: the executable and version, the descriptor
-(`ok`, `absent`, `stale` or `invalid`), the pairing's status, its scopes, the transport and
+(`ok`, `absent`, `stale`, `invalid`, or `contract_mismatch` when the running app speaks
+another tool contract than this program), the pairing's status, its scopes, the transport and
 the MCP profiles the server speaks (`mcp-2026-07-28`, `mcp-2025-11-25`), the extensions
 the server offers (Tasks, Skills, Events), the installed skill version and what the host
 reported about itself. It prints no secret and makes no tool call but `capabilities`. Exit code 0 means
 healthy, 1 means a problem was found. For the other commands: 0 success, 2 a tool error,
 3 a transport error (app not running and similar), 64 usage.
+
+When the running app is another version than `musaic-cli`, `doctor` says so
+(`versionNote`) and `musaic-cli mcp` writes one line to stderr at start; both keep
+working. When the two use different tool contracts every call is refused with
+`PROFILE_UNSUPPORTED` and the words "Connect again from the Musaic app", which replaces
+the program the assistant runs with the app's own.
 
 The descriptor (`<config>/agent-instance.json`) is `invalid` when someone else could read
 it. On Unix the app writes it with mode 0600. On Windows the app gives it an access

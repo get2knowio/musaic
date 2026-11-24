@@ -140,8 +140,20 @@ function visibleWords(): string {
   return [document.body.textContent ?? "", ...attrs].join("\n");
 }
 
+/** Claude is named only as an assistant host the person may connect (spec 007):
+ * the Claude Desktop and skill actions in Settings, Assistants. These phrases
+ * are the whole allowance; any other use of the word still fails. */
+const HOST_NAME_PHRASES: RegExp[] = [
+  /Claude Desktop/g,
+  /skill (?:for|in) Claude/g,
+  /In Claude, open Settings/g,
+  /install a skill into Claude for you/g,
+  /Claude on the web and on phones/g,
+];
+
 function expectNoProviderWording() {
-  const words = visibleWords();
+  let words = visibleWords();
+  for (const phrase of HOST_NAME_PHRASES) words = words.replace(phrase, "");
   for (const re of FORBIDDEN) expect(words, `matched ${re}`).not.toMatch(re);
 }
 

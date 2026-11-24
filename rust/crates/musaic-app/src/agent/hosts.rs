@@ -50,6 +50,24 @@ pub struct PairingDiagnostics {
     pub last_claim_at: Option<String>,
     pub last_claim_work_id: Option<String>,
     pub host: Option<HostRecord>,
+    /// The `musaic-cli` version the live session reported, if any.
+    pub cli_version: Option<String>,
+    /// Whether that program is older than this app; `None` when either
+    /// version is missing or the two cannot be compared.
+    pub cli_older: Option<bool>,
+}
+
+/// The running app's version.
+pub fn app_version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
+
+/// Whether `cli` is an older release than `app`, pre-release part included;
+/// `None` when either does not parse.
+pub fn cli_is_older(cli: &str, app: &str) -> Option<bool> {
+    let cli = semver::Version::parse(cli).ok()?;
+    let app = semver::Version::parse(app).ok()?;
+    Some(cli < app)
 }
 
 fn clean(text: &str) -> String {
@@ -117,6 +135,11 @@ pub fn observe_host(app: &App, principal: &Principal, o: &HostObservation) {
         .ok()
         .and_then(|c| store::upsert(&c, &principal.pairing_id, &observation, now).ok())
         .unwrap_or(false);
+    let version_changed = app.0.agent.set_cli_version(
+        &principal.pairing_id,
+        &clean(o.cli_version.as_deref().unwrap_or_default()),
+    );
+    let changed = changed || version_changed;
     if changed {
         announce(app, &principal.pairing_id);
     }
@@ -131,6 +154,7 @@ pub fn session_status(app: &App, principal: &Principal) -> Result<SessionStatus,
         tasks: s.observation.tasks,
         skills: s.observation.skills,
         events: s.observation.events,
+        cli_version: None,
     });
     Ok(SessionStatus {
         observation,
@@ -155,7 +179,12 @@ pub fn diagnostics(app: &App) -> Result<Vec<PairingDiagnostics>, AgentError> {
             events: s.observation.events,
             observed_at: iso(at_ms(s.observed_at)),
         });
+        let cli_version = hub.cli_version(&row.id);
         out.push(PairingDiagnostics {
+            cli_older: cli_version
+                .as_deref()
+                .and_then(|v| cli_is_older(v, app_version())),
+            cli_version,
             scopes: crate::agent::parse_kinds(&row.scopes),
             revoked: row.revoked_at.is_some(),
             paired_at: row.created_at.clone(),
@@ -182,5 +211,14 @@ mod tests {
         assert_eq!(clean(&"x".repeat(500)).len(), MAX_TEXT);
         assert_eq!(clean_profile("2026-07-28"), "2026-07-28");
         assert_eq!(clean_profile("<script>"), "");
+    }
+
+    #[test]
+    fn older_is_decided_by_release_order_and_only_when_comparable() {
+        assert_eq!(cli_is_older("0.1.9", "0.2.0"), Some(true));
+        assert_eq!(cli_is_older("0.2.0", "0.2.0"), Some(false));
+        assert_eq!(cli_is_older("0.2.0-rc.1", "0.2.0"), Some(true));
+        assert_eq!(cli_is_older("0.3.0", "0.2.0"), Some(false));
+        assert_eq!(cli_is_older("dev", "0.2.0"), None);
     }
 }

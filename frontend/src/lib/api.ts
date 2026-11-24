@@ -1122,6 +1122,11 @@ export interface AgentDiagnostics {
   subscription: { active: boolean; at: string | null };
   lastClaim: { at: string | null; workId: string | null };
   host: AgentHostReport | null;
+  /** The version of the command-line program the live session reported. */
+  cliVersion?: string | null;
+  /** True when that program is older than the app; null when not comparable. */
+  cliOlder?: boolean | null;
+  appVersion?: string;
 }
 
 export function getAgentDiagnostics(): Promise<AgentDiagnostics[]> {
@@ -1199,3 +1204,41 @@ export function retryDelegatedWork(item: Pick<DelegatedWorkItem, "workId" | "rev
     body: JSON.stringify({ revision: item.revision, action: "retry" }),
   });
 }
+
+// --- Connect Claude Desktop (spec 007) ---
+
+/** A program and its arguments, exactly as the extension or the terminal runs them. */
+export interface ClaudeCommand {
+  program: string;
+  args: string[];
+}
+
+export type ClaudeConfigEntry = "absent" | "ours" | "foreign" | "unreadable";
+export type ClaudeCli =
+  | { state: "found"; command: ClaudeCommand }
+  | { state: "missing" }
+  | { state: "unstable"; reason: "disk-image" | "app-image" | "translocated" | "temporary" };
+
+/** What Connect Claude Desktop reports before any file is written. */
+export interface ClaudeDesktopStatus {
+  platform: "darwin" | "win32" | "linux";
+  bundleSupported: boolean;
+  claudeFound: boolean;
+  configEntry: ClaudeConfigEntry;
+  /** Whether the extension's folder was found in Claude Desktop's support
+   *  directory. "not-detected" is never proof that nothing is installed. */
+  extension: "detected" | "not-detected" | "unknown";
+  cli: ClaudeCli;
+  shape: "installed" | "self-contained";
+  route: "bundle" | "config-file-only" | "blocked";
+  setupCommand: ClaudeCommand | null;
+  uninstallCommand: ClaudeCommand | null;
+  appVersion: string;
+}
+
+export function getClaudeDesktopStatus(): Promise<ClaudeDesktopStatus> {
+  return request("/api/agent/claude-desktop");
+}
+
+/** The skill as a zip; the desktop window saves it like the database backup. */
+export const SKILL_ARCHIVE_URL = "/api/agent/skill-archive";

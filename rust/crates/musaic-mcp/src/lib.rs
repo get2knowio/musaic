@@ -269,6 +269,7 @@ impl Server {
             skills: self.skills_used.load(Ordering::Relaxed)
                 || has(musaic_commands::events::SKILLS_EXTENSION_ID),
             events: self.events_used.load(Ordering::Relaxed) || has(EVENTS_EXTENSION_ID),
+            cli_version: None,
         };
         let changed = {
             let mut last = self

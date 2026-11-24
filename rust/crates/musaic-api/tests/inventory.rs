@@ -224,6 +224,10 @@ fn the_extra_route_list_is_exactly_this() {
             "GET /api/agent/changes",
             // Deliberate addition (spec 005): per-pairing diagnostics.
             "GET /api/agent/diagnostics",
+            // Deliberate additions: Connect Claude Desktop's readiness report
+            // and the skill as a zip (spec 007).
+            "GET /api/agent/claude-desktop",
+            "GET /api/agent/skill-archive",
             "POST /api/agent/changes/{change_id}/undo",
             "POST /__musaic/agent/v1/hello",
             "POST /__musaic/agent/v1/exchange",

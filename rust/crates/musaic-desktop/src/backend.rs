@@ -115,7 +115,9 @@ pub fn build_state(opts: &Options, log: Option<&ProcessLog>) -> Result<AppState,
         .network(network(&opts.network))
         .frontend_dir(opts.frontend_dir.clone())
         // Every health check runs on its own (issue #187).
-        .check_sweep(true);
+        .check_sweep(true)
+        // Leftover Claude Desktop bundles in the temporary directory.
+        .host_cleanup(true);
     if let Some(l) = log {
         b = b.log_sink(l.log.sink()).log_masks(l.masks.clone());
     }

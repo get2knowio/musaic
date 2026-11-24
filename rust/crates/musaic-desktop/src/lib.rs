@@ -61,7 +61,7 @@ pub mod quit;
 pub mod report;
 pub mod window_state;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::Duration;
@@ -214,6 +214,23 @@ impl Hooks for TauriHooks {
             let _ = tx.send(r);
         });
         rx
+    }
+
+    fn open_bundle(&self, path: &Path) -> Result<(), String> {
+        if self.report.enabled() {
+            // Selftest runs record the request and open nothing.
+            self.report
+                .event("connect-claude", serde_json::json!({"opened": false}));
+            return Ok(());
+        }
+        // The operating system hands the file to whatever opens `.mcpb`
+        // files. Nothing is started here and no program is named.
+        self.app
+            .opener()
+            .open_path(path.to_string_lossy(), None::<&str>)
+            // A fixed sentence: the opener's error can name the file, and the
+            // answer never carries the generated file's path.
+            .map_err(|_| "the system could not open the extension file".to_string())
     }
 
     fn menu_state(&self, items: Vec<menu::ItemState>) {

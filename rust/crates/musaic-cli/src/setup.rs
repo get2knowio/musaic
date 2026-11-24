@@ -16,10 +16,36 @@ use serde::de::{Deserializer, MapAccess, Visitor};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json, value::RawValue};
 
+use musaic_commands::claude_desktop::{self, Platform};
+
 use crate::commands::{EXIT_OK, EXIT_PROBLEMS, Outcome};
 
 /// The entry's name in `mcpServers`.
-pub const ENTRY_NAME: &str = "musaic";
+pub use musaic_commands::claude_desktop::ENTRY_NAME;
+
+/// Said when `uninstall` finds no entry of ours in Claude Desktop's file: a
+/// connection made from the app is an extension, removed in Claude itself.
+pub const EXTENSION_REMOVAL: &str = "No Musaic entry in Claude Desktop's configuration file. If you connected from the Musaic app, remove the Musaic extension in Claude Desktop's extension settings.";
+
+/// Said by `setup --host claude-desktop`: both routes at once give two servers.
+pub const TWO_SERVERS_WARNING: &str = "If you already installed the Musaic extension from the app, remove it in Claude Desktop first; otherwise Claude would run two Musaic servers.";
+
+/// Said when the Musaic extension is detected in Claude Desktop and `uninstall`
+/// has nothing of its own to remove, or after it removed its entry.
+pub const EXTENSION_STILL_INSTALLED: &str = "The Musaic extension is still installed in Claude Desktop. Remove it in Claude Desktop's extension settings.";
+
+/// Said by `setup --host claude-desktop` while the extension is detected.
+pub const EXTENSION_DETECTED_WARNING: &str = "The Musaic extension is already installed in Claude Desktop. With this entry as well, Claude would run two Musaic servers; remove the extension in Claude Desktop's extension settings.";
+
+/// Whether the Musaic extension's folder is in Claude Desktop's support
+/// directory (the one holding `claude_desktop_config.json`). Read-only.
+pub fn extension_state(paths: &HostPaths) -> musaic_commands::claude_desktop::ExtensionState {
+    use musaic_commands::claude_desktop::{ExtensionState, detect_extension_in};
+    paths
+        .claude_desktop
+        .parent()
+        .map_or(ExtensionState::NotDetected, detect_extension_in)
+}
 
 /// Where each supported host keeps its configuration.
 #[derive(Debug, Clone)]
@@ -34,16 +60,7 @@ impl HostPaths {
     /// The layout under `home` for this operating system (`appdata` is
     /// `%APPDATA%` on Windows).
     pub fn under(home: &Path, appdata: Option<&Path>) -> Self {
-        let desktop = if cfg!(target_os = "macos") {
-            home.join("Library/Application Support/Claude/claude_desktop_config.json")
-        } else if cfg!(windows) {
-            appdata
-                .map(Path::to_path_buf)
-                .unwrap_or_else(|| home.join("AppData/Roaming"))
-                .join("Claude/claude_desktop_config.json")
-        } else {
-            home.join(".config/Claude/claude_desktop_config.json")
-        };
+        let desktop = claude_desktop::config_file(Platform::current(), home, appdata);
         Self {
             claude_desktop: desktop,
             claude_code: home.join(".claude.json"),
@@ -202,18 +219,7 @@ fn entry_text(command: &Path, config_dir: Option<&Path>) -> String {
     )
 }
 
-/// Whether an existing entry is one setup wrote: its command's file name is
-/// `musaic-cli[.exe]` and its args start with `mcp`.
-pub fn is_ours(entry: &Value) -> bool {
-    let command = entry["command"].as_str().unwrap_or("");
-    let name = command.rsplit(['/', '\\']).next().unwrap_or("");
-    let args_ok = entry["args"]
-        .as_array()
-        .and_then(|a| a.first())
-        .and_then(Value::as_str)
-        == Some("mcp");
-    (name == "musaic-cli" || name == "musaic-cli.exe") && args_ok
-}
+pub use musaic_commands::claude_desktop::is_ours;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -260,8 +266,20 @@ fn plan_host(id: &'static str, path: &Path, opts: &Options, command: &Path) -> H
         new_text: None,
         existed: path.is_file(),
     };
+    let extension_detected = id == "claude-desktop"
+        && extension_state(&opts.paths)
+            == musaic_commands::claude_desktop::ExtensionState::Detected;
+    let removal_hint = if extension_detected {
+        EXTENSION_STILL_INSTALLED
+    } else {
+        EXTENSION_REMOVAL
+    };
     if !plan.detected {
-        plan.reason = Some("not detected".into());
+        plan.reason = Some(if opts.uninstall && id == "claude-desktop" {
+            removal_hint.into()
+        } else {
+            "not detected".into()
+        });
         return plan;
     }
     let text = if plan.existed {
@@ -301,12 +319,18 @@ fn plan_host(id: &'static str, path: &Path, opts: &Options, command: &Path) -> H
         .and_then(|t| serde_json::from_str(t).ok());
     if opts.uninstall {
         match existing_value {
+            None if id == "claude-desktop" => plan.reason = Some(removal_hint.into()),
             None => plan.reason = Some("no entry".into()),
             Some(v) if is_ours(&v) => {
                 servers.remove(ENTRY_NAME);
                 root.set("mcpServers", raw(&servers.render(2)));
                 plan.action = Action::Remove;
                 plan.new_text = Some(root.render(0) + "\n");
+            }
+            Some(_) if id == "claude-desktop" => {
+                plan.reason = Some(format!(
+                    "the entry was not written by Musaic. {removal_hint}"
+                ));
             }
             Some(_) => plan.reason = Some("the entry was not written by Musaic".into()),
         }
@@ -511,15 +535,33 @@ pub fn run(opts: &Options) -> Outcome {
             files.push(json!({"path": p.path}));
         }
     }
+    let mut json = json!({
+        "ok": !refused,
+        "dryRun": opts.dry_run,
+        "hosts": plans.iter().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)).collect::<Vec<_>>(),
+        "files": files,
+        "skills": [],
+        "manualEntry": manual,
+    });
+    if plans.iter().any(|p| p.id == "claude-desktop") {
+        let detected = extension_state(&opts.paths)
+            == musaic_commands::claude_desktop::ExtensionState::Detected;
+        if !opts.uninstall {
+            let mut w = vec![json!(TWO_SERVERS_WARNING)];
+            if detected {
+                w.push(json!(EXTENSION_DETECTED_WARNING));
+            }
+            json["warnings"] = Value::Array(w);
+        } else if detected
+            && plans
+                .iter()
+                .any(|p| p.id == "claude-desktop" && p.action == Action::Remove)
+        {
+            json["warnings"] = json!([EXTENSION_STILL_INSTALLED]);
+        }
+    }
     Outcome {
-        json: json!({
-            "ok": !refused,
-            "dryRun": opts.dry_run,
-            "hosts": plans.iter().map(|p| serde_json::to_value(p).unwrap_or(Value::Null)).collect::<Vec<_>>(),
-            "files": files,
-            "skills": [],
-            "manualEntry": manual,
-        }),
+        json,
         code: if refused { EXIT_PROBLEMS } else { EXIT_OK },
     }
 }
@@ -540,21 +582,6 @@ fn failure_outcome(plans: &[HostPlan], why: &str) -> Outcome {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn ownership_is_the_binary_name_and_the_mcp_argument() {
-        assert!(is_ours(
-            &json!({"command": "/a/b/musaic-cli", "args": ["mcp"]})
-        ));
-        assert!(is_ours(
-            &json!({"command": "C:\\x\\musaic-cli.exe", "args": ["mcp", "--config-dir", "d"]})
-        ));
-        assert!(!is_ours(&json!({"command": "/a/b/other", "args": ["mcp"]})));
-        assert!(!is_ours(
-            &json!({"command": "/a/b/musaic-cli", "args": ["serve"]})
-        ));
-        assert!(!is_ours(&json!({"command": "/a/b/musaic-cli"})));
-    }
 
     #[test]
     fn timestamps_are_utc_stamps() {

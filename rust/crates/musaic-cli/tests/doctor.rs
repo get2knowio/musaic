@@ -134,6 +134,7 @@ fn doctor_prints_the_stored_host_observation_and_the_installed_skill() {
             tasks: true,
             skills: true,
             events: false,
+            cli_version: None,
         })
         .unwrap();
     let home = tempfile::tempdir().unwrap();
@@ -163,4 +164,37 @@ fn doctor_prints_the_stored_host_observation_and_the_installed_skill() {
     .unwrap();
     let out = commands::doctor_with(&client, &w.config, &paths);
     assert_eq!(out.json["skill"]["matchesBundled"], false);
+}
+
+#[test]
+fn doctor_reports_the_extension_state_on_its_claude_desktop_line() {
+    let w = World::with(false, false);
+    let id = w.pair(&[K::LibraryRead]);
+    let client = w.client(&id);
+    let home = tempfile::tempdir().unwrap();
+    let paths = musaic_cli::setup::HostPaths::under(home.path(), None);
+    let out = commands::doctor_with(&client, &w.config, &paths);
+    assert_eq!(out.json["claudeDesktop"]["extension"], "not-detected");
+    assert!(
+        !out.json["claudeDesktop"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("is installed in Claude Desktop;")
+    );
+    std::fs::create_dir_all(
+        paths
+            .claude_desktop
+            .parent()
+            .unwrap()
+            .join("Claude Extensions/local.mcpb.musaic.musaic"),
+    )
+    .unwrap();
+    let out = commands::doctor_with(&client, &w.config, &paths);
+    assert_eq!(out.json["claudeDesktop"]["extension"], "detected");
+    assert!(
+        out.json["claudeDesktop"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("extension is installed")
+    );
 }

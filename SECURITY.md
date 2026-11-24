@@ -90,6 +90,10 @@ your library and propose changes, through the bundled `musaic-cli`. The rules, i
   expiry, pairing). A restart expires every pending request. Before an assistant's change
   writes anything, the prior values, names and cover are recorded under
   `<config>/agent-changes/` and kept 90 days.
+- **The Claude Desktop hand-off** is the desktop window asking the operating system to open
+  one generated file (`Musaic.mcpb`, in a private temporary folder). Nothing is started, no
+  agent tool, bridge route or CLI subcommand can trigger it, the request takes no input, and the
+  bundle holds no secret. Claude Desktop's own files are only read, never written.
 - **No paths**: the tools return ids and bare file and folder names, never a filesystem
   path, and the contract offers no way to run SQL or a shell, read keys, delete, restore,
   change settings, or change permissions.

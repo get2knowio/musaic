@@ -22,6 +22,9 @@ interface DesktopMarker {
   folderPicker?: boolean;
   /** The reveal endpoints exist. */
   reveal?: boolean;
+  /** `POST /__musaic/connect/claude-desktop` exists: Musaic can write the
+   *  Claude Desktop extension file and open it. */
+  connectClaude?: boolean;
   /** What the platform's file manager is called ("Finder", "Explorer",
    *  "file manager"), for the button label. */
   fileManager?: string;
@@ -142,4 +145,43 @@ export function revealAlbumFolder(albumId: string): Promise<void> {
 /** Show the app's trash folder in the file manager. */
 export function revealTrash(): Promise<void> {
   return reveal(REVEAL_TRASH_PATH);
+}
+
+export const CONNECT_CLAUDE_PATH = "/__musaic/connect/claude-desktop";
+
+/** Whether this window can hand the Claude Desktop extension to the system. */
+export function canConnectClaude(): boolean {
+  return typeof window !== "undefined" && window.__musaicDesktop?.connectClaude === true;
+}
+
+export interface ConnectClaudeResult {
+  opened: boolean;
+  /** The program the extension runs (when opened). */
+  command?: { program: string; args: string[] };
+  reason?: string;
+  message?: string;
+}
+
+/** Ask the shell to write the extension file and open it. The request
+ *  carries nothing: the shell builds the file from its own program. Never
+ *  rejects for a refusal; the result says what happened. */
+export async function connectClaudeDesktop(): Promise<ConnectClaudeResult> {
+  let body: unknown = null;
+  let status = 0;
+  try {
+    const res = await fetch(CONNECT_CLAUDE_PATH, { method: "POST" });
+    status = res.status;
+    body = await res.json();
+  } catch {
+    /* an empty or non-JSON body */
+  }
+  const o = (body && typeof body === "object" ? body : {}) as ConnectClaudeResult & { detail?: unknown };
+  if (o.opened === true) return o;
+  const message =
+    typeof o.message === "string" && o.message
+      ? o.message
+      : typeof o.detail === "string" && o.detail
+        ? o.detail
+        : `The request failed (${status || "no answer"}).`;
+  return { opened: false, reason: o.reason, message };
 }

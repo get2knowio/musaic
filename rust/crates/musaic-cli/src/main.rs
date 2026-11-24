@@ -230,6 +230,16 @@ fn main() {
                     std::process::exit(o.code);
                 }
             };
+            // One diagnostic line when the app is another version (FR-026);
+            // the session still starts, and a contract the two cannot share
+            // is refused per call with its own message.
+            if let Some(w) = client
+                .descriptor()
+                .ok()
+                .and_then(|d| musaic_cli::client::version_warning(&d.app_version))
+            {
+                eprintln!("{w}");
+            }
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()

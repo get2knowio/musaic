@@ -25,6 +25,11 @@ rusqlite.workspace = true
 same-file = "1"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.11"
+semver = "1"
+# Deflate only, through the `flate2` already in the tree: the Claude Desktop bundle
+# and the skill archive are small deflated zips written with fixed timestamps.
+zip = { version = "=9.8.2", default-features = false, features = ["deflate-flate2"] }
+tempfile.workspace = true
 # Only `src/ops/record.rs` names it (the settings document keeps its stored key order).
 serde_json.workspace = true
 thiserror.workspace = true
@@ -34,7 +39,6 @@ tokio = { version = "1", features = ["sync", "macros"] }
 
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
-tempfile.workspace = true
 jsonschema = { version = "0.33", default-features = false }
 
 [lints]

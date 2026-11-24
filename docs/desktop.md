@@ -154,6 +154,13 @@ browser behaviour.
   page sends an album id, never a path; the shell looks the folder up in the
   configured library, so nothing else can be revealed. 404 for an unknown id or
   a folder not on disk (a Missing album), 409 when no library is configured.
+- **Connect Claude Desktop.** `POST /__musaic/connect/claude-desktop` takes no body (a body is
+  refused). The shell asks the one operation `agent.claude_desktop_bundle` to write the extension
+  file (`Musaic.mcpb`) to a private folder under the system temporary directory, then has the
+  opener open it so Claude Desktop shows its own install dialog. Answers `{"opened": true,
+  "command", "shape"}` or `{"opened": false, "reason", "message"}`; never the file's path. One at
+  a time; a failed open removes the file; leftovers are removed after 60 minutes and at start.
+  The marker advertises it as `connectClaude`. No capability is added to the web view.
 - **Window state** (`src/window_state.rs`). Size, position and maximized state
   are kept in `<config>/window-state.json`. A window whose title bar would not
   be reachable on any attached display is centred. `--hidden` runs neither read

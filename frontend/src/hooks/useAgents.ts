@@ -8,10 +8,12 @@
  * written the change.
  */
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { connectClaudeDesktop } from "@/lib/desktop";
 import {
   createAgentPairing,
   decideAgentApproval,
   getAgentDiagnostics,
+  getClaudeDesktopStatus,
   listAgentActivity,
   listAgentApprovals,
   listAgentChanges,
@@ -100,4 +102,23 @@ export function useApproveAgentApproval() {
 
 export function useDenyAgentApproval() {
   return useMutation({ mutationFn: (id: string) => decideAgentApproval(id, "deny") });
+}
+
+/** What Connect Claude Desktop reports. It depends on files outside Musaic
+ * (Claude's own folder and configuration) that no event reports, so unlike
+ * every other query here it is read again each time the dialog opens
+ * (stale time 0, dropped when the dialog closes). */
+export function useClaudeDesktopStatus(enabled: boolean) {
+  return useQuery({
+    queryKey: ["agent", "claude-desktop"],
+    queryFn: getClaudeDesktopStatus,
+    enabled,
+    staleTime: 0, // external files no event reports
+    gcTime: 0,
+  });
+}
+
+/** The hand-off: the shell writes the extension file and opens it. */
+export function useConnectClaudeDesktop() {
+  return useMutation({ mutationFn: connectClaudeDesktop });
 }
