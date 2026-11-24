@@ -32,6 +32,7 @@ function inbox(approvals: AgentApproval[], approvalsState: SourceStatus["state"]
   return {
     items,
     count: items.length,
+    batched: [],
     countIsLowerBound: approvalsState === "unavailable",
     inProgress: [],
     finishedJobs: [],

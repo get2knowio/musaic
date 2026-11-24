@@ -16,7 +16,11 @@
  * `finishedJobs`) and never counted. Ignored findings leave the count.
  *
  * `count` is the number of distinct items in the default view (All open):
- * the Sidebar badge and the page header use it, with `reviewBadge`.
+ * the Sidebar badge and the page header use it, with `reviewBadge`. Its
+ * jobs part is `jobsToReview` (lib/filters), which the Library's "Jobs to
+ * review" filter and its tooltip read too: the job cards listed here, plus
+ * the batched requests of a Fix all run waiting for the user, one per
+ * album, which Review lists under Delegated work instead (`batched`).
  *
  * Each of the three sources (findings, jobs, assistant requests) is in one of four states, kept
  * apart so that a request that failed never reads as "nothing to do":
@@ -30,9 +34,10 @@ import { useMemo } from "react";
 import { useChecks, useFindings } from "./useChecks";
 import { useJobs } from "./useJobs";
 import { useAgentApprovals } from "./useAgents";
+import { useDelegatedWork } from "./useDelegatedWork";
 import type { AgentApproval } from "@/lib/api";
 import type { Finding, Job } from "@/lib/types";
-import { isHistoryOnlyJob } from "@/lib/filters";
+import { isHistoryOnlyJob, isReviewJob, jobsToReview, type JobToReview } from "@/lib/filters";
 
 /** The findings endpoint's default row limit (10000). A list that reaches
  *  it may be missing findings, so the count is then a lower bound. */
@@ -64,10 +69,6 @@ export const approvalKey = (id: string) => `approval:${id}`;
 
 export function isOpenFinding(f: Finding): boolean {
   return !f.ignored_at && !f.resolved_at;
-}
-
-export function isReviewJob(j: Job): boolean {
-  return (j.status === "completed" || j.status === "failed") && !isHistoryOnlyJob(j);
 }
 
 function findingUrgency(f: Finding): Urgency {
@@ -187,8 +188,11 @@ export function sourceStateOf(q: { status: "pending" | "error" | "success"; data
 export interface ReviewInbox {
   /** Every open item, most pressing first (All open). */
   items: ReviewItem[];
-  /** Distinct items in All open: the badge. */
+  /** Distinct items in All open, `batched` included: the badge. */
   count: number;
+  /** Batched requests of a Fix all run waiting for the user, one per album
+   *  (from `jobsToReview`): counted in `count`, not in `items`. */
+  batched: JobToReview[];
   /** `count` may be too low: the findings list hit its limit, or a source
    *  could not be read at all. */
   countIsLowerBound: boolean;
@@ -213,6 +217,9 @@ export function useReview(): ReviewInbox {
   const findingsQ = useFindings();
   const jobsQ = useJobs();
   const approvalsQ = useAgentApprovals("pending");
+  // Requests of a Fix all batch have no job card; the delegated work list
+  // has them. A list that cannot be read adds nothing.
+  const { data: work } = useDelegatedWork();
   // Only for the order of equal items; the checks list is not a source.
   const { data: checks } = useChecks();
   const all = findingsQ.data;
@@ -231,11 +238,16 @@ export function useReview(): ReviewInbox {
     const fs = all ?? [];
     const js = jobs ?? [];
     const items = buildReviewItems(fs, js, (checks ?? []).map((c) => c.meta.id), approvals ?? []);
+    // The job cards in `items` are the unbatched entries of `jobsToReview`.
+    const toReview = jobsToReview(js, Array.isArray(work) ? work : []);
+    const batched = toReview.filter((e) => e.job === null);
+    const count = items.filter((i) => i.kind !== "job").length + toReview.length;
     const states = [findingsState, jobsState, approvalsState];
     const complete = states.every((s) => s === "ok");
     return {
       items,
-      count: items.length,
+      count,
+      batched,
       countIsLowerBound: fs.length >= FINDINGS_LIST_LIMIT || states.includes("unavailable"),
       inProgress: js
         .filter((j) => (j.status === "queued" || j.status === "running") && !isHistoryOnlyJob(j))
@@ -258,12 +270,13 @@ export function useReview(): ReviewInbox {
       },
       complete,
       degraded: states.some((s) => s === "unavailable" || s === "stale"),
-      allClear: complete && items.length === 0,
+      allClear: complete && count === 0,
       isLoading: states.every((s) => s === "loading"),
     };
   }, [
     all,
     jobs,
+    work,
     approvals,
     checks,
     findingsState,

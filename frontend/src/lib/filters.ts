@@ -4,7 +4,7 @@
  * filtered results never disagree.
  */
 import type { DelegatedWorkItem } from "./api";
-import { batchedNeedsAttention } from "./batchedResearch";
+import { batchedToReview } from "./batchedResearch";
 import type { Album, Job } from "./types";
 
 const RESEARCH_JOB_TYPES: ReadonlySet<string> = new Set(["metadata", "cover", "metadata+cover"]);
@@ -73,20 +73,48 @@ export function isValidFilterKey(s: string | null): s is FilterKey {
   return s !== null && s in FILTERS_BY_KEY;
 }
 
+/** A job card that waits for the user: a result to review, or a failure. */
+export function isReviewJob(j: Job): boolean {
+  return (j.status === "completed" || j.status === "failed") && !isHistoryOnlyJob(j);
+}
+
+/** One job waiting for the user: a job card, or the batched requests of one
+ *  album (a Fix all batch has no job cards). */
+export interface JobToReview {
+  albumId: string;
+  status: "completed" | "failed";
+  /** The card; null for batched requests. */
+  job: Job | null;
+}
+
 /**
- * Build the set of album ids that have a completed-or-failed job awaiting
- * action — these are the albums that "Jobs to review" lists. Requests of a
- * Fix all batch have no job card, so they come from the delegated work list
- * (`work`): a batched result waiting for review, or a failed one, counts too.
+ * The jobs waiting for the user (a result to review, or a failure): every
+ * such job card, then one entry per album whose batched requests wait, read
+ * from the delegated work list (`work`). The single source of the "Jobs to
+ * review" filter (its albums), the filter's "N jobs awaiting review"
+ * tooltip (its length) and the jobs part of the Review count, so the three
+ * cannot disagree.
  */
-export function buildNeedsAttentionSet(jobs: Job[], work?: DelegatedWorkItem[]): Set<string> {
-  const out = batchedNeedsAttention(work);
+export function jobsToReview(
+  jobs: readonly Job[],
+  work?: readonly DelegatedWorkItem[] | null,
+): JobToReview[] {
+  const out: JobToReview[] = [];
   for (const j of jobs) {
-    if ((j.status === "completed" || j.status === "failed") && !isHistoryOnlyJob(j)) {
-      out.add(j.album_id);
-    }
+    if (isReviewJob(j)) out.push({ albumId: j.album_id, status: j.status as "completed" | "failed", job: j });
+  }
+  for (const [albumId, status] of batchedToReview(work ?? undefined)) {
+    out.push({ albumId, status, job: null });
   }
   return out;
+}
+
+/** The albums "Jobs to review" lists: those of `jobsToReview`. */
+export function buildNeedsAttentionSet(
+  jobs: readonly Job[],
+  work?: readonly DelegatedWorkItem[] | null,
+): Set<string> {
+  return new Set(jobsToReview(jobs, work).map((e) => e.albumId));
 }
 
 /** Apply a filter to an album list. Returns the input unchanged if filter is null. */

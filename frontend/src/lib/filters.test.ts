@@ -3,6 +3,7 @@ import {
   applyFilter,
   buildNeedsAttentionSet,
   isValidFilterKey,
+  jobsToReview,
 } from "@/lib/filters";
 import type { DelegatedWorkItem } from "@/lib/api";
 import { makeAlbum, makeJob } from "@/test/fixtures";
@@ -56,6 +57,24 @@ describe("buildNeedsAttentionSet", () => {
       ],
     );
     expect([...set].sort()).toEqual(["card", "failed", "review"]);
+  });
+
+  it("jobsToReview lists each card and one entry per album with batched requests waiting", () => {
+    const entries = jobsToReview(
+      [makeJob({ album_id: "card", status: "completed" }), makeJob({ album_id: "busy", status: "running" })],
+      [
+        workItem({ albumId: "both", state: "failed", batchId: "b1" }),
+        workItem({ albumId: "both", state: "awaiting_review", batchId: "b1", kind: "cover.research" }),
+        workItem({ albumId: "failed", state: "failed", batchId: "b1" }),
+        workItem({ albumId: "solo", state: "awaiting_review", batchId: null }),
+      ],
+    );
+    expect(entries.map((e) => [e.albumId, e.status, e.job !== null])).toEqual([
+      ["card", "completed", true],
+      ["both", "completed", false],
+      ["failed", "failed", false],
+    ]);
+    expect([...buildNeedsAttentionSet([makeJob({ album_id: "card", status: "completed" })], [])]).toEqual(["card"]);
   });
 
   it("leaves a request with no batch to its job card", () => {

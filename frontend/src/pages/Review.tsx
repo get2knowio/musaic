@@ -304,11 +304,17 @@ export default function ReviewPage() {
   const lowerBound = review.countIsLowerBound;
   const total = itemsText(review.count, lowerBound);
   const albumsOf = (n: number) => `${n} ${n === 1 ? "album" : "albums"}`;
+  // All open counts the batched requests waiting for the user too (they are
+  // listed under Delegated work), so their albums count with the rest.
+  const openAlbums = new Set([
+    ...review.items.map((i) => i.albumId).filter((a): a is string => !!a),
+    ...review.batched.map((e) => e.albumId),
+  ]).size;
   const summary = review.isLoading
     ? "Loading…"
     : view.kind === "inbox" && filtered
       ? `${visible.length} of ${total} · ${albumsOf(albumCount(visible))}`
-      : `${total} · ${albumsOf(albumCount(review.items))}`;
+      : `${total} · ${albumsOf(openAlbums)}`;
 
   // ---- rows ----
   const findingRow = (f: Finding, opts: { urgency?: string; withCheck: boolean; siblings: Finding[] }) => {
@@ -420,7 +426,9 @@ export default function ReviewPage() {
               ? `Nothing open for this check${album ? " on this album" : ""}. It runs on its own; anything it finds will be listed here.`
               : album
                 ? "Nothing open here for this album."
-                : "Nothing here right now."}
+                : filter.kind === "all" && review.batched.length > 0
+                  ? "Research from Fix all is waiting for you under Delegated work below."
+                  : "Nothing here right now."}
           </Quiet>
         );
       }

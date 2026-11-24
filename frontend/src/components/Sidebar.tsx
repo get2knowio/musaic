@@ -10,8 +10,7 @@ import { useRememberedLibraryUrl } from "@/hooks/useRememberedLibraryUrl";
 import {
   FILTERS,
   FILTERS_BY_KEY,
-  buildNeedsAttentionSet,
-  isHistoryOnlyJob,
+  jobsToReview,
   isValidFilterKey,
   type FilterKey,
 } from "@/lib/filters";
@@ -52,10 +51,10 @@ export default function Sidebar() {
   // Requests of a Fix all batch have no job card: they come from the
   // delegated work list (kept fresh by the `work` event family).
   const { data: work } = useDelegatedWork();
-  const needsAttention = useMemo(
-    () => buildNeedsAttentionSet(jobs, Array.isArray(work) ? work : []),
-    [jobs, work],
-  );
+  // The jobs waiting for the user: the filter's albums and its tooltip's
+  // job count both come from this list, as does the jobs part of Review's.
+  const toReview = useMemo(() => jobsToReview(jobs, Array.isArray(work) ? work : []), [jobs, work]);
+  const needsAttention = useMemo(() => new Set(toReview.map((e) => e.albumId)), [toReview]);
 
   const counts = useMemo(() => {
     const out: Record<FilterKey | "all", number> = {
@@ -86,13 +85,11 @@ export default function Sidebar() {
     badge: badge ? { ...badge, tone: "neutral" } : undefined,
   };
 
-  // Tooltip the "Jobs to review" filter chip with both perspectives — albums
-  // with completed jobs (sidebar's count) and the actual jobs in completed/
-  // failed status (Jobs page's count). Same name, different granularities;
+  // Tooltip the "Jobs to review" filter chip with both perspectives — the
+  // albums it lists and the jobs waiting for review (job cards, and one per
+  // album for batched requests). Same name, different granularities;
   // surfacing both prevents confusion when the numbers disagree.
-  const needsReviewJobCount = jobs.filter(
-    (j) => (j.status === "completed" || j.status === "failed") && !isHistoryOnlyJob(j),
-  ).length;
+  const needsReviewJobCount = toReview.length;
 
   const collectionTooltip = (key: LibraryCollection): string => {
     const n = counts[key];

@@ -82,13 +82,17 @@ export function batchedActiveJobs(work: DelegatedWorkItem[] | undefined): Map<st
   return out;
 }
 
-/** Albums whose batched request has a result waiting for review, or failed:
- * what a job card in those states puts in "Jobs to review". */
-export function batchedNeedsAttention(work: DelegatedWorkItem[] | undefined): Set<string> {
-  const out = new Set<string>();
+/** Per album, the job-card status its batched requests wait for the user
+ * in, as a card would show it: "completed" when a result waits for review
+ * (it wins), else "failed". Albums with neither are left out. */
+export function batchedToReview(
+  work: readonly DelegatedWorkItem[] | undefined,
+): Map<string, "completed" | "failed"> {
+  const out = new Map<string, "completed" | "failed">();
   for (const item of work ?? []) {
     if (!item.batchId) continue;
-    if (item.state === "awaiting_review" || item.state === "failed") out.add(item.albumId);
+    if (item.state === "awaiting_review") out.set(item.albumId, "completed");
+    else if (item.state === "failed" && !out.has(item.albumId)) out.set(item.albumId, "failed");
   }
   return out;
 }

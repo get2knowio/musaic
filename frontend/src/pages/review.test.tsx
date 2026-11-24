@@ -29,6 +29,7 @@ import {
 } from "@/hooks/useReview";
 import { makeAlbum, makeJob } from "@/test/fixtures";
 import type { CheckMeta, CheckSummary, Finding, Job } from "@/lib/types";
+import type { DelegatedWorkItem } from "@/lib/api";
 
 const meta = (id: string, label: string, bulk: string | null = null): CheckMeta => ({
   id,
@@ -84,6 +85,7 @@ function client(f: Finding[] = findings, j: Job[] = jobs, checks: CheckSummary[]
   qc.setQueryData(["findings"], f);
   qc.setQueryData(["jobs"], j);
   qc.setQueryData(["agent", "approvals", "pending"], []);
+  qc.setQueryData(["research", "work"], []);
   // The jobs stream's counts: "Clear failed" would remove one request.
   qc.setQueryData(["jobs", "queueState"], { running: 1, queued: 0, clearable: 1, clearable_failed: 1 });
   qc.setQueryData(["albums-snapshot"], [
@@ -153,6 +155,52 @@ afterEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   resetActivityPanel();
+});
+
+describe("batched proposals awaiting review", () => {
+  const workItem = (albumId: string, over: Partial<DelegatedWorkItem> = {}): DelegatedWorkItem => ({
+    workId: `w-${albumId}`,
+    albumId,
+    albumLabel: null,
+    kind: "metadata.identify",
+    state: "awaiting_review",
+    revision: 1,
+    holder: null,
+    lastHeartbeatAt: null,
+    leaseExpiresAt: null,
+    attempts: 0,
+    maxAttempts: 3,
+    lastError: null,
+    waitingForAgent: false,
+    batchId: "b1",
+    ...over,
+  });
+
+  it("one unbatched and two batched proposals: the filter, the badge and the tooltip all say 3", () => {
+    const qc = client([], [job("proposed", "completed")]);
+    qc.setQueryData(["albums-snapshot"], [
+      makeAlbum({ id: "present", title: "Here" }),
+      makeAlbum({ id: "b-one", title: "Batched one" }),
+      makeAlbum({ id: "b-two", title: "Batched two" }),
+    ]);
+    qc.setQueryData(["research", "work"], [
+      workItem("b-one"),
+      // Two requests of one album are one job, as on a card.
+      workItem("b-two"),
+      workItem("b-two", { workId: "w-b-two-cover", kind: "cover.research" }),
+      // Neither waits for the user.
+      workItem("present", { workId: "w-queued", state: "queued" }),
+      workItem("b-one", { workId: "w-solo", batchId: null, state: "queued" }),
+    ]);
+    renderAt("/review", qc);
+    const filter = screen.getByRole("link", { name: /Jobs to review/ });
+    expect(filter.textContent).toContain("3");
+    expect(filter.getAttribute("title")).toBe("3 albums · 3 jobs awaiting review");
+    expect(badge()).toBe("3");
+    expect(summary()).toBe("3 items · 3 albums");
+    // The card is listed; the batched ones are under Delegated work.
+    expect(rowKeys()).toEqual(["job:proposed"]);
+  });
 });
 
 describe("the acceptance example", () => {
