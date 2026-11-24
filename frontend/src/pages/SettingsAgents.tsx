@@ -47,7 +47,7 @@ function when(iso: string | null): string {
 }
 
 /**
- * Assistants panel for the Settings page: pair an assistant, choose what it
+ * Assistants panel for the Settings page: add an assistant, choose what it
  * may do, see what it did, and revoke it. A pairing's secret is handed to
  * the assistant's own tool when it is set up and is never shown here.
  */
@@ -70,7 +70,7 @@ export default function AgentsPanel() {
         setRevoking(null);
       },
       onError: (err) => {
-        toast.error(errorText(err, "Could not revoke the pairing"), { duration: 4000 });
+        toast.error(errorText(err, "Could not revoke the assistant"), { duration: 4000 });
         setRevoking(null);
       },
     });
@@ -79,8 +79,8 @@ export default function AgentsPanel() {
   return (
     <div className="space-y-4 mb-6">
       <p className="text-xs text-fg-3">
-        Anyone who can run programs as you on this computer can use a pairing. Revoke pairings you no
-        longer use.
+        Anyone who can run programs as you on this computer can use an assistant you added. Revoke
+        assistants you no longer use.
       </p>
 
       <PairForm onCreated={setCreated} />
@@ -88,7 +88,7 @@ export default function AgentsPanel() {
 
       {pairings.isError && !pairings.data ? (
         <div role="alert" className="rounded-md border border-warn/40 bg-warn-soft px-3 py-2 text-sm flex items-center gap-3">
-          <span className="flex-1 text-fg-2">Couldn't load the paired assistants.</span>
+          <span className="flex-1 text-fg-2">Couldn't load your assistants.</span>
           <button type="button" onClick={() => void pairings.refetch()} className={BUTTON}>
             Retry
           </button>
@@ -97,10 +97,10 @@ export default function AgentsPanel() {
         <p className="text-sm text-fg-3">Loading…</p>
       ) : all.length === 0 ? (
         <p className="rounded-md border border-dashed border-line px-3 py-6 text-sm text-fg-3">
-          No assistants are connected. Pair one to let it read your library and suggest fixes.
+          No assistants are connected. Add one to let it read your library and suggest fixes.
         </p>
       ) : (
-        <ul aria-label="Paired assistants" className="rounded-md border border-line bg-panel-2 divide-y divide-line">
+        <ul aria-label="Your assistants" className="rounded-md border border-line bg-panel-2 divide-y divide-line">
           {[...active, ...revoked].map((p) => (
             <PairingRow key={p.id} pairing={p} onRevoke={() => setRevoking(p)} />
           ))}
@@ -147,7 +147,7 @@ function PairForm({ onCreated }: { onCreated: (p: AgentPairingCreated) => void }
   };
 
   return (
-    <form onSubmit={submit} aria-label="Pair an assistant" className="rounded-md border border-line bg-panel-2 p-3 space-y-3">
+    <form onSubmit={submit} aria-label="Add an assistant" className="rounded-md border border-line bg-panel-2 p-3 space-y-3">
       <div>
         <label htmlFor="agent-name" className="block text-sm font-medium mb-1">
           Assistant name
@@ -177,12 +177,12 @@ function PairForm({ onCreated }: { onCreated: (p: AgentPairingCreated) => void }
       </fieldset>
       {create.isError && (
         <p role="alert" className="text-xs text-err">
-          {errorText(create.error, "Could not pair the assistant")}
+          {errorText(create.error, "Could not add the assistant")}
         </p>
       )}
       <button type="submit" disabled={!name.trim() || scopes.size === 0 || create.isPending} className={`${BUTTON} inline-flex items-center gap-1.5`}>
         <Plug className="w-3.5 h-3.5" aria-hidden />
-        {create.isPending ? "Pairing…" : "Pair assistant"}
+        {create.isPending ? "Adding…" : "Add assistant"}
       </button>
     </form>
   );
@@ -198,7 +198,7 @@ function ConnectInfo({ pairing, onDone }: { pairing: AgentPairingCreated; onDone
   const command = [pairing.connect.command, ...pairing.connect.args].map(shellWord).join(" ");
   return (
     <section aria-label="Connect the assistant" className="rounded-md border border-accent-line bg-accent-soft p-3 space-y-2 text-sm">
-      <h3 className="font-medium">{pairing.name} is paired. Now connect it.</h3>
+      <h3 className="font-medium">{pairing.name} is added. Now connect it.</h3>
       <p className="text-fg-2">Run this command in a terminal on this computer and follow its steps:</p>
       <pre className="mono text-xs bg-panel rounded border border-line px-2 py-1.5 overflow-x-auto select-all">{command}</pre>
       <p className="text-fg-3 text-xs">
@@ -238,7 +238,7 @@ function PairingRow({ pairing, onRevoke }: { pairing: AgentPairing; onRevoke: ()
       </div>
       <div className="text-xs text-fg-3">
         Can: {scoped.length ? scoped.map((k) => AGENT_KIND_LABEL[k]).join("; ") : "nothing"}
-        <span className="mx-1.5">·</span>Paired {when(pairing.createdAt)}
+        <span className="mx-1.5">·</span>Added {when(pairing.createdAt)}
         <span className="mx-1.5">·</span>Last used {when(pairing.lastUsedAt)}
       </div>
       {!isRevoked && <Diagnostics pairing={pairing} />}

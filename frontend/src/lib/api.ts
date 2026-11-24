@@ -130,7 +130,7 @@ export function removeAlbumFromLibrary(
 /**
  * Wipe the cached MusicBrainz anchor for an album AND blocklist the
  * rejected release-group so the resolver's fingerprint vote / dir
- * search / AI persist all skip it on the next run. Returns the MBID
+ * search / research persist all skip it on the next run. Returns the MBID
  * that was just blocklisted (null if the album wasn't anchored to
  * anything).
  *
@@ -197,11 +197,11 @@ export function getCheckSweepStatus(): Promise<CheckSweepStatus> {
   return request<CheckSweepStatus>("/api/checks/sweep");
 }
 
-// --- AI Jobs ---
+// --- Research requests (job cards) ---
 //
 // The original `suggestMetadata` / `suggestCover` wrappers (POST /api/ai/
 // suggest-metadata, POST /api/ai/suggest-cover) were removed when the
-// sync endpoints they wrapped were deleted server-side. All AI-assisted
+// sync endpoints they wrapped were deleted server-side. All research-assisted
 // suggestion flows now go through the job queue (`enqueueJob` + the SSE
 // stream + the per-album active-job hooks). The MetadataSuggestionResponse
 // / CoverSuggestionResponse types are still exported from `types.ts`
@@ -238,13 +238,6 @@ export function getActiveJobForAlbum(albumId: string): Promise<Job | null> {
   return request(`/api/ai/jobs/active/${encodeURIComponent(albumId)}`);
 }
 
-export function markJobActedOn(jobId: string, action: "applied" | "discarded"): Promise<Job> {
-  return request(`/api/ai/jobs/${encodeURIComponent(jobId)}/acted-on`, {
-    method: "POST",
-    body: JSON.stringify({ action }),
-  });
-}
-
 export function deleteJob(jobId: string): Promise<{ deleted: boolean; id: string }> {
   return request(`/api/ai/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
 }
@@ -253,26 +246,16 @@ export function bulkDeleteJobs(statuses: JobStatus[]): Promise<{ deleted_count: 
   return request(`/api/ai/jobs?status=${statuses.join(",")}`, { method: "DELETE" });
 }
 
-export function retryJob(jobId: string): Promise<Job> {
-  return request(`/api/ai/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
-}
-
-export function resumeQueue(): Promise<{ queue_state: QueueState }> {
-  return request(`/api/ai/queue/resume`, { method: "POST" });
+/** Cancel every waiting, held or running research request behind one job
+ *  card (`POST /api/ai/jobs/{id}/cancel`). 409 when nothing is left to
+ *  cancel (all awaiting review or finished). */
+export function cancelResearchGroup(jobId: string): Promise<{ id: string; cancelled: number }> {
+  return request(`/api/ai/jobs/${encodeURIComponent(jobId)}/cancel`, { method: "POST" });
 }
 
 // --- Settings ---
 
 export interface AppSettings {
-  ai_max_parallel: number;
-  ai_queue_paused: boolean;
-  /** Selected airframe provider id (e.g. "claude"). Defaults to "claude". */
-  ai_provider_id: string;
-  /** Vendor model id passed to the selected provider. */
-  ai_model_id: string;
-  /** Whether a provider API key is configured. Write-only, like the other
-   *  keys — the value itself is never returned by GET /api/settings. */
-  ai_api_key_set: boolean;
   /** Whether the AcoustID API key is configured. The actual key is
    *  write-only — never returned by GET /api/settings. */
   acoustid_api_key_set: boolean;
@@ -285,10 +268,6 @@ export interface AppSettings {
    *  being retried. Absent
    *  from backends that don't report it. */
   keys_pending_removal?: boolean;
-  /** Whether the FireCrawl API key is configured. Same write-only
-   *  treatment as AcoustID. When set, ai.py mounts the FireCrawl MCP
-   *  server into Claude Agent SDK calls as a last-resort web fallback. */
-  firecrawl_api_key_set: boolean;
   /** How many automatic DB snapshots to keep (0 disables snapshotting). */
   snapshot_retention_count: number;
   /** Minimum hours between automatic snapshots; 0 = always snapshot on
@@ -307,16 +286,7 @@ export interface AppSettings {
 /** PATCH-time payload. *_api_key fields are write-only and only included
  *  when the user is changing them (empty string clears, omitted = no change). */
 export interface AppSettingsPatch {
-  ai_max_parallel?: number;
-  ai_queue_paused?: boolean;
-  /** airframe provider id. Empty string resets to the default ("claude");
-   *  a non-empty value must be an installed provider or the API 400s. */
-  ai_provider_id?: string;
-  ai_model_id?: string;
-  /** Provider API key (write-only). Empty string clears it. */
-  ai_api_key?: string;
   acoustid_api_key?: string;
-  firecrawl_api_key?: string;
   snapshot_retention_count?: number;
   snapshot_min_interval_hours?: number;
   filename_template_single_artist?: string;
@@ -325,46 +295,17 @@ export interface AppSettingsPatch {
   dir_template_compilation?: string;
 }
 
+/** The research queue's counts, as the jobs stream's `queue_state` sends
+ *  them (the frame also carries older keys the UI does not read). */
 export interface QueueState {
-  paused: boolean;
-  max_parallel: number;
   running: number;
   queued: number;
+  /** How many research requests "Clear applied or discarded" removes. */
+  clearable: number;
 }
 
 export function getSettings(): Promise<AppSettings> {
   return request("/api/settings");
-}
-
-/** One installed, selectable airframe provider. */
-export interface AiProvider {
-  id: string;
-  /** True if the provider takes a pasted API key; false if it authenticates
-   *  via its own env / CLI chain (in which case `auth_hint` explains how). */
-  accepts_api_key: boolean;
-  auth_hint: string | null;
-  /** Whether the provider's external prerequisite (a CLI it shells out to,
-   *  e.g. `claude` / `gh`) is present. False → AI calls will fail until the
-   *  user installs it or switches providers; deterministic matching still
-   *  works. Key/SDK-chain providers are always `true` here. */
-  ready: boolean;
-  /** What's required, e.g. "the `claude` CLI". Null when ready. */
-  requirement: string | null;
-  /** Actionable fix when not ready. Null when ready. */
-  remedy: string | null;
-}
-
-export interface AiProvidersResponse {
-  selected: { provider_id: string; model_id: string; api_key_set: boolean };
-  /** Installed (selectable) providers. */
-  providers: AiProvider[];
-  /** Known-but-not-installed provider ids (add via `pip install
-   *  airframe-agents[<extra>]`). Informational only. */
-  uninstalled: string[];
-}
-
-export function getAiProviders(): Promise<AiProvidersResponse> {
-  return request("/api/ai/providers");
 }
 
 export function patchSettings(patch: AppSettingsPatch): Promise<AppSettings> {
@@ -1200,10 +1141,52 @@ export interface DelegatedWorkItem {
   maxAttempts: number;
   lastError: string | null;
   waitingForAgent: boolean;
+  /** The job card (group) the request belongs to. */
+  groupId?: string;
+  /** The Fix all batch this request belongs to; null (or absent) for a
+   *  request made on its own. */
+  batchId?: string | null;
 }
 
 export function listDelegatedWork(): Promise<DelegatedWorkItem[]> {
   return request("/api/research/work");
+}
+
+// --- Research batches (spec 006): the requests one Fix all run made ---
+
+/** Every state a batch item can be in, finished ones included. */
+export type ResearchBatchState = DelegatedWorkState | "applied" | "discarded";
+
+/** One batch: where it came from, how big it is and its items by state.
+ * Counts are derived from the items; a batch has no state of its own. */
+export interface BatchSummary {
+  batchId: string;
+  checkId: string;
+  startedAt: string;
+  finishedAt: string | null;
+  /** Stopped part-way (or the app quit) and no run holds it now. */
+  unfinished: boolean;
+  size: number;
+  counts: Partial<Record<ResearchBatchState, number>>;
+}
+
+/** A batch with its items. Items of a Missing album are listed too. */
+export interface BatchDetail extends BatchSummary {
+  items: (Omit<DelegatedWorkItem, "state"> & { state: ResearchBatchState })[];
+}
+
+export function listResearchBatches(): Promise<BatchSummary[]> {
+  return request("/api/research/batches");
+}
+
+export function getResearchBatch(batchId: string): Promise<BatchDetail> {
+  return request(`/api/research/batches/${encodeURIComponent(batchId)}`);
+}
+
+/** Cancel every waiting or held item of a batch; items awaiting review or
+ * finished are left as they are. */
+export function cancelResearchBatch(batchId: string): Promise<BatchSummary & { cancelled: number }> {
+  return request(`/api/research/batches/${encodeURIComponent(batchId)}/cancel`, { method: "POST" });
 }
 
 /** Retry failed or cancelled delegated work through the existing decision call. */

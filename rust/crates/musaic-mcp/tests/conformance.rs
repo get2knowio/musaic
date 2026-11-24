@@ -4,6 +4,8 @@
 //!
 //! Skills, Resources and the prompt: contracts/skills.md tests 1 to 5.
 //! Events: contracts/events.md tests 1, 2, 6, 7, 9 and 10.
+//! Spec 006: the two multi-item work tools are listed, and work events carry
+//! an optional `batchId` that an item without a batch omits entirely.
 //!
 //! The wire shapes pinned here were checked against the extension
 //! specifications (`docs/mcp.md`, Compatibility notes, names the commits).
@@ -48,7 +50,16 @@ impl Shared {
         self.push(id, EVENT_REQUESTED, WorkState::Queued);
     }
 
+    /// Work made by a bulk run: its event carries the batch.
+    fn create_batch_work(&self, id: &str, batch: &str) {
+        self.push_with(id, EVENT_REQUESTED, WorkState::Queued, Some(batch));
+    }
+
     fn push(&self, id: &str, name: &str, state: WorkState) {
+        self.push_with(id, name, state, None);
+    }
+
+    fn push_with(&self, id: &str, name: &str, state: WorkState, batch: Option<&str>) {
         let mut log = self.log.lock().unwrap();
         let n = log.events.len() + 1;
         log.events.push(EventOccurrence {
@@ -61,6 +72,7 @@ impl Shared {
                 state,
                 revision: n as i64,
                 library_epoch: "epoch".into(),
+                batch_id: batch.map(str::to_string),
             },
             cursor: Some(format!("c{n}")),
         });
@@ -874,4 +886,98 @@ async fn the_ninth_concurrent_stream_is_refused_and_a_slot_frees_on_cancel() {
     let n = c.notification(Duration::from_secs(10)).await.unwrap();
     assert_eq!(n["method"], "notifications/events/active", "{n}");
     let _ = again;
+}
+
+// ------------------------------------------------------------ spec 006
+
+const BATCH: &str = "6f0c1d2e-3a4b-4c5d-8e6f-708192a3b4c5";
+
+#[tokio::test]
+async fn both_multi_item_tools_are_listed_to_modern_and_legacy_clients() {
+    for legacy in [false, true] {
+        let shared = fresh();
+        let mut c = if legacy {
+            start(&shared, "a").legacy().await
+        } else {
+            start(&shared, "a").modern(true)
+        };
+        let list = c.request("tools/list", json!({})).await;
+        let tools = list["result"]["tools"].as_array().expect("tools");
+        assert_eq!(tools.len(), 23, "legacy {legacy}");
+        let names: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
+        let at = |n: &str| names.iter().position(|x| *x == n).unwrap();
+        assert_eq!(at("musaic_work_claim_many"), at("musaic_work_claim") + 1);
+        assert_eq!(at("musaic_work_renew_many"), at("musaic_work_renew") + 1);
+        for (name, idempotent) in [
+            ("musaic_work_claim_many", true),
+            ("musaic_work_renew_many", false),
+        ] {
+            let t = &tools[at(name)];
+            assert_eq!(t["inputSchema"]["additionalProperties"], false, "{t}");
+            assert_eq!(t["annotations"]["readOnlyHint"], false, "{t}");
+            assert_eq!(t["annotations"]["destructiveHint"], false, "{t}");
+            assert_eq!(t["annotations"]["idempotentHint"], idempotent, "{t}");
+            assert_eq!(t["annotations"]["openWorldHint"], false, "{t}");
+        }
+    }
+}
+
+/// An event of a bulk run carries `batchId` and validates against the payload
+/// schema `events/list` serves; an event of an item without a batch omits the
+/// key, so it still validates against the earlier five-key schema a legacy
+/// client may have cached. That client rejects only the batched event, which
+/// is why the catalog says to read the schema from `events/list`.
+#[tokio::test]
+async fn events_carry_batch_id_and_an_unbatched_event_stays_legacy_valid() {
+    let shared = fresh();
+    let mut c = start(&shared, "a").modern(true);
+    let listed = c.request("events/list", json!({})).await;
+    let payload = listed["result"]["events"][0]["payloadSchema"].clone();
+    assert_eq!(payload["additionalProperties"], false, "{listed}");
+    assert_eq!(payload["properties"]["batchId"]["type"], "string");
+    let current = jsonschema::validator_for(&payload).unwrap();
+    let mut earlier = payload.clone();
+    earlier["properties"]
+        .as_object_mut()
+        .unwrap()
+        .remove("batchId");
+    let earlier = jsonschema::validator_for(&earlier).unwrap();
+
+    let cursor = c
+        .request("events/poll", json!({"name": EVENT_REQUESTED}))
+        .await["result"]["cursor"]
+        .clone();
+    shared.create_batch_work("w-batch", BATCH);
+    shared.create_work("w-single");
+    let r = c
+        .request(
+            "events/poll",
+            json!({"name": EVENT_REQUESTED, "cursor": cursor}),
+        )
+        .await;
+    let events = r["result"]["events"].as_array().expect("events");
+    assert_eq!(events.len(), 2, "{r}");
+    let batched = &events[0]["data"];
+    let single = &events[1]["data"];
+    assert_eq!(batched["workId"], "w-batch");
+    assert_eq!(batched["batchId"], BATCH, "{r}");
+    assert_eq!(single["workId"], "w-single");
+    assert!(
+        single.as_object().unwrap().get("batchId").is_none(),
+        "an item without a batch omits the key, never null: {r}"
+    );
+    assert!(current.is_valid(batched), "{batched}");
+    assert!(current.is_valid(single), "{single}");
+    assert!(earlier.is_valid(single), "{single}");
+    assert!(!earlier.is_valid(batched), "{batched}");
+
+    // A stream delivers the same payload.
+    let _ = open_stream(&mut c, json!({})).await;
+    let active = c.notification(Duration::from_secs(10)).await.unwrap();
+    assert_eq!(active["method"], "notifications/events/active", "{active}");
+    shared.create_batch_work("w-batch-2", BATCH);
+    let ev = c.notification(Duration::from_secs(10)).await.unwrap();
+    assert_eq!(ev["method"], "notifications/events/event", "{ev}");
+    assert_eq!(ev["params"]["data"]["batchId"], BATCH, "{ev}");
+    assert!(current.is_valid(&ev["params"]["data"]), "{ev}");
 }

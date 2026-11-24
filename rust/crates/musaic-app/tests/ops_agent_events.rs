@@ -171,7 +171,6 @@ fn a_cursor_resumes_across_a_reopened_database_with_identical_ids() {
         .clock(w.clock.wall())
         .subscribers(false)
         .check_sweep(false)
-        .ai_worker(false)
         .auto_snapshot(false)
         .build()
         .unwrap();
@@ -568,4 +567,77 @@ fn every_transition_of_a_lifecycle_carries_exactly_the_five_keys() {
             ["kind", "libraryEpoch", "revision", "state", "workId"]
         );
     }
+}
+
+#[test]
+fn work_events_of_a_batch_carry_its_reference_and_keep_it_after_clear() {
+    use musaic_app::ops::fixes::{Listening, QuickFixEvent};
+    let w = agent_world_scanned();
+    w.app
+        .ops()
+        .checks()
+        .run("unidentified-album", "all", None)
+        .unwrap();
+    let alice = researcher(&w, "Alice");
+    let start = head(&w, &alice);
+    let mut batch = None;
+    w.app
+        .ops()
+        .fixes()
+        .quick_fix_all("unidentified-album", true, &mut |e| {
+            if let QuickFixEvent::Done(s) = &e {
+                batch = s.research.as_ref().and_then(|r| r.batch_id.clone());
+            }
+            Listening::Yes
+        })
+        .unwrap();
+    let batch = batch.expect("a batch");
+    let r = poll(&w, &alice, &params(EVENT_REQUESTED, Some(&start)));
+    assert!(!r.events.is_empty());
+    for e in &r.events {
+        assert_eq!(e.data.batch_id.as_deref(), Some(batch.as_str()));
+        let json = serde_json::to_value(&e.data).unwrap();
+        assert_eq!(json["batchId"], json!(batch));
+    }
+    // A request made on its own carries no batch: the key is absent.
+    seed(&w, WORK, "cover.research", 0);
+    let r2 = poll(&w, &alice, &params(EVENT_REQUESTED, Some(&r.cursor)));
+    let single = r2.events.iter().find(|e| e.data.work_id == WORK).unwrap();
+    assert!(single.data.batch_id.is_none());
+    assert!(
+        serde_json::to_value(&single.data)
+            .unwrap()
+            .get("batchId")
+            .is_none()
+    );
+
+    // Cancel and Clear the batch: its items are gone, the event history keeps
+    // the reference on every row.
+    w.app.ops().jobs().cancel_research_batch(&batch).unwrap();
+    w.app
+        .ops()
+        .jobs()
+        .delete_many(&["failed".to_string()])
+        .unwrap();
+    let conn = musaic_db::open_connection(w.app.db_path()).unwrap();
+    let left: i64 = conn
+        .query_row(
+            "SELECT count(*) FROM delegated_work WHERE batch_id=?1",
+            [&batch],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(left, 0);
+    let epoch = db::epoch(&conn).unwrap();
+    let rows = musaic_db::delegation_events::page(&conn, &epoch, 0, &[], &[], 1000).unwrap();
+    let batched: Vec<_> = rows
+        .iter()
+        .filter(|e| e.batch_id.as_deref() == Some(batch.as_str()))
+        .collect();
+    assert!(
+        batched.len() >= 2 * r.events.len(),
+        "requested and cancelled rows"
+    );
+    // The poll still answers (the cleared items are simply no longer visible).
+    poll(&w, &alice, &params(EVENT_UPDATED, Some(&start)));
 }

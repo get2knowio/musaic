@@ -122,13 +122,26 @@ impl T {
         self
     }
 
+    /// An old job, as schema v24 folded it: a history record and its
+    /// request.
     fn job(&self, id: &str, album: &str, status: &str) -> &Self {
+        let job = musaic_db::research_history::JobRow {
+            album_path: format!("{LIB}/{album}"),
+            ..musaic_db::research_history::JobRow::seed(id, album, "metadata", status, "t")
+        };
+        musaic_db::research_history::import_legacy_job(self.c(), &job).unwrap();
+        // Ids and the fold's clock made stable, so two libraries built the
+        // same way dump the same.
         self.c()
-            .execute(
-                "INSERT INTO ai_jobs (id, album_id, album_path, job_type, status, created_at) \
-                 VALUES (?1, ?2, ?3, 'metadata', ?4, 't')",
-                params![id, album, format!("{LIB}/{album}"), status],
-            )
+            .execute_batch(&format!(
+                "UPDATE delegation_audit SET work_id = 'w-{id}'
+                   WHERE work_id IN (SELECT id FROM delegated_work WHERE legacy_job_id = '{id}');
+                 UPDATE delegation_outbox SET work_id = 'w-{id}'
+                   WHERE work_id IN (SELECT id FROM delegated_work WHERE legacy_job_id = '{id}');
+                 UPDATE delegated_work SET id = 'w-{id}', group_id = 'g-{id}'
+                   WHERE legacy_job_id = '{id}';
+                 UPDATE research_history SET migrated_at = 0 WHERE id = '{id}';"
+            ))
             .unwrap();
         self
     }
@@ -541,7 +554,7 @@ fn folds_every_table_and_deletes_the_emptied_rows() {
     );
     // Jobs: repointed, display path kept.
     assert_eq!(
-        t.rows("SELECT id, album_id, album_path FROM ai_jobs ORDER BY id"),
+        t.rows("SELECT id, album_id, album_path FROM research_history ORDER BY id"),
         [
             format!("'j1'|'t'|'{LIB}/x1'"),
             format!("'j2'|'t'|'{LIB}/x2'"),
@@ -917,12 +930,19 @@ fn an_active_job_on_any_member_is_refused_and_finished_ones_are_not() {
             t.album("t").album("x");
             t.job("j", on, status);
             let x = ids(&["x"]);
+            // The refusal names the request's group in the old vocabulary
+            // (an old running job was folded into a queued request).
             assert_eq!(
                 refused(&t, |c| merge_album_rows(c, &req(&x, "t"))),
                 MergeRefusal::ActiveJob {
                     album_id: on.into(),
-                    job_id: "j".into(),
-                    status: status.into()
+                    job_id: "g-j".into(),
+                    status: if status == "running" {
+                        "queued"
+                    } else {
+                        status
+                    }
+                    .into()
                 }
             );
         }
@@ -934,7 +954,89 @@ fn an_active_job_on_any_member_is_refused_and_finished_ones_are_not() {
         let x = ids(&["x"]);
         let r = merge_album_rows(t.c(), &req(&x, "t")).unwrap();
         assert_eq!(r.ai_jobs, 1);
-        assert_eq!(t.rows("SELECT album_id FROM ai_jobs"), ["'t'"]);
+        assert_eq!(t.rows("SELECT album_id FROM research_history"), ["'t'"]);
+        assert_eq!(t.rows("SELECT album_id FROM delegated_work"), ["'t'"]);
+    }
+}
+
+/// A native research request (no old job behind it) on `album`, moved to
+/// `state` by hand (a held one gets the lease columns its state requires).
+fn native_request(t: &T, album: &str, state: &str) {
+    musaic_db::delegated_work::enqueue(
+        t.c(),
+        &[musaic_db::delegated_work::NewWork {
+            id: "w-native",
+            group_id: "g-native",
+            kind: "metadata.identify",
+            album_id: album,
+            base_revision: "rev",
+            input_json: "{}",
+            input_digest: "input",
+            max_attempts: musaic_db::delegated_work::DEFAULT_MAX_ATTEMPTS,
+        }],
+        1_000,
+    )
+    .unwrap();
+    let held = matches!(state, "claimed" | "running");
+    t.c()
+        .execute(
+            "UPDATE delegated_work SET state = ?1, principal_id = ?2, lease_token_hash = ?3, \
+             lease_expires_at = ?4 WHERE id = 'w-native'",
+            params![
+                state,
+                held.then_some("p"),
+                held.then_some("h"),
+                held.then_some(9_999_999_i64)
+            ],
+        )
+        .unwrap();
+}
+
+#[test]
+fn every_unresolved_request_state_refuses_and_finished_requests_follow_the_survivor() {
+    for (state, status) in [
+        ("queued", "queued"),
+        ("claimed", "running"),
+        ("running", "running"),
+        ("awaiting_review", "completed"),
+    ] {
+        for on in ["x", "t"] {
+            let t = T::new();
+            t.album("t").album("x");
+            native_request(&t, on, state);
+            let x = ids(&["x"]);
+            assert_eq!(
+                refused(&t, |c| merge_album_rows(c, &req(&x, "t"))),
+                MergeRefusal::ActiveJob {
+                    album_id: on.into(),
+                    job_id: "g-native".into(),
+                    status: status.into(),
+                },
+                "{state} on {on}"
+            );
+        }
+    }
+    for state in ["applied", "discarded", "failed", "cancelled"] {
+        let t = T::new();
+        t.album("t").album("x");
+        native_request(&t, "x", state);
+        t.job("old", "x", "failed");
+        let x = ids(&["x"]);
+        let r = merge_album_rows(t.c(), &req(&x, "t")).unwrap();
+        // One native request plus one old job (its record and request are
+        // one job).
+        assert_eq!(r.ai_jobs, 2, "{state}");
+        assert_eq!(
+            t.rows("SELECT id, album_id FROM delegated_work ORDER BY id"),
+            ["'w-native'|'t'", "'w-old'|'t'"],
+            "{state}"
+        );
+        assert_eq!(
+            t.rows("SELECT id, album_id FROM research_history"),
+            ["'old'|'t'"]
+        );
+        t.assert_foreign_keys_hold();
+        assert_eq!(t.dangling(), Vec::<String>::new());
     }
 }
 
@@ -1012,10 +1114,23 @@ fn an_interrupted_merge_resumed_ends_where_an_uninterrupted_one_does() {
 
     let mut resumed = set_of_three();
     let epoch = musaic_db::delegated_work::epoch(straight.c()).unwrap();
-    resumed
-        .c()
-        .execute("UPDATE library_epoch SET epoch=?1", [epoch])
-        .unwrap();
+    // One epoch for both, the old job's request and its audit included.
+    for table in [
+        "library_epoch",
+        "delegated_work",
+        "delegation_audit",
+        "delegation_outbox",
+    ] {
+        let column = if table == "library_epoch" {
+            "epoch"
+        } else {
+            "library_epoch"
+        };
+        resumed
+            .c()
+            .execute(&format!("UPDATE {table} SET {column}=?1"), [&epoch])
+            .unwrap();
+    }
     move_files(&resumed, &MOVES[..2]);
     // Crash. Resume: every move again (the first two are no-ops now).
     move_files(&resumed, &MOVES);
@@ -1059,7 +1174,10 @@ fn an_interrupted_merge_resumed_ends_where_an_uninterrupted_one_does() {
         straight.rows("SELECT album_id, release_group_mbid FROM album_blocked_mb_release_groups"),
         ["'set'|'rg-wrong'"]
     );
-    assert_eq!(straight.rows("SELECT album_id FROM ai_jobs"), ["'set'"]);
+    assert_eq!(
+        straight.rows("SELECT album_id FROM research_history"),
+        ["'set'"]
+    );
     assert_eq!(straight.rows("SELECT COUNT(*) FROM check_inputs"), ["0"]);
     assert_eq!(
         straight.rows("SELECT mb_release_group_mbid, mb_release_mbid, mb_match_score FROM albums"),

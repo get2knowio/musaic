@@ -9,7 +9,7 @@ use musaic_commands::{
     Decision, PermissionKind, ToolCall, ToolError, ToolErrorCode, ToolOutput, Validate,
 };
 use musaic_db::delegated_work::{
-    self as db, Claim, Completion, Lease, List, Progress, QueueResult, Refusal, WorkRow,
+    self as db, Claim, ClaimMany, Completion, Lease, List, Progress, QueueResult, Refusal, WorkRow,
 };
 use musaic_events::{AgentWhat, Event};
 use rusqlite::Connection;
@@ -106,6 +106,7 @@ fn summary(row: WorkRow) -> Result<WorkSummary, ToolError> {
         updated_at: iso(row.updated_at),
         available_at: iso(row.available_at),
         result_id: row.result_id,
+        batch_id: row.batch_id,
     })
 }
 
@@ -121,12 +122,23 @@ impl Session<'_> {
         let epoch = db::epoch(&self.conn).map_err(database_error)?;
         let state = input.state.map(WorkState::as_str);
         let kind = input.kind.map(WorkKind::as_str);
-        let key = research::digest(&to_json_text(&(
-            &self.principal.pairing_id,
-            epoch,
-            state,
-            kind,
-        )));
+        let batch = input.batch_id.as_deref();
+        // A filter-free cursor keeps the key it had before batches existed.
+        let key = match batch {
+            None => research::digest(&to_json_text(&(
+                &self.principal.pairing_id,
+                epoch,
+                state,
+                kind,
+            ))),
+            Some(batch) => research::digest(&to_json_text(&(
+                &self.principal.pairing_id,
+                epoch,
+                state,
+                kind,
+                batch,
+            ))),
+        };
         let after = match input.cursor {
             None => None,
             Some(ref cursor) => {
@@ -146,6 +158,7 @@ impl Session<'_> {
                 principal_id: &self.principal.pairing_id,
                 state,
                 kind,
+                batch_id: batch,
                 after,
                 limit: i64::from(input.limit()) + 1,
             },
@@ -190,10 +203,9 @@ impl Session<'_> {
         }))
     }
 
-    fn claim(&self, input: WorkClaimInput) -> Result<ToolOutput, ToolError> {
-        input.validate()?;
-        let epoch = db::epoch(&self.conn).map_err(database_error)?;
-        let secret = musaic_secrets::agent::get_secret(
+    /// The pairing's secret, from which every lease token is derived.
+    fn lease_secret(&self) -> Result<Vec<u8>, ToolError> {
+        musaic_secrets::agent::get_secret(
             self.app.0.agent_secrets.as_ref(),
             &config_id(self.app),
             &self.principal.pairing_id,
@@ -201,9 +213,13 @@ impl Session<'_> {
         .ok()
         .flatten()
         .and_then(|secret| hex_decode(&secret))
-        .ok_or_else(|| {
-            ToolError::new(ToolErrorCode::PolicyDenied, "the pairing cannot claim work")
-        })?;
+        .ok_or_else(|| ToolError::new(ToolErrorCode::PolicyDenied, "the pairing cannot claim work"))
+    }
+
+    fn claim(&self, input: WorkClaimInput) -> Result<ToolOutput, ToolError> {
+        input.validate()?;
+        let epoch = db::epoch(&self.conn).map_err(database_error)?;
+        let secret = self.lease_secret()?;
         let token = work_lease_token(
             &secret,
             &self.principal.pairing_id,
@@ -231,6 +247,91 @@ impl Session<'_> {
             lease_expires_at: iso(claim.lease_expires_at),
             input_digest: claim.input_digest,
         }))
+    }
+
+    /// Up to `max` items in one call, each with its own lease (FR-017). The
+    /// token of each is derived from the call's key and the item, as a single
+    /// claim's is, so a replay answers the same tokens without storing any.
+    fn claim_many(&self, input: WorkClaimManyInput) -> Result<ToolOutput, ToolError> {
+        input.validate()?;
+        let epoch = db::epoch(&self.conn).map_err(database_error)?;
+        let secret = self.lease_secret()?;
+        let token = |work_id: &str| {
+            work_lease_token(
+                &secret,
+                &self.principal.pairing_id,
+                &epoch,
+                work_id,
+                &input.idempotency_key,
+            )
+        };
+        let digest = research::digest(&to_json_text(&input));
+        let claimed = checked(db::claim_many_with_context(
+            &self.conn,
+            ClaimMany {
+                principal_id: &self.principal.pairing_id,
+                idempotency_key: &input.idempotency_key,
+                request_digest: &digest,
+                batch_id: input.batch_id.as_deref(),
+                kind: input.kind.map(WorkKind::as_str),
+                max: i64::from(input.max()),
+                now: now_ms(self.app),
+            },
+            |work_id| research::digest(&token(work_id)),
+            |conn, row| Ok(research::current(self.app, conn, row).is_ok()),
+        ))?;
+        let claims = claimed
+            .claims
+            .into_iter()
+            .map(|c| WorkClaimOutput {
+                lease_token: token(&c.work_id),
+                work_id: c.work_id,
+                claim_generation: c.claim_generation,
+                lease_expires_at: iso(c.lease_expires_at),
+                input_digest: c.input_digest,
+            })
+            .collect();
+        Ok(ToolOutput::WorkClaimMany(WorkClaimManyOutput { claims }))
+    }
+
+    /// Renews each lease as `musaic_work_renew` does; a refused one does not
+    /// stop the others.
+    fn renew_many(&self, input: WorkRenewManyInput) -> Result<ToolOutput, ToolError> {
+        input.validate()?;
+        let verifiers: Vec<String> = input
+            .leases
+            .iter()
+            .map(|l| research::digest(&l.lease_token))
+            .collect();
+        let leases: Vec<Lease<'_>> = input
+            .leases
+            .iter()
+            .zip(&verifiers)
+            .map(|(l, verifier)| self.lease(l.lease(), verifier))
+            .collect();
+        let answers = db::renew_many(&self.conn, &leases, |conn, row| {
+            Ok(research::current(self.app, conn, row).is_ok())
+        })
+        .map_err(database_error)?;
+        let mut out = WorkRenewManyOutput {
+            renewed: Vec::new(),
+            refused: Vec::new(),
+        };
+        for (lease, answer) in input.leases.iter().zip(answers) {
+            match answer {
+                Ok(expiry) => out.renewed.push(WorkRenewOutput {
+                    work_id: lease.work_id.clone(),
+                    lease_expires_at: iso(expiry),
+                }),
+                Err(refusal) => out.refused.push(WorkRenewRefusal {
+                    work_id: lease.work_id.clone(),
+                    code: checked::<()>(Ok(Err(refusal)))
+                        .expect_err("a refusal is an error")
+                        .code,
+                }),
+            }
+        }
+        Ok(ToolOutput::WorkRenewMany(out))
     }
 
     fn lease<'a>(&'a self, input: LeaseRef<'a>, verifier: &'a str) -> Lease<'a> {
@@ -398,6 +499,8 @@ fn dispatch(app: &App, principal: &Principal, call: ToolCall) -> Result<ToolOutp
         ToolCall::WorkList(i) => s.list(i),
         ToolCall::WorkGet(i) => s.get(i),
         ToolCall::WorkClaim(i) => s.claim(i),
+        ToolCall::WorkClaimMany(i) => s.claim_many(i),
+        ToolCall::WorkRenewMany(i) => s.renew_many(i),
         ToolCall::WorkRenew(i) => {
             i.validate()?;
             s.leased(i.lease(), |lease| {
@@ -453,27 +556,56 @@ fn dispatch(app: &App, principal: &Principal, call: ToolCall) -> Result<ToolOutp
     output
 }
 
+/// How many outbox rows one `AgentStateChanged` event names at most.
+pub(crate) const PUBLISH_PAGE: i64 = 128;
+
+/// Publishes every committed, unsent outbox row: one `AgentStateChanged`
+/// per family (`work`, `operations`) per page of up to [`PUBLISH_PAGE`]
+/// rows, not one per row, so a bulk run's hundreds of requests reach the
+/// relay as a handful of events. Each page is acknowledged after it is
+/// published.
 pub(crate) fn publish_pending(app: &App, conn: &Connection) {
     let result = (|| -> musaic_db::Result<()> {
-        let batch = db::outbox(conn, 128)?;
-        for row in &batch {
-            let (what, id) = match (&row.work_id, &row.operation_id) {
-                (Some(id), _) => (AgentWhat::Work, id),
-                (_, Some(id)) => (AgentWhat::Operations, id),
-                _ => continue,
+        let mut woke = false;
+        loop {
+            let page = db::outbox(conn, PUBLISH_PAGE)?;
+            let Some(last) = page.last() else {
+                break;
             };
-            app.bus().publish(&Event::AgentStateChanged {
-                what,
-                ids: vec![id.clone()],
-            });
+            let mut work: Vec<String> = Vec::new();
+            let mut operations: Vec<String> = Vec::new();
+            for row in &page {
+                match (&row.work_id, &row.operation_id) {
+                    (Some(id), _) => work.push(id.clone()),
+                    (_, Some(id)) => operations.push(id.clone()),
+                    _ => {}
+                }
+            }
+            for (what, ids) in [
+                (AgentWhat::Work, &mut work),
+                (AgentWhat::Operations, &mut operations),
+            ] {
+                if ids.is_empty() {
+                    continue;
+                }
+                // One id per row as before, without repeats within a page.
+                let mut seen = std::collections::HashSet::new();
+                ids.retain(|id| seen.insert(id.clone()));
+                app.bus().publish(&Event::AgentStateChanged {
+                    what,
+                    ids: std::mem::take(ids),
+                });
+                woke |= what == AgentWhat::Work;
+            }
+            db::ack_outbox(conn, &last.library_epoch, last.sequence)?;
+            if (page.len() as i64) < PUBLISH_PAGE {
+                break;
+            }
         }
-        if batch.iter().any(|row| row.work_id.is_some()) {
+        if woke {
             app.ai_jobs_changed();
             // Wake parked event polls; they read the table, not this batch.
             app.0.agent.notify_events();
-        }
-        if let Some(last) = batch.last() {
-            db::ack_outbox(conn, &last.library_epoch, last.sequence)?;
         }
         Ok(())
     })();

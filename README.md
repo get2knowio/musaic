@@ -17,7 +17,10 @@ album. From there you can:
   duplicate tracks, filenames that do not match your templates, multi-disc sets not kept
   in one folder — and fix them one at a time or in bulk (the multi-disc check only shows
   what a conversion would do, for now);
-- compute BPM and ReplayGain.
+- compute BPM and ReplayGain;
+- send what the resolver cannot settle to an assistant you choose, as research requests
+  it picks up over MCP (one album at a time, or a whole Fix all run as one batch); you
+  review and apply each result.
 
 Everything runs on your machine. Fingerprinting, ReplayGain and BPM are computed
 in-process; no external tools (such as `fpcalc`) are needed. The only network traffic is
@@ -133,9 +136,13 @@ Electron shell. This release replaces them. If you used the Python version:
 
 ## What is different from the Python version
 
-- **No built-in AI backend in this release.** MusicBrainz, AcoustID and Cover Art Archive
-  lookups work as before and are what most fixes use. Controls that would need a language
-  model are hidden; the Settings page notes that no AI backend is available.
+- **Research goes to an assistant you add, not to a built-in model.** MusicBrainz,
+  AcoustID and Cover Art Archive lookups work as before and settle most fixes. What they
+  cannot settle becomes a research request that an assistant you add in **Settings,
+  Assistants** picks up over MCP ([docs/agents.md](docs/agents.md)); Musaic itself calls
+  no model and starts no agent. Research from before this version is kept; the model and
+  web-scraping settings and their keys are removed (the keys are deleted from the keyring
+  once).
 - **Cover downloads are stricter.** Musaic downloads a cover only from an `https` URL on a
   public host, and checks every redirect the same way. Plain `http` URLs and addresses on
   your local network (such as a NAS or `localhost`) are refused. Upload the image from
@@ -150,7 +157,9 @@ The Python implementation is preserved at the git tag
 
 ## Roadmap
 
-Next: an MCP server, so that an external agent can drive Musaic's operations.
+The MCP server is in place: an assistant you add can read the library, take research
+requests and propose changes for you to approve ([docs/agents.md](docs/agents.md),
+[docs/mcp.md](docs/mcp.md)).
 
 ## Build from source
 

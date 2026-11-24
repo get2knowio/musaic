@@ -2,6 +2,7 @@ import { Disc3, Inbox, Settings as SettingsIcon } from "lucide-react";
 import { useMemo } from "react";
 import { Link, NavLink, useLocation, useSearchParams } from "react-router-dom";
 
+import { useDelegatedWork } from "@/hooks/useDelegatedWork";
 import { useJobs } from "@/hooks/useJobs";
 import { reviewBadge, useReview } from "@/hooks/useReview";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
@@ -10,6 +11,7 @@ import {
   FILTERS,
   FILTERS_BY_KEY,
   buildNeedsAttentionSet,
+  isHistoryOnlyJob,
   isValidFilterKey,
   type FilterKey,
 } from "@/lib/filters";
@@ -21,7 +23,7 @@ interface NavItem {
   icon: typeof Disc3;
   count?: number;
   badge?: { text: string; tone: "accent" | "neutral" | "warn" | "err"; title?: string; uncertain?: boolean };
-  /** Show a pulsing dot to indicate background activity (e.g. AI job running). */
+  /** Show a pulsing dot to indicate background activity (e.g. a research request running). */
   activity?: { label: string };
 }
 
@@ -47,7 +49,13 @@ export default function Sidebar() {
   // Live counts for the collections
   const { data: albums = [] } = useAlbumsSnapshot();
   const { data: jobs = [] } = useJobs();
-  const needsAttention = useMemo(() => buildNeedsAttentionSet(jobs), [jobs]);
+  // Requests of a Fix all batch have no job card: they come from the
+  // delegated work list (kept fresh by the `work` event family).
+  const { data: work } = useDelegatedWork();
+  const needsAttention = useMemo(
+    () => buildNeedsAttentionSet(jobs, Array.isArray(work) ? work : []),
+    [jobs, work],
+  );
 
   const counts = useMemo(() => {
     const out: Record<FilterKey | "all", number> = {
@@ -83,7 +91,7 @@ export default function Sidebar() {
   // failed status (Jobs page's count). Same name, different granularities;
   // surfacing both prevents confusion when the numbers disagree.
   const needsReviewJobCount = jobs.filter(
-    (j) => j.status === "completed" || j.status === "failed",
+    (j) => (j.status === "completed" || j.status === "failed") && !isHistoryOnlyJob(j),
   ).length;
 
   const collectionTooltip = (key: LibraryCollection): string => {
@@ -175,7 +183,7 @@ function WorkspaceItem({
       <Icon className="w-3.5 h-3.5 shrink-0" />
       <span className="truncate">{item.label}</span>
       {/* Activity dot: pulses next to the label when there's background work
-          (e.g. an AI job is running). Sits BEFORE the badge so a job that
+          (e.g. a research request is running). Sits BEFORE the badge so a job that
           completed-and-needs-review can still show its count badge alongside. */}
       {item.activity && (
         <span

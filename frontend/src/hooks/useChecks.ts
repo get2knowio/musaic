@@ -1,5 +1,5 @@
 /**
- * Health-check hooks. Mirror the AI-jobs hook layer:
+ * Health-check hooks. Mirror the jobs hook layer:
  *
  *   - `useChecks` / `useCheck` — registry + per-check detail
  *   - `useFindings` / `useFindingsForAlbum` / `useFindingsForCheck` — open findings
@@ -10,7 +10,7 @@
  * `["findings"]` and are kept fresh through the same SSE stream.
  */
 import { useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import {
   deleteDuplicateFile,
@@ -118,17 +118,13 @@ export function useUnignoreFinding() {
 }
 
 export function useFixFinding() {
-  const qc = useQueryClient();
+  // Findings and checks refresh on the library-events stream (every fix
+  // path's mutation publishes an event); a research request the fix makes
+  // publishes AgentStateChanged(work) and wakes /api/ai/jobs/stream, which
+  // refresh the jobs cache (rule 5).
   return useMutation({
     mutationFn: (args: { checkId: string; findingId: number; hint?: string }) =>
       fixFinding(args.checkId, args.findingId, args.hint ?? ""),
-    onSuccess: () => {
-      // Findings + checks refetches ride the library-events SSE channel
-      // (every fix path's underlying mutation publishes an event).
-      // Jobs are not on that bus — invalidate explicitly so the sidebar
-      // badge / activity indicator picks up the freshly-enqueued job.
-      qc.invalidateQueries({ queryKey: ["jobs"] });
-    },
   });
 }
 
@@ -178,7 +174,9 @@ export function useDeleteDuplicateFile() {
  */
 export interface QuickFixProgress {
   finding_id: number;
-  outcome: "fixed" | "skipped" | "error" | "not-applicable";
+  /** The last two only on a run with research on: the album became a
+   *  research request in the run's batch, or already had one. */
+  outcome: "fixed" | "skipped" | "error" | "not-applicable" | "sent-for-research" | "already-requested";
   message: string;
 }
 
@@ -192,6 +190,12 @@ export interface QuickFixSummary {
   not_applicable: number;
   /** Fixes that wrote what they could but left their finding open. */
   still_open: number;
+  /** Only with research on: albums sent to the assistant as new requests,
+   *  albums that already had one, and the batch the new ones belong to
+   *  (null when none was made). */
+  sent_for_research?: number;
+  already_requested?: number;
+  batch_id?: string | null;
 }
 
 /**
@@ -214,13 +218,18 @@ export function streamQuickFixAll(
     /** The response ended (with or without a `done`); not after an abort. */
     onClosed?: () => void;
   },
+  opts: {
+    /** Send what the resolver can't settle to the assistant, as one batch. */
+    research?: boolean;
+  } = {},
 ): () => void {
   // Browser EventSource only supports GET. We need a POST. fetch() with
   // streaming body parsing handles SSE manually but reliably.
   const ctrl = new AbortController();
   (async () => {
     try {
-      const resp = await fetch(`/api/checks/${encodeURIComponent(checkId)}/quick-fix-all`, {
+      const query = opts.research ? "?research=1" : "";
+      const resp = await fetch(`/api/checks/${encodeURIComponent(checkId)}/quick-fix-all${query}`, {
         method: "POST",
         signal: ctrl.signal,
         headers: { "Accept": "text/event-stream" },

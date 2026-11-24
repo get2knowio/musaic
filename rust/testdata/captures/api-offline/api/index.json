@@ -561,13 +561,6 @@
   },
   {
     "error": null,
-    "file": "api/081-get-api-ai-providers.json",
-    "method": "GET",
-    "path": "/api/ai/providers",
-    "status": 200
-  },
-  {
-    "error": null,
     "file": "api/082-get-api-ai-jobs.json",
     "method": "GET",
     "path": "/api/ai/jobs",

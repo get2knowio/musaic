@@ -3,7 +3,19 @@
  * means. Library page and Sidebar both consume from here so counts and
  * filtered results never disagree.
  */
+import type { DelegatedWorkItem } from "./api";
+import { batchedNeedsAttention } from "./batchedResearch";
 import type { Album, Job } from "./types";
+
+const RESEARCH_JOB_TYPES: ReadonlySet<string> = new Set(["metadata", "cover", "metadata+cover"]);
+
+/** An old job of a type no research request matches (the jobs list names
+ *  it with its stored status). It is history only: never active, never
+ *  reviewed, and it blocks nothing (FR-020). Every job of a known type is
+ *  a research card. */
+export function isHistoryOnlyJob(j: Job): boolean {
+  return !RESEARCH_JOB_TYPES.has(j.job_type);
+}
 
 export type FilterKey = "missing-art" | "compilations" | "needs-review" | "missing";
 
@@ -63,12 +75,14 @@ export function isValidFilterKey(s: string | null): s is FilterKey {
 
 /**
  * Build the set of album ids that have a completed-or-failed job awaiting
- * action — these are the albums that "Jobs to review" lists.
+ * action — these are the albums that "Jobs to review" lists. Requests of a
+ * Fix all batch have no job card, so they come from the delegated work list
+ * (`work`): a batched result waiting for review, or a failed one, counts too.
  */
-export function buildNeedsAttentionSet(jobs: Job[]): Set<string> {
-  const out = new Set<string>();
+export function buildNeedsAttentionSet(jobs: Job[], work?: DelegatedWorkItem[]): Set<string> {
+  const out = batchedNeedsAttention(work);
   for (const j of jobs) {
-    if (j.status === "completed" || j.status === "failed") {
+    if ((j.status === "completed" || j.status === "failed") && !isHistoryOnlyJob(j)) {
       out.add(j.album_id);
     }
   }

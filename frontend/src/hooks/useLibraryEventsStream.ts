@@ -268,7 +268,7 @@ export function useLibraryEventsStream() {
       }
       if (what === "hosts") {
         qc.invalidateQueries({ queryKey: AGENT_DIAGNOSTICS_QUERY_KEY });
-        // "Waiting for an agent" in Review follows the subscriptions too.
+        // "Waiting for an assistant" in Review follows the subscriptions too.
         qc.invalidateQueries({ queryKey: DELEGATED_WORK_QUERY_KEY });
         return;
       }

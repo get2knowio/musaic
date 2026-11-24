@@ -11,6 +11,7 @@ import { renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useLibraryEventsStream } from "@/hooks/useLibraryEventsStream";
 import { DELEGATED_WORK_QUERY_KEY } from "@/hooks/useDelegatedWork";
+import { RESEARCH_BATCHES_QUERY_KEY } from "@/hooks/useResearchBatches";
 import { MockEventSource } from "@/test/setup";
 
 function setup() {
@@ -205,7 +206,7 @@ describe("useLibraryEventsStream", () => {
   it("AgentStateChanged hosts refreshes the diagnostics and the delegated-work list", () => {
     const { invalidate, es } = setup();
     es.emit("AgentStateChanged", { what: "hosts", ids: ["p1"] });
-    // "Waiting for an agent" depends on whether anyone is listening.
+    // "Waiting for an assistant" depends on whether anyone is listening.
     expect(keysOf(invalidate)).toEqual([["agent", "diagnostics"], ["research", "work"]]);
   });
 
@@ -215,6 +216,20 @@ describe("useLibraryEventsStream", () => {
     expect(keysOf(invalidate)).toEqual([["research"], ["jobs"], ["agent", "diagnostics"]]);
     // The delegated-work list sits under the key that is invalidated.
     expect(DELEGATED_WORK_QUERY_KEY.slice(0, 1)).toEqual(["research"]);
+  });
+
+  it("a research cancel (one request, a card or a batch) needs nothing beyond the work family", () => {
+    const { invalidate, es } = setup();
+    // Cancel publishes AgentStateChanged(work) after its commit; that one
+    // event refreshes the delegated-work list, the batches and the job
+    // cards, so no cancel handler invalidates anything itself.
+    es.emit("AgentStateChanged", { what: "work", ids: ["w1", "w2"] });
+    const keys = keysOf(invalidate);
+    expect(keys).toEqual([["research"], ["jobs"], ["agent", "diagnostics"]]);
+    expect(RESEARCH_BATCHES_QUERY_KEY.slice(0, 1)).toEqual(["research"]);
+    // Nothing new: no provider list, no queue settings.
+    expect(keys).not.toContainEqual(["ai-providers"]);
+    expect(keys).not.toContainEqual(["settings"]);
   });
 
   it("SettingsChanged refreshes the settings, the AcoustID prompt and the UI preferences", () => {

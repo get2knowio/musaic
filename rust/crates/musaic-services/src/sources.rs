@@ -218,7 +218,7 @@ pub fn cached_album(
 }
 
 /// [`cached_album`] for callers whose interface can only say "not cached"
-/// (the resolver's and the job worker's album sources): a database error is
+/// (the resolver's and the research synthesis' album sources): a database error is
 /// logged, so it is not mistaken for a missing album without a trace.
 pub fn cached_album_logged(
     conn: &Connection,

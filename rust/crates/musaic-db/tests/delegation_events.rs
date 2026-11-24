@@ -334,7 +334,7 @@ fn a_fresh_database_has_the_v23_objects() {
     let (_dir, db) = db();
     let conn = db.connection();
     assert_eq!(db.schema_version().unwrap(), musaic_db::SCHEMA_VERSION);
-    assert_eq!(musaic_db::SCHEMA_VERSION, 23);
+    assert_eq!(musaic_db::SCHEMA_VERSION, 24);
     let t = tables(conn);
     for name in [
         "delegation_events",
@@ -359,20 +359,33 @@ fn a_v22_database_upgrades_in_place_and_reopening_is_a_no_op() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("library.db");
     {
-        let (db, _) = Db::open_or_create(&file).unwrap();
-        let conn = db.connection();
-        queue::enqueue(conn, &[item("old")], NOW).unwrap();
-        // Take the v23 additions away to leave what a v22 file looks like.
-        conn.execute_batch(
-            "DROP TABLE delegation_events; DROP TABLE delegation_event_state;
-             DROP TABLE agent_host_observations;
-             ALTER TABLE work_attempts DROP COLUMN last_heartbeat_at;
-             UPDATE schema_version SET version=22;",
+        // A file as a v22 build left it, holding one queued request
+        // (written as that build's enqueue wrote it: no event history yet).
+        std::fs::copy(musaic_testdata::public("db/v16-empty.db"), &file).unwrap();
+        let mut conn = Connection::open(&file).unwrap();
+        musaic_db::migrate::upgrade_to(&mut conn, 22).unwrap();
+        let it = item("old");
+        conn.execute(
+            "INSERT INTO delegated_work
+                 (id,group_id,kind,album_id,library_epoch,base_revision,state,input_json,
+                  input_digest,created_at,updated_at,available_at,max_attempts)
+             VALUES (?1,?2,?3,?4,(SELECT epoch FROM library_epoch),?5,'queued',?6,?7,?8,?8,?8,?9)",
+            rusqlite::params![
+                it.id,
+                it.group_id,
+                it.kind,
+                it.album_id,
+                it.base_revision,
+                it.input_json,
+                it.input_digest,
+                NOW,
+                it.max_attempts
+            ],
         )
         .unwrap();
     }
     let (db, _) = Db::open(&file).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 23);
+    assert_eq!(db.schema_version().unwrap(), musaic_db::SCHEMA_VERSION);
     let conn = db.connection();
     assert!(tables(conn).contains(&"delegation_events".to_string()));
     // Work that existed before the upgrade is intact; new changes get events.
@@ -384,7 +397,7 @@ fn a_v22_database_upgrades_in_place_and_reopening_is_a_no_op() {
     let before = tables(conn);
     drop(db);
     let (db, _) = Db::open(&file).unwrap();
-    assert_eq!(db.schema_version().unwrap(), 23);
+    assert_eq!(db.schema_version().unwrap(), musaic_db::SCHEMA_VERSION);
     assert_eq!(tables(db.connection()), before);
 }
 

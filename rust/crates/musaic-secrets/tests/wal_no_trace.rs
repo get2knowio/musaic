@@ -1,5 +1,6 @@
 //! Under WAL: after the migration no file in the
-//! config directory holds a migrated key's bytes.
+//! config directory holds a secret key's bytes, migrated (moved to the
+//! keyring) or retired (scrubbed, never moved).
 //!
 //! Every real user database is WAL (the Python app's `bootstrap()` switches it on
 //! every start, and so does `Db::open`), so the key rows the Python app wrote
@@ -151,12 +152,10 @@ fn assert_rows_gone(db: &Db) {
     }
 }
 
+/// The migrated key moved; the retired ones never reach the store.
 fn assert_store_holds(store: &MemoryStore) {
-    assert_eq!(store.get("ai_api_key").unwrap().as_deref(), Some(KEY));
-    assert_eq!(
-        store.get("firecrawl_api_key").unwrap().as_deref(),
-        Some(FIRECRAWL)
-    );
+    assert_eq!(store.get("ai_api_key").unwrap(), None);
+    assert_eq!(store.get("firecrawl_api_key").unwrap(), None);
     assert_eq!(
         store.get("acoustid_api_key").unwrap().as_deref(),
         Some(DUMMY)
@@ -263,10 +262,8 @@ fn reader_blocking_the_first_checkpoint_fails_safe_then_retries() {
 
     reader.execute_batch("COMMIT").unwrap();
     let r = migrate_settings_secrets(&db, &store).unwrap();
-    assert_eq!(
-        r.kept_keyring,
-        ["ai_api_key", "acoustid_api_key", "firecrawl_api_key"]
-    );
+    assert_eq!(r.kept_keyring, ["acoustid_api_key"]);
+    assert_eq!(r.dropped_retired, ["ai_api_key", "firecrawl_api_key"]);
     assert_rows_gone(&db);
     assert_eq!(wal_len(&cfg), 0);
     assert_no_trace(&cfg);
@@ -329,22 +326,19 @@ fn crash_and_reopen(db: Db, cfg: &Path, to: &Path) -> Db {
     Db::open(to.join("library.db")).unwrap().0
 }
 
-/// Cancellation under WAL: interrupted after the keyring writes,
-/// before any scrub. The rerun keeps the keyring's values and leaves no trace.
+/// Cancellation under WAL: interrupted after the keyring write (of the
+/// migrated key; a retired one is never written), before any scrub. The rerun
+/// keeps the keyring's value and leaves no trace.
 #[test]
 fn wal_resume_after_keyring_write() {
     let (_t, cfg) = python_wal_state();
     let db = open(&cfg);
     let store = MemoryStore::new();
-    for (k, v) in [
-        ("ai_api_key", KEY),
-        ("firecrawl_api_key", FIRECRAWL),
-        ("acoustid_api_key", DUMMY),
-    ] {
-        store.set(k, v).unwrap();
-    }
+    store.set("acoustid_api_key", DUMMY).unwrap();
     let r = migrate_settings_secrets(&db, &store).unwrap();
     assert_eq!(r.moved, Vec::<&str>::new());
+    assert_eq!(r.kept_keyring, ["acoustid_api_key"]);
+    assert_store_holds(&store);
     assert_rows_gone(&db);
     assert_no_trace(&cfg);
     close_and_check(db, &cfg);
@@ -359,13 +353,7 @@ fn wal_resume_after_delete_before_checkpoint() {
     let (t, cfg) = python_wal_state();
     let db = open(&cfg);
     let store = MemoryStore::new();
-    for (k, v) in [
-        ("ai_api_key", KEY),
-        ("firecrawl_api_key", FIRECRAWL),
-        ("acoustid_api_key", DUMMY),
-    ] {
-        store.set(k, v).unwrap();
-    }
+    store.set("acoustid_api_key", DUMMY).unwrap();
     db.connection()
         .execute_batch(
             "PRAGMA wal_autocheckpoint = 0;

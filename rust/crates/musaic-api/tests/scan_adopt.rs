@@ -221,7 +221,8 @@ impl World {
             "track_tags",
             "check_findings",
             "check_inputs",
-            "ai_jobs",
+            "research_history",
+            "delegated_work",
             "album_blocked_mb_release_groups",
         ] {
             let mut st = c
@@ -302,10 +303,13 @@ fn add_dependents(c: &Connection, id: &str, path: &str) {
         [id],
     )
     .unwrap();
-    c.execute(
-        "INSERT INTO ai_jobs (id, album_id, album_path, job_type, status, created_at) \
-         VALUES ('job1', ?1, ?2, 'metadata', 'completed', 't')",
-        [id, path],
+    // An old job, as schema v24 folded it: its history record and request.
+    musaic_db::research_history::import_legacy_job(
+        c,
+        &musaic_db::research_history::JobRow {
+            album_path: path.into(),
+            ..musaic_db::research_history::JobRow::seed("job1", id, "metadata", "completed", "t")
+        },
     )
     .unwrap();
     c.execute(
@@ -332,7 +336,8 @@ fn dependents(c: &Connection, id: &str) -> Value {
         "check_findings": n("SELECT COUNT(*) FROM check_findings WHERE album_id = ?1"),
         "ignored_findings": n("SELECT COUNT(*) FROM check_findings WHERE album_id = ?1 \
                                AND ignored_at IS NOT NULL AND ignored_reason = 'on purpose'"),
-        "ai_jobs": n("SELECT COUNT(*) FROM ai_jobs WHERE album_id = ?1"),
+        "ai_jobs": n("SELECT COUNT(*) FROM research_history WHERE album_id = ?1"),
+        "research_requests": n("SELECT COUNT(*) FROM delegated_work WHERE album_id = ?1"),
         "blocklist": n("SELECT COUNT(*) FROM album_blocked_mb_release_groups WHERE album_id = ?1"),
         "anchor": n("SELECT COUNT(*) FROM albums WHERE id = ?1 AND mb_release_group_mbid = 'rg-1' \
                      AND mb_release_mbid = 'rel-1' AND mb_match_score = 97"),
@@ -342,7 +347,7 @@ fn dependents(c: &Connection, id: &str) -> Value {
 fn all_dependents() -> Value {
     json!({
         "track_fingerprints": 1, "fingerprint_rejects": 1, "track_tags": 1,
-        "check_findings": 2, "ignored_findings": 1, "ai_jobs": 1, "blocklist": 1,
+        "check_findings": 2, "ignored_findings": 1, "ai_jobs": 1, "research_requests": 1, "blocklist": 1,
         "anchor": 1,
     })
 }
@@ -350,7 +355,7 @@ fn all_dependents() -> Value {
 fn no_dependents() -> Value {
     json!({
         "track_fingerprints": 0, "fingerprint_rejects": 0, "track_tags": 0,
-        "check_findings": 0, "ignored_findings": 0, "ai_jobs": 0, "blocklist": 0,
+        "check_findings": 0, "ignored_findings": 0, "ai_jobs": 0, "research_requests": 0, "blocklist": 0,
         "anchor": 0,
     })
 }

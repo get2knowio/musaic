@@ -1,9 +1,9 @@
 //! The resolver-to-suggestion synthesizers and the rule that decides when
-//! the provider is skipped: `ai.synthesize_metadata_from_resolution`,
+//! the resolver settled an album on its own:
+//! `ai.synthesize_metadata_from_resolution`,
 //! `ai.synthesize_cover_from_resolution`, and the two `can_skip_ai` /
-//! cover tests of `services/worker.run_one_job`.
+//! cover tests of the Python app's `services/worker.run_one_job`.
 
-use musaic_core::AiWording;
 use musaic_resolve::{AlbumResolution, FieldFact};
 
 use crate::parse::{CoverSuggestion, MetadataSuggestion, TrackSuggestion};
@@ -18,17 +18,17 @@ pub const SKIP_CONFIDENCE: f64 = 0.85;
 /// Tracks Tier 1 aligns by position (confidence
 /// `musaic_resolve::resolution::POSITIONAL_CONFIDENCE`, 0.8) carry a
 /// canonical title and are not counted in `unresolved_track_count`, so an
-/// anchored album aligned that way skips the provider like any fully
-/// aligned one. The Python app has no positional alignment and would call the
-/// provider. Pinned by tests/positional_skip.rs.
+/// anchored album aligned that way is settled like any fully aligned one.
+/// The Python app has no positional alignment and would not count it as
+/// settled. Pinned by tests/positional_skip.rs.
 pub fn unresolved_for_skip_rule(r: &AlbumResolution) -> usize {
     r.unresolved_track_count
 }
 
 /// `can_skip_ai`: an anchor, at confidence >= 0.85, and no unresolved
 /// track ([`unresolved_for_skip_rule`]). Then the metadata suggestion is
-/// synthesized and no provider is called.
-pub fn can_skip_provider(r: &AlbumResolution) -> bool {
+/// synthesized and no research is needed.
+pub fn resolver_settles_metadata(r: &AlbumResolution) -> bool {
     r.anchor
         .as_ref()
         .is_some_and(|a| a.confidence >= SKIP_CONFIDENCE)
@@ -61,24 +61,15 @@ fn diff(out: &mut Vec<(String, String)>, field: &str, cur: &str, fact: Option<&F
     }
 }
 
-/// The Python app's `notes` of a suggestion synthesized from the resolver.
-pub const DERIVED_NOTES: &str = "Derived from MusicBrainz; no AI call needed.";
-
-/// [`DERIVED_NOTES`] when no AI
-/// provider is ready (shown as "Metadata notes" / the cover notes). The
-/// synthesizer runs without a provider, so this is the text such a build
-/// shows. Chosen when the job runs and stored with its result.
-pub const DERIVED_NOTES_NEUTRAL: &str = "Derived from MusicBrainz.";
+/// The `notes` of a suggestion synthesized from the resolver (shown as
+/// "Metadata notes" / the cover notes; stored with the result). The Python
+/// app's text also said that no AI call was needed.
+pub const DERIVED_NOTES: &str = "Derived from MusicBrainz.";
 
 /// `ai.synthesize_metadata_from_resolution(album, tracks, resolution)`:
 /// the canonical fields diffed against the current tags, only fields that
-/// would change. `wording` picks the notes.
-pub fn synthesize_metadata(
-    album: &Py,
-    tracks: &Py,
-    r: &AlbumResolution,
-    wording: AiWording,
-) -> MetadataSuggestion {
+/// would change.
+pub fn synthesize_metadata(album: &Py, tracks: &Py, r: &AlbumResolution) -> MetadataSuggestion {
     let mut suggestions = Vec::new();
     diff(
         &mut suggestions,
@@ -163,15 +154,14 @@ pub fn synthesize_metadata(
     MetadataSuggestion {
         suggestions,
         tracks: track_suggestions,
-        notes: wording.pick(DERIVED_NOTES, DERIVED_NOTES_NEUTRAL).into(),
+        notes: DERIVED_NOTES.into(),
         confidence: "high".into(),
         mb_release_group_mbid: r.anchor.as_ref().map(|a| a.value.clone()),
     }
 }
 
-/// `ai.synthesize_cover_from_resolution(resolution)`; `wording` picks the
-/// notes.
-pub fn synthesize_cover(r: &AlbumResolution, wording: AiWording) -> CoverSuggestion {
+/// `ai.synthesize_cover_from_resolution(resolution)`.
+pub fn synthesize_cover(r: &AlbumResolution) -> CoverSuggestion {
     match &r.cover_url {
         None => CoverSuggestion {
             cover_url: None,
@@ -182,7 +172,7 @@ pub fn synthesize_cover(r: &AlbumResolution, wording: AiWording) -> CoverSuggest
         Some(c) => CoverSuggestion {
             cover_url: Some(c.value.clone()),
             source: "Cover Art Archive (anchored release-group)".into(),
-            notes: wording.pick(DERIVED_NOTES, DERIVED_NOTES_NEUTRAL).into(),
+            notes: DERIVED_NOTES.into(),
             confidence: "high".into(),
         },
     }

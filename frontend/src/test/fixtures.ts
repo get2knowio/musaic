@@ -46,7 +46,7 @@ export function makeJob(overrides: Partial<Job> = {}): Job {
     album_id: "album-1",
     album_path: "/music/Artist - Album [FLAC]",
     album_title: "Album",
-    job_type: "suggest_metadata" as Job["job_type"],
+    job_type: "metadata",
     hint: "",
     status: "queued" as Job["status"],
     result: null,

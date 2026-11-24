@@ -96,8 +96,10 @@ pub enum MergeRefusal {
         /// `(table, rows)` for each table that still has rows.
         rows: Vec<(&'static str, usize)>,
     },
-    /// A member has an AI job that is queued, running, or completed and not
-    /// yet acted on (its suggestion was made for that album alone).
+    /// A member has an unresolved research request (queued, claimed, running
+    /// or awaiting review; made for that album alone). `job_id` is the
+    /// request's group id and `status` the old job vocabulary
+    /// (`delegated_work::Unresolved::status`).
     ActiveJob {
         album_id: String,
         job_id: String,
@@ -166,8 +168,8 @@ impl fmt::Display for MergeRefusal {
                 status,
             } => write!(
                 f,
-                "cannot merge: album {album_id} has an AI job ({job_id}) that is {status}; \
-                 finish or discard it first"
+                "cannot merge: album {album_id} has a research request ({job_id}) that is \
+                 {status}; finish or cancel it first"
             ),
             ReleaseGroupsDiffer { anchors } => {
                 let list: Vec<String> = anchors
@@ -336,7 +338,9 @@ pub struct MergeReport {
     pub album_blocked_mb_release_groups: usize,
     /// Open or ignored findings of the from-albums resolved in place.
     pub check_findings_resolved: usize,
-    /// Finished AI jobs repointed to the survivor.
+    /// Finished research requests and old job history records repointed to
+    /// the survivor, counted in jobs as `renames::moved_research` counts
+    /// them (wire key `jobs_repointed`).
     pub ai_jobs: usize,
     /// `check_inputs` rows deleted (from-albums and survivor).
     pub check_inputs: usize,
@@ -377,11 +381,10 @@ pub fn merge_album_rows(conn: &Connection, req: &MergeRequest<'_>) -> Result<Mer
 /// * a from-album with any per-file row left ([`FILE_ROW_TABLES`]): the
 ///   caller moves every file first ([`move_track_rows`]); a file it did not
 ///   move must not lose its fingerprint or tags silently;
-/// * any member (the survivor included) with an AI job that is queued,
-///   running, or completed but not acted on
-///   ([`crate::ai_jobs::ACTIVE_STATUSES`]): its suggestion was made for one
-///   disc, and the one-active-job-per-album rule could not hold for the
-///   survivor;
+/// * any member (the survivor included) with an unresolved research request
+///   (queued, claimed, running or awaiting review,
+///   [`crate::delegated_work::unresolved_for_albums`]): it was made for one
+///   disc, and its proposal would be checked against the wrong folder;
 /// * members anchored to two release groups, or the one group blocked on
 ///   any member.
 ///
@@ -404,9 +407,10 @@ pub fn merge_album_rows(conn: &Connection, req: &MergeRequest<'_>) -> Result<Mer
 ///   ever appears at the old path again its id is the same and a check
 ///   that reports the same summary reopens the row, ignore included, as it
 ///   does after a removal. The survivor's own findings stay.
-/// * `ai_jobs`: finished jobs (failed, acted on) repointed to the survivor
-///   so its history lists them; `album_path` is a display copy and keeps
-///   the old text, as in a rename. Active ones refuse (above).
+/// * `delegated_work`, `research_history`: finished requests and old job
+///   records repointed to the survivor so its history lists them;
+///   `album_path` is a display copy and keeps the old text, as in a rename.
+///   Unresolved requests refuse (above).
 /// * `check_inputs`: the rows of every from-album and of the survivor are
 ///   deleted, so the background sweep checks the survivor again (its files
 ///   changed). Whole-library rows (`album_id = ''`) are left: their digest
@@ -480,7 +484,8 @@ pub fn merge_album_rows_tx(tx: &Transaction<'_>, req: &MergeRequest<'_>) -> Resu
             let leftovers = count(
                 tx,
                 "SELECT (SELECT COUNT(*) FROM check_findings WHERE album_id = ?1 AND resolved_at IS NULL) \
-                      + (SELECT COUNT(*) FROM ai_jobs WHERE album_id = ?1) \
+                      + (SELECT COUNT(*) FROM delegated_work WHERE album_id = ?1) \
+                      + (SELECT COUNT(*) FROM research_history WHERE album_id = ?1) \
                       + (SELECT COUNT(*) FROM check_inputs WHERE album_id = ?1)",
                 id,
             )?;
@@ -532,24 +537,14 @@ pub fn merge_album_rows_tx(tx: &Transaction<'_>, req: &MergeRequest<'_>) -> Resu
         }
     }
     let members: Vec<&Member> = std::iter::once(&into).chain(from.iter()).collect();
-    let active = crate::ai_jobs::ACTIVE_STATUSES;
+    let member_ids: Vec<&str> = members.iter().map(|m| m.id.as_str()).collect();
+    let unresolved = crate::delegated_work::unresolved_for_albums(tx, &member_ids)?;
     for m in &members {
-        let job: Option<(String, String)> = tx
-            .query_row(
-                &format!(
-                    "SELECT id, status FROM ai_jobs WHERE album_id = ? AND status IN ({}) \
-                     ORDER BY created_at, id LIMIT 1",
-                    vec!["?"; active.len()].join(",")
-                ),
-                params_from_iter(std::iter::once(m.id.as_str()).chain(active)),
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()?;
-        if let Some((job_id, status)) = job {
+        if let Some(u) = unresolved.iter().find(|u| u.album_id == m.id) {
             return refuse(MergeRefusal::ActiveJob {
                 album_id: m.id.clone(),
-                job_id,
-                status,
+                job_id: u.group_id.clone(),
+                status: u.status.clone(),
             });
         }
     }
@@ -635,10 +630,10 @@ pub fn merge_album_rows_tx(tx: &Transaction<'_>, req: &MergeRequest<'_>) -> Resu
         ),
         params_from_iter(with_into(req.now)),
     )?;
-    let ai_jobs = tx.execute(
-        &format!("UPDATE ai_jobs SET album_id = ? WHERE album_id IN ({in_from})"),
-        params_from_iter(with_into(into_id)),
-    )?;
+    let mut ai_jobs = 0;
+    for id in &ids {
+        ai_jobs += crate::renames::moved_research(tx, id, into_id)?;
+    }
     let check_inputs = tx.execute(
         &format!("DELETE FROM check_inputs WHERE album_id IN (?,{in_from})"),
         params_from_iter(with_into(into_id)),

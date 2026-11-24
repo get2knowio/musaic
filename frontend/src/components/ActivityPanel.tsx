@@ -17,10 +17,13 @@ import {
 
 import { useActivity } from "@/hooks/useActivity";
 import { checkScanStatus } from "@/hooks/useScanFollower";
-import { useBulkDeleteJobs, useDeleteJob, useResumeQueue } from "@/hooks/useJobs";
+import { useBulkDeleteJobs, useCancelResearchGroup, useQueueState } from "@/hooks/useJobs";
 import { ResultsList, RunOutcome } from "@/components/BulkQuickFixDialog";
+import { ResearchBatchEntry } from "@/components/ResearchBatch";
+import { useResearchBatches } from "@/hooks/useResearchBatches";
 import { StatusPill, jobTypeLabel } from "@/components/JobRow";
 import { fmtRelative } from "@/lib/relativeTime";
+import { isHistoryOnlyJob } from "@/lib/filters";
 import {
   STATE_LABEL,
   progressText,
@@ -53,10 +56,11 @@ const LINK = "text-accent hover:underline focus-visible:outline focus-visible:ou
  * `openActivityPanel()` (lib/activityPanel.ts) or by a `?activity=` link.
  *
  * Sections: the library scan, bulk fixes, background checks,
- * fingerprinting, AI jobs (in progress, then history). Each says its state
+ * fingerprinting, research requests (in progress, then history). Each says its state
  * in words (running, waiting, stopped, failed, completed, or that its
  * progress is out of date or unavailable) and offers Cancel / Stop only
- * where the API can do it: the scan, a bulk run, a queued job.
+ * where the API can do it: the scan, a bulk run, a waiting or running
+ * research request.
  *
  * Links (an album, Review) close the panel and go there; the album panel's
  * Close and Back return to the page the user was on.
@@ -130,7 +134,7 @@ export default function ActivityPanel() {
             </Dialog.Close>
           </div>
           <Dialog.Description className="sr-only">
-            Scans, background checks, fingerprinting, bulk fixes and AI jobs. Press Escape to close.
+            Scans, background checks, fingerprinting, bulk fixes and research requests. Press Escape to close.
           </Dialog.Description>
           <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
             <ActivityBody onNavigate={onNavigate} markedJob={panel.job} />
@@ -156,6 +160,7 @@ function ActivityBody({ onNavigate, markedJob }: { onNavigate: () => void; marke
       </Card>
       <Card id="fingerprint" title="Fingerprinting" summary={a.pool.summary} />
       <JobsSection jobs={a.jobs} onNavigate={onNavigate} markedJob={markedJob} />
+      <BatchesSection onNavigate={onNavigate} />
     </>
   );
 }
@@ -402,7 +407,7 @@ function BulkCard({ run, summary, onNavigate }: { run: BulkRun; summary: Summary
   );
 }
 
-// ---- AI jobs ----
+// ---- research requests ----
 
 function JobsSection({
   jobs,
@@ -413,10 +418,12 @@ function JobsSection({
   onNavigate: () => void;
   markedJob: string | null;
 }) {
-  const resume = useResumeQueue();
   const clear = useBulkDeleteJobs();
+  // What Clear removes, counted by the server in requests (the jobs
+  // stream's queue_state), not in job cards.
+  const { data: queue } = useQueueState();
+  const acted = queue?.clearable ?? 0;
   const [all, setAll] = useState(false);
-  const acted = jobs.finished.filter((j) => j.status === "acted_on").length;
   // A marked job deeper in the history is shown, not hidden behind "Show all".
   const markedAt = markedJob ? jobs.finished.findIndex((j) => j.id === markedJob) : -1;
   const shown = all || markedAt >= HISTORY_LIMIT ? jobs.finished : jobs.finished.slice(0, HISTORY_LIMIT);
@@ -428,21 +435,9 @@ function JobsSection({
 
   return (
     <>
-      <Card id="jobs" section="jobs" title="AI jobs" summary={jobs.summary}>
-        {jobs.paused && (
-          <button
-            type="button"
-            className={QUIET_BUTTON}
-            disabled={resume.isPending}
-            onClick={() =>
-              resume.mutate(undefined, { onError: () => toast.error("Couldn't resume the queue") })
-            }
-          >
-            {resume.isPending ? "Resuming…" : "Resume queue"}
-          </button>
-        )}
+      <Card id="jobs" section="jobs" title="Research requests" summary={jobs.summary}>
         {jobs.inProgress.length > 0 && (
-          <ul aria-label="Jobs in progress" className="w-full rounded border border-line bg-panel divide-y divide-line">
+          <ul aria-label="Research requests in progress" className="w-full rounded border border-line bg-panel divide-y divide-line">
             {jobs.inProgress.map((j) => (
               <JobLine key={j.id} job={j} marked={j.id === markedJob} onNavigate={onNavigate} />
             ))}
@@ -459,7 +454,7 @@ function JobsSection({
         >
           <div className="flex items-center gap-2">
             <h3 id="activity-history-heading" className="text-sm font-medium flex-1">
-              Job history
+              Research history
             </h3>
             {acted > 0 && (
               <button
@@ -478,16 +473,16 @@ function JobsSection({
             )}
           </div>
           <p className="mt-1 text-xs text-fg-3">
-            Finished jobs. A proposed change or a failure waits in Review until you act on it.
+            Finished research requests. A proposed change or a failure waits in Review until you act on it.
           </p>
           {jobs.finished.length > 0 ? (
-            <ul aria-label="Job history" className="mt-2 rounded border border-line bg-panel divide-y divide-line">
+            <ul aria-label="Research history" className="mt-2 rounded border border-line bg-panel divide-y divide-line">
               {shown.map((j) => (
                 <JobLine key={j.id} job={j} marked={j.id === markedJob} onNavigate={onNavigate} />
               ))}
             </ul>
           ) : (
-            <p className="mt-2 text-xs text-fg-3">That job is no longer listed.</p>
+            <p className="mt-2 text-xs text-fg-3">That research request is no longer listed.</p>
           )}
           {shown.length < jobs.finished.length && (
             <button type="button" className={`mt-2 ${QUIET_BUTTON}`} onClick={() => setAll(true)}>
@@ -500,10 +495,46 @@ function JobsSection({
   );
 }
 
+// ---- research batches ----
+
+/** Each Fix all batch once, with its size, counts and Cancel; its items are
+ * in Review. Nothing when there is none. */
+function BatchesSection({ onNavigate }: { onNavigate: () => void }) {
+  const { data } = useResearchBatches();
+  const batches = Array.isArray(data) ? data : [];
+  if (batches.length === 0) return null;
+  return (
+    <section
+      aria-labelledby="activity-batches-heading"
+      data-activity="batches"
+      data-activity-section="batches"
+      tabIndex={-1}
+      className="rounded-md border border-line bg-panel-2 px-3 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <h3 id="activity-batches-heading" className="text-sm font-medium">
+        Research from Fix all
+      </h3>
+      <ul aria-label="Research from Fix all" className="mt-2 rounded border border-line bg-panel divide-y divide-line">
+        {batches.map((b) => (
+          <li key={b.batchId} className="px-2 py-1.5">
+            <ResearchBatchEntry batch={b}>
+              <Link to={reviewUrl()} onClick={onNavigate} className={`text-xs ${LINK}`}>
+                See the requests in Review
+              </Link>
+            </ResearchBatchEntry>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function JobLine({ job, marked, onNavigate }: { job: Job; marked: boolean; onNavigate: () => void }) {
   const albumHref = useAlbumHref();
-  const del = useDeleteJob();
+  const cancel = useCancelResearchGroup();
   const when = job.completed_at ?? job.started_at ?? job.created_at;
+  // An old job's history-only record has no review and nothing to cancel.
+  const history = isHistoryOnlyJob(job);
   return (
     <li
       data-activity-job={job.id}
@@ -524,29 +555,29 @@ function JobLine({ job, marked, onNavigate }: { job: Job; marked: boolean; onNav
       </div>
       <div className="mt-0.5 flex items-center gap-2 text-fg-3">
         <span>{jobTypeLabel(job.job_type)}</span>
-        {job.status === "completed" && (
+        {job.status === "completed" && !history && (
           <Link to={reviewUrl({ kind: "proposed", job: job.id })} onClick={onNavigate} className={LINK}>
             Review the proposal
           </Link>
         )}
-        {job.status === "failed" && (
+        {job.status === "failed" && !history && (
           <Link to={reviewUrl({ kind: "failed", job: job.id })} onClick={onNavigate} className={LINK}>
             See in Review
           </Link>
         )}
-        {job.status === "queued" && (
-          // Taking a queued job off the queue is its cancel; a running one
-          // cannot be interrupted (the API refuses).
+        {(job.status === "queued" || job.status === "running") && !history && (
+          // Cancels every waiting, held or running request of the card
+          // (FR-036); a 409 means nothing was left to cancel.
           <button
             type="button"
             className={`ml-auto ${QUIET_BUTTON}`}
-            disabled={del.isPending}
+            disabled={cancel.isPending}
             onClick={() =>
-              del.mutate(job.id, {
-                onError: (err) => toast.error((err as Error).message || "Couldn't cancel the job"),
+              cancel.mutate(job.id, {
+                onError: (err) => toast.error((err as Error).message || "Couldn't cancel the research request"),
               })
             }
-            aria-label={`Cancel the queued ${jobTypeLabel(job.job_type).toLowerCase()} job for ${job.album_title || "this album"}`}
+            aria-label={`Cancel the ${jobTypeLabel(job.job_type).toLowerCase()} research request for ${job.album_title || "this album"}`}
           >
             Cancel
           </button>

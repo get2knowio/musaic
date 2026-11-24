@@ -15,7 +15,6 @@ use musaic_checks::checks::{duplicate_tracks as dt, inconsistent_artist_sort as 
 use musaic_checks::checks::{tags_out_of_sync as toos, track_gaps as tg, unidentified_album as ua};
 use musaic_checks::runner::meta_to_json;
 use musaic_checks::wording;
-use musaic_core::AiWording;
 use musaic_events::{Bus, Subscriber, Topic};
 use serde_json::{Value as J, json};
 
@@ -27,33 +26,15 @@ fn s(v: &J) -> Option<&str> {
     v.as_str()
 }
 
-/// CheckMeta of every registered check, in registry order (with a
-/// ready AI provider: the Python app's wording).
+/// CheckMeta of every registered check, in registry order: the Python app's
+/// except the descriptions of the three checks whose text names AI, each
+/// replaced by its entry in `wording::NEUTRAL_DESCRIPTIONS` (the enumerated
+/// delta). Each replaced description named AI in the Python app's record and
+/// no longer does.
 #[test]
 fn check_meta_matches_the_python() {
     let reg = Registry::default();
-    let got: Vec<J> = reg
-        .all_meta()
-        .into_iter()
-        .map(|m| meta_to_json(m, AiWording::NamesAi))
-        .collect();
-    assert_eq!(J::Array(got), pure()["meta"]);
-}
-
-/// Backend AI wording is gated on
-/// provider readiness: with no ready provider the metadata is the Python app's
-/// except the descriptions of the three checks whose text names AI, each
-/// replaced by its entry in `wording::NEUTRAL_DESCRIPTIONS` (the enumerated
-/// delta). Each replaced description named AI in the Python app's record and no
-/// longer does.
-#[test]
-fn check_meta_without_a_provider() {
-    let reg = Registry::default();
-    let got: Vec<J> = reg
-        .all_meta()
-        .into_iter()
-        .map(|m| meta_to_json(m, AiWording::Neutral))
-        .collect();
+    let got: Vec<J> = reg.all_meta().into_iter().map(meta_to_json).collect();
     let mut want = pure()["meta"].clone();
     let mut replaced = 0;
     for m in want.as_array_mut().unwrap() {
@@ -70,10 +51,9 @@ fn check_meta_without_a_provider() {
 }
 
 /// The tags-out-of-sync summaries of the Python app's record, as shown.
-/// Stored summaries are built exactly as recorded (above); with a ready
-/// provider the shown text is the stored one, without one an unanchored
-/// summary ends with `NO_ANCHOR_SUFFIX_NEUTRAL` instead of the Python app's
-/// `NO_ANCHOR_SUFFIX` and nothing else changes.
+/// Stored summaries are built exactly as recorded (above); an unanchored
+/// summary is shown ending with `NO_ANCHOR_SUFFIX_NEUTRAL` instead of the
+/// Python app's `NO_ANCHOR_SUFFIX` and nothing else changes.
 #[test]
 fn summaries_as_shown() {
     let p = pure();
@@ -81,8 +61,7 @@ fn summaries_as_shown() {
     for c in p["build_summary"].as_array().unwrap() {
         let out = c["out"].as_str().unwrap();
         let id = toos::META.id;
-        assert_eq!(wording::finding_summary(id, out, AiWording::NamesAi), out);
-        let shown = wording::finding_summary(id, out, AiWording::Neutral);
+        let shown = wording::finding_summary(id, out);
         assert!(!ai_words(&shown), "{shown}");
         match out.strip_suffix(toos::NO_ANCHOR_SUFFIX) {
             Some(head) => {

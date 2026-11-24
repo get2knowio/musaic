@@ -48,6 +48,8 @@ const SKIPPED_RULES: ReadonlyArray<readonly [RegExp, string]> = [
 /** What to tell the user about one finding that was not fixed ("" when fixed). */
 export function plainReason(outcome: BulkOutcome, message: string): string {
   if (outcome === "fixed") return "";
+  if (outcome === "sent-for-research") return "Sent to your assistant for research.";
+  if (outcome === "already-requested") return "Research is already requested for this album.";
   if (outcome === "error") return GENERIC_ERROR;
   if (outcome === "not-applicable") {
     if (/missing from disk/i.test(message)) {

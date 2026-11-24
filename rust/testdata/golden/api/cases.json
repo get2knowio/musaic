@@ -1788,116 +1788,14 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 1,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 24.0,
           "snapshot_retention_count": 10
         },
         "status": 200
-      }
-    },
-    {
-      "label": "settings max_parallel 0",
-      "request": {
-        "json": {
-          "ai_max_parallel": 0
-        },
-        "method": "PATCH",
-        "path": "/api/settings"
-      },
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "detail": "ai_max_parallel must be between 1 and 8"
-        },
-        "status": 400
-      }
-    },
-    {
-      "label": "settings max_parallel 9",
-      "request": {
-        "json": {
-          "ai_max_parallel": 9
-        },
-        "method": "PATCH",
-        "path": "/api/settings"
-      },
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "detail": "ai_max_parallel must be between 1 and 8"
-        },
-        "status": 400
-      }
-    },
-    {
-      "label": "settings max_parallel str",
-      "request": {
-        "json": {
-          "ai_max_parallel": "x"
-        },
-        "method": "PATCH",
-        "path": "/api/settings"
-      },
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "detail": [
-            {
-              "input": "x",
-              "loc": [
-                "body",
-                "ai_max_parallel"
-              ],
-              "msg": "Input should be a valid integer, unable to parse string as an integer",
-              "type": "int_parsing"
-            }
-          ]
-        },
-        "status": 422
-      }
-    },
-    {
-      "label": "settings max_parallel float",
-      "request": {
-        "json": {
-          "ai_max_parallel": 2.5
-        },
-        "method": "PATCH",
-        "path": "/api/settings"
-      },
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "detail": [
-            {
-              "input": 2.5,
-              "loc": [
-                "body",
-                "ai_max_parallel"
-              ],
-              "msg": "Input should be a valid integer, got a number with a fractional part",
-              "type": "int_from_float"
-            }
-          ]
-        },
-        "status": 422
       }
     },
     {
@@ -1915,49 +1813,14 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 24.0,
           "snapshot_retention_count": 10
         },
         "status": 200
-      }
-    },
-    {
-      "label": "settings paused bad",
-      "request": {
-        "json": {
-          "ai_queue_paused": "maybe"
-        },
-        "method": "PATCH",
-        "path": "/api/settings"
-      },
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "detail": [
-            {
-              "input": "maybe",
-              "loc": [
-                "body",
-                "ai_queue_paused"
-              ],
-              "msg": "Input should be a valid boolean, unable to interpret input",
-              "type": "bool_parsing"
-            }
-          ]
-        },
-        "status": 422
       }
     },
     {
@@ -1975,16 +1838,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": true,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 24.0,
           "snapshot_retention_count": 10
         },
@@ -2006,16 +1863,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 24.0,
           "snapshot_retention_count": 10
         },
@@ -2075,16 +1926,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2092,7 +1937,7 @@
       }
     },
     {
-      "label": "settings two errors",
+      "label": "settings retired name ignored beside an error",
       "request": {
         "json": {
           "ai_max_parallel": "x",
@@ -2109,15 +1954,6 @@
         },
         "json": {
           "detail": [
-            {
-              "input": "x",
-              "loc": [
-                "body",
-                "ai_max_parallel"
-              ],
-              "msg": "Input should be a valid integer, unable to parse string as an integer",
-              "type": "int_parsing"
-            },
             {
               "input": [],
               "loc": [
@@ -2147,16 +1983,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2178,16 +2008,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2209,16 +2033,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2240,16 +2058,10 @@
         },
         "json": {
           "acoustid_api_key_set": true,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2271,39 +2083,14 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
         "status": 200
-      }
-    },
-    {
-      "label": "settings provider unknown",
-      "request": {
-        "json": {
-          "ai_provider_id": "bedrock"
-        },
-        "method": "PATCH",
-        "path": "/api/settings"
-      },
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "detail": "Unknown or not-installed provider 'bedrock'. Installed: claude, github-copilot, opencode. Install its airframe extra to add more."
-        },
-        "status": 400
       }
     },
     {
@@ -2321,16 +2108,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2352,16 +2133,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "m-1",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2383,16 +2158,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },
@@ -2561,16 +2330,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 0
         },
@@ -2608,16 +2371,10 @@
         },
         "json": {
           "acoustid_api_key_set": false,
-          "ai_api_key_set": false,
-          "ai_max_parallel": 3,
-          "ai_model_id": "claude-sonnet-4-6",
-          "ai_provider_id": "claude",
-          "ai_queue_paused": false,
           "dir_template_compilation": "Various Artists - {album} [FLAC]",
           "dir_template_single_artist": "{albumartist} - {album} [FLAC]",
           "filename_template_compilation": "{tracknumber:02} - {artist} - {title}",
           "filename_template_single_artist": "{tracknumber:02} - {title}",
-          "firecrawl_api_key_set": false,
           "snapshot_min_interval_hours": 1.5,
           "snapshot_retention_count": 10
         },

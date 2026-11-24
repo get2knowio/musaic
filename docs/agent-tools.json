@@ -2773,7 +2773,7 @@
         "readOnlyHint": true
       },
       "cliName": "work-list",
-      "description": "List available research requests and your claimed work.",
+      "description": "List available research requests and your claimed work, optionally only those of one bulk run (batchId).",
       "id": "musaic_work_list",
       "inputSchema": {
         "$defs": {
@@ -2802,6 +2802,14 @@
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "additionalProperties": false,
         "properties": {
+          "batchId": {
+            "description": "Only the items of this bulk run. An unknown batch lists nothing.",
+            "pattern": "^[0-9a-f-]{36}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "cursor": {
             "type": [
               "string",
@@ -2877,6 +2885,13 @@
               },
               "availableAt": {
                 "type": "string"
+              },
+              "batchId": {
+                "description": "The bulk run that made this request; omitted when none did.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "createdAt": {
                 "type": "string"
@@ -3046,6 +3061,13 @@
               },
               "availableAt": {
                 "type": "string"
+              },
+              "batchId": {
+                "description": "The bulk run that made this request; omitted when none did.",
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "createdAt": {
                 "type": "string"
@@ -3222,6 +3244,119 @@
     {
       "annotations": {
         "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-claim-many",
+      "description": "Reserve up to 25 queued research requests at once (optionally of one batch or kind), each with its own five-minute lease. Winning fewer than asked, or none, is not an error.",
+      "id": "musaic_work_claim_many",
+      "inputSchema": {
+        "$defs": {
+          "WorkKind": {
+            "enum": [
+              "metadata.identify",
+              "metadata.correct",
+              "cover.research"
+            ],
+            "type": "string"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Claim several queued items at once; each claim is independent.",
+        "properties": {
+          "batchId": {
+            "pattern": "^[0-9a-f-]{36}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "idempotencyKey": {
+            "pattern": "^[A-Za-z0-9._:-]{8,128}$",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/WorkKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max": {
+            "maximum": 25,
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "WorkClaimManyInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkClaimOutput": {
+            "properties": {
+              "claimGeneration": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "inputDigest": {
+                "type": "string"
+              },
+              "leaseExpiresAt": {
+                "type": "string"
+              },
+              "leaseToken": {
+                "type": "string"
+              },
+              "workId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workId",
+              "claimGeneration",
+              "leaseToken",
+              "leaseExpiresAt",
+              "inputDigest"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "claims": {
+            "items": {
+              "$ref": "#/$defs/WorkClaimOutput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "claims"
+        ],
+        "title": "WorkClaimManyOutput",
+        "type": "object"
+      },
+      "title": "Claim several requests"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
         "idempotentHint": false,
         "openWorldHint": false,
         "readOnlyHint": false
@@ -3274,6 +3409,123 @@
         "type": "object"
       },
       "title": "Renew a work lease"
+    },
+    {
+      "annotations": {
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false,
+        "readOnlyHint": false
+      },
+      "cliName": "work-renew-many",
+      "description": "Extend several of your current claims in one call; each lease is renewed or refused on its own.",
+      "id": "musaic_work_renew_many",
+      "inputSchema": {
+        "$defs": {
+          "LeaseInput": {
+            "additionalProperties": false,
+            "description": "One held lease, as `musaic_work_renew_many` lists it.",
+            "properties": {
+              "claimGeneration": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "leaseToken": {
+                "type": "string"
+              },
+              "workId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workId",
+              "claimGeneration",
+              "leaseToken"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "Renew several leases; each is renewed or refused on its own.",
+        "properties": {
+          "leases": {
+            "items": {
+              "$ref": "#/$defs/LeaseInput"
+            },
+            "maxItems": 25,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "leases"
+        ],
+        "title": "WorkRenewManyInput",
+        "type": "object"
+      },
+      "kinds": [
+        "library.read",
+        "proposal.submit"
+      ],
+      "outputSchema": {
+        "$defs": {
+          "WorkRenewOutput": {
+            "properties": {
+              "leaseExpiresAt": {
+                "type": "string"
+              },
+              "workId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workId",
+              "leaseExpiresAt"
+            ],
+            "type": "object"
+          },
+          "WorkRenewRefusal": {
+            "description": "A lease `musaic_work_renew_many` did not renew, and why.",
+            "properties": {
+              "code": {
+                "description": "The code `musaic_work_renew` would answer for this lease.",
+                "type": "string"
+              },
+              "workId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "workId",
+              "code"
+            ],
+            "type": "object"
+          }
+        },
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "properties": {
+          "refused": {
+            "items": {
+              "$ref": "#/$defs/WorkRenewRefusal"
+            },
+            "type": "array"
+          },
+          "renewed": {
+            "items": {
+              "$ref": "#/$defs/WorkRenewOutput"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "renewed",
+          "refused"
+        ],
+        "title": "WorkRenewManyOutput",
+        "type": "object"
+      },
+      "title": "Renew several leases"
     },
     {
       "annotations": {
@@ -3379,6 +3631,13 @@
           },
           "availableAt": {
             "type": "string"
+          },
+          "batchId": {
+            "description": "The bulk run that made this request; omitted when none did.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -3763,6 +4022,13 @@
           "availableAt": {
             "type": "string"
           },
+          "batchId": {
+            "description": "The bulk run that made this request; omitted when none did.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdAt": {
             "type": "string"
           },
@@ -3895,6 +4161,13 @@
           "availableAt": {
             "type": "string"
           },
+          "batchId": {
+            "description": "The bulk run that made this request; omitted when none did.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdAt": {
             "type": "string"
           },
@@ -4019,6 +4292,13 @@
           "availableAt": {
             "type": "string"
           },
+          "batchId": {
+            "description": "The bulk run that made this request; omitted when none did.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdAt": {
             "type": "string"
           },
@@ -4134,6 +4414,13 @@
           },
           "availableAt": {
             "type": "string"
+          },
+          "batchId": {
+            "description": "The bulk run that made this request; omitted when none did.",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"

@@ -29,7 +29,6 @@ function renderChrome() {
     library_dir: "/Users/someone/Music/A very long library folder name that will not fit/FLAC",
     exists: true,
   } as AppConfig);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["albums-snapshot"], []);
   vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 404 })));
   return render(

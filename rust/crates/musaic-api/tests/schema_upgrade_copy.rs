@@ -32,6 +32,8 @@ fn make_v18(cfg: &Path) {
              );
              UPDATE schema_version SET version = 18;
              INSERT INTO settings(key, value) VALUES ('acoustid_api_key', 'SECRET-KEY-VALUE');
+             INSERT INTO settings(key, value) VALUES ('ai_api_key', 'RETIRED-AI-KEY-VALUE');
+             INSERT INTO settings(key, value) VALUES ('firecrawl_api_key', 'RETIRED-FIRECRAWL-KEY-VALUE');
              INSERT INTO settings(key, value) VALUES ('snapshot_retention_count', '10');",
         )
         .unwrap();
@@ -117,14 +119,30 @@ fn a_copy_is_taken_before_the_upgrade() {
         .join(musaic_core::config::SNAPSHOT_DIR_NAME)
         .join(&s.filename);
     assert_eq!(version(&copy), 18);
-    // No secret in the copy, not even in free pages.
+    // No secret in the copy, not even in free pages: neither the key that
+    // moves to the keyring nor the two retired keys, which are scrubbed.
     let bytes = std::fs::read(&copy).unwrap();
-    assert!(
-        !bytes
-            .windows(b"SECRET-KEY-VALUE".len())
-            .any(|w| w == b"SECRET-KEY-VALUE"),
-        "the copy holds a key"
-    );
+    for secret in [
+        &b"SECRET-KEY-VALUE"[..],
+        b"RETIRED-AI-KEY-VALUE",
+        b"RETIRED-FIRECRAWL-KEY-VALUE",
+    ] {
+        assert!(
+            !bytes.windows(secret.len()).any(|w| w == secret),
+            "the copy holds a key: {}",
+            String::from_utf8_lossy(secret)
+        );
+    }
+    let secret_rows: i64 = Connection::open(&copy)
+        .unwrap()
+        .query_row(
+            "SELECT COUNT(*) FROM settings WHERE key IN \
+             ('acoustid_api_key', 'ai_api_key', 'firecrawl_api_key')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(secret_rows, 0, "the copy keeps no secret row");
     drop(st);
     // Already current: no second copy.
     drop(build(&cfg).unwrap());

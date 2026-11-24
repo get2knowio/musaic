@@ -218,7 +218,6 @@ fn completion_replays_after_restart_and_keeps_unverified_evidence_pending() {
         .clock(w.clock.wall())
         .subscribers(false)
         .check_sweep(false)
-        .ai_worker(false)
         .auto_snapshot(false)
         .build()
         .unwrap();
@@ -385,7 +384,6 @@ fn active_claim_and_original_expiry_survive_shutdown() {
         .clock(w.clock.wall())
         .subscribers(false)
         .check_sweep(false)
-        .ai_worker(false)
         .auto_snapshot(false)
         .build()
         .unwrap();
@@ -533,8 +531,9 @@ fn a_saved_scan_makes_waiting_legacy_work_claimable_when_the_album_returns() {
         )
         .unwrap();
         conn.execute(
-            "INSERT INTO ai_jobs (id,album_id,album_path,job_type,status,created_at)
-             VALUES ('waiting',?1,?2,'metadata','queued','2026-11-22T00:00:00Z')",
+            "INSERT INTO research_history
+                 (id,album_id,album_path,job_type,status,created_at,migrated_at)
+             VALUES ('waiting',?1,?2,'metadata','queued','2026-11-22T00:00:00Z',0)",
             [&album_id, album_path.to_str().unwrap()],
         )
         .unwrap();
@@ -555,7 +554,6 @@ fn a_saved_scan_makes_waiting_legacy_work_claimable_when_the_album_returns() {
         .clock(w.clock.wall())
         .subscribers(false)
         .check_sweep(false)
-        .ai_worker(false)
         .auto_snapshot(false)
         .build()
         .unwrap();

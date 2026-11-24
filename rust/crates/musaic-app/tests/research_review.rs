@@ -32,7 +32,6 @@ fn exercise_review(interrupt_decision: bool) {
     };
     let original_tags = tags();
     let jobs = ops.jobs();
-    assert!(!w.app.ai_worker_running());
     let job = jobs
         .enqueue(album.id(), "metadata", "Check the artist credit", false)
         .unwrap();

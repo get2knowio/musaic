@@ -11,7 +11,7 @@
 //!    [`LoopbackOptions::drain`]; whatever is left is aborted (the listener
 //!    is dropped either way, so the port is released);
 //! 3. [`AppState::shutdown`] (blocking): the lifespan's teardown (pool
-//!    stopped and joined, AI worker stopped, pending key scrub retried).
+//!    stopped and joined, agent operations stopped, pending key scrub retried).
 //!
 //! The bind host is always the IPv4 loopback: an embedding host never
 //! listens on another interface.

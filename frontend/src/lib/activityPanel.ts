@@ -18,7 +18,7 @@ import { useSyncExternalStore } from "react";
 export const ACTIVITY_TOGGLE_ID = "activity-toggle";
 export const ACTIVITY_PANEL_ID = "activity-panel";
 
-/** A part of the panel to bring into view: AI jobs in progress, or their history. */
+/** A part of the panel to bring into view: research requests in progress, or their history. */
 export type ActivitySection = "jobs" | "history";
 
 export interface ActivityPanelState {

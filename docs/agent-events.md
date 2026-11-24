@@ -4,19 +4,22 @@ Generated from the event catalog; do not edit by hand.
 
 Extension `io.modelcontextprotocol/events` on protocol revision `2026-07-28`. An event says that work changed; read the work with `musaic_work_get`. Delivery is at least once: deduplicate by `eventId` and rely on the atomic claim.
 
+Compatibility: since skill 1.1.0, work event payloads may carry `batchId`. The field is optional and additive, so the event types stay `.v1`. Read the payload schema from `events/list` rather than a cached copy: a client that validates against the earlier schema with `additionalProperties: false` will reject events that carry it.
+
 ## `musaic.work.requested.v1`
 
 Work became available to claim: it was created, requeued, released or retried.
 
 Delivery: poll, push.
 
-`data` holds exactly:
+`data` holds these keys and no others:
 
 - `workId` (string)
 - `kind` (one of `metadata.identify`, `metadata.correct`, `cover.research`)
 - `state` (one of `queued`, `claimed`, `running`, `awaiting_review`, `applied`, `discarded`, `failed`, `cancelled`)
 - `revision` (integer)
 - `libraryEpoch` (string)
+- `batchId` (string, optional): an opaque reference to the bulk run that made the request; absent for requests not made by a bulk run
 
 Arguments (all optional): `kinds`, `states`; any other key is refused.
 
@@ -26,13 +29,14 @@ Delegated work changed state in any other way (claimed, running, awaiting review
 
 Delivery: poll, push.
 
-`data` holds exactly:
+`data` holds these keys and no others:
 
 - `workId` (string)
 - `kind` (one of `metadata.identify`, `metadata.correct`, `cover.research`)
 - `state` (one of `queued`, `claimed`, `running`, `awaiting_review`, `applied`, `discarded`, `failed`, `cancelled`)
 - `revision` (integer)
 - `libraryEpoch` (string)
+- `batchId` (string, optional): an opaque reference to the bulk run that made the request; absent for requests not made by a bulk run
 
 Arguments (all optional): `kinds`, `states`; any other key is refused.
 

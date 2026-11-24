@@ -44,6 +44,7 @@ use musaic_checks::checks::duplicate_tracks::{
     cluster_preview, derive_cluster, trash_duplicate_file,
 };
 use musaic_checks::runner::{ignore_finding, list_checks_with_summary, unignore_finding};
+use musaic_checks::wording::NEUTRAL_DESCRIPTIONS;
 use musaic_checks::{ScopeKind, run_check, run_post_scan_checks};
 use musaic_fsops::plan::{Plan, derive_plan};
 use serde_json::{Value as J, json};
@@ -228,9 +229,7 @@ fn replay(sc: &J) -> Vec<J> {
                 J::Array(rows)
             }
             "summary" => {
-                let mut v = J::Array(
-                    list_checks_with_summary(conn, &env, musaic_core::AiWording::NamesAi).unwrap(),
-                );
+                let mut v = J::Array(list_checks_with_summary(conn, &env).unwrap());
                 for c in v.as_array_mut().unwrap() {
                     if let Some(r) = c["last_run"].as_object_mut() {
                         r.remove("duration_ms");
@@ -577,9 +576,28 @@ fn duplicates_preview_and_fix() {
 
 /// post_scan.py: the real registry's five runs_during_scan checks
 /// in order, and the GET /api/checks summary (meta table, open counts, last run).
+/// Delta: the three descriptions that name AI in the Python app's record are
+/// shown as their entry in `wording::NEUTRAL_DESCRIPTIONS`.
 #[test]
 fn default_post_scan_and_summary() {
-    exact("default-post-scan");
+    let sc = scenario("default-post-scan");
+    let want = with_delta(&sc, |_, st| {
+        if st["op"] != "summary" {
+            return;
+        }
+        let mut replaced = 0;
+        for c in st["result"].as_array_mut().unwrap() {
+            let id = c["meta"]["id"].as_str().unwrap().to_string();
+            if let Some((_, d)) = NEUTRAL_DESCRIPTIONS.iter().find(|(i, _)| *i == id) {
+                let old = c["meta"]["description"].as_str().unwrap();
+                assert!(old.contains("AI"), "{id}: Python app record");
+                c["meta"]["description"] = json!(d);
+                replaced += 1;
+            }
+        }
+        assert_eq!(replaced, NEUTRAL_DESCRIPTIONS.len());
+    });
+    assert_steps("default-post-scan", &replay(&sc), &want);
 }
 
 /// A failing check: the failing run is 'failed' with the message,

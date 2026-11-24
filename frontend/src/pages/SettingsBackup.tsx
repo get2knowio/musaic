@@ -23,7 +23,6 @@ import {
   restoreDbSnapshot,
 } from "@/lib/api";
 import { useSettings, useUpdateSettings } from "@/hooks/useJobs";
-import { useAiStatus } from "@/hooks/useAiStatus";
 import { useReturnFocus } from "@/components/DetailSheet/useReturnFocus";
 import { reloadAfterRestore, takeRestoreNotice } from "@/lib/restoreReload";
 import type { DbInfo, DbSnapshot } from "@/lib/types";
@@ -32,7 +31,7 @@ import type { DbInfo, DbSnapshot } from "@/lib/types";
  * Backup & restore panel for the Settings page.
  *
  * The DB at ~/.musaic/library.db carries data that's expensive
- * to recover after a wipe — AI-driven MBID anchors (API fees),
+ * to recover after a wipe — MusicBrainz anchors (slow to research again),
  * AcoustID fingerprints (slow to recompute), the user's tag taxonomy. This panel surfaces
  * three protections:
  *
@@ -54,7 +53,6 @@ export default function BackupPanel({
    *  (lib/restoreReload.ts); tests pass a spy. */
   onRestored?: (message: string) => void;
 } = {}) {
-  const ai = useAiStatus();
   // The confirmation of a restore that reloaded the page.
   // Deferred a tick so the App-level <Toaster> has subscribed.
   useEffect(() => {
@@ -152,19 +150,9 @@ export default function BackupPanel({
       <div className="px-4 py-4 space-y-5">
         <div className="text-sm text-fg-3 leading-relaxed space-y-2">
           <p>
-            {ai.ready ? (
-              <>
-                Musaic keeps a catalog database of records that are expensive to
-                rebuild: AI-driven MBID anchors, AcoustID fingerprints and
-                your My Tags vocabulary.
-              </>
-            ) : (
-              <>
-                Musaic keeps a catalog database of records that are expensive to
-                rebuild: MusicBrainz matches, AcoustID fingerprints and your My
-                Tags vocabulary.
-              </>
-            )}{" "}
+            Musaic keeps a catalog database of records that are expensive to
+            rebuild: MusicBrainz anchors, AcoustID fingerprints and your My
+            Tags vocabulary.{" "}
             Snapshots are taken automatically on app startup.
           </p>
           <p>
@@ -176,7 +164,7 @@ export default function BackupPanel({
         </div>
 
         {/* Current DB stats */}
-        {dbInfo.data && <CurrentDbCard info={dbInfo.data} aiReady={ai.ready} />}
+        {dbInfo.data && <CurrentDbCard info={dbInfo.data} />}
 
         <SnapshotPolicy />
 
@@ -421,7 +409,7 @@ function SnapshotPolicy() {
   );
 }
 
-function CurrentDbCard({ info, aiReady }: { info: DbInfo; aiReady: boolean }) {
+function CurrentDbCard({ info }: { info: DbInfo }) {
   return (
     <div className="border border-line rounded p-3 bg-panel">
       <div className="flex items-center justify-between gap-3 mb-2">
@@ -439,7 +427,7 @@ function CurrentDbCard({ info, aiReady }: { info: DbInfo; aiReady: boolean }) {
         <Stat label="Fingerprints"      value={info.counts.track_fingerprints} />
         <Stat label="Track tags"        value={info.counts.track_tags} />
         <Stat label="Vocabulary"        value={info.counts.tag_vocabulary} />
-        <Stat label={aiReady ? "AI jobs" : "Jobs"} value={info.counts.ai_jobs} />
+        <Stat label="Research requests" value={info.counts.ai_jobs} />
         <Stat label="Open findings"     value={info.counts.check_findings_open} />
       </div>
     </div>

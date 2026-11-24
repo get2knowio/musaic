@@ -41,7 +41,7 @@ const album = (id: number): Album =>
 
 type Step = { id: number; outcome: string; message: string };
 
-function sse(steps: Step[], done: Record<string, number>): string {
+function sse(steps: Step[], done: Record<string, unknown>): string {
   const progress = steps
     .map(
       (s) =>
@@ -198,7 +198,7 @@ function liveRun(total: number) {
   qc.setQueryData(["jobs"], []);
   qc.setQueryData(["check-sweep-status"], { status: "idle", total: 0, completed: 0, current_check: null, started_at: null, completed_at: null });
   qc.setQueryData(["fingerprint-pool-status"], { status: "idle", library_dir: null, total: 0, completed: 0, errors: 0, current_album_id: null, started_at: null, completed_at: null, skip_reason: null });
-  qc.setQueryData(["jobs", "queueState"], { paused: false, max_parallel: 1, running: 0, queued: 0 });
+  qc.setQueryData(["jobs", "queueState"], { running: 0, queued: 0, clearable: 0 });
   const onClose = vi.fn();
   const view = render(
     <QueryClientProvider client={qc}>
@@ -305,5 +305,148 @@ describe("stopping or losing a bulk run keeps what it did (#186)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(run.onClose).toHaveBeenCalled();
     expect(run.aborted).not.toHaveBeenCalled();
+  });
+});
+
+describe("sending what the resolver can't settle to the assistant", () => {
+  const pairing = (revokedAt: string | null) => ({
+    id: revokedAt ? "old" : "p1",
+    name: "Assistant",
+    scopes: ["research"],
+    policy: {},
+    createdAt: "2026-11-01T00:00:00Z",
+    lastUsedAt: null,
+    revokedAt,
+  });
+
+  function open(opts: {
+    pairings: ReturnType<typeof pairing>[];
+    fixKind?: "ai-job" | "deterministic";
+    steps?: Step[];
+    done?: Record<string, unknown>;
+  }) {
+    const urls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        // Only the run's own request is of interest here.
+        if (String(url).includes("/quick-fix-all")) urls.push(String(url));
+        const body = sse(
+          opts.steps ?? [{ id: 1, outcome: "skipped", message: "No match" }],
+          opts.done ?? counts({ total: 1, skipped: 1 }),
+        );
+        return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+      }),
+    );
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(["findings"], [finding(1), finding(2), finding(3)]);
+    qc.setQueryData(["albums-snapshot"], [album(1), album(2), album(3)]);
+    qc.setQueryData(["jobs"], []);
+    qc.setQueryData(["agent", "pairings"], opts.pairings);
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <BulkQuickFixDialog
+            open
+            onClose={() => {}}
+            checkId="unidentified-album"
+            checkLabel="Unidentified album"
+            bulkActionLabel="Identify on MusicBrainz"
+            fixKind={opts.fixKind ?? "ai-job"}
+            totalFindings={3}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    return urls;
+  }
+
+  const choice = () => screen.queryByRole("checkbox", { name: /Send what the resolver can't settle to my assistant/ });
+
+  beforeEach(() => resetBulkRuns());
+
+  it("is on by default when an assistant has been added, shows the count in scope, and asks for research", async () => {
+    const urls = open({ pairings: [pairing(null)] });
+    expect(choice()).toBeChecked();
+    expect(choice()).toHaveAccessibleDescription("3 findings in scope");
+    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    await waitFor(() => expect(urls).toHaveLength(1));
+    expect(urls[0]).toBe("/api/checks/unidentified-album/quick-fix-all?research=1");
+  });
+
+  it("is off by default with no assistant (or only a revoked one), and the run is resolver-only", async () => {
+    const urls = open({ pairings: [pairing("2026-11-02T00:00:00Z")] });
+    expect(choice()).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    await waitFor(() => expect(urls).toHaveLength(1));
+    expect(urls[0]).toBe("/api/checks/unidentified-album/quick-fix-all");
+  });
+
+  it("can be changed before the run starts", async () => {
+    const urls = open({ pairings: [] });
+    expect(choice()).not.toBeChecked();
+    fireEvent.click(choice()!);
+    expect(choice()).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    await waitFor(() => expect(urls).toHaveLength(1));
+    expect(urls[0]).toBe("/api/checks/unidentified-album/quick-fix-all?research=1");
+  });
+
+  it("has no model gating: offered and worded the same without any provider, naming no AI", async () => {
+    // Nothing seeds a provider list; the dialog does not ask for one.
+    open({ pairings: [] });
+    expect(screen.getByRole("button", { name: /Start/ })).toBeEnabled();
+    const text = document.body.textContent ?? "";
+    expect(text).not.toMatch(/\bAI\b|Claude|quota/);
+    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    await waitFor(() => expect(screen.getByText(/The reasons are listed below|the reasons are listed below/)).toBeInTheDocument());
+    expect(document.body.textContent ?? "").not.toMatch(/\bAI\b|Claude|quota|individually/);
+  });
+
+  it("is not offered for a check whose Fix never goes to research", async () => {
+    const urls = open({ pairings: [pairing(null)], fixKind: "deterministic" });
+    expect(choice()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    await waitFor(() => expect(urls).toHaveLength(1));
+    expect(urls[0]).toBe("/api/checks/unidentified-album/quick-fix-all");
+  });
+
+  it("the summary says what was settled, sent for research in one batch, already requested, skipped and failed", async () => {
+    open({
+      pairings: [pairing(null)],
+      steps: [
+        { id: 1, outcome: "sent-for-research", message: "Sent for research." },
+        { id: 2, outcome: "already-requested", message: "Research is already requested for this album." },
+        { id: 3, outcome: "fixed", message: "Saved the match." },
+      ],
+      done: {
+        ...counts({ total: 10, fixed: 4, skipped: 1, errors: 1 }),
+        sent_for_research: 3,
+        already_requested: 1,
+        batch_id: "11111111-2222-4333-8444-555555555555",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    const line = await waitFor(() => {
+      const el = document.querySelector("[data-bulk-research-summary]");
+      expect(el).not.toBeNull();
+      return el!;
+    });
+    expect(line.textContent?.replace(/\s+/g, " ").trim()).toBe(
+      "Settled 4. Sent 3 for research (one batch). 1 already requested. Skipped 1, failed 1.",
+    );
+    // Each album is listed under what happened to it, in plain words.
+    const list = screen.getByTestId("bulk-results");
+    const sections = within(list).getAllByRole("region").map((r) => r.getAttribute("aria-label"));
+    expect(sections).toEqual(["Sent for research", "Already requested", "Fixed"]);
+    expect(within(list).getByText("Sent to your assistant for research.")).toBeInTheDocument();
+    expect(within(list).getByText("Research is already requested for this album.")).toBeInTheDocument();
+  });
+
+  it("a resolver-only run keeps its summary as before", async () => {
+    open({ pairings: [], done: counts({ total: 1, skipped: 1 }) });
+    fireEvent.click(screen.getByRole("button", { name: /Start/ }));
+    await screen.findByTestId("bulk-results");
+    expect(document.querySelector("[data-bulk-research-summary]")).toBeNull();
   });
 });

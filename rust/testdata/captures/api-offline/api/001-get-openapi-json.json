@@ -11,19 +11,6 @@
     "json": {
       "components": {
         "schemas": {
-          "ActedOnPayload": {
-            "properties": {
-              "action": {
-                "title": "Action",
-                "type": "string"
-              }
-            },
-            "required": [
-              "action"
-            ],
-            "title": "ActedOnPayload",
-            "type": "object"
-          },
           "AlbumTagApplyPayload": {
             "description": "Apply a tag to the entire album. `filenames` may be omitted, in\nwhich case the server fans out to every FLAC in the album dir.",
             "properties": {
@@ -395,61 +382,6 @@
                 ],
                 "title": "Acoustid Api Key"
               },
-              "ai_api_key": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Ai Api Key"
-              },
-              "ai_max_parallel": {
-                "anyOf": [
-                  {
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Ai Max Parallel"
-              },
-              "ai_model_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Ai Model Id"
-              },
-              "ai_provider_id": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Ai Provider Id"
-              },
-              "ai_queue_paused": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Ai Queue Paused"
-              },
               "dir_template_compilation": {
                 "anyOf": [
                   {
@@ -493,17 +425,6 @@
                   }
                 ],
                 "title": "Filename Template Single Artist"
-              },
-              "firecrawl_api_key": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Firecrawl Api Key"
               },
               "snapshot_min_interval_hours": {
                 "anyOf": [
@@ -984,141 +905,6 @@
               }
             },
             "summary": "Get Job"
-          }
-        },
-        "/api/ai/jobs/{job_id}/acted-on": {
-          "post": {
-            "operationId": "mark_job_acted_on_api_ai_jobs__job_id__acted_on_post",
-            "parameters": [
-              {
-                "in": "path",
-                "name": "job_id",
-                "required": true,
-                "schema": {
-                  "title": "Job Id",
-                  "type": "string"
-                }
-              }
-            ],
-            "requestBody": {
-              "content": {
-                "application/json": {
-                  "schema": {
-                    "$ref": "#/components/schemas/ActedOnPayload"
-                  }
-                }
-              },
-              "required": true
-            },
-            "responses": {
-              "200": {
-                "content": {
-                  "application/json": {
-                    "schema": {
-                      "additionalProperties": true,
-                      "title": "Response Mark Job Acted On Api Ai Jobs  Job Id  Acted On Post",
-                      "type": "object"
-                    }
-                  }
-                },
-                "description": "Successful Response"
-              },
-              "422": {
-                "content": {
-                  "application/json": {
-                    "schema": {
-                      "$ref": "#/components/schemas/HTTPValidationError"
-                    }
-                  }
-                },
-                "description": "Validation Error"
-              }
-            },
-            "summary": "Mark Job Acted On"
-          }
-        },
-        "/api/ai/jobs/{job_id}/retry": {
-          "post": {
-            "description": "Retry a failed job. Resets it to 'queued' and bumps created_at so it\nsorts at the bottom of the queue. Resuming the queue is the user's\nresponsibility (we keep the paused flag so a quick retry cluster doesn't\naccidentally re-pause on the next failure).",
-            "operationId": "retry_job_api_ai_jobs__job_id__retry_post",
-            "parameters": [
-              {
-                "in": "path",
-                "name": "job_id",
-                "required": true,
-                "schema": {
-                  "title": "Job Id",
-                  "type": "string"
-                }
-              }
-            ],
-            "responses": {
-              "200": {
-                "content": {
-                  "application/json": {
-                    "schema": {
-                      "additionalProperties": true,
-                      "title": "Response Retry Job Api Ai Jobs  Job Id  Retry Post",
-                      "type": "object"
-                    }
-                  }
-                },
-                "description": "Successful Response"
-              },
-              "422": {
-                "content": {
-                  "application/json": {
-                    "schema": {
-                      "$ref": "#/components/schemas/HTTPValidationError"
-                    }
-                  }
-                },
-                "description": "Validation Error"
-              }
-            },
-            "summary": "Retry Job"
-          }
-        },
-        "/api/ai/providers": {
-          "get": {
-            "description": "Discoverable airframe providers for the settings UI.\n\n`providers` are the *installed* adapters — the selectable set. Each is\nfully introspected: whether it takes a pasted API key (vs an env/CLI auth\nchain) and, for the chain-based ones, a short auth hint. `uninstalled` is\nthe names of providers airframe knows about but whose extra isn't installed\nhere — informational, the user adds them with `pip install\nairframe-agents[<extra>]`. (airframe guards `runtime_for` on uninstalled\nadapters, so we can't introspect those without importing their SDK.) Plus\nthe current selection.",
-            "operationId": "ai_providers_api_ai_providers_get",
-            "responses": {
-              "200": {
-                "content": {
-                  "application/json": {
-                    "schema": {
-                      "additionalProperties": true,
-                      "title": "Response Ai Providers Api Ai Providers Get",
-                      "type": "object"
-                    }
-                  }
-                },
-                "description": "Successful Response"
-              }
-            },
-            "summary": "Ai Providers"
-          }
-        },
-        "/api/ai/queue/resume": {
-          "post": {
-            "description": "Clear the auto-paused flag so the worker resumes dispatching.",
-            "operationId": "resume_queue_api_ai_queue_resume_post",
-            "responses": {
-              "200": {
-                "content": {
-                  "application/json": {
-                    "schema": {
-                      "additionalProperties": true,
-                      "title": "Response Resume Queue Api Ai Queue Resume Post",
-                      "type": "object"
-                    }
-                  }
-                },
-                "description": "Successful Response"
-              }
-            },
-            "summary": "Resume Queue"
           }
         },
         "/api/albums": {

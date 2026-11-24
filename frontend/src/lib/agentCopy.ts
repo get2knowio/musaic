@@ -117,10 +117,10 @@ export function ago(iso: string | null | undefined, now: Date = new Date()): str
 
 /** The four facts Settings shows for each pairing, in this order. */
 export const AGENT_FACT_LABEL = {
-  paired: "Paired",
-  reachable: "Bridge reachable",
-  subscription: "Subscription active",
-  claimed: "Last work claimed",
+  paired: "Added",
+  reachable: "Connected",
+  subscription: "Listening for work",
+  claimed: "Last request picked up",
 } as const;
 
 /** What to tell an agent so it processes waiting work when the person asks. */

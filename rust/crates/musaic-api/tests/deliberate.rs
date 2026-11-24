@@ -146,7 +146,7 @@ fn python(c: &Value) -> Value {
 /// keyring_available, and its sibling keys_pending_removal (false: nothing
 /// is left to scrub in these states; `musaic_api::keyscrub`).
 fn with_keyring(mut v: Value, available: bool) -> Value {
-    if v["status"] == 200 && v["json"].get("ai_max_parallel").is_some() {
+    if v["status"] == 200 && v["json"].get("acoustid_api_key_set").is_some() {
         v["json"]["keyring_available"] = json!(available);
         v["json"]["keys_pending_removal"] = json!(false);
     }
@@ -164,7 +164,7 @@ fn plain_state(sb: &Sandbox) -> AppState {
 // ------------------------------------------------- Host / Origin check
 
 // Every request of testdata/golden/api/cases.json (all
-// 130: API, SSE, SPA, unknown paths, 405s, stubs), sent with a foreign Host,
+// 124: API, SSE, SPA, unknown paths, 405s, stubs), sent with a foreign Host,
 // is refused with 403 in the Python app's error shape. The Python app answered each
 // one as recorded; the delta is the whole set.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -174,7 +174,7 @@ async fn every_recorded_route_refuses_a_foreign_host() {
     let app = router(plain_state(&sb));
     let norm = Norm::new(&sb);
     let cases = g["cases"].as_array().unwrap();
-    assert_eq!(cases.len(), 130);
+    assert_eq!(cases.len(), 124);
     for c in cases {
         let label = c["label"].as_str().unwrap();
         assert_ne!(
@@ -574,18 +574,18 @@ fn state_with(sb: &Sandbox, store: Arc<musaic_secrets::MemoryStore>) -> AppState
         .unwrap()
 }
 
-// The keyring refuses the secret of a PATCH that also
-// sets ai_max_parallel. The Python app (no keyring) saved both
-// ("settings max_parallel and key" 200, "settings after" shows both).
-// Delta: 503 naming the keyring, and nothing persisted: "settings after"
-// equals the Python app's "settings before" (+ keyring_available).
+// The keyring refuses the secret of a recorded PATCH. The Python app (no
+// keyring) saved it ("settings max_parallel and key" 200, "settings after"
+// shows it; the request's other field, `ai_max_parallel`, is a retired
+// setting this build ignores). Delta: 503 naming the keyring, and nothing
+// persisted: "settings after" equals the Python app's "settings before"
+// (+ keyring_available).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn keyring_failure_is_503_and_saves_nothing() {
     let g = golden("deliberate.json");
     let before = case(&g, "settings before");
     let patch = case(&g, "settings max_parallel and key");
     let after = case(&g, "settings after");
-    assert_eq!(python(patch)["json"]["ai_max_parallel"], 5);
     assert_eq!(python(after)["json"]["acoustid_api_key_set"], true);
     let detail = |key: &str, why: &str| {
         format!("Could not save {key} to the OS keyring ({why}). No settings were changed.")
@@ -635,50 +635,40 @@ async fn keyring_failure_is_503_and_saves_nothing() {
     assert_eq!(rec(&got, &norm), with_keyring(python(before), false));
 }
 
-// A second secret failing undoes the first secret of the same
-// PATCH (its previous value is put back), and a read-back mismatch is a
-// keyring failure too.
+// A keyring failure rolls back the other fields of the same PATCH, and a
+// read-back mismatch is a keyring failure too. (With one writable secret
+// left, the undo of an earlier secret of the same PATCH has no case.)
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn earlier_secret_writes_are_undone() {
+async fn a_keyring_failure_rolls_back_the_other_fields() {
     let sb = Sandbox::new();
     let store = Arc::new(musaic_secrets::MemoryStore::new());
     let app = router(state_with(&sb, store.clone()));
+    store.fail_set_for("acoustid_api_key");
     let r = call(
         &app,
         "PATCH",
         "/api/settings",
-        Some(&json!({"ai_api_key": "old-ai"})),
-    )
-    .await;
-    assert_eq!(r.status, 200);
-    store.fail_set_for("firecrawl_api_key");
-    let r = call(
-        &app,
-        "PATCH",
-        "/api/settings",
-        Some(&json!({"ai_api_key": "new-ai", "acoustid_api_key": "new-ac", "firecrawl_api_key": "fc", "ai_model_id": "m"})),
+        Some(&json!({"acoustid_api_key": "new-ac", "snapshot_retention_count": 5})),
     )
     .await;
     assert_eq!(r.status, 503, "{}", r.text());
     assert!(r.json()["detail"].as_str().unwrap().contains("OS keyring"));
-    let e = store.entries();
-    assert_eq!(e.get("ai_api_key").map(String::as_str), Some("old-ai"));
-    assert_eq!(e.get("acoustid_api_key"), None);
+    assert_eq!(store.entries().get("acoustid_api_key"), None);
     let s = call(&app, "GET", "/api/settings", None).await.json();
-    assert_eq!(s["ai_model_id"], "claude-sonnet-4-6");
+    assert_eq!(s["snapshot_retention_count"], 10);
 
     store.corrupt_set_for("acoustid_api_key");
     let r = call(
         &app,
         "PATCH",
         "/api/settings",
-        Some(&json!({"ai_max_parallel": 6, "acoustid_api_key": "zzz"})),
+        Some(&json!({"acoustid_api_key": "zzz", "snapshot_retention_count": 6})),
     )
     .await;
     assert_eq!(r.status, 503);
     assert_eq!(
-        call(&app, "GET", "/api/settings", None).await.json()["ai_max_parallel"],
-        json!(1)
+        call(&app, "GET", "/api/settings", None).await.json()["snapshot_retention_count"],
+        json!(10)
     );
 }
 
@@ -696,12 +686,11 @@ async fn python_order_kept_on_a_later_400() {
         &app,
         "PATCH",
         "/api/settings",
-        Some(&json!({"ai_max_parallel": 4, "acoustid_api_key": "k1", "snapshot_retention_count": 101})),
+        Some(&json!({"acoustid_api_key": "k1", "snapshot_retention_count": 101})),
     )
     .await;
     assert_eq!(json!({"status": r.status, "json": r.json()}), refused_101);
     let s = call(&app, "GET", "/api/settings", None).await.json();
-    assert_eq!(s["ai_max_parallel"], 4);
     assert_eq!(s["acoustid_api_key_set"], true);
     assert_eq!(store.entries()["acoustid_api_key"], "k1");
 }
@@ -1047,14 +1036,6 @@ fn gate_probe(method: &str, path: &str, lib: &str) -> Option<Request<Body>> {
         ),
         ("DELETE", "/api/ai/jobs") => json_req("/api/ai/jobs?status=failed".into(), None),
         ("DELETE", "/api/ai/jobs/{job_id}") => json_req(format!("/api/ai/jobs/{album}"), None),
-        ("POST", "/api/ai/jobs/{job_id}/acted-on") => json_req(
-            format!("/api/ai/jobs/{album}/acted-on"),
-            Some(json!({"action": "applied"})),
-        ),
-        ("POST", "/api/ai/jobs/{job_id}/retry") => {
-            json_req(format!("/api/ai/jobs/{album}/retry"), None)
-        }
-        ("POST", "/api/ai/queue/resume") => json_req(path.into(), None),
         ("DELETE", "/api/albums/{album_id}") => json_req(format!("/api/albums/{album}"), None),
         ("POST", "/api/albums/{album_id}/analyze/stream") => json_req(
             format!("/api/albums/{album}/analyze/stream"),
@@ -1135,7 +1116,9 @@ fn gate_probe(method: &str, path: &str, lib: &str) -> Option<Request<Body>> {
         ("POST", "/api/db/snapshots/{name}/restore") => {
             json_req("/api/db/snapshots/library-nope.db/restore".into(), None)
         }
-        ("PATCH", "/api/settings") => json_req(path.into(), Some(json!({"ai_max_parallel": 0}))),
+        ("PATCH", "/api/settings") => {
+            json_req(path.into(), Some(json!({"snapshot_retention_count": 101})))
+        }
         ("POST", "/api/vocabulary") => json_req(path.into(), Some(json!({"tag": "x"}))),
         ("POST", "/api/vocabulary/orphans/{tag}/promote") => {
             json_req("/api/vocabulary/orphans/x/promote".into(), None)
@@ -1291,9 +1274,9 @@ async fn every_writing_route_is_refused_during_a_restore() {
         "writing routes with no gate probe (add one to gate_probe and gate the route):\n{}",
         missing.join("\n")
     );
-    // 71 Python app routes, no stub; of those, 37 non-GET + 3 gated GETs (the
+    // 67 Python app routes, no stub; of those, 34 non-GET + 3 gated GETs (the
     // duplicate-tracks canonical lookup is a read: probed as not refused).
-    assert_eq!(probed, 40);
+    assert_eq!(probed, 37);
     assert_eq!(st.gate().snapshot(), (0, true), "no guard leaked");
     hold.release();
     let r = restore.await.unwrap();
@@ -1320,7 +1303,7 @@ async fn busy_409_comes_before_id_and_name_checks() {
         "config bad dir",
         "resolution unknown",
         "apply unknown album",
-        "settings max_parallel 0",
+        "settings retention 101",
         "snapshot delete hidden name",
         "snapshot delete missing",
         "snapshot restore missing",

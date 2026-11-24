@@ -1,5 +1,5 @@
-//! `musaic/api/jobs.py` (the AI job queue's REST + SSE surface) and
-//! `GET /api/ai/providers` (musaic/api/settings.py).
+//! `musaic/api/jobs.py` (the job queue's REST + SSE surface, now the
+//! desktop's view of research requests).
 //!
 //! | route | |
 //! |---|---|
@@ -10,10 +10,10 @@
 //! | `GET /api/ai/jobs/active/{album_id}` | [`active_job_for_album`] |
 //! | `GET /api/ai/jobs/{job_id}` | [`get_job`] |
 //! | `DELETE /api/ai/jobs/{job_id}` | [`delete_job`] |
-//! | `POST /api/ai/jobs/{job_id}/acted-on` | [`mark_job_acted_on`] |
-//! | `POST /api/ai/jobs/{job_id}/retry` | [`retry_job`] |
-//! | `POST /api/ai/queue/resume` | [`resume_queue`] |
-//! | `GET /api/ai/providers` | [`ai_providers`] |
+//! | `POST /api/ai/jobs/{job_id}/cancel` | [`cancel_research_group`] (not a route of the Python app) |
+//! | `GET /api/research/batches` | [`research_batches`] (not a route of the Python app) |
+//! | `GET /api/research/batches/{batch_id}` | [`research_batch`] (not a route of the Python app) |
+//! | `POST /api/research/batches/{batch_id}/cancel` | [`cancel_research_batch`] (not a route of the Python app) |
 //!
 //! Every handler answers the Python app's 422 for its body, query or path first,
 //! then calls one operation of `ops().jobs()` and renders the answer
@@ -22,9 +22,9 @@
 //! byte for byte). The writers' guard (taken before any check of their own) and
 //! their wake-up of the jobs feeds are the operations' (`docs/operations.md`).
 //!
-//! `GET /api/ai/providers` lists the provider this build has (by default
-//! [`musaic_ai::Unconfigured`]) instead of the installed airframe adapters,
-//! and `uninstalled` is empty (this build installs no other provider).
+//! The Python app's provider list, queue resume, job retry and acted-on routes
+//! are removed (Musaic has no built-in model); research is retried and reviewed
+//! through its items (`POST /api/research/{id}/decision`).
 
 use std::time::Duration;
 
@@ -170,46 +170,6 @@ pub async fn jobs_stream(State(st): State<AppState>) -> ApiResult {
 
 // ------------------------------------------------------------- writes
 
-/// `POST /api/ai/jobs/{job_id}/acted-on` with `{action: str}`: 404, 409
-/// unless completed, 400 for an action other than applied / discarded;
-/// metadata jobs stamp the album's `metadata_ai_acted_on_at`.
-pub async fn mark_job_acted_on(
-    State(st): State<AppState>,
-    UrlPath(job_id): UrlPath<String>,
-    body: Bytes,
-) -> ApiResult {
-    let mut f = Fields::required(parse_json_body(&body)?)?;
-    let action = f.req_str("action");
-    f.finish()?;
-    let action = action.unwrap_or_default();
-    blocking(move || {
-        let job = st.ops().jobs().mark_acted_on(&job_id, &action)?;
-        ok_ordered(&render::job(&job))
-    })
-    .await?
-}
-
-/// `POST /api/ai/jobs/{job_id}/retry`: a failed job back to queued (its
-/// stored failure excerpt cleared with the error); 404, or 409 unless failed, or
-/// while the album has another active job (the enqueue conflict's shape).
-pub async fn retry_job(State(st): State<AppState>, UrlPath(job_id): UrlPath<String>) -> ApiResult {
-    blocking(move || match st.ops().jobs().retry(&job_id) {
-        Ok(job) => ok_ordered(&render::job(&job)),
-        Err(e) => render::job_error(e),
-    })
-    .await?
-}
-
-/// `POST /api/ai/queue/resume`: clears `ai_queue_paused` (any body is
-/// ignored, as FastAPI does for a route without one).
-pub async fn resume_queue(State(st): State<AppState>) -> ApiResult {
-    blocking(move || {
-        let state = st.ops().jobs().resume_queue()?;
-        ok_ordered(&render::resumed(&state))
-    })
-    .await?
-}
-
 /// `DELETE /api/ai/jobs/stream`: the Python app routes it to `DELETE
 /// /api/ai/jobs/{job_id}` with job id `stream` (first full match in
 /// registration order; axum prefers the static `stream` route). A routing
@@ -218,21 +178,11 @@ pub async fn delete_job_shadowed(st: State<AppState>) -> ApiResult {
     delete_job(st, UrlPath("stream".to_string())).await
 }
 
-/// `POST /api/ai/jobs/active/{x}`: the Python app routes `acted-on` / `retry`
-/// to the job routes with job id `active`; anything else is a 405 (the
-/// GET route matched by path), with the dispatcher's `Allow`. A routing alias of
-/// this face, no operation of its own.
-pub async fn post_shadowed_by_active(
-    st: State<AppState>,
-    UrlPath(rest): UrlPath<String>,
-    body: Bytes,
-) -> ApiResult {
-    let id = UrlPath("active".to_string());
-    match rest.as_str() {
-        "acted-on" => mark_job_acted_on(st, id, body).await,
-        "retry" => retry_job(st, id).await,
-        _ => Err(ApiError::method_not_allowed()),
-    }
+/// `POST /api/ai/jobs/active/{x}`: a 405 (the GET route matched by path),
+/// with the dispatcher's `Allow`. The Python app routed `acted-on` / `retry`
+/// to the job routes with job id `active`; those routes are removed. A routing alias of this face, no operation of its own.
+pub async fn post_shadowed_by_active(UrlPath(_rest): UrlPath<String>) -> ApiResult {
+    Err(ApiError::method_not_allowed())
 }
 
 /// `DELETE /api/ai/jobs/{job_id}`: 404, 409 while running.
@@ -265,22 +215,56 @@ pub async fn bulk_delete_jobs(State(st): State<AppState>, q: Q) -> ApiResult {
     .await?
 }
 
-// ------------------------------------------------------------- providers
+pub async fn research_work(State(st): State<AppState>) -> ApiResult {
+    blocking(move || crate::http::ok_value(json!(st.ops().jobs().delegated_work()?))).await?
+}
 
-/// `GET /api/ai/providers` in this build: the selection as stored
-/// (`ai_provider_id` / `ai_model_id` with the Python app's defaults, whether an
-/// `ai_api_key` is set), the one provider this build has, nothing
-/// uninstalled.
-pub async fn ai_providers(State(st): State<AppState>) -> ApiResult {
+/// `GET /api/research/batches`: every batch with a request left, newest first.
+pub async fn research_batches(State(st): State<AppState>) -> ApiResult {
     blocking(move || {
-        let list = st.ops().jobs().providers()?;
-        ok_ordered(&render::providers(&list))
+        let batches = st.ops().jobs().research_batches()?;
+        crate::http::ok_value(render::batches(&batches))
     })
     .await?
 }
 
-pub async fn research_work(State(st): State<AppState>) -> ApiResult {
-    blocking(move || crate::http::ok_value(json!(st.ops().jobs().delegated_work()?))).await?
+/// `GET /api/research/batches/{batch_id}`: one batch with its items; 404.
+pub async fn research_batch(
+    State(st): State<AppState>,
+    UrlPath(batch_id): UrlPath<String>,
+) -> ApiResult {
+    blocking(move || {
+        let batch = st.ops().jobs().research_batch(&batch_id)?;
+        crate::http::ok_value(render::batch_detail(&batch))
+    })
+    .await?
+}
+
+/// `POST /api/research/batches/{batch_id}/cancel`: 409 during a restore, 404;
+/// the batch after the cancel with `cancelled`.
+pub async fn cancel_research_batch(
+    State(st): State<AppState>,
+    UrlPath(batch_id): UrlPath<String>,
+) -> ApiResult {
+    blocking(move || {
+        let done = st.ops().jobs().cancel_research_batch(&batch_id)?;
+        crate::http::ok_value(render::batch_cancelled(&done))
+    })
+    .await?
+}
+
+/// `POST /api/ai/jobs/{job_id}/cancel` (any body is ignored): 409 during a
+/// restore or when nothing is waiting or held, 404;
+/// `{"id": ..., "cancelled": n}`.
+pub async fn cancel_research_group(
+    State(st): State<AppState>,
+    UrlPath(job_id): UrlPath<String>,
+) -> ApiResult {
+    blocking(move || {
+        let done = st.ops().jobs().cancel_research_group(&job_id)?;
+        crate::http::ok_value(render::group_cancelled(&done))
+    })
+    .await?
 }
 
 pub async fn research_items(

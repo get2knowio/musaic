@@ -5,14 +5,9 @@
  * so a label can be checked against what the action does. The four checks
  * with their own dialog open a review first, so their label names the thing
  * reviewed and ends in an ellipsis. The rest run `POST .../fix`
- * (`musaic-services/src/check_fixes.rs`), whose path depends on whether a
- * model is available:
- *
- *  - model-free (no hint dialog): MusicBrainz / AcoustID first and nothing
- *    else. A confident match is written at once; otherwise the answer is a
- *    message and nothing changes.
- *  - model available (hint dialog first): the same lookup runs first, and
- *    what it cannot settle becomes a queued proposal to review.
+ * (`musaic-services/src/check_fixes.rs`) after a hint dialog: the resolver
+ * (MusicBrainz, and the Cover Art Archive for covers) runs first, and what
+ * it cannot settle becomes a research request for the user's assistant.
  */
 
 export interface FixActionCopy {
@@ -41,56 +36,27 @@ const DIALOG_ACTIONS: Record<string, FixActionCopy> = {
   },
 };
 
-/** Checks fixed by `/fix`: [model-free, with a model available]. */
-const FIX_ACTIONS: Record<string, [FixActionCopy, FixActionCopy]> = {
-  "no-cover-art": [
-    {
-      label: "Embed MusicBrainz cover",
-      title:
-        "Looks this album up on MusicBrainz and, if a verified cover exists, embeds it in this album's files right away. Otherwise nothing changes.",
-    },
-    {
-      label: "Find cover art…",
-      title:
-        "Add a hint, then look on MusicBrainz. A verified cover is embedded in this album's files right away; otherwise a suggestion is queued for you to review.",
-    },
-  ],
-  "unidentified-album": [
-    {
-      label: "Look up on MusicBrainz",
-      title:
-        "Searches MusicBrainz for this album and, on a confident match, saves the match in Musaic. No files are changed.",
-    },
-    {
-      label: "Identify album…",
-      title:
-        "Add a hint, then look on MusicBrainz. A confident match is saved in Musaic right away; otherwise a suggestion is queued for you to review.",
-    },
-  ],
-  "tags-out-of-sync": [
-    {
-      label: "Write MusicBrainz tags",
-      title:
-        "Writes the tags MusicBrainz is sure of to this album's files right away. Tags it can't settle stay as they are.",
-    },
-    {
-      label: "Fill missing tags…",
-      title:
-        "Add a hint. Tags MusicBrainz is sure of are written to this album's files right away; the rest is queued as a suggestion for you to review.",
-    },
-  ],
-  "track-gaps": [
-    {
-      label: "Renumber tracks",
-      title:
-        "Matches this album's tracks to MusicBrainz and, if they line up, rewrites the track numbers in this album's files right away. Otherwise nothing changes.",
-    },
-    {
-      label: "Check track numbers…",
-      title:
-        "Add a hint. A clean match rewrites the track numbers in this album's files right away; otherwise a suggestion is queued for you to review.",
-    },
-  ],
+const RESEARCH_TAIL =
+  "Anything it can't settle is sent to your assistant for research. Add a hint to help.";
+
+/** Checks fixed by `/fix`, the four research-capable ones. */
+const FIX_ACTIONS: Record<string, FixActionCopy> = {
+  "no-cover-art": {
+    label: "Find cover art…",
+    title: `Tries MusicBrainz and the Cover Art Archive first. ${RESEARCH_TAIL}`,
+  },
+  "unidentified-album": {
+    label: "Identify album…",
+    title: `Tries MusicBrainz first. ${RESEARCH_TAIL}`,
+  },
+  "tags-out-of-sync": {
+    label: "Fill missing tags…",
+    title: `Tries MusicBrainz first. ${RESEARCH_TAIL}`,
+  },
+  "track-gaps": {
+    label: "Check track numbers…",
+    title: `Tries MusicBrainz first. ${RESEARCH_TAIL}`,
+  },
 };
 
 /** The generic wording for a check this table does not know. */
@@ -104,14 +70,7 @@ export function hasDialogAction(checkId: string): boolean {
   return checkId in DIALOG_ACTIONS;
 }
 
-/**
- * The button words for a finding's check.
- * @param withModel true when the hint dialog is offered (a model is ready)
- */
-export function fixActionCopy(checkId: string, withModel: boolean): FixActionCopy {
-  const dialog = DIALOG_ACTIONS[checkId];
-  if (dialog) return dialog;
-  const pair = FIX_ACTIONS[checkId];
-  if (pair) return withModel ? pair[1] : pair[0];
-  return GENERIC;
+/** The button words for a finding's check. */
+export function fixActionCopy(checkId: string): FixActionCopy {
+  return DIALOG_ACTIONS[checkId] ?? FIX_ACTIONS[checkId] ?? GENERIC;
 }

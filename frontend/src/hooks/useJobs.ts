@@ -1,5 +1,5 @@
 /**
- * AI Jobs hooks.
+ * Research request (job card) hooks.
  *
  * The single source of truth is the "jobs" query in TanStack Query, kept
  * fresh by `useJobsStream` (mounted at App level) which subscribes to
@@ -10,20 +10,20 @@ import { useMemo } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   bulkDeleteJobs,
+  cancelResearchGroup,
   deleteJob as deleteJobApi,
   enqueueJob,
-  getAiProviders,
   getSettings,
   listJobs,
-  markJobActedOn,
   patchSettings,
-  resumeQueue,
-  retryJob,
   type AppSettings,
   type AppSettingsPatch,
   type QueueState,
 } from "@/lib/api";
 import type { Job, JobStatus, JobType } from "@/lib/types";
+import { batchedActiveJobs } from "@/lib/batchedResearch";
+import { isHistoryOnlyJob } from "@/lib/filters";
+import { useDelegatedWork } from "@/hooks/useDelegatedWork";
 
 export const JOBS_QUERY_KEY = ["jobs"] as const;
 export const QUEUE_STATE_QUERY_KEY = ["jobs", "queueState"] as const;
@@ -51,7 +51,12 @@ export function useActiveJobForAlbum(albumId: string | null | undefined): Job | 
   if (!albumId) return null;
   // Active = queued | running | completed (NOT acted_on or failed-without-action)
   const active = jobs
-    .filter((j) => j.album_id === albumId && (j.status === "queued" || j.status === "running" || j.status === "completed"))
+    .filter(
+      (j) =>
+        j.album_id === albumId &&
+        !isHistoryOnlyJob(j) &&
+        (j.status === "queued" || j.status === "running" || j.status === "completed"),
+    )
     .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
   return active[0] ?? null;
 }
@@ -66,7 +71,11 @@ export function useActiveJobForAlbum(albumId: string | null | undefined): Job | 
  */
 export function useActiveJobAlbumMap(): Map<string, Job> {
   const { data: jobs = [] } = useJobs();
-  // Memoize on the jobs array reference. TanStack Query gives us a fresh
+  // Requests of a Fix all batch have no job card; the delegated work list
+  // (["research", "work"], kept fresh by the `work` event family) carries
+  // them, so an album with one gets the same pill.
+  const { data: work } = useDelegatedWork();
+  // Memoize on the array references. TanStack Query gives us a fresh
   // array only when the query data actually changes, so this map is stable
   // across unrelated parent re-renders (e.g. typing in the search box).
   return useMemo(() => {
@@ -74,17 +83,22 @@ export function useActiveJobAlbumMap(): Map<string, Job> {
     const map = new Map<string, Job>();
     for (const j of sorted) {
       if (j.status !== "queued" && j.status !== "running" && j.status !== "completed") continue;
+      if (isHistoryOnlyJob(j)) continue;
       if (!map.has(j.album_id)) map.set(j.album_id, j);
     }
+    // A job card wins over a batched request of the same album.
+    for (const [albumId, j] of batchedActiveJobs(Array.isArray(work) ? work : [])) {
+      if (!map.has(albumId)) map.set(albumId, j);
+    }
     return map;
-  }, [jobs]);
+  }, [jobs, work]);
 }
 
 /**
  * Prior cover-art lookup attempts for an album that ended without a usable
  * cover. Used to surface "we've tried this N times before" context in the
  * HintDialog so the user doesn't unintentionally re-request a cover that
- * Claude / MusicBrainz already couldn't find.
+ * research or MusicBrainz already couldn't find.
  *
  * Qualifying jobs:
  *   - job_type is "cover" or "metadata+cover"
@@ -126,80 +140,45 @@ export function useEnqueueJob() {
   });
 }
 
-export function useMarkJobActedOn() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (args: { jobId: string; action: "applied" | "discarded" }) =>
-      markJobActedOn(args.jobId, args.action),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: JOBS_QUERY_KEY });
-    },
-  });
-}
-
+// A delete or Clear wakes /api/ai/jobs/stream (useJobsStream writes the
+// new list into the cache) and, for research requests, publishes
+// AgentStateChanged(work) (rule 5); the handlers refresh nothing themselves.
 export function useDeleteJob() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (jobId: string) => deleteJobApi(jobId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: JOBS_QUERY_KEY });
-    },
   });
 }
 
 export function useBulkDeleteJobs() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (statuses: JobStatus[]) => bulkDeleteJobs(statuses),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: JOBS_QUERY_KEY });
-    },
   });
 }
 
-export function useRetryJob() {
-  const qc = useQueryClient();
+/**
+ * Cancel the research requests behind one job card (every waiting, held or
+ * running item; items awaiting review or finished are left alone). The
+ * `work` event family refreshes the jobs and research caches (rule 5), so
+ * the handler invalidates nothing.
+ */
+export function useCancelResearchGroup() {
   return useMutation({
-    mutationFn: (jobId: string) => retryJob(jobId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: JOBS_QUERY_KEY });
-    },
+    mutationFn: (jobId: string) => cancelResearchGroup(jobId),
   });
 }
 
 // ---- Queue state + settings ----
 
 /**
- * Live queue state (paused flag, parallel cap, running/queued counts). The
- * SSE stream pushes this on every jobs change; we hydrate the initial value
- * via /api/settings → queue_state isn't there directly, so we derive a
- * sensible placeholder until the first SSE message arrives.
+ * Live research queue counts (running, queued, and how many requests
+ * "Clear applied or discarded" removes). The jobs stream writes every
+ * snapshot into this cache; until its first frame the counts are zero.
  */
 export function useQueueState() {
   return useQuery<QueueState>({
     queryKey: QUEUE_STATE_QUERY_KEY,
-    // Hydrate from /api/settings synchronously — counts will be 0 until SSE
-    // delivers the first real snapshot, but paused + max_parallel are real.
-    queryFn: async (): Promise<QueueState> => {
-      const s = await getSettings();
-      return {
-        paused: s.ai_queue_paused,
-        max_parallel: s.ai_max_parallel,
-        running: 0,
-        queued: 0,
-      };
-    },
+    queryFn: async (): Promise<QueueState> => ({ running: 0, queued: 0, clearable: 0 }),
     staleTime: Infinity,  // SSE keeps it fresh
-  });
-}
-
-export function useResumeQueue() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => resumeQueue(),
-    onSuccess: (data) => {
-      qc.setQueryData(QUEUE_STATE_QUERY_KEY, data.queue_state);
-    },
   });
 }
 
@@ -214,32 +193,12 @@ export function useSettings() {
   });
 }
 
-/** Installed airframe providers + current selection. Static-ish; the list
- *  only changes when an extra is pip-installed (a restart), so no SSE. */
-export function useAiProviders() {
-  return useQuery({
-    queryKey: ["ai-providers"],
-    queryFn: getAiProviders,
-    staleTime: 5 * 60_000,
-  });
-}
-
 export function useUpdateSettings() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (patch: AppSettingsPatch) => patchSettings(patch),
     onSuccess: (data) => {
       qc.setQueryData(SETTINGS_QUERY_KEY, data);
-      // Provider/model/key live in the providers endpoint's "selected" too;
-      // refetch so its view stays in sync after an edit here.
-      qc.invalidateQueries({ queryKey: ["ai-providers"] });
-      // Reflect in queue state immediately too — the next SSE will overwrite
-      // with the authoritative counts but this avoids any UI lag.
-      qc.setQueryData(QUEUE_STATE_QUERY_KEY, (prev: QueueState | undefined) =>
-        prev
-          ? { ...prev, paused: data.ai_queue_paused, max_parallel: data.ai_max_parallel }
-          : { paused: data.ai_queue_paused, max_parallel: data.ai_max_parallel, running: 0, queued: 0 },
-      );
     },
   });
 }

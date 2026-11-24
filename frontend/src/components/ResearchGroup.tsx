@@ -10,6 +10,9 @@ import {
   type ResearchPreview,
 } from "@/lib/api";
 import type { Job, JobType } from "@/lib/types";
+import { useCancelResearchGroup } from "@/hooks/useJobs";
+
+const CANCELLABLE = ["queued", "claimed", "running"];
 
 const button =
   "rounded border border-line px-2 py-1 text-sm hover:bg-bg-3 focus-visible:outline-accent disabled:opacity-50";
@@ -70,7 +73,7 @@ export function RequestResearch({
           />
         </label>
         <span className="text-xs text-fg-3">
-          A paired assistant can pick up the request while Musaic is open.
+          An assistant you added can pick up the request while Musaic is open.
         </span>
         <button className={button} disabled={pending}>
           {pending ? "Requesting…" : "Request research"}
@@ -80,7 +83,7 @@ export function RequestResearch({
   );
 }
 
-function Child({ item }: { item: ResearchItem }) {
+function Child({ item, alone }: { item: ResearchItem; alone: boolean }) {
   const [preview, setPreview] = useState<ResearchPreview | null>(null);
   const [message, setMessage] = useState("");
   const [confirmUndo, setConfirmUndo] = useState(false);
@@ -265,7 +268,8 @@ function Child({ item }: { item: ResearchItem }) {
             </button>
           </>
         )}
-        {["queued", "claimed", "running"].includes(item.state) && (
+        {/* A card of one request is cancelled by the card's Cancel. */}
+        {!alone && CANCELLABLE.includes(item.state) && (
           <button
             className={button}
             disabled={busy}
@@ -316,6 +320,11 @@ export function ResearchGroup({ job }: { job: Job }) {
     queryFn: () => researchItems(job.id),
     staleTime: Infinity,
   });
+  // Cancel on the card cancels every waiting, held or running request of it
+  // (FR-036, `POST /api/ai/jobs/{id}/cancel`); a result awaiting review
+  // stays. The `work` events refresh the card (rule 5).
+  const cancel = useCancelResearchGroup();
+  const cancellable = q.data?.some((item) => CANCELLABLE.includes(item.state)) ?? false;
   return (
     <div
       data-job-id={job.id}
@@ -330,15 +339,26 @@ export function ResearchGroup({ job }: { job: Job }) {
       {q.isPending && <p>Loading research…</p>}
       {q.error && <p role="alert">{q.error.message}</p>}
       {q.data?.map((item) => (
-        <Child key={item.id + ":" + item.digest} item={item} />
+        <Child key={item.id + ":" + item.digest} item={item} alone={q.data.length === 1} />
       ))}
-      {q.data?.some((item) =>
-        ["queued", "claimed", "running"].includes(item.state),
-      ) && (
-        <p className="text-xs text-fg-3">
-          Keep Musaic open for your assistant to claim or update this research.
-        </p>
+      {cancellable && (
+        <>
+          <p className="text-xs text-fg-3">
+            Keep Musaic open for your assistant to claim or update this research.
+          </p>
+          <button
+            type="button"
+            className={button + " mt-2"}
+            disabled={cancel.isPending}
+            onClick={() => cancel.mutate(job.id)}
+            title="Cancel this research request"
+          >
+            {cancel.isPending ? "Cancelling…" : "Cancel request"}
+          </button>
+        </>
       )}
+      {cancel.error && <p role="alert">{cancel.error.message}</p>}
+      {cancel.isSuccess && <p role="status">Cancelled.</p>}
     </div>
   );
 }

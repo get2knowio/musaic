@@ -62,18 +62,18 @@ describe("Assistants section", () => {
   it("says nothing is connected, and keeps the note about local programs", () => {
     renderPanel([]);
     expect(
-      screen.getByText("No assistants are connected. Pair one to let it read your library and suggest fixes."),
+      screen.getByText("No assistants are connected. Add one to let it read your library and suggest fixes."),
     ).toBeTruthy();
-    expect(screen.getByText(/Anyone who can run programs as you on this computer can use a pairing/)).toBeTruthy();
+    expect(screen.getByText(/Anyone who can run programs as you on this computer can use an assistant you added/)).toBeTruthy();
   });
 
   it("the pair form starts with read and suggest checked and nothing else", () => {
     renderPanel([]);
-    const form = screen.getByRole("form", { name: "Pair an assistant" });
+    const form = screen.getByRole("form", { name: "Add an assistant" });
     const boxes = within(form).getAllByRole("checkbox") as HTMLInputElement[];
     expect(boxes).toHaveLength(8);
     expect(boxes.map((b) => b.checked)).toEqual([true, true, false, false, false, false, false, false]);
-    expect(within(form).getByRole("button", { name: "Pair assistant" })).toBeDisabled();
+    expect(within(form).getByRole("button", { name: "Add assistant" })).toBeDisabled();
   });
 
   it("pairing posts the name and scopes, then shows how to connect and no secret", async () => {
@@ -84,7 +84,7 @@ describe("Assistants section", () => {
     renderPanel([]);
     fireEvent.change(screen.getByRole("textbox", { name: "Assistant name" }), { target: { value: " Helper " } });
     fireEvent.click(screen.getByRole("checkbox", { name: "Change tags" }));
-    fireEvent.click(screen.getByRole("button", { name: "Pair assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add assistant" }));
 
     const section = await screen.findByRole("region", { name: "Connect the assistant" });
     expect(within(section).getByText("musaic-cli setup --pairing p1")).toBeTruthy();
@@ -102,7 +102,7 @@ describe("Assistants section", () => {
     handler = () => json({ detail: "Too many pairings; revoke one first" }, 409);
     renderPanel([]);
     fireEvent.change(screen.getByRole("textbox", { name: "Assistant name" }), { target: { value: "X" } });
-    fireEvent.click(screen.getByRole("button", { name: "Pair assistant" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add assistant" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Too many pairings");
   });
 
@@ -209,15 +209,15 @@ describe("Assistant diagnostics", () => {
     return qc;
   }
 
-  it("a pairing that never connected shows Paired and nothing else", () => {
+  it("a pairing that never connected shows Added and nothing else", () => {
     renderWith([base]);
     const list = document.querySelector("dl[aria-label='What Helper has done']")!;
     const text = list.textContent ?? "";
-    expect(text).toContain("Paired");
-    expect(text).toContain("Bridge reachable");
-    expect(text).toMatch(/Bridge reachable\s*not yet/);
-    expect(text).toMatch(/Subscription active\s*no/);
-    expect(text).toMatch(/Last work claimed\s*never/);
+    expect(text).toContain("Added");
+    expect(text).toContain("Connected");
+    expect(text).toMatch(/Connected\s*not yet/);
+    expect(text).toMatch(/Listening for work\s*no/);
+    expect(text).toMatch(/Last request picked up\s*never/);
     expect(text).not.toContain("Host");
   });
 
@@ -244,7 +244,7 @@ describe("Assistant diagnostics", () => {
     expect(body).toContain("reported by the host");
     expect(body).toContain("protocol 2026-07-28");
     expect(body).toContain("extensions: Tasks, Events");
-    expect(body).toMatch(/Subscription active\s*yes, listening now/);
+    expect(body).toMatch(/Listening for work\s*yes, listening now/);
     // Listening: no instructions needed.
     expect(screen.queryByRole("button", { name: "Process pending Musaic work" })).toBeNull();
   });

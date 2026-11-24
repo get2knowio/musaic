@@ -3,14 +3,9 @@ import {
   AlertTriangle,
   ArrowLeft,
   Check,
-  Cpu,
   Disc3,
   ExternalLink,
   Fingerprint,
-  Globe,
-  Pause,
-  Play,
-  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -28,16 +23,8 @@ import { fingerprintStatusLine } from "@/lib/fingerprintStatus";
 import { useLibraryConfig } from "@/hooks/useLibraryConfig";
 import LibraryPathForm from "@/components/LibraryPathForm";
 import { libraryPathHelp } from "@/lib/desktop";
-import {
-  useSettings,
-  useUpdateSettings,
-  useQueueState,
-  useResumeQueue,
-  useAiProviders,
-} from "@/hooks/useJobs";
+import { useSettings, useUpdateSettings } from "@/hooks/useJobs";
 import { usePageTitle } from "@/hooks/usePageTitle";
-import { useAiStatus } from "@/hooks/useAiStatus";
-import { AI_UNAVAILABLE } from "@/lib/aiGating";
 import { errorText } from "@/lib/errors";
 import MyTagsSettingsPanel from "./SettingsMyTags";
 import BackupPanel from "./SettingsBackup";
@@ -45,16 +32,12 @@ import AgentsPanel from "./SettingsAgents";
 import FilenameTemplatesPanel from "./SettingsFilenameTemplates";
 
 /**
- * Settings page. Grouped into Library, AI, and External services so the page
- * doesn't read as a flat list of unrelated config blobs as it grows.
+ * Settings page. Grouped by task (library, tags, file naming, matching,
+ * backup, assistants) so the page doesn't read as a flat list of unrelated
+ * config blobs as it grows.
  */
 export default function SettingsPage() {
   usePageTitle("Settings");
-  // No listed provider can run a model: the AI backend settings (and the
-  // FireCrawl key, used only by AI lookups) have nothing to configure, so
-  // one notice stands in for them (lib/aiGating.ts).
-  const ai = useAiStatus();
-  const noAiBackend = ai.known && !ai.anyReady;
   // A link to a section (/settings#tags) scrolls to it and focuses its
   // control, the way "#acoustid-key" does for the AcoustID field. The
   // location key is a dependency so choosing the same link again repeats it.
@@ -90,9 +73,7 @@ export default function SettingsPage() {
         )}
         <h1 className="text-lg font-semibold mb-1">Settings</h1>
         <p className="text-sm text-fg-3 mb-3">
-          {noAiBackend
-            ? "Tune how Musaic talks to MusicBrainz and AcoustID."
-            : "Tune how Musaic talks to your AI provider, MusicBrainz, AcoustID, and FireCrawl."}{" "}
+          Tune how Musaic talks to MusicBrainz and AcoustID.{" "}
           Jump to the task you are here for:
         </p>
         <SettingsIndex />
@@ -107,12 +88,7 @@ export default function SettingsPage() {
           <FilenameTemplatesPanel />
         </SettingsSection>
         <SettingsSection id="matching-integrations" title="Matching & integrations">
-          {noAiBackend ? <AIUnavailableSection /> : <AIBackendSection />}
-          {/* The AI worker card (parallel jobs, queue status) only
-              when a provider can run. */}
-          {!noAiBackend && <AISection />}
           <FingerprintSection />
-          {!noAiBackend && <FireCrawlSection />}
         </SettingsSection>
         <SettingsSection id="backup-restore" title="Backup & restore">
           <BackupPanel />
@@ -219,21 +195,6 @@ function KeyStorageNotices() {
   );
 }
 
-/** Stands in for the AI backend settings when no provider can run. */
-function AIUnavailableSection() {
-  return (
-    <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
-      <header className="flex items-center gap-2 px-4 h-10 border-b border-line bg-panel">
-        <Cpu className="w-3.5 h-3.5 text-accent" />
-        <h2 className="text-md font-semibold">AI backend</h2>
-      </header>
-      <div className="px-4 py-4">
-        <p className="text-sm text-fg-3 leading-relaxed">{AI_UNAVAILABLE}</p>
-      </div>
-    </section>
-  );
-}
-
 /** Toast for a failed save: the action as the title, the server's reason
  *  (409 restore running, 503 keychain write failed, 400 validation) below. */
 function saveFailed(what: string, e: unknown) {
@@ -242,8 +203,8 @@ function saveFailed(what: string, e: unknown) {
 }
 
 /**
- * Library directory configuration. Two-state UX mirrors the AcoustID /
- * FireCrawl sections: when set, we show "configured: /path" with a Change
+ * Library directory configuration. Two-state UX mirrors the AcoustID
+ * section: when set, we show "configured: /path" with a Change
  * button; when clearing/changing, we expose the path entry.
  *
  * The native HTML file picker only emits files (not folders) without
@@ -328,359 +289,6 @@ function LibrarySection() {
   );
 }
 
-/**
- * AI backend selection — the provider/model/key the AI worker dispatches
- * through (via airframe). The flexibility is per-install, not per-request: a
- * given user picks one provider, one model, and (for key-based providers) one
- * API key.
- *
- * Credentials are handled per provider's auth model. Key-based providers
- * (Claude / Kimi / OpenAI-compatible gateways) show a write-only key field —
- * the key is injected into the airframe adapter constructor. Providers that
- * authenticate via their own env / CLI chain (Copilot via `gh`, Bedrock via
- * the AWS chain, the OpenCode server via loopback) show their auth hint
- * instead of a key field — there's nothing for the user to paste here.
- */
-function AIBackendSection() {
-  const { data: settings } = useSettings();
-  const { data: providersData } = useAiProviders();
-  const update = useUpdateSettings();
-
-  const [modelDraft, setModelDraft] = useState("");
-  const [editingKey, setEditingKey] = useState(false);
-  const [keyDraft, setKeyDraft] = useState("");
-
-  useEffect(() => {
-    if (settings) setModelDraft(settings.ai_model_id);
-  }, [settings?.ai_model_id]);
-  useEffect(() => {
-    if (editingKey) setKeyDraft("");
-  }, [editingKey]);
-
-  const providers = providersData?.providers ?? [];
-  const uninstalled = providersData?.uninstalled ?? [];
-  const selectedId = settings?.ai_provider_id ?? "claude";
-  const selected = providers.find((p) => p.id === selectedId);
-  const keySet = !!settings?.ai_api_key_set;
-  const installedIds = new Set(providers.map((p) => p.id));
-  // All ids to show in the dropdown: installed (selectable) + uninstalled
-  // (disabled) + the current selection (so the control reflects state even if
-  // its provider was later uninstalled).
-  const optionIds = Array.from(new Set([...providers.map((p) => p.id), ...uninstalled, selectedId]));
-
-  const onProvider = (pid: string) => {
-    if (!settings || pid === settings.ai_provider_id) return;
-    update.mutate(
-      { ai_provider_id: pid },
-      {
-        onSuccess: () => toast.success(`Provider set to ${pid}`),
-        onError: (e) => toast.error((e as Error).message || "Couldn't set provider"),
-      },
-    );
-  };
-
-  const commitModel = () => {
-    const m = modelDraft.trim();
-    if (!settings || m === settings.ai_model_id) return;
-    update.mutate(
-      { ai_model_id: m },
-      { onError: (e) => saveFailed("Couldn't save model", e) },
-    );
-  };
-
-  const onSaveKey = () => {
-    const k = keyDraft.trim();
-    update.mutate(
-      { ai_api_key: k },
-      {
-        onSuccess: () => {
-          setEditingKey(false);
-          setKeyDraft("");
-          toast.success(k ? "API key saved" : "API key cleared");
-        },
-        onError: (e) => saveFailed("Couldn't save API key", e),
-      },
-    );
-  };
-
-  const onClearKey = () => {
-    update.mutate(
-      { ai_api_key: "" },
-      {
-        onSuccess: () => {
-          setEditingKey(false);
-          toast.success("API key cleared");
-        },
-        onError: (e) => saveFailed("Couldn't clear API key", e),
-      },
-    );
-  };
-
-  return (
-    <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
-      <header className="flex items-center gap-2 px-4 h-10 border-b border-line bg-panel">
-        <Cpu className="w-3.5 h-3.5 text-accent" />
-        <h2 className="text-md font-semibold">AI backend</h2>
-      </header>
-
-      <div className="px-4 py-4 space-y-5">
-        <p className="text-sm text-fg-3 leading-relaxed">
-          The agent backend Musaic runs metadata + cover-art suggestions through.
-          Defaults to Claude; install additional airframe adapters to target
-          another provider.
-        </p>
-
-        <Row
-          label="Provider"
-          help="Only installed providers can be selected. Add more with pip install airframe-agents[<extra>], then restart."
-        >
-          <select
-            value={selectedId}
-            disabled={update.isPending || !providersData}
-            onChange={(e) => onProvider(e.target.value)}
-            className="h-8 px-2 border border-line rounded bg-bg text-sm text-fg focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
-          >
-            {optionIds.map((id) => {
-              const isInstalled = installedIds.has(id);
-              return (
-                <option key={id} value={id} disabled={!isInstalled}>
-                  {id}
-                  {isInstalled ? "" : " (not installed)"}
-                </option>
-              );
-            })}
-          </select>
-        </Row>
-
-        {/* Readiness — the selected provider's adapter shells out to a CLI
-            (claude / gh) that may be absent (esp. in the packaged desktop
-            app). When it's missing, AI calls fail; say so + how to fix, and
-            reassure that deterministic matching still works. */}
-        {selected && selected.ready === false && (
-          <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
-            <span>
-              AI suggestions are unavailable: {selectedId} needs{" "}
-              {selected.requirement ?? "an external CLI"}, which isn't installed.{" "}
-              {selected.remedy}
-            </span>
-          </div>
-        )}
-
-        <Row
-          label="Model"
-          help="Vendor model id for the selected provider (e.g. claude-sonnet-4-6). Commit with Enter or by leaving the field."
-        >
-          <input
-            type="text"
-            placeholder="claude-sonnet-4-6"
-            value={modelDraft}
-            disabled={update.isPending}
-            onChange={(e) => setModelDraft(e.target.value)}
-            onBlur={commitModel}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            }}
-            className="w-64 h-8 px-2 border border-line rounded bg-bg text-sm text-fg focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
-          />
-        </Row>
-
-        {/* Credentials — shape depends on the provider's auth model. */}
-        {!providersData ? null : selected?.accepts_api_key ? (
-          <Row
-            label="API key"
-            help="Stored locally and passed to the provider's airframe adapter. Write-only — never echoed back."
-          >
-            {keySet && !editingKey ? (
-              <>
-                <span className="inline-flex items-center gap-1.5 mono text-xs text-ok">
-                  <Check className="w-3.5 h-3.5" />
-                  Configured
-                </span>
-                <button
-                  onClick={() => setEditingKey(true)}
-                  className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition"
-                >
-                  Change
-                </button>
-                <button
-                  onClick={onClearKey}
-                  disabled={update.isPending}
-                  className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60"
-                >
-                  Clear
-                </button>
-              </>
-            ) : (
-              <>
-                <input
-                  type="password"
-                  placeholder={keySet ? "Enter new key…" : "Paste key…"}
-                  value={keyDraft}
-                  disabled={update.isPending}
-                  onChange={(e) => setKeyDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") onSaveKey();
-                  }}
-                  className="w-64 h-8 px-2 border border-line rounded bg-bg text-sm text-fg focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
-                />
-                <button
-                  onClick={onSaveKey}
-                  disabled={update.isPending || !keyDraft.trim()}
-                  className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
-                >
-                  {update.isPending ? "Saving…" : "Save"}
-                </button>
-                {keySet && (
-                  <button
-                    onClick={() => {
-                      setEditingKey(false);
-                      setKeyDraft("");
-                    }}
-                    className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition"
-                  >
-                    Cancel
-                  </button>
-                )}
-              </>
-            )}
-          </Row>
-        ) : selected ? (
-          <div className="flex items-start gap-2 text-xs text-fg-3 leading-relaxed bg-bg-2 border border-line rounded px-3 py-2">
-            <Check className="w-3.5 h-3.5 text-fg-4 shrink-0 mt-0.5" />
-            <span>{selected.auth_hint}</span>
-          </div>
-        ) : (
-          <div className="flex items-start gap-2 text-xs text-fg-2 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
-            <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
-            <span>
-              The configured provider <code className="mono text-fg-3">{selectedId}</code>{" "}
-              isn't installed here. Install its airframe extra, or pick an installed provider above.
-            </span>
-          </div>
-        )}
-
-        {uninstalled.length > 0 && (
-          <p className="text-xs text-fg-4 leading-relaxed">
-            Also supported once installed:{" "}
-            <span className="mono">{uninstalled.join(", ")}</span>. Add with{" "}
-            <code className="mono text-fg-3">pip install airframe-agents[&lt;extra&gt;]</code> and restart.
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function AISection() {
-  const { data: settings, isLoading } = useSettings();
-  const { data: queueState } = useQueueState();
-  const update = useUpdateSettings();
-  const resume = useResumeQueue();
-
-  // Track the input value locally so the user can type without each
-  // keystroke firing a PATCH. We commit on blur or Enter.
-  const [parallelDraft, setParallelDraft] = useState<string>("1");
-
-  useEffect(() => {
-    if (settings) setParallelDraft(String(settings.ai_max_parallel));
-  }, [settings?.ai_max_parallel]);
-
-  const commitParallel = () => {
-    const n = Math.max(1, Math.min(8, parseInt(parallelDraft, 10) || 1));
-    setParallelDraft(String(n));
-    if (settings && n === settings.ai_max_parallel) return;
-    update.mutate(
-      { ai_max_parallel: n },
-      {
-        onError: (e) => saveFailed("Couldn't save settings", e),
-      },
-    );
-  };
-
-  const onResume = () => {
-    resume.mutate(undefined, {
-      onSuccess: () => toast.success("Queue resumed"),
-      onError: (e) => saveFailed("Couldn't resume queue", e),
-    });
-  };
-
-  return (
-    <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
-      <header className="flex items-center gap-2 px-4 h-10 border-b border-line bg-panel">
-        <Sparkles className="w-3.5 h-3.5 text-accent" />
-        <h2 className="text-md font-semibold">AI worker</h2>
-      </header>
-
-      <div className="px-4 py-4 space-y-5">
-        {/* Parallel jobs */}
-        <Row
-          label="Parallel jobs"
-          help="How many AI suggestions to run in parallel. Default 1; bump up if you have a lot queued and don't mind several running at once."
-        >
-          <input
-            type="number"
-            min={1}
-            max={8}
-            value={parallelDraft}
-            disabled={isLoading || update.isPending}
-            onChange={(e) => setParallelDraft(e.target.value)}
-            onBlur={commitParallel}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-            }}
-            className="w-20 h-8 px-2 border border-line rounded bg-panel text-sm text-fg tabular-nums focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
-          />
-          <span className="text-xs text-fg-4">1 – 8</span>
-        </Row>
-
-        {/* Queue pause state */}
-        <div className="border-t border-line pt-4">
-          <Row
-            label="Queue status"
-            help="The queue auto-pauses when an AI job fails, except when it failed only because no AI backend is available (this build has none). Resume manually after retrying or waiting."
-          >
-            {queueState?.paused ? (
-              <>
-                <span className="inline-flex items-center gap-1.5 mono text-xs text-warn">
-                  <Pause className="w-3.5 h-3.5" />
-                  Paused
-                </span>
-                <button
-                  onClick={onResume}
-                  disabled={resume.isPending}
-                  className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5"
-                >
-                  <Play className="w-3.5 h-3.5" />
-                  {resume.isPending ? "Resuming…" : "Resume queue"}
-                </button>
-              </>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 mono text-xs text-ok">
-                <Play className="w-3.5 h-3.5" />
-                Running
-              </span>
-            )}
-            {queueState && (
-              <span className="text-xs text-fg-4 ml-auto mono tabular-nums">
-                {queueState.running} running · {queueState.queued} queued
-              </span>
-            )}
-          </Row>
-          {queueState?.paused && (
-            <div className="mt-3 flex items-start gap-2 text-xs text-fg-3 leading-relaxed bg-warn-soft border border-warn/30 rounded px-3 py-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" />
-              <span>
-                We pause the queue automatically on the first error. Failed jobs can be retried from the AI Jobs page; remaining queued jobs will start dispatching once you resume.
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
 function Row({
   label,
   help,
@@ -714,7 +322,6 @@ function Row({
  *     empty when revealed.
  */
 function FingerprintSection() {
-  const ai = useAiStatus();
   const { data: settings, isLoading } = useSettings();
   const update = useUpdateSettings();
   const [editing, setEditing] = useState(false);
@@ -829,11 +436,7 @@ function FingerprintSection() {
 
         <Row
           label="AcoustID API key"
-          help={
-            ai.ready
-              ? "Used only by the track-gaps and unidentified-album fix paths. Stored locally; never sent to Claude."
-              : "Used only by the track-gaps and unidentified-album fix paths. Stored locally."
-          }
+          help="Used only by the track-gaps and unidentified-album fix paths. Stored locally; never sent anywhere but AcoustID."
         >
           {isSet && !editing ? (
             <>
@@ -862,154 +465,6 @@ function FingerprintSection() {
                 type="password"
                 aria-label="AcoustID API key"
                 placeholder={isSet ? "Enter new key…" : "Paste key…"}
-                value={key}
-                disabled={isLoading || update.isPending}
-                onChange={(e) => setKey(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") onSave(); }}
-                className="w-64 h-8 px-2 border border-line rounded bg-bg text-sm text-fg focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/30 disabled:opacity-60"
-              />
-              <button
-                onClick={onSave}
-                disabled={update.isPending || !key.trim()}
-                className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60"
-              >
-                {update.isPending ? "Saving…" : "Save"}
-              </button>
-              {isSet && (
-                <button
-                  onClick={() => { setEditing(false); setKey(""); }}
-                  className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition"
-                >
-                  Cancel
-                </button>
-              )}
-            </>
-          )}
-        </Row>
-      </div>
-    </section>
-  );
-}
-
-
-/**
- * FireCrawl API key configuration. When set, ai.py mounts the FireCrawl
- * MCP server into Claude Agent SDK calls so Claude can fall back to
- * FireCrawl tools (search / scrape / extract) for albums where the
- * built-in WebSearch / WebFetch can't get past JS-rendered pages,
- * paywalls, or anti-bot blocks.
- *
- * Treated as an absolute LAST RESORT: the system prompt instructs Claude
- * to try WebSearch / WebFetch first and only reach for FireCrawl when
- * those genuinely can't get the answer. Each FireCrawl call uses the
- * user's FireCrawl quota.
- *
- * Same write-only / two-state UX as the AcoustID section.
- */
-function FireCrawlSection() {
-  const { data: settings, isLoading } = useSettings();
-  const update = useUpdateSettings();
-  const [editing, setEditing] = useState(false);
-  const [key, setKey] = useState("");
-
-  const isSet = !!settings?.firecrawl_api_key_set;
-
-  useEffect(() => {
-    if (editing) setKey("");
-  }, [editing]);
-
-  const onSave = () => {
-    const trimmed = key.trim();
-    update.mutate(
-      { firecrawl_api_key: trimmed },
-      {
-        onSuccess: () => {
-          setEditing(false);
-          setKey("");
-          toast.success(trimmed ? "FireCrawl key saved" : "FireCrawl key cleared");
-        },
-        onError: (e) => saveFailed("Couldn't save FireCrawl key", e),
-      },
-    );
-  };
-
-  const onClear = () => {
-    update.mutate(
-      { firecrawl_api_key: "" },
-      {
-        onSuccess: () => {
-          setEditing(false);
-          toast.success("FireCrawl key cleared");
-        },
-        onError: (e) => saveFailed("Couldn't clear FireCrawl key", e),
-      },
-    );
-  };
-
-  return (
-    <section className="border border-line rounded-md bg-panel-2 overflow-hidden mb-6">
-      <header className="flex items-center gap-2 px-4 h-10 border-b border-line bg-panel">
-        <Globe className="w-3.5 h-3.5 text-accent" />
-        <h2 className="text-md font-semibold">FireCrawl fallback</h2>
-      </header>
-
-      <div className="px-4 py-4 space-y-4">
-        <p className="text-sm text-fg-3 leading-relaxed">
-          When the model's built-in web search and fetch can't get through
-          (JS-rendered pages, paywalls, anti-bot blocks), it can fall back
-          to{" "}
-          <a
-            href="https://www.firecrawl.dev/"
-            target="_blank"
-            rel="noopener"
-            className="text-accent hover:underline mx-0.5 inline-flex items-center gap-0.5"
-          >
-            FireCrawl<ExternalLink className="w-3 h-3" />
-          </a>
-          . The system prompt tells the model to treat FireCrawl as a last
-          resort — each call uses up your FireCrawl quota.
-        </p>
-
-        <div className="border border-line rounded p-3 bg-panel">
-          <div className="text-xs mono uppercase tracking-[0.06em] text-fg-4 mb-1.5">
-            How it's used
-          </div>
-          <ul className="text-xs text-fg-3 space-y-1 leading-relaxed">
-            <li>Only attached to AI metadata + cover-art lookups (not bulk MB passes).</li>
-            <li>Tools exposed to the model: <code className="mono text-fg-2">firecrawl_search</code>, <code className="mono text-fg-2">firecrawl_scrape</code>, <code className="mono text-fg-2">firecrawl_extract</code>.</li>
-            <li>Leave the key blank to disable — the model falls back to MusicBrainz instead.</li>
-          </ul>
-        </div>
-
-        <Row
-          label="FireCrawl API key"
-          help="Stored locally and sent only to the FireCrawl MCP endpoint, in the URL path. Never echoed back from the API."
-        >
-          {isSet && !editing ? (
-            <>
-              <span className="inline-flex items-center gap-1.5 mono text-xs text-ok">
-                <Check className="w-3.5 h-3.5" />
-                Configured
-              </span>
-              <button
-                onClick={() => setEditing(true)}
-                className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition"
-              >
-                Change
-              </button>
-              <button
-                onClick={onClear}
-                disabled={update.isPending}
-                className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60"
-              >
-                Clear
-              </button>
-            </>
-          ) : (
-            <>
-              <input
-                type="password"
-                placeholder={isSet ? "Enter new key…" : "fc-…"}
                 value={key}
                 disabled={isLoading || update.isPending}
                 onChange={(e) => setKey(e.target.value)}

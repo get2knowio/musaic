@@ -2,10 +2,10 @@
 //! not Python app routes (proxy remote previews through the backend so the
 //! desktop CSP can stay `img-src 'self' data: blob:`).
 //!
-//! - `GET /api/ai/jobs/{job_id}/cover-preview`: the cover a job suggested.
-//!   The server reads the job's stored cover suggestion
-//!   (`result.cover.cover_url`, written by the AI worker or the model-free
-//!   MusicBrainz synthesizer).
+//! - `GET /api/ai/jobs/{job_id}/cover-preview`: the cover a research result
+//!   suggested. The server reads its stored cover suggestion
+//!   (`result.cover.cover_url`, written by an assistant's result, an old job,
+//!   or the model-free MusicBrainz synthesizer).
 //! - `GET /api/albums/{album_id}/cover-preview`: the cover the resolver
 //!   proposes for the album, with no job. The URL is derived, never taken:
 //!   Tier 0a's anchor (the stored release group, unless blocked with "Wrong

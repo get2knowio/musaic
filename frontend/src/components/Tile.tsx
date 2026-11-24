@@ -8,7 +8,7 @@ import JobStatusBadge from "./JobStatusBadge";
 
 interface TileProps {
   album: Album;
-  /** Active AI job for this album (queued | running | completed-not-acted-on), if any. */
+  /** Active research request for this album (queued | running | completed-not-acted-on), if any. */
   activeJob?: Job | null;
 }
 
@@ -61,7 +61,7 @@ export default function Tile({ album, activeJob }: TileProps) {
     >
       <div className={`relative aspect-square bg-bg-2 ${isMissing ? "grayscale opacity-50" : ""}`}>
         <CoverImage album={album} />
-        {/* AI-job overlay: tells the user at a glance which albums already
+        {/* Research overlay: tells the user at a glance which albums already
             have a job queued/running/awaiting-review, so they don't double-
             queue while they're triaging the library. Hidden on Missing
             albums — they can't have active jobs against them. */}

@@ -46,6 +46,10 @@ export interface BulkCounts {
   skipped: number;
   errors: number;
   not_applicable: number;
+  /** Research on: albums that became a request in the run's batch, and
+   *  albums that already had one. */
+  sent_for_research: number;
+  already_requested: number;
 }
 
 export interface BulkRun {
@@ -54,6 +58,8 @@ export interface BulkRun {
   checkLabel: string;
   actionLabel: string;
   fixKind: "none" | "ai-job" | "deterministic";
+  /** What the resolver can't settle is sent to the assistant (one batch). */
+  research: boolean;
   phase: BulkPhase;
   /** Findings the run set out to handle (the stream's `start`). */
   total: number;
@@ -109,6 +115,8 @@ export interface StartBulkRun {
   checkLabel: string;
   actionLabel: string;
   fixKind: BulkRun["fixKind"];
+  /** Send what the resolver can't settle to the assistant. */
+  research?: boolean;
   total: number;
   /** The album of a finding, as the page knew it when the run started. */
   albumOf: (findingId: number) => { id: string | null; label: string };
@@ -123,10 +131,11 @@ export function startBulkRun(opts: StartBulkRun): string {
     checkLabel: opts.checkLabel,
     actionLabel: opts.actionLabel,
     fixKind: opts.fixKind,
+    research: !!opts.research,
     phase: "running",
     total: opts.total,
     started: false,
-    counts: { fixed: 0, skipped: 0, errors: 0, not_applicable: 0 },
+    counts: { fixed: 0, skipped: 0, errors: 0, not_applicable: 0, sent_for_research: 0, already_requested: 0 },
     items: [],
     summary: null,
     error: null,
@@ -153,6 +162,8 @@ export function startBulkRun(opts: StartBulkRun): string {
         if (ev.outcome === "fixed") counts.fixed++;
         else if (ev.outcome === "skipped") counts.skipped++;
         else if (ev.outcome === "error") counts.errors++;
+        else if (ev.outcome === "sent-for-research") counts.sent_for_research++;
+        else if (ev.outcome === "already-requested") counts.already_requested++;
         else counts.not_applicable++;
         return { ...r, items: [...r.items, item], counts };
       });
@@ -164,7 +175,7 @@ export function startBulkRun(opts: StartBulkRun): string {
     },
     // The response ended without `done`: the connection, not the run.
     onClosed: () => end(id, "interrupted", { error: "The connection to the run closed before it finished." }),
-  });
+  }, { research: !!opts.research });
   cancels.set(id, cancel);
   return id;
 }

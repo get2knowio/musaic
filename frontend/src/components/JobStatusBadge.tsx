@@ -1,6 +1,6 @@
 /**
  * Tiny status pill rendered on top of an album cover (Tile) or beside a row
- * (AlbumList) to signal that an AI job exists for that album. Three states:
+ * (AlbumList) to signal that a research request exists for that album. Three states:
  *
  *   queued    — Clock,    neutral
  *   running   — Loader,   accent (spinning)
@@ -11,7 +11,6 @@
  */
 import { CheckCircle2, Clock, Loader2 } from "lucide-react";
 import type { Job } from "@/lib/types";
-import { useAiStatus } from "@/hooks/useAiStatus";
 
 interface Props {
   job: Job;
@@ -21,8 +20,6 @@ interface Props {
 
 export default function JobStatusBadge({ job, variant = "tile" }: Props) {
   const isTile = variant === "tile";
-  // "AI job" only when a model can run.
-  const ai = useAiStatus();
   let Icon = Clock;
   let label = "Queued";
   // Tailwind/CSS tokens already in the project: bg-accent, bg-ok, etc.
@@ -45,7 +42,7 @@ export default function JobStatusBadge({ job, variant = "tile" }: Props) {
           ? "text-[10px] px-1.5 py-0.5 shadow"
           : "text-[9.5px] px-1 py-0.5")
       }
-      title={`${ai.ready ? "AI job" : "Job"}: ${label.toLowerCase()} (${jobTypeShort(job.job_type)})`}
+      title={`Research request: ${label.toLowerCase()} (${jobTypeShort(job.job_type)})`}
     >
       <Icon className={`${isTile ? "w-2.5 h-2.5" : "w-2.5 h-2.5"} ${job.status === "running" ? "spin" : ""}`} />
       {label}

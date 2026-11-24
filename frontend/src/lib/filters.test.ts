@@ -4,7 +4,25 @@ import {
   buildNeedsAttentionSet,
   isValidFilterKey,
 } from "@/lib/filters";
+import type { DelegatedWorkItem } from "@/lib/api";
 import { makeAlbum, makeJob } from "@/test/fixtures";
+
+const workItem = (over: Partial<DelegatedWorkItem>): DelegatedWorkItem => ({
+  workId: `w-${over.albumId ?? "x"}`,
+  albumId: "x",
+  albumLabel: null,
+  kind: "metadata.identify",
+  state: "queued",
+  revision: 1,
+  holder: null,
+  lastHeartbeatAt: null,
+  leaseExpiresAt: null,
+  attempts: 0,
+  maxAttempts: 3,
+  lastError: null,
+  waitingForAgent: false,
+  ...over,
+});
 
 describe("isValidFilterKey", () => {
   it("accepts known keys and rejects everything else", () => {
@@ -24,6 +42,32 @@ describe("buildNeedsAttentionSet", () => {
       makeJob({ album_id: "d", status: "queued" }),
     ]);
     expect([...set].sort()).toEqual(["a", "b"]);
+  });
+
+  it("finds an album whose batched request has a result waiting for review", () => {
+    const set = buildNeedsAttentionSet(
+      [makeJob({ album_id: "card", status: "completed" })],
+      [
+        workItem({ albumId: "review", state: "awaiting_review", batchId: "b1" }),
+        workItem({ albumId: "failed", state: "failed", batchId: "b1" }),
+        workItem({ albumId: "waiting", state: "queued", batchId: "b1" }),
+        workItem({ albumId: "held", state: "claimed", batchId: "b1" }),
+        workItem({ albumId: "cancelled", state: "cancelled", batchId: "b1" }),
+      ],
+    );
+    expect([...set].sort()).toEqual(["card", "failed", "review"]);
+  });
+
+  it("leaves a request with no batch to its job card", () => {
+    const set = buildNeedsAttentionSet([], [workItem({ albumId: "solo", state: "awaiting_review", batchId: null })]);
+    expect(set.size).toBe(0);
+  });
+
+  it("the Jobs to review filter lists the album of a batched proposal", () => {
+    const album = makeAlbum({ id: "review" });
+    const other = makeAlbum({ id: "other" });
+    const set = buildNeedsAttentionSet([], [workItem({ albumId: "review", state: "awaiting_review", batchId: "b1" })]);
+    expect(applyFilter([album, other], "needs-review", set).map((a) => a.id)).toEqual(["review"]);
   });
 });
 

@@ -39,7 +39,7 @@ export function reviewUrl(
 
 /**
  * What a Review URL's query string shows, in the words its rail uses:
- * a check's label, "Proposed changes", "Failed jobs", "Ignored findings";
+ * a check's label, "Proposed changes", "Failed research", "Ignored findings";
  * null for All open (with or without an album filter), which is just
  * "Review". Jobs in progress and history are in Activity, not Review.
  * For return links ("Back to …").
@@ -52,7 +52,7 @@ export function reviewViewName(search: string, checkLabel: (id: string) => strin
   if (check) return checkLabel(check);
   const kind = p.get("kind");
   if (kind === "proposed") return "Proposed changes";
-  if (kind === "failed") return "Failed jobs";
+  if (kind === "failed") return "Failed research";
   return null;
 }
 

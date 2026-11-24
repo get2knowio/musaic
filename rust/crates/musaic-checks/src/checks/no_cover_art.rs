@@ -1,7 +1,7 @@
 //! `no-cover-art` (port of `checks/no_cover_art.py`): no embedded cover and
-//! no sidecar, unless a cover job failed (or ended without a cover) in the
-//! last 30 days. Detection only; the fix needs MusicBrainz/CAA, the apply
-//! pipeline and the AI queue.
+//! no sidecar, unless cover research (an old job or a native request) failed
+//! or ended without a cover in the last 30 days. Detection only; the fix
+//! needs MusicBrainz/CAA, the apply pipeline and research requests.
 
 use crate::base::{
     Check, CheckCtx, CheckError, CheckMeta, CheckScope, Cost, Emit, Finding, FixKind, Granularity,
@@ -34,13 +34,25 @@ retrying it.",
 /// `created_at` text (ISO-8601 with a `T`) with SQLite's `datetime()` text (a
 /// space), so on the cut-off date `'T' > ' '` counted a job up to a day older
 /// than the window as recent.
+///
+/// A recent attempt is either kind of research record (schema v24):
+///
+/// * an old job's history record (`research_history`, the Python rule on
+///   the old data): a cover job that failed, or was acted on with no
+///   `cover.cover_url` in its stored result;
+/// * a native `cover.research` request (`legacy_job_id IS NULL`) created
+///   within the window that failed, or was applied or discarded with no
+///   cover recommendation in its result (a no-match or unresolved answer
+///   included). A request linked to an old job is judged only by its
+///   history record: it has no `work_results` row, so this rule would read
+///   every applied old cover job as "no candidate".
 const SQL: &str = "SELECT id, dir_name, dir_artist, dir_album FROM albums
      WHERE library_path = ?1
        AND missing_since IS NULL
        AND has_embedded_cover = 0
        AND cover_file IS NULL
        AND NOT EXISTS (
-         SELECT 1 FROM ai_jobs j
+         SELECT 1 FROM research_history j
          WHERE j.album_id = albums.id
            AND j.job_type IN ('cover', 'metadata+cover')
            AND julianday(j.created_at) > julianday(?2)
@@ -48,6 +60,19 @@ const SQL: &str = "SELECT id, dir_name, dir_artist, dir_album FROM albums
              j.status = 'failed'
              OR (j.status = 'acted_on'
                  AND COALESCE(json_extract(j.result_json, '$.cover.cover_url'), '') = '')
+           )
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM delegated_work w
+         LEFT JOIN work_results r ON r.id = w.result_id
+         WHERE w.album_id = albums.id
+           AND w.kind = 'cover.research'
+           AND w.legacy_job_id IS NULL
+           AND w.created_at > CAST(unixepoch(?2) AS INTEGER) * 1000
+           AND (
+             w.state = 'failed'
+             OR (w.state IN ('applied', 'discarded')
+                 AND COALESCE(json_extract(r.result_json, '$.recommendation.type'), '') <> 'cover')
            )
        )";
 

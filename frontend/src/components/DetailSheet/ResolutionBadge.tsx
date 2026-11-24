@@ -11,7 +11,6 @@
 import { CheckCircle2, CircleSlash, Loader2, ShieldQuestion } from "lucide-react";
 
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
-import { useAiStatus } from "@/hooks/useAiStatus";
 
 interface Props {
   albumId: string;
@@ -19,7 +18,6 @@ interface Props {
 
 export default function ResolutionBadge({ albumId }: Props) {
   const { data: resolution, isLoading, isFetching, error, refetch } = useAlbumResolution(albumId);
-  const ai = useAiStatus();
 
   if (isLoading) {
     return (
@@ -58,9 +56,7 @@ export default function ResolutionBadge({ albumId }: Props) {
       <Chip
         tone="amber"
         title={withTrace(
-          ai.ready
-            ? "No confident MusicBrainz release-group match was found from the directory name or per-track fingerprints. Suggesting fixes will require Claude AI."
-            : "No confident MusicBrainz release-group match was found from the directory name or per-track fingerprints.",
+          "No confident MusicBrainz release-group match was found from the directory name or per-track fingerprints.",
           trace,
         )}
       >
@@ -82,29 +78,19 @@ export default function ResolutionBadge({ albumId }: Props) {
       : anchor_strategy === "cache"
       ? "Matched from the local cache (anchor was discovered on a prior run)."
       : anchor_strategy === "ai"
-      ? ai.ready
-        ? "Matched via Claude AI; the anchor is now cached for free reuse."
-        : "Matched by an earlier lookup; the anchor is cached for free reuse."
+      ? "Matched by an earlier lookup; the anchor is cached for free reuse."
       : "Matched to a MusicBrainz release group.";
 
-  const tail =
-    unresolved_track_count > 0
-      ? ` ${unresolved_track_count} of ${total} tracks couldn't be aligned automatically and may still need AI help.`
-      : "";
-
   // Confident anchor + every track resolved → green. Anchor present but
-  // some tracks didn't align → blue (we have an album anchor and AI can
-  // be tightly scoped).
+  // some tracks didn't align → blue (an album anchor, but corrections
+  // need every track aligned).
   const tone = unresolved_track_count === 0 ? "green" : "blue";
 
   return (
     <Chip
       tone={tone}
       title={withTrace(
-        ai.ready
-          ? `${strategyDetail}${tail} Suggestions can be generated for free, without Claude AI.`
-          : // No AI wording; corrections need every track aligned.
-            `${strategyDetail}${unresolved_track_count === 0 ? " Corrections can be generated for free from MusicBrainz." : ""}`,
+        `${strategyDetail}${unresolved_track_count === 0 ? " Corrections can be generated for free from MusicBrainz." : ""}`,
         trace,
       )}
     >

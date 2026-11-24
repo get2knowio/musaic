@@ -204,22 +204,34 @@ pub fn setup(sb: &Sandbox, conn: &Connection, case: &J) {
         )
         .unwrap();
     }
+    // Old jobs go in the way schema v24 folded them: a history record and
+    // its requests (`research_history::import_legacy_job`).
     for j in case["ai_jobs"].as_array().into_iter().flatten() {
-        conn.execute(
-            &format!(
-                "INSERT INTO ai_jobs (id, album_id, album_path, album_title, job_type, status, result_json, \
-                 created_at) VALUES (?1,?2,'','',?3,?4,?5, strftime('%Y-%m-%dT%H:%M:%SZ', 'now', '{}'))",
-                j["age"].as_str().unwrap()
-            ),
-            rusqlite::params![
-                j["id"].as_str(),
-                j["album_id"].as_str(),
-                j["job_type"].as_str(),
-                j["status"].as_str(),
-                j["result_json"].as_str()
-            ],
-        )
-        .unwrap();
+        let created_at: String = conn
+            .query_row(
+                "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?1)",
+                [j["age"].as_str().unwrap()],
+                |r| r.get(0),
+            )
+            .unwrap();
+        let job = musaic_db::research_history::JobRow {
+            id: j["id"].as_str().unwrap().into(),
+            album_id: j["album_id"].as_str().unwrap().into(),
+            album_path: String::new(),
+            album_title: String::new(),
+            job_type: j["job_type"].as_str().unwrap().into(),
+            hint: String::new(),
+            status: j["status"].as_str().unwrap().into(),
+            result_json: j["result_json"].as_str().map(Into::into),
+            error: None,
+            acted_on_action: None,
+            created_at,
+            started_at: None,
+            completed_at: None,
+            acted_on_at: None,
+            attach_cover: true,
+        };
+        musaic_db::research_history::import_legacy_job(conn, &job).unwrap();
     }
     for (k, v) in case["settings"].as_object().into_iter().flatten() {
         conn.execute(

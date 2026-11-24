@@ -31,8 +31,7 @@ pub fn app_with(more: impl FnOnce(AppBuilder) -> AppBuilder) -> (App, Scratch) {
         .network(Network::Offline)
         .subscribers(false)
         .auto_snapshot(false)
-        .check_sweep(false)
-        .ai_worker(false);
+        .check_sweep(false);
     let app = more(builder).build().expect("app builds");
     (app, Scratch { tmp, config })
 }
@@ -297,4 +296,85 @@ pub fn agent_err_code(e: &AgentError) -> String {
         AgentError::ChangedSince { .. } => "CHANGED_SINCE".into(),
         AgentError::Op(_) => "OP".into(),
     }
+}
+
+/// Makes `n` more albums with an open finding of `check`: each a copy of the
+/// album of that check's first open finding (its row and its finding), in a
+/// new empty folder under `library`. For bulk runs at scale without copying
+/// audio. Returns the new album ids.
+#[allow(dead_code)] // not every test binary that includes this module calls it
+pub fn clone_finding_albums(app: &App, library: &Path, check: &str, n: usize) -> Vec<String> {
+    let conn = musaic_db::open_connection(app.db_path()).unwrap();
+    let (finding, album): (i64, String) = conn
+        .query_row(
+            "SELECT id, album_id FROM check_findings WHERE check_id=?1 AND album_id IS NOT NULL
+               AND resolved_at IS NULL ORDER BY id LIMIT 1",
+            [check],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    let columns = |table: &str| -> Vec<String> {
+        let mut stmt = conn
+            .prepare(&format!("SELECT name FROM pragma_table_info('{table}')"))
+            .unwrap();
+        stmt.query_map([], |r| r.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    };
+    let album_cols = columns("albums");
+    let finding_cols: Vec<String> = columns("check_findings")
+        .into_iter()
+        .filter(|c| c != "id")
+        .collect();
+    let pick = |cols: &[String], subst: &[(&str, &str)]| -> String {
+        cols.iter()
+            .map(|c| {
+                subst
+                    .iter()
+                    .find(|(name, _)| name == c)
+                    .map_or(c.clone(), |(_, v)| (*v).to_string())
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    let album_sql = format!(
+        "INSERT INTO albums ({}) SELECT {} FROM albums WHERE id=?4",
+        album_cols.join(","),
+        pick(
+            &album_cols,
+            &[("id", "?1"), ("path", "?2"), ("dir_name", "?3")]
+        )
+    );
+    let finding_sql = format!(
+        "INSERT INTO check_findings ({}) SELECT {} FROM check_findings WHERE id=?2",
+        finding_cols.join(","),
+        pick(&finding_cols, &[("album_id", "?1")])
+    );
+    // The stored spelling of the library folder (resolved, as a scan wrote it).
+    let stored: String = conn
+        .query_row("SELECT path FROM albums WHERE id=?1", [&album], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let parent = Path::new(&stored).parent().unwrap().to_path_buf();
+    let tx = musaic_db::immediate(&conn).unwrap();
+    let mut ids = Vec::with_capacity(n);
+    for i in 0..n {
+        let id = format!("{:016x}", 0xb000_0000_0000_0000u64 + i as u64);
+        let dir_name = format!("Bulk Artist - Album {i:04} [FLAC]");
+        let dir = library.join(&dir_name);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = parent.join(&dir_name);
+        tx.execute(
+            &album_sql,
+            rusqlite::params![id, path.to_str().unwrap(), dir_name, album],
+        )
+        .unwrap();
+        tx.execute(&finding_sql, rusqlite::params![id, finding])
+            .unwrap();
+        ids.push(id);
+    }
+    tx.commit().unwrap();
+    ids
 }

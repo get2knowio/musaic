@@ -79,25 +79,15 @@ pub async fn put_ui_prefs(State(st): State<AppState>, body: Bytes) -> ApiResult 
 
 pub async fn patch_settings(State(st): State<AppState>, body: Bytes) -> ApiResult {
     let mut f = Fields::required(parse_json_body(&body)?)?;
-    let max_parallel = f.opt_int("ai_max_parallel");
-    let paused = f.opt_bool("ai_queue_paused");
-    let provider = f.opt_str("ai_provider_id");
-    let model = f.opt_str("ai_model_id");
-    let ai_key = f.opt_str("ai_api_key");
+    // The retired provider and key settings are not read: like any unknown
+    // key, they are ignored.
     let acoustid = f.opt_str("acoustid_api_key");
-    let firecrawl = f.opt_str("firecrawl_api_key");
     let retention = f.opt_int("snapshot_retention_count");
     let interval = f.opt_float("snapshot_min_interval_hours");
     let tpl = TEMPLATE_KEYS.map(|k| (k, f.opt_str(k)));
     f.finish()?;
     let patch = SettingsPatch {
-        max_parallel,
-        paused,
-        provider,
-        model,
-        ai_key,
         acoustid,
-        firecrawl,
         retention,
         interval,
         tpl,

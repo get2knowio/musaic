@@ -11,13 +11,16 @@ const TEST_SERVICE: &str = "musaic-keyring-test";
 #[ignore = "touches the real OS keyring"]
 fn os_keyring_round_trip() {
     let store = OsKeyring::new(TEST_SERVICE);
-    store.delete("ai_api_key").unwrap();
-    assert_eq!(store.get("ai_api_key").unwrap(), None);
-    set_secret(&store, "ai_api_key", " test-key-not-real ").unwrap();
-    assert_eq!(secret(&store, "ai_api_key").unwrap(), "test-key-not-real");
-    set_secret(&store, "ai_api_key", "").unwrap();
-    assert_eq!(store.get("ai_api_key").unwrap(), None);
-    store.delete("ai_api_key").unwrap(); // absent: still Ok
+    store.delete("acoustid_api_key").unwrap();
+    assert_eq!(store.get("acoustid_api_key").unwrap(), None);
+    set_secret(&store, "acoustid_api_key", " test-key-not-real ").unwrap();
+    assert_eq!(
+        secret(&store, "acoustid_api_key").unwrap(),
+        "test-key-not-real"
+    );
+    set_secret(&store, "acoustid_api_key", "").unwrap();
+    assert_eq!(store.get("acoustid_api_key").unwrap(), None);
+    store.delete("acoustid_api_key").unwrap(); // absent: still Ok
 }
 
 #[test]
@@ -30,17 +33,17 @@ fn os_keyring_migration_from_a_database() {
     let (db, _) = Db::open(&p).unwrap();
     settings::set_raw(
         db.connection(),
-        "firecrawl_api_key",
-        "test-firecrawl-key-not-real",
+        "acoustid_api_key",
+        "test-acoustid-key-not-real",
     )
     .unwrap();
     let store = OsKeyring::new(TEST_SERVICE);
     let r = musaic_secrets::migrate_settings_secrets(&db, &store).unwrap();
-    assert_eq!(r.moved, vec!["firecrawl_api_key"]);
+    assert_eq!(r.moved, vec!["acoustid_api_key"]);
     assert_eq!(
-        settings::get_raw(db.connection(), "firecrawl_api_key").unwrap(),
+        settings::get_raw(db.connection(), "acoustid_api_key").unwrap(),
         None
     );
     musaic_secrets::clear_all(&store).unwrap();
-    assert_eq!(store.get("firecrawl_api_key").unwrap(), None);
+    assert_eq!(store.get("acoustid_api_key").unwrap(), None);
 }

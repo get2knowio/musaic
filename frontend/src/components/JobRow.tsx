@@ -1,62 +1,26 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowUpRight, CheckCircle2, Clock, Loader2, Pause, Play, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Clock, Loader2, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  useBulkDeleteJobs,
-  useDeleteJob,
-  useQueueState,
-  useResumeQueue,
-  useRetryJob,
-} from "@/hooks/useJobs";
+import { useBulkDeleteJobs, useCancelResearchGroup, useDeleteJob } from "@/hooks/useJobs";
 import { ResearchGroup } from "./ResearchGroup";
 import { fmtRelative } from "@/lib/relativeTime";
 import type { Job, JobStatus } from "@/lib/types";
+import { isHistoryOnlyJob } from "@/lib/filters";
 
-/** Pending delete action — drives the confirmation modal. */
+/** Pending remove or cancel action — drives the confirmation modal. */
 export type PendingDelete =
   | { kind: "single"; job: Job }
   | { kind: "bulk"; statuses: JobStatus[]; label: string; count: number };
 
-
-/**
- * Surface the auto-paused state at the top of the Jobs page so the user
- * isn't confused why nothing is dispatching after a failure. Stays mounted
- * across filter changes (rendered between header + filters in JobsPage).
- */
-export function PausedBanner({ aiReady }: { aiReady: boolean }) {
-  const { data: queueState } = useQueueState();
-  const resume = useResumeQueue();
-  if (!queueState?.paused) return null;
-  const remaining = queueState.queued;
-  return (
-    <div className="mx-4 mt-3 mb-1 rounded-md border border-warn/40 bg-warn-soft px-3 py-2.5 flex items-center gap-3 text-sm">
-      <Pause className="w-4 h-4 text-warn shrink-0" />
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-fg">{aiReady ? "AI queue paused after a failure" : "Queue paused after a failure"}</div>
-        <div className="text-xs text-fg-3 mt-0.5">
-          {remaining > 0
-            ? `${remaining} job${remaining === 1 ? "" : "s"} queued behind it. Retry the failed job(s) or resume to keep dispatching.`
-            : "Resume to dispatch any future jobs you queue."}
-        </div>
-      </div>
-      <button
-        onClick={() => resume.mutate(undefined, {
-          onSuccess: () => toast.success("Queue resumed"),
-          onError: () => toast.error("Couldn't resume queue"),
-        })}
-        disabled={resume.isPending}
-        className="h-8 px-3 rounded bg-accent text-accent-fg text-sm font-medium hover:opacity-90 transition disabled:opacity-60 inline-flex items-center gap-1.5 shrink-0"
-      >
-        <Play className="w-3.5 h-3.5" />
-        {resume.isPending ? "Resuming…" : "Resume"}
-      </button>
-    </div>
-  );
+/** A card whose requests are still waiting, held or running: its action is
+ *  Cancel (the research cancel, FR-036), never a delete. An old job's
+ *  history-only record is history whatever status it was left in. */
+function isUnresolved(job: Job): boolean {
+  return (job.status === "queued" || job.status === "running") && !isHistoryOnlyJob(job);
 }
-
 
 export function JobRow({
   job,
@@ -69,7 +33,6 @@ export function JobRow({
   highlight?: boolean;
 }) {
   const navigate = useNavigate();
-  const retry = useRetryJob();
   const [transcriptOpen, setTranscriptOpen] = useState(false);
 
   const onOpen = () => {
@@ -78,28 +41,12 @@ export function JobRow({
     }
   };
 
-  // Running jobs are not deletable — the worker is mid-call and we have no
-  // way to interrupt it. Disable the trash button rather than letting the
-  // user click and get a server-side 409.
-  const isRunning = job.status === "running";
-  const canRetry = job.status === "failed";
-  // Captured Claude transcript leading up to the failure. Only present on
-  // failed jobs whose worker call streamed at least one assistant message
-  // before erroring out — empty for the rate-limit "exit code 1 from
-  // first turn" case (nothing was said yet).
+  // A waiting or running request is cancelled; a finished record is
+  // removed from the history. Both go through the confirmation dialog.
+  const unresolved = isUnresolved(job);
+  // The transcript an older record kept of a failed attempt, if any.
   const failureExcerpt =
     job.status === "failed" ? job.result?.failure_excerpt ?? null : null;
-
-  const onRetry = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    retry.mutate(job.id, {
-      onSuccess: () => toast.success(`Retrying ${jobTypeLabel(job.job_type).toLowerCase()}…`, { duration: 2500 }),
-      onError: (err) => {
-        const e = err as Error & { status?: number };
-        toast.error(e.message || "Couldn't retry job");
-      },
-    });
-  };
 
   if (job.result?.delegated) return <ResearchGroup job={job} />;
 
@@ -167,9 +114,9 @@ export function JobRow({
               // for diagnosing WHERE a stuck/failed job got
               // wedged — e.g. "→ WebFetch musicbrainz.org/..." with
               // no following ← entry means MB never responded.
-              title={transcriptOpen ? "Hide transcript" : "Show what Claude said + which tools it called"}
+              title={transcriptOpen ? "Hide transcript" : "Show what was said and which tools were called"}
             >
-              {transcriptOpen ? "▾" : "▸"} {transcriptOpen ? "Hide" : "Show"} Claude's transcript
+              {transcriptOpen ? "▾" : "▸"} {transcriptOpen ? "Hide" : "Show"} transcript
             </button>
           )}
         </div>
@@ -178,29 +125,16 @@ export function JobRow({
           {fmtRelative(job.completed_at || job.started_at || job.created_at)}
         </span>
         <div className="flex items-center justify-end gap-0.5">
-          {canRetry && (
-            <button
-              onClick={onRetry}
-              disabled={retry.isPending}
-              className="w-7 h-7 grid place-items-center rounded text-fg-4 hover:bg-bg-3 hover:text-accent transition disabled:opacity-50"
-              title="Retry this job"
-              aria-label="Retry job"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-            </button>
-          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (isRunning) return;
               onRequestDelete(job);
             }}
-            disabled={isRunning}
-            className="w-7 h-7 grid place-items-center rounded text-fg-4 hover:bg-bg-3 hover:text-err transition disabled:opacity-30 disabled:cursor-not-allowed"
-            title={isRunning ? "Can't delete a job while it's running" : "Delete job"}
-            aria-label={isRunning ? "Can't delete a running job" : "Delete job"}
+            className="w-7 h-7 grid place-items-center rounded text-fg-4 hover:bg-bg-3 hover:text-err transition"
+            title={unresolved ? "Cancel this research request" : "Remove from the history"}
+            aria-label={unresolved ? "Cancel research request" : "Remove from history"}
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            {unresolved ? <XCircle className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
@@ -219,60 +153,75 @@ export function JobRow({
 }
 
 /**
- * Confirmation modal for any delete (single row or bulk header button).
- * Closes itself on confirm/cancel; surfaces server errors via toast.
+ * Confirmation modal for a row's action or the bulk header button. A
+ * waiting or running request is cancelled through the research cancel
+ * (`POST /api/ai/jobs/{id}/cancel`, FR-036); only finished history is
+ * removed. Closes itself on confirm/cancel; surfaces server errors (a 409
+ * says nothing was left to cancel or remove) via toast. The `work` event
+ * family refreshes the lists, so nothing is invalidated here (rule 5).
  */
 export function DeleteConfirmDialog({
   pending,
   onClose,
-  aiReady,
 }: {
   pending: PendingDelete | null;
   onClose: () => void;
-  aiReady: boolean;
 }) {
   const deleteJob = useDeleteJob();
   const bulkDelete = useBulkDeleteJobs();
+  const cancelGroup = useCancelResearchGroup();
   const open = pending !== null;
-  const isPending = deleteJob.isPending || bulkDelete.isPending;
+  const isPending = deleteJob.isPending || bulkDelete.isPending || cancelGroup.isPending;
+  const cancelling = pending?.kind === "single" && isUnresolved(pending.job);
 
   const onConfirm = async () => {
     if (!pending) return;
     try {
       if (pending.kind === "single") {
-        await deleteJob.mutateAsync(pending.job.id);
+        if (isUnresolved(pending.job)) {
+          await cancelGroup.mutateAsync(pending.job.id);
+        } else {
+          await deleteJob.mutateAsync(pending.job.id);
+        }
       } else {
         await bulkDelete.mutateAsync(pending.statuses);
       }
       onClose();
     } catch (err) {
       const e = err as Error & { status?: number };
+      const fallback = cancelling ? "Couldn't cancel the research request" : "Could not remove it";
       if (e.status === 409) {
-        toast.warning(e.message || "Can't delete a running job", { duration: 4000 });
+        toast.warning(e.message || fallback, { duration: 4000 });
       } else {
-        toast.error(e.message || "Could not delete", { duration: 4000 });
+        toast.error(e.message || fallback, { duration: 4000 });
       }
       onClose();
     }
   };
 
   // Compose the prompt strings.
-  let title = "Delete this job?";
+  let title = "";
   let body = "";
-  let confirmLabel = "Delete";
+  let confirmLabel = "Remove";
+  let busyLabel = "Removing…";
   if (pending?.kind === "single") {
     const j = pending.job;
-    title = "Delete this job?";
-    body =
-      j.status === "completed"
-        ? `This will discard ${aiReady ? "Claude's suggestions" : "the suggestions"} for "${j.album_title || j.album_id}". This can't be undone.`
-        : j.status === "queued"
-        ? `Remove the queued ${jobTypeLabel(j.job_type).toLowerCase()} job for "${j.album_title || j.album_id}" before it runs?`
-        : `Remove the ${j.status} ${jobTypeLabel(j.job_type).toLowerCase()} job for "${j.album_title || j.album_id}" from the list?`;
+    const name = j.album_title || j.album_id;
+    const what = jobTypeLabel(j.job_type).toLowerCase();
+    if (cancelling) {
+      title = "Cancel this research request?";
+      body = `Cancel the ${what} research for "${name}"? Anything waiting or in progress for it stops; a proposal already waiting for review stays.`;
+      confirmLabel = "Cancel request";
+      busyLabel = "Cancelling…";
+    } else {
+      title = "Remove from the history?";
+      body = `Remove the ${STATUS_WORD[j.status]} ${what} research for "${name}" from the history? The album is not changed. This can't be undone.`;
+    }
   } else if (pending?.kind === "bulk") {
-    title = `Delete ${pending.count} ${pending.label} job${pending.count === 1 ? "" : "s"}?`;
-    body = `This will permanently remove ${pending.count} ${pending.label} job${pending.count === 1 ? "" : "s"} from the list. This can't be undone.`;
-    confirmLabel = `Delete ${pending.count}`;
+    const records = `record${pending.count === 1 ? "" : "s"}`;
+    title = `Remove ${pending.count} ${pending.label} ${records}?`;
+    body = `This will permanently remove ${pending.count} ${pending.label} ${records} from the history. Albums are not changed. This can't be undone.`;
+    confirmLabel = `Remove ${pending.count}`;
   }
 
   return (
@@ -295,7 +244,7 @@ export function DeleteConfirmDialog({
                 className="h-8 px-3 border border-line rounded text-sm hover:bg-bg-3 transition disabled:opacity-60"
                 disabled={isPending}
               >
-                Cancel
+                {cancelling ? "Keep it" : "Cancel"}
               </button>
             </Dialog.Close>
             <button
@@ -303,7 +252,7 @@ export function DeleteConfirmDialog({
               disabled={isPending}
               className="h-8 px-3 rounded bg-err text-white font-medium text-sm hover:opacity-90 transition disabled:opacity-60"
             >
-              {isPending ? "Deleting…" : confirmLabel}
+              {isPending ? busyLabel : confirmLabel}
             </button>
           </div>
         </Dialog.Content>
@@ -311,6 +260,14 @@ export function DeleteConfirmDialog({
     </Dialog.Root>
   );
 }
+
+const STATUS_WORD: Record<Job["status"], string> = {
+  queued: "queued",
+  running: "running",
+  completed: "finished",
+  failed: "failed",
+  acted_on: "finished",
+};
 
 export function StatusPill({ status, actedOnAction }: { status: Job["status"]; actedOnAction: Job["acted_on_action"] }) {
   if (status === "queued") {
@@ -354,5 +311,8 @@ export function jobTypeLabel(t: Job["job_type"]): string {
     case "metadata":       return "Metadata";
     case "cover":          return "Cover art";
     case "metadata+cover": return "Metadata + cover";
+    // An older history record can name a type this build has no research
+    // for (lyrics); it is shown as stored.
+    default:               return String(t || "Research");
   }
 }

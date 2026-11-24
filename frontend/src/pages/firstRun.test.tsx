@@ -103,7 +103,6 @@ const sweep = (status: CheckSweepStatus["status"]): CheckSweepStatus => ({
 function client(config: AppConfig, opts: { findings?: Finding[]; sweep?: CheckSweepStatus } = {}): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["config"], config);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["jobs"], []);
   qc.setQueryData(["agent", "approvals", "pending"], []);
   qc.setQueryData(["checks"], []);

@@ -19,11 +19,12 @@ The surface lives in `musaic-app`, as the module tree `musaic_app::ops` with one
 per group, reached from an `App` handle (`app.ops()`).
 
 - Every precondition an operation must own is held by `App`: the work gate, the bus, the
-  scan service, the AI queue host, the clock, the secrets store. An operation that takes the
-  guard, acts, publishes and then notifies the job queue can only be written where all four
-  are in reach.
-- `musaic-services` cannot host it: the AI queue host and `ai_jobs_changed()` sit above it,
-  and services run under a guard somebody else took.
+  scan service, the research requests' host (`desktop_research`, the jobs-stream signal),
+  the clock, the secrets store. An operation that takes the guard, acts, publishes and then
+  wakes the jobs stream can only be written where all four are in reach.
+- `musaic-services` cannot host it: the research requests' host and `ai_jobs_changed()`
+  (which wakes the jobs stream) sit above it, and services run under a guard somebody else
+  took.
 - The dependency direction already fits: `musaic-api` and `musaic-desktop` depend on
   `musaic-app`, nothing below does, and a later MCP crate will sit beside `musaic-api`.
   `musaic-app` already has no HTTP dependency (watch channels only, no runtime).
@@ -54,13 +55,15 @@ requirement FR-019.
 ## The inventory
 
 The table below has one row per row of `musaic_api::route_table()`, in registration order.
-**112 rows**: the 71 routes of the Python app, the 39 `EXTRA_ROUTES` (the agent bridge's routes among them), and 2 routing aliases
+**112 rows**: 67 routes of the Python app (its provider list, queue resume, job retry and
+acted-on routes are removed: Musaic has no built-in model, research goes to an assistant
+the user added), the 43 `EXTRA_ROUTES` (the agent bridge's routes among them), and 2 routing aliases
 (`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **108 rows are
 operation-bearing** (each names exactly one operation, which `operations_inventory.rs`
 checks); 4 are HTTP face only (the two aliases and the two static-file routes).
 **11 rows are streamed**: the scan and its follow-only reader, 5 runs (apply, cover upload, analyze, quick-fix-all and
 the conversion, which streams only when asked) and 4 feeds (library events, fingerprint
-pool, check runs, AI jobs). That is 11 streamed operations by name; `apply_changes` and
+pool, check runs, research requests as job cards). That is 11 streamed operations by name; `apply_changes` and
 `upload_cover` are two entry points to one apply run (one event type), and `scan.follow`
 reads the same scan stream as `scan.subscribe`, so there are nine distinct streams.
 
@@ -98,8 +101,8 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `GET` | `/api/albums/{album_id}/tracks` | library | carries behaviour | album resolve; body construction (`album_id`, `tracks`) | `library.tracks` | TrackList of TrackRecord | NoLibrary, NotFound, Failed | no | default |
 | `POST` | `/api/albums/{album_id}/mb-anchor/clear` | library | carries behaviour | guard; publish (inside `library_ops`); body construction (`blocked_mbid`) | `library.clear_mb_anchor` | ClearedAnchor | Busy, NoLibrary, NotFound, Failed, Internal | no | guard, library, album |
 | `GET` | `/api/albums/{album_id}/resolution` | library | carries behaviour | guard although a read (it can store fingerprints and an anchor); album resolve; wording of the notes | `library.resolution` | Resolution | Busy, NoLibrary, NotFound, Failed, Internal | no | query 422, guard, album |
-| `GET` | `/api/settings` | settings | carries behaviour | body construction (`keys_pending_removal` inserted after `keyring_available`, now in `SettingsRecord::new`) | `settings.get` | SettingsRecord | Internal | no | default |
-| `PATCH` | `/api/settings` | settings | carries behaviour | guard; range / provider validation (in the service); `ai_jobs_changed()` notification; fingerprint pool kick when an AcoustID key was set; body construction | `settings.patch` | SettingsRecord | Rejected, Busy, Unavailable, Internal | no | body 422, guard, apply, notify jobs, kick pool, body. Values are checked after the guard (a restore running answers 409 even for a bad value, as the route always did) |
+| `GET` | `/api/settings` | settings | carries behaviour | body construction (`keys_pending_removal` inserted after `keyring_available`, now in `SettingsRecord::new`); the retired model-provider, queue and key fields are not in the body | `settings.get` | SettingsRecord | Internal | no | default |
+| `PATCH` | `/api/settings` | settings | carries behaviour | guard; range validation (in the service); fingerprint pool kick when an AcoustID key was set; body construction; a retired model-provider, queue or key name is ignored like any unknown key (nothing written, no `SettingsChanged`) | `settings.patch` | SettingsRecord | Rejected, Busy, Unavailable, Internal | no | body 422, guard, apply, kick pool, body. Values are checked after the guard (a restore running answers 409 even for a bad value, as the route always did) |
 | `GET` | `/api/prompts/acoustid` | settings | thin adapter | body construction | `settings.acoustid_prompt` | AcoustidPrompt | Internal | no | default |
 | `POST` | `/api/prompts/acoustid/dismiss` | settings | carries behaviour | guard; publish `SettingsChanged` in the handler; body construction | `settings.dismiss_acoustid_prompt` | AcoustidPrompt | Busy, Internal | no | guard, write, publish |
 | `GET` | `/api/ui-prefs` | settings | thin adapter | body construction (range filtering of stored values) | `settings.ui_prefs` | UiPrefs | Internal | no | default |
@@ -141,32 +144,32 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `PATCH` | `/api/vocabulary/{tag}` | tags | carries behaviour | guard | `tags.patch_vocabulary_entry` | Vocabulary | Busy, Rejected, Conflict (several entries fold to the tag), Internal | no | body 422, guard, patch |
 | `POST` | `/api/vocabulary/{tag}/merge` | tags | carries behaviour | guard | `tags.merge_vocabulary_entry` | VocabularyMerged | Busy, Rejected, Internal | no | body 422, guard, merge |
 | `POST` | `/api/vocabulary/{tag}/rename` | tags | carries behaviour | guard | `tags.rename_vocabulary_entry` | VocabularyRenamed | Busy, Rejected, Conflict (the new name is taken), Internal | no | body 422, guard, rename |
-| `POST` | `/api/checks/{check_id}/findings/{finding_id}/fix` | fixes | thin adapter | guard (`Other`) before the lookup; fix flow; job enqueue inside it; `ai_jobs_changed()` after a fix that enqueued, once the guard is released | `fixes.fix` | FixResult | Busy, NotFound, Rejected (check not registered, no fix path), Internal | no | path int 422, body 422, guard, lookup, fix, notify jobs only if a job was enqueued |
-| `POST` | `/api/checks/{check_id}/quick-fix-all` | fixes | thin adapter | guard (`QuickFixAll`); unknown check; the loop under `in_bulk_run`; the pause hook (a test seam); one `BulkBatchCompleted` | `fixes.quick_fix_all` | QuickFixEnd (`Finished(QuickFixSummary)`, the `done` item, or `Stopped`) | Busy, NotFound, Internal | run | guard, unknown check (404), then the stream. A loop that fails is an `error` item; a database failure before the first item is an `error` item too |
+| `POST` | `/api/checks/{check_id}/findings/{finding_id}/fix` | fixes | thin adapter | guard (`Other`) before the lookup; fix flow; what the resolver cannot settle becomes a research request (every build delegates; "Research requested. You can follow it in Review."), whose commit publishes `AgentStateChanged(work)` | `fixes.fix` | FixResult | Busy, NotFound, Rejected (check not registered, no fix path), Conflict (album Missing), Internal | no | path int 422, body 422, guard, lookup, fix, request |
+| `POST` | `/api/checks/{check_id}/quick-fix-all` | fixes | thin adapter | guard (`QuickFixAll`); unknown check; the loop under `in_bulk_run`; the pause hook (a test seam); one `BulkBatchCompleted`. With `research=1` (the face reads the flag): Missing albums skipped before the resolver; an album of the four research-capable checks the resolver cannot settle becomes one research request in the run's batch (its own transaction with audit, outbox and event rows; the batch row with the first), an album with an unresolved request of that kind is counted as already requested; `AgentStateChanged(work)` published every 128 requests and at the end; the batch's `finished_at` written only when the run reaches `done`; the `done` item gains `sent_for_research`, `already_requested`, `batch_id` | `fixes.quick_fix_all` | QuickFixEnd (`Finished(QuickFixSummary)`, the `done` item, or `Stopped`) | Busy, NotFound, Internal | run | guard, unknown check (404), then the stream. A loop that fails is an `error` item; a database failure before the first item is an `error` item too |
 | `POST` | `/api/checks/filename-mismatch/findings/{finding_id}/apply` | fixes | thin adapter | guard; env assembly; a refusal carries the rename code's `reason_code` and `user_message` as typed details | `fixes.apply_filename_rename` | RenameOutcome | Busy, NotFound, Rejected, Conflict (Missing album; a rename that did nothing, with details), Internal | no | path int 422, body 422, guard, rename |
 | `POST` | `/api/checks/duplicate-tracks/findings/{finding_id}/delete-file` | fixes | thin adapter | guard; env assembly | `fixes.delete_duplicate_file` | DuplicateDeleted | Busy, NotFound, Rejected, Conflict (album folder unreachable), Internal | no | path int 422, body 422, guard, delete |
 | `POST` | `/api/checks/inconsistent-artist-sort/findings/{finding_id}/apply-sort` | fixes | thin adapter | guard; env assembly | `fixes.apply_cluster_sort` | SortResult | Busy, NotFound, Rejected, Internal | no | path int 422, body 422, guard, apply |
 | `POST` | `/api/checks/multi-disc-layout/findings/{finding_id}/convert` | fixes | thin adapter | guard (`Apply`); the `Accept: text/event-stream` choice between JSON and stream stays HTTP; convert env with a typed progress report (droppable); a refusal carries `reason_code`, `user_message`, `blockers` or the fresh `digest` as typed details | `fixes.convert_multi_disc` | ConversionRecord (the answer is the return value; the sink hears `Started`, then `Progress`) | Busy, Rejected, NotFound, Conflict (with details), Failed (with details), Internal | run | path int 422, body 422 (`digest`), guard, convert (re-derives the plan, refuses on a stale digest). With an `Accept` stream a refusal after the guard is a `refused` item, not a status |
 | `POST` | `/api/checks/multi-disc-layout/findings/{finding_id}/abandon-conversion` | fixes | thin adapter | guard (`Apply`); same refusal details | `fixes.abandon_multi_disc` | AbandonRecord | Busy, Rejected, NotFound, Conflict (with details), Failed (with details), Internal | no | path int 422, guard, abandon |
-| `GET` | `/api/research/work` | jobs | thin adapter | reads rows only (queued, claimed, running, awaiting review, failed, cancelled; current library epoch), writes nothing and touches no file, so a Missing album's work is listed; the last error is bounded and cleaned; `waitingForAgent` is queued work while no active pairing has a subscription | `jobs.delegated_work` | list of DelegatedItem | Internal | no | default |
+| `GET` | `/api/research/work` | jobs | thin adapter | reads rows only (queued, claimed, running, awaiting review, failed, cancelled; current library epoch; batched items included, each with its `groupId` and `batchId`), writes nothing and touches no file, so a Missing album's work is listed; the last error is bounded and cleaned; `waitingForAgent` is queued work while no active pairing has a subscription | `jobs.delegated_work` | list of DelegatedItem | Internal | no | default |
 | `GET` | `/api/research/groups/{group}` | jobs | thin adapter | jobs | `jobs.research_items` | Work and result summaries for one desktop review group | Database failure | no | desktop |
 | `POST` | `/api/research/{id}/preview/{digest}` | jobs | thin adapter | jobs | `jobs.research_preview` | Current diff and preview digest | Stale context, verification pending | no | desktop |
 | `POST` | `/api/research/{id}/decision` | jobs | thin adapter | jobs | `jobs.research_decide` | Apply, discard or retry outcome | Stale revision, partial write | no | desktop |
-| `GET` | `/api/ai/jobs` | jobs | thin adapter | status list splitting (values not trimmed; the HTTP face splits, the operation takes a slice); body construction | `jobs.list` | Vec of Job | Internal | no | default |
-| `POST` | `/api/ai/jobs` | jobs | thin adapter | guard; job-type check before the database; enqueue; 409 body carries the existing job; notification (in the operation) | `jobs.enqueue` | Job | Rejected, Busy, NotFound, Conflict (with the existing job), Internal | no | body 422, guard, job type (400), enqueue (404, 409) |
-| `DELETE` | `/api/ai/jobs` | jobs | thin adapter | guard; status-list meaning (400, 409 for `running`); notification | `jobs.delete_many` | DeletedJobs (count and statuses) | Rejected, Busy, Conflict, Internal | no | status missing 422, guard, status list (400), delete (409), notify jobs |
-| `GET` | `/api/ai/jobs/stream` | jobs | thin adapter | stream assembly: subscribe before the first snapshot, `jobs` frame per change, ping | `jobs.feed` | Feed of Result of JobsList | none | feed | default |
+| `GET` | `/api/research/batches` | jobs | thin adapter | reads rows only: every batch with a request left, any library epoch, newest first; counts by state derived from the items; `unfinished` when the run that made it neither finished nor still runs | `jobs.research_batches` | Vec of BatchSummary | Internal | no | default |
+| `GET` | `/api/research/batches/{batch_id}` | jobs | thin adapter | reads rows only: the batch and every item (any epoch and state; Missing albums listed) | `jobs.research_batch` | BatchDetail | NotFound, Internal | no | default |
+| `POST` | `/api/research/batches/{batch_id}/cancel` | jobs | carries behaviour | guard; every queued, claimed or running item of the batch cancelled in one transaction (an audit, outbox and event-history row each); awaiting review and finished items untouched; `AgentStateChanged(work)` after the commit | `jobs.cancel_research_batch` | BatchCancelled (BatchSummary and `cancelled`) | Busy, NotFound, Internal | no | guard, batch (404), cancel |
+| `POST` | `/api/ai/jobs/{job_id}/cancel` | jobs | carries behaviour | guard; every queued, claimed or running item of one job card (group id, old group id, or the old job id its requests name) cancelled in one transaction, as "Cancel research" does (an audit, outbox and event-history row each); awaiting review and finished items untouched; `AgentStateChanged(work)` after the commit (FR-036) | `jobs.cancel_research_group` | GroupCancelled (`id`, `cancelled`) | Busy, NotFound, Conflict (nothing waiting or held, or an old job's history record), Internal | no | guard, card (404), cancel (409) |
+| `GET` | `/api/ai/jobs` | jobs | thin adapter | the research requests as job cards (one per request group, in the Python app's job shape) and the history records of old jobs; status list splitting (values not trimmed; the HTTP face splits, the operation takes a slice); body construction; a card whose requests all belong to a batch is left out (the batch is listed by `/api/research/batches`) | `jobs.list` | Vec of Job | Internal | no | default |
+| `POST` | `/api/ai/jobs` | jobs | thin adapter | guard; job-type check before the database; the resolver first, then a research request for what it cannot settle (audit, outbox and event rows in one transaction); an unresolved request of the same album and kind is answered with its card instead of a new one; notification (in the operation) | `jobs.enqueue` | Job | Rejected, Busy, NotFound, Conflict (the album is Missing), Internal | no | body 422, guard, job type (400), album (404), Missing (409), enqueue |
+| `DELETE` | `/api/ai/jobs` | jobs | thin adapter | guard; status-list meaning (400, 409 for `running`, `queued`, `completed`); over the single store: `acted_on` removes applied and discarded requests, `failed` failed and cancelled ones (each with attempts, results and replays, multi-item claim replays included), the history records they leave unlinked and the history-only records of that status; a batch left with no request goes too; the count is requests plus history-only records; notification | `jobs.delete_many` | DeletedJobs (count and statuses) | Rejected, Busy, Conflict, Internal | no | status missing 422, guard, status list (400), delete (409), notify jobs |
+| `GET` | `/api/ai/jobs/stream` | jobs | thin adapter | the research requests feed (job cards); stream assembly: subscribe before the first snapshot, `jobs` frame per change, ping; the frame's `queue_state` carries `clearable` (what Clear would remove, in requests) | `jobs.feed` | Feed of Result of JobsList | none | feed | default |
 | `DELETE` | `/api/ai/jobs/stream` | HTTP face only | carries behaviour | routing alias: Starlette sends it to `DELETE /api/ai/jobs/{job_id}` with id `stream`; no operation of its own | - | - | - | no | as DELETE /api/ai/jobs/{job_id} |
-| `GET` | `/api/ai/jobs/active/{album_id}` | jobs | thin adapter | body construction (job or null) | `jobs.active_for_album` | Option of Job | Internal | no | default |
-| `POST` | `/api/ai/jobs/active/{album_id}` | HTTP face only | carries behaviour | routing alias: `acted-on` and `retry` reach the job routes with id `active`; anything else is a 405; no operation of its own | - | - | - | no | as the aliased route |
-| `GET` | `/api/ai/jobs/{job_id}` | jobs | thin adapter | body construction | `jobs.get` | Job | NotFound, Internal | no | default |
-| `DELETE` | `/api/ai/jobs/{job_id}` | jobs | thin adapter | guard; notification | `jobs.delete` | DeletedJob | Busy, NotFound, Conflict (running), Internal | no | guard, delete (404, 409), notify jobs |
-| `POST` | `/api/ai/jobs/{job_id}/acted-on` | jobs | thin adapter | guard; action meaning (400); notification | `jobs.mark_acted_on` | Job | Rejected, Busy, NotFound, Conflict, Internal | no | body 422, guard, action (400), mark (404, 409), notify jobs |
-| `POST` | `/api/ai/jobs/{job_id}/retry` | jobs | thin adapter | guard; notification; 409 body carries the existing job | `jobs.retry` | Job | Busy, NotFound, Conflict (with the existing job), Internal | no | guard, retry (404, 409), notify jobs |
-| `GET` | `/api/ai/jobs/{job_id}/cover-preview` | apply | carries behaviour | job read; cover URL taken from the stored result; remote fetch (`fetch_preview`). Stays HTTP: the response headers (no-store, nosniff, CSP) | `apply.job_cover_preview` | CoverPreview (bytes, mime) | NotFound, Upstream, Internal | no | job, stored URL (404), fetch (502) |
+| `GET` | `/api/ai/jobs/active/{album_id}` | jobs | thin adapter | body construction (job or null); a batched request counts like any other | `jobs.active_for_album` | Option of Job | Internal | no | default |
+| `POST` | `/api/ai/jobs/active/{album_id}` | HTTP face only | carries behaviour | routing alias: always a 405 (the GET route matched by path); the job routes `acted-on` and `retry` it reached in the Python app are gone; no operation of its own | - | - | - | no | 405 |
+| `GET` | `/api/ai/jobs/{job_id}` | jobs | thin adapter | a request group or an old job's history record, as a job card; body construction | `jobs.get` | Job | NotFound, Internal | no | default |
+| `DELETE` | `/api/ai/jobs/{job_id}` | jobs | thin adapter | guard; removes a finished card (its requests, or an old job's history record); notification | `jobs.delete` | DeletedJob | Busy, NotFound, Conflict (the card has an unresolved request: cancel it first), Internal | no | guard, delete (404, 409), notify jobs |
+| `GET` | `/api/ai/jobs/{job_id}/cover-preview` | apply | carries behaviour | card read; cover URL taken from the stored research result (an old job's from its history record); remote fetch (`fetch_preview`). Stays HTTP: the response headers (no-store, nosniff, CSP) | `apply.job_cover_preview` | CoverPreview (bytes, mime) | NotFound, Upstream, Internal | no | job, stored URL (404), fetch (502) |
 | `GET` | `/api/albums/{album_id}/cover-preview` | apply | carries behaviour | album existence and Missing refusal; the cover address derived from the anchor; the fetch; a 404 from the archive means no cover. Stays HTTP: the response headers | `apply.album_cover_preview` | CoverPreview (bytes, mime) | NotFound, Conflict (Missing), Upstream, Internal | no | album (404), Missing (409), anchor URL (404), fetch (502, or 404 when the archive has none) |
-| `POST` | `/api/ai/queue/resume` | jobs | thin adapter | guard; notification (in the operation) | `jobs.resume_queue` | QueueState | Busy, Internal | no | guard, resume |
-| `GET` | `/api/ai/providers` | jobs | thin adapter | body construction | `jobs.providers` | ProviderList | Internal | no | default |
 | `GET` | `/api/agent/pairings` | agent | thin adapter | body construction (never a secret) | `agent.list_pairings` | list of PairingRecord (scopes and the effective decision per permission) | Internal | no | default |
 | `POST` | `/api/agent/pairings` | agent | carries behaviour | name and scope validation; the 20-pairing cap; the secret goes to the OS keyring (service `musaic-agent`) and is never returned; publishes `AgentStateChanged` | `agent.create_pairing` | CreatedPairing (the record and how to connect) | InvalidInput, Conflict (20 active), Unavailable, Internal | no | body, cap, secret stored, row written, publish |
 | `DELETE` | `/api/agent/pairings/{pairing_id}` | agent | carries behaviour | drops the pairing's tokens, deletes its keyring entry, denies the cards waiting on it; publishes `AgentStateChanged` | `agent.revoke_pairing` | PairingRecord | NotFound, Internal | no | pairing, revoke, tokens, secret, cards |
@@ -176,7 +179,7 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `POST` | `/api/agent/approvals/{approval_id}/approve` | agent | carries behaviour | the decision happens once; an apply then runs under the work guard after revalidating everything (revision, files, expiry, pairing); a start spawns its worker; publishes `AgentStateChanged` | `agent.decide_approval` | ApprovalRecord | NotFound, Conflict (no longer pending), Internal | no | card, decision, revalidation, before-image, apply |
 | `POST` | `/api/agent/approvals/{approval_id}/deny` | agent | thin adapter | the decision happens once; nothing is written; publishes `AgentStateChanged` | `agent.decide_approval` | ApprovalRecord | NotFound, Conflict (no longer pending), Internal | no | card, decision |
 | `GET` | `/api/agent/changes` | agent | thin adapter | body construction; whether Undo would run now is derived from the files (state, album present, the files still hold what the change left); nothing is written | `agent.list_changes` | list of ChangeRecord (newest first, at most 20) | NotFound (unknown pairing), Internal | no | query `pairing` (optional) |
-| `GET` | `/api/agent/diagnostics` | agent | thin adapter | desktop only; four facts per pairing with times (paired, bridge reachable, subscription active within 90 s, last work claimed) and the host's report; nothing is written and nothing says "ready" | `agent.diagnostics` | list of PairingDiagnostics | Internal | no | default |
+| `GET` | `/api/agent/diagnostics` | agent | thin adapter | desktop only; four facts per pairing with times, shown in Settings, Assistants as Added, Connected, Listening for work (a subscription active within 90 s) and Last request picked up and the host's report; nothing is written and nothing says "ready" | `agent.diagnostics` | list of PairingDiagnostics | Internal | no | default |
 | `POST` | `/api/agent/changes/{change_id}/undo` | agent | carries behaviour | desktop only (no agent tool); takes the apply guard; refuses a change that is not applied or partial, already undone, an undo itself, on a Missing album, or whose files changed since (listing what); records its own before-image, renames back through the rename service, restores tags, pictures and cover files through the apply pipeline (`AlbumRenamed`, `AlbumTagsChanged`, `AlbumCoverChanged` as any rename and apply), marks the change `undone`, records an activity row, publishes `AgentStateChanged(changes)` | `agent.undo_change` | UndoOutcome (the change, the undo's record id, complete or what was not put back) | NotFound, Restoring, Busy, Conflict (state, Missing album), ChangedSince (409 with `changed`), Unavailable (nothing put back), Internal | no | guard, change, state, album, changed since, saved copies, own before-image, renames, apply, finish |
 | `POST` | `/__musaic/agent/v1/hello` | agent | thin adapter | the agent route guard (loopback peer, exact Host, no Origin, JSON, 256 KiB) | `agent.hello` | HelloResponse (instance id, one-time nonce) | none | no | guard only |
 | `POST` | `/__musaic/agent/v1/exchange` | agent | thin adapter | mutual HMAC proof of the pairing secret; every failure is one `NOT_PAIRED`; lockout after 5 failures in a minute | `agent.exchange` | ExchangeResponse (token, scopes, server proof) | NotPaired, LockedOut | no | guard, lockout, nonce, instance, pairing, secret, proof |
@@ -222,9 +225,9 @@ take the guard before the meaning validation, listed per row and below).
   `data-model.md` says validation first; this route is the exception it allows for.
 - Several handlers answer an error with more than `detail`: the filename rename, the
   multi-disc convert and abandon (`reason_code`, `user_message`, `blockers` or a fresh
-  `digest`, and their own status), and the job enqueue and retry conflicts (the existing
-  job). `OpError::Conflict` needs a way to carry that, or those operations return a typed
-  refusal of their own.
+  `digest`, and their own status), and, until spec 006 removed the job queue, the job
+  enqueue and retry conflicts (the existing job). `OpError::Conflict` needs a way to carry
+  that, or those operations return a typed refusal of their own.
 - Where today's meaning validation answers 400 (scope, UI preferences, job type, snapshot
   name, status list, rename and merge inputs), `contracts/errors.md` maps `InvalidInput` to
   422 and `Rejected` to 400. The Errors column therefore says `Rejected` for those and
@@ -251,10 +254,8 @@ take the guard before the meaning validation, listed per row and below).
   `RestoreError` (including a database failure during the swap) answer 400 today, so
   they are all `Rejected`, not `NotFound` / `Internal`.
 - A failed patch can have written the fields before the refused one (secrets included) and
-  publishes `SettingsChanged` for them; `settings.patch` keeps that, and also wakes the job
-  queue for them (and restarts the fingerprint pool when the AcoustID key was among them),
-  which the route did not: an unpause saved before the refusal took effect only at the
-  queue's next periodic wake (#312).
+  publishes `SettingsChanged` for them; `settings.patch` keeps that, and also restarts the
+  fingerprint pool when the AcoustID key was among them, which the route did not (#312).
 - The backup is written to a scratch directory the result owns (`database.backup`; `backup_to`
   writes into a directory the caller names) and no longer holds the database file lock while the HTTP face reads the copy into its response.
 - `SettingsRecord` keeps `serde_json` (in `record.rs`, the allow-list) because the
@@ -418,32 +419,32 @@ take the guard before the meaning validation, listed per row and below).
   `recording_canonical_golden.rs` pin no moved body and stay (the latter moved in slice 7).
 - `AppState::begin_work_as` is gone (nothing calls it).
 
-- The jobs group (slice 9). `ai_jobs.rs` returns `OpError` (`JobRefusal` / `JobError` / `Conflict`
-  are gone): 400 refusals are `Rejected`, 404 `NotFound` (`Subject::Job`, or `Subject::Album` for an
-  album not in the cache), the 409 refusals `Conflict`. An album with an active job (enqueue, or a
-  retry whose album has another) is `Conflict` with `Details::ExistingJob`, and
-  `render::jobs::job_error` renders it as the `{"detail": {error, message, existing_job_id,
-  existing_status}}` body. A job is the database row (`Job` = `musaic_db::ai_jobs::JobRow`), not a
-  record newtype: it holds no document; `render::jobs` builds the Python app's key order
-  (`job_to_py`, whose `result` is parsed there). The check fix's own enqueue (`enqueue_for_fix`)
-  keeps its "an active job is an answer" shape and calls the database directly.
-- Every writer takes the guard first (a restore running answers 409 even for a bad job type, status
-  list or action, as the routes always did) and wakes the feeds itself: the services still take a
-  `notify` callback (the acted-on test in `musaic-services` pins it), and the operation passes
-  `ai_jobs_changed()`. A refusal, an enqueue that met an active job and a bulk delete that matched
-  no row wake nobody.
+- The jobs group (slice 9, then spec 006). Since spec 006 there is no job queue: the job routes
+  answer from the delegated-work store, where each research request group is a job card and each
+  old job is a `research_history` row (`Job` = `musaic_db::research_history::JobRow`, built from a
+  history row or by `desktop_research::group`; `render::jobs` builds the Python app's key order
+  through `job_to_py`). The helpers the operations share (`check_job_type`, `album_for_job`,
+  `bulk_delete_statuses`) are in `musaic_services::research_request`. 400 refusals are
+  `Rejected`, 404 `NotFound` (`Subject::Job`, or `Subject::Album` for an album not in the cache),
+  the 409 refusals `Conflict`. An enqueue that meets an unresolved request of the same album and
+  kind answers that request's card. `Details::ExistingJob` and `render::jobs::job_error` stay for
+  the Python app's 409 body shape, which no operation produces any more.
+- Every writer takes the guard first (a restore running answers 409 even for a bad job type or
+  status list, as the routes always did) and wakes the feeds itself with `ai_jobs_changed()`; a
+  request's own commit also publishes `AgentStateChanged(work)` through the outbox. A refusal, an
+  enqueue that met an unresolved request and a bulk delete that matched nothing wake nobody.
 - `jobs.feed()` is `Feed<Result<JobsList, OpError>>`, not `Feed<JobsList>`: a value reads the
   database, and today's stream answers a failure of the first read as an error response and skips a
   later one. The route reads the first value before the response begins and keeps the channel
-  capacity (2) and the ping. The `jobs` frame is `Py::dumps` text, as before.
+  capacity (2) and the ping. The `jobs` frame is `Py::dumps` text, as before; its `queue_state`
+  is fixed at `paused: false`, `max_parallel: 1` and carries `clearable`.
 - `jobs.delete_many` takes a slice of statuses (the HTTP face splits the query on `,`); trimming and
-  dropping blanks are the operation's. There is no cancel operation: no route cancels a job, the
-  inventory's `acted-on` and `retry` are the ones that change a finished job.
-- `musaic_app::jobs` keeps only `App::ai_provider_infos`, `ai_provider_ids` and `subscribe_jobs`
-  (`ai_provider_infos` and `ai_provider_ids` are `pub(crate)` now; the settings and fixes tests call `subscribe_jobs`); `job_body`, `jobs_body`, `conflict_body`, `deleted_body`,
-  `bulk_deleted_body`, `jobs_stream_payload`, `App::enqueue_job`, `enqueue_job_for_fix`,
-  `resume_queue` and `ai_providers` are gone. `AppState::begin_work` and `conn` lost their last
-  callers and are deleted with them.
+  dropping blanks are the operation's. Unresolved research is cancelled, never deleted:
+  `jobs.cancel_research_group` (`POST /api/ai/jobs/{job_id}/cancel`) and
+  `jobs.cancel_research_batch` do it, and `delete`, `delete_many` refuse it with `Conflict`.
+- `musaic_app::jobs` keeps only `subscribe_jobs` (the settings and fixes tests call it) and the
+  library-change notice; the provider list, the queue resume, the job retry and acted-on
+  operations went with the built-in model in spec 006.
 
 ## What stays public in `musaic-app`, and why
 
@@ -451,7 +452,7 @@ take the guard before the meaning validation, listed per row and below).
 operation (`self.app.gate().begin_work()`), and `thin_handlers.rs` bans `begin_work` in any
 file under `routes/`. The guard-taking helpers are `pub(crate)`: `start_scan`,
 `scan_and_subscribe`, `cancel_scan`, `cancel_scan_and_wait`, `with_apply_env`,
-`with_analyze_env`, `with_tag_env`, `with_fix_env`, `ai_provider_infos`, `ai_provider_ids`.
+`with_analyze_env`, `with_tag_env`, `with_fix_env`.
 These stay `pub`, because an existing test or another crate calls them:
 
 - `App::with_convert_env`: called by `musaic-api/tests/multi_disc_convert_http.rs` and

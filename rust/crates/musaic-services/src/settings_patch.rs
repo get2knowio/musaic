@@ -1,14 +1,14 @@
-//! `PATCH /api/settings` (`musaic/api/settings.py`): range checks, the provider allowlist, the one transaction with
+//! `PATCH /api/settings` (`musaic/api/settings.py`): range checks, the one transaction with
 //! the secret writes just before it commits (undone when a later write or
 //! the commit fails), the "settings saved" log line, and the fingerprint
 //! pool restart on a new AcoustID key. This lives here rather than in
 //! musaic-api's `routes/settings.rs` so a non-HTTP face changes
 //! settings the same way. The host parses the request into a
-//! [`SettingsPatch`], takes the restore gate's work guard, passes the
-//! providers it has installed (data, so this crate needs no AI types); a
-//! refusal is an [`OpError`] (`Rejected` for a value out of range or an
-//! unknown provider, `Unavailable` for the keyring, `Internal` for the
-//! database).
+//! [`SettingsPatch`] and takes the restore gate's work guard; a refusal is
+//! an [`OpError`] (`Rejected` for a value out of range, `Unavailable` for
+//! the keyring, `Internal` for the database). The retired provider and key
+//! settings are not fields here: a patch naming them is parsed like any
+//! unknown key (ignored), so nothing is written or published for them.
 
 use musaic_core::pycompat::strip;
 use musaic_db::settings::set_raw;
@@ -21,13 +21,7 @@ use crate::host_log::HostLog;
 /// The fields of one PATCH, as parsed (each `None` when absent).
 #[derive(Debug, Clone, Default)]
 pub struct SettingsPatch {
-    pub max_parallel: Option<i64>,
-    pub paused: Option<bool>,
-    pub provider: Option<String>,
-    pub model: Option<String>,
-    pub ai_key: Option<String>,
     pub acoustid: Option<String>,
-    pub firecrawl: Option<String>,
     pub retention: Option<i64>,
     pub interval: Option<f64>,
     /// The four filename / dir templates, in the Python app's order.
@@ -52,7 +46,7 @@ impl SettingsPatch {
     }
 }
 
-/// A field out of range or an unknown provider. Fields validated before it are
+/// A field out of range. Fields validated before it are
 /// still persisted, secrets included.
 fn invalid(message: impl Into<String>) -> OpError {
     OpError::Rejected {
@@ -94,17 +88,9 @@ impl<'a> SecretWrites<'a> {
     }
 }
 
-/// The `ai_provider_id` the Python app stored by default. Still accepted
-/// (with "") although no provider of that id is listed, so a database the
-/// Python app wrote, and a client that saves the value it read back, keep
-/// working.
-pub const STORED_DEFAULT_PROVIDER_ID: &str = "claude";
-
-/// Apply one PATCH on `conn` (closed before the log line) and `store`,
-/// accepting the `listed_providers` (the ids `GET /api/ai/providers` lists),
-/// [`STORED_DEFAULT_PROVIDER_ID`] and "" as `ai_provider_id`. Logs which
-/// settings changed (never a value). The caller holds the restore
-/// gate's work guard and, on success, wakes the AI queue and calls
+/// Apply one PATCH on `conn` (closed before the log line) and `store`.
+/// Logs which settings changed (never a value). The caller holds the
+/// restore gate's work guard and, on success, calls
 /// [`kick_fingerprint_pool`] when [`SettingsPatch::sets_acoustid_key`].
 ///
 /// Once the transaction has committed, publishes
@@ -116,12 +102,11 @@ pub fn apply_patch(
     conn: Connection,
     store: &dyn musaic_secrets::SecretStore,
     patch: SettingsPatch,
-    listed_providers: &[&str],
     log: &dyn HostLog,
     bus: &musaic_events::Bus,
 ) -> PatchOutcome {
     let mut saved = Vec::new();
-    let result = apply_patch_into(conn, store, patch, listed_providers, log, bus, &mut saved);
+    let result = apply_patch_into(conn, store, patch, log, bus, &mut saved);
     PatchOutcome { saved, result }
 }
 
@@ -139,19 +124,12 @@ fn apply_patch_into(
     conn: Connection,
     store: &dyn musaic_secrets::SecretStore,
     patch: SettingsPatch,
-    listed_providers: &[&str],
     log: &dyn HostLog,
     bus: &musaic_events::Bus,
     saved: &mut Vec<&'static str>,
 ) -> Result<(), OpError> {
     let SettingsPatch {
-        max_parallel,
-        paused,
-        provider,
-        model,
-        ai_key,
         acoustid,
-        firecrawl,
         retention,
         interval,
         tpl,
@@ -171,57 +149,18 @@ fn apply_patch_into(
     let mut keys: Vec<&'static str> = Vec::new();
     let mut secrets: Vec<(&'static str, String)> = Vec::new();
     let outcome = (|| -> Result<(), OpError> {
-        if let Some(n) = max_parallel {
-            if !(1..=8).contains(&n) {
-                return Err(invalid("ai_max_parallel must be between 1 and 8"));
-            }
-            set_raw(&tx, "ai_max_parallel", &n.to_string())?;
-            changed.push(format!("ai_max_parallel={n}"));
-            keys.push("ai_max_parallel");
-        }
-        if let Some(b) = paused {
-            set_raw(&tx, "ai_queue_paused", if b { "1" } else { "0" })?;
-            changed.push(format!("ai_queue_paused={b}"));
-            keys.push("ai_queue_paused");
-        }
-        if let Some(p) = provider {
-            let pid = strip(&p).to_string();
-            let accepted = pid.is_empty()
-                || pid == STORED_DEFAULT_PROVIDER_ID
-                || listed_providers.contains(&pid.as_str());
-            if !accepted {
-                return Err(invalid(format!(
-                    "Unknown or not-installed provider {}. Installed: {}.",
-                    musaic_fsops::py_repr(&pid),
-                    listed_providers.join(", ")
-                )));
-            }
-            set_raw(&tx, "ai_provider_id", &pid)?;
-            changed.push(format!("ai_provider_id={pid}"));
-            keys.push("ai_provider_id");
-        }
-        if let Some(m) = model {
-            set_raw(&tx, "ai_model_id", strip(&m))?;
-            changed.push("ai_model_id".into());
-            keys.push("ai_model_id");
-        }
-        for (key, v) in [
-            ("ai_api_key", ai_key),
-            ("acoustid_api_key", acoustid),
-            ("firecrawl_api_key", firecrawl),
-        ] {
-            if let Some(v) = v {
-                changed.push(format!(
-                    "{key} ({})",
-                    if strip(&v).is_empty() {
-                        "cleared"
-                    } else {
-                        "set"
-                    }
-                ));
-                secrets.push((key, v));
-                keys.push(key);
-            }
+        if let Some(v) = acoustid {
+            let key = "acoustid_api_key";
+            changed.push(format!(
+                "{key} ({})",
+                if strip(&v).is_empty() {
+                    "cleared"
+                } else {
+                    "set"
+                }
+            ));
+            secrets.push((key, v));
+            keys.push(key);
         }
         if let Some(n) = retention {
             if !(0..=100).contains(&n) {

@@ -150,6 +150,26 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
     ),
     (
         "GET",
+        RESEARCH_BATCHES_ROUTE,
+        "the research batches bulk Fix all made, with origin, size and counts by state, so Review and Activity show one entry per batch (spec 006); not a route of the Python app",
+    ),
+    (
+        "GET",
+        RESEARCH_BATCH_ROUTE,
+        "one research batch with its items (spec 006); not a route of the Python app",
+    ),
+    (
+        "POST",
+        RESEARCH_BATCH_CANCEL_ROUTE,
+        "cancel every waiting or held request of a research batch in one action (spec 006); not a route of the Python app",
+    ),
+    (
+        "POST",
+        RESEARCH_GROUP_CANCEL_ROUTE,
+        "cancel the research behind one job card: its waiting or held requests, leaving those awaiting review (spec 006); not a route of the Python app",
+    ),
+    (
+        "GET",
         AGENT_PAIRINGS_ROUTE,
         "the assistants paired with this app, for Settings -> Agents (the agent bridge); not a route of the Python app",
     ),
@@ -301,6 +321,18 @@ pub const MULTI_DISC_CONVERT_ROUTE: &str =
 pub const MULTI_DISC_ABANDON_ROUTE: &str =
     "/api/checks/multi-disc-layout/findings/{finding_id}/abandon-conversion";
 
+/// `GET /api/research/batches` ([`EXTRA_ROUTES`]).
+pub const RESEARCH_BATCHES_ROUTE: &str = "/api/research/batches";
+
+/// `GET /api/research/batches/{batch_id}` ([`EXTRA_ROUTES`]).
+pub const RESEARCH_BATCH_ROUTE: &str = "/api/research/batches/{batch_id}";
+
+/// `POST /api/research/batches/{batch_id}/cancel` ([`EXTRA_ROUTES`]).
+pub const RESEARCH_BATCH_CANCEL_ROUTE: &str = "/api/research/batches/{batch_id}/cancel";
+
+/// `POST /api/ai/jobs/{job_id}/cancel` ([`EXTRA_ROUTES`]).
+pub const RESEARCH_GROUP_CANCEL_ROUTE: &str = "/api/ai/jobs/{job_id}/cancel";
+
 /// `GET /api/checks/sweep` ([`EXTRA_ROUTES`]).
 pub const CHECK_SWEEP_ROUTE: &str = "/api/checks/sweep";
 
@@ -326,7 +358,7 @@ pub const ROUTING_ALIASES: &[(&str, &str, &str)] = &[
     (
         "POST",
         "/api/ai/jobs/active/{album_id}",
-        "POST /api/ai/jobs/{job_id}/acted-on",
+        "GET /api/ai/jobs/active/{album_id}",
     ),
 ];
 
@@ -548,7 +580,7 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         )
         .route(
             "/api/checks/{check_id}/quick-fix-all",
-            post(fixes::quick_fix_all),
+            post(fixes::quick_fix_all).query(&["research"]),
         )
         .route(
             "/api/checks/filename-mismatch/findings/{finding_id}/apply",
@@ -591,10 +623,6 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             "/api/ai/jobs/{job_id}",
             get(jobs::get_job).delete(jobs::delete_job),
         )
-        .route(
-            "/api/ai/jobs/{job_id}/acted-on",
-            post(jobs::mark_job_acted_on),
-        )
         .route("/api/research/work", get(jobs::research_work))
         .route("/api/research/groups/{group}", get(jobs::research_items))
         .route(
@@ -602,7 +630,17 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
             post(jobs::research_preview),
         )
         .route("/api/research/{id}/decision", post(jobs::research_decide))
-        .route("/api/ai/jobs/{job_id}/retry", post(jobs::retry_job))
+        // Not Python app routes: research batches and the card cancel ([`EXTRA_ROUTES`]).
+        .route(RESEARCH_BATCHES_ROUTE, get(jobs::research_batches))
+        .route(RESEARCH_BATCH_ROUTE, get(jobs::research_batch))
+        .route(
+            RESEARCH_BATCH_CANCEL_ROUTE,
+            post(jobs::cancel_research_batch),
+        )
+        .route(
+            RESEARCH_GROUP_CANCEL_ROUTE,
+            post(jobs::cancel_research_group),
+        )
         // Not Python app routes: the cover preview proxy ([`EXTRA_ROUTES`]).
         .route(
             preview::COVER_PREVIEW_ROUTE,
@@ -632,8 +670,6 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         )
         .route(AGENT_UNDO_ROUTE, post(agent::undo_change))
         .route(AGENT_DIAGNOSTICS_ROUTE, get(agent::diagnostics))
-        .route("/api/ai/queue/resume", post(jobs::resume_queue))
-        .route("/api/ai/providers", get(jobs::ai_providers))
         .route("/", get(system::spa_root))
         .route("/{*full_path}", get(system::spa_fallback));
     for (method, path, _) in STUBS {

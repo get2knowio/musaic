@@ -106,7 +106,7 @@ async fn legacy_initialize_list_and_call() {
 
     let list = c.request("tools/list", json!({})).await;
     let tools = list["result"]["tools"].as_array().expect("tools");
-    assert_eq!(tools.len(), 21);
+    assert_eq!(tools.len(), 23);
     let ids: Vec<&str> = tools.iter().map(|t| t["name"].as_str().unwrap()).collect();
     assert_eq!(ids, REGISTRY.iter().map(|t| t.id).collect::<Vec<_>>());
     for t in tools {
@@ -154,7 +154,7 @@ async fn modern_discover_then_stateless_calls() {
         .await;
     assert_eq!(
         list["result"]["tools"].as_array().unwrap().len(),
-        21,
+        23,
         "{list}"
     );
     assert_eq!(list["result"]["resultType"], "complete");

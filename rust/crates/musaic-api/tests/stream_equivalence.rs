@@ -432,6 +432,7 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
         .fixes()
         .quick_fix_all(
             &ca,
+            false,
             &mut collect_into(&mut ops, render::fixes::quick_fix_frame),
         )
         .expect("quick-fix-all through the operation");
@@ -467,6 +468,61 @@ async fn the_quick_fix_all_stream_is_the_rendering_of_the_quick_fix_events() {
         &progress_sorted(keyed(&ops, &ka)),
         &a.norm(&[&ida]),
         &progress_sorted(keyed(&http, &kb)),
+        &b.norm(&[&idb]),
+    );
+}
+
+/// The batch id a `done` frame names, if any.
+fn batch_of(frames: &[String]) -> Option<String> {
+    frames.iter().find_map(|f| {
+        let data = f.lines().find_map(|l| l.strip_prefix("data: "))?;
+        let v: Value = serde_json::from_str(data).ok()?;
+        v.get("batch_id")?.as_str().map(str::to_string)
+    })
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_quick_fix_all_stream_with_research_is_the_rendering_of_its_events() {
+    let (a, b) = (World::new(), World::new());
+    a.configure_and_scan().await;
+    b.configure_and_scan().await;
+    let (ca, cb) = (busiest_check(&a).await, busiest_check(&b).await);
+    assert_eq!(ca, cb);
+    let (ida, idb) = (a.first_album_id().await, b.first_album_id().await);
+    let (ka, kb) = (a.finding_keys(&ca).await, b.finding_keys(&cb).await);
+
+    let mut ops = Vec::new();
+    a.st.ops()
+        .fixes()
+        .quick_fix_all(
+            &ca,
+            true,
+            &mut collect_into(&mut ops, render::fixes::quick_fix_frame),
+        )
+        .expect("quick-fix-all through the operation");
+    let got = call(
+        &b.app,
+        "POST",
+        &format!("/api/checks/{cb}/quick-fix-all?research=1"),
+        None,
+    )
+    .await;
+    assert_eq!(got.status, 200, "{}", got.text());
+    let http = http_frames(&got.text());
+    let done = http.last().expect("a done frame");
+    assert!(done.contains("\"sent_for_research\""), "{done}");
+    // Each copy made its own batch: its id is the one difference.
+    let unbatch = |frames: Vec<String>| -> Vec<String> {
+        match batch_of(&frames) {
+            Some(id) => frames.iter().map(|f| f.replace(&id, "<BATCH>")).collect(),
+            None => frames,
+        }
+    };
+    assert_same_frames(
+        "quick-fix-all research=1",
+        &progress_sorted(unbatch(keyed(&ops, &ka))),
+        &a.norm(&[&ida]),
+        &progress_sorted(unbatch(keyed(&http, &kb))),
         &b.norm(&[&idb]),
     );
 }
@@ -632,7 +688,7 @@ async fn each_feeds_first_http_frame_is_the_rendering_of_its_first_value() {
     let http = first_frames(&w.app, "/api/checks/stream", want.len()).await;
     assert_eq!(http, want);
 
-    // The AI jobs.
+    // The research requests' job cards.
     let mut jobs = w.st.ops().jobs().feed();
     let first = jobs
         .next(Duration::ZERO)

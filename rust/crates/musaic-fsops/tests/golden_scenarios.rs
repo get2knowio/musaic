@@ -153,7 +153,7 @@ impl Ctx {
             "track_tags": sorted(self.rows(conn, "SELECT album_id, filename, tag, created_at FROM track_tags"), &["album_id", "filename", "tag"]),
             "track_fingerprints": sorted(self.rows(conn, "SELECT album_id, filename, fingerprint FROM track_fingerprints"), &["album_id", "filename"]),
             "check_findings": sorted(self.rows(conn, "SELECT check_id, album_id, summary FROM check_findings"), &["check_id", "album_id", "summary"]),
-            "ai_jobs": sorted(self.rows(conn, "SELECT id, album_id FROM ai_jobs"), &["id"]),
+            "ai_jobs": sorted(self.rows(conn, "SELECT id, album_id FROM research_history"), &["id"]),
             "blocklist": sorted(self.rows(conn, "SELECT album_id, release_group_mbid FROM album_blocked_mb_release_groups"), &["album_id", "release_group_mbid"]),
         })
     }
@@ -361,12 +361,27 @@ fn run_scenario(sc: &J, album_cols: &str, delta: Delta) -> usize {
         )
         .unwrap();
     }
+    // Old jobs go in the way schema v24 folded them (a history record and
+    // its request).
     for r in list("ai_jobs") {
-        conn.execute(
-            "INSERT INTO ai_jobs(id, album_id, album_path, job_type, status, created_at) VALUES (?1,?2,?3,'metadata','queued','t')",
-            [s(&r[1]), aid(&cur, s(&r[0])).as_str(), &cur[s(&r[0])].to_string_lossy()],
-        )
-        .unwrap();
+        let job = musaic_db::research_history::JobRow {
+            id: s(&r[1]).into(),
+            album_id: aid(&cur, s(&r[0])),
+            album_path: cur[s(&r[0])].to_string_lossy().into_owned(),
+            album_title: String::new(),
+            job_type: "metadata".into(),
+            hint: String::new(),
+            status: "queued".into(),
+            result_json: None,
+            error: None,
+            acted_on_action: None,
+            created_at: "t".into(),
+            started_at: None,
+            completed_at: None,
+            acted_on_at: None,
+            attach_cover: true,
+        };
+        musaic_db::research_history::import_legacy_job(conn, &job).unwrap();
     }
     for r in list("blocklist") {
         conn.execute(

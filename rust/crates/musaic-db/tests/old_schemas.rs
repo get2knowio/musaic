@@ -280,6 +280,18 @@ fn normalise_delegation_ids(dump: &mut Value) {
             }
         }
     }
+    // The v24 step's clock.
+    if let Some(table) = tables.get_mut("research_history") {
+        let i = table["columns"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .position(|c| c[1] == "migrated_at")
+            .unwrap();
+        for row in table["rows"].as_array_mut().unwrap() {
+            row[i] = json!("<migrated-at>");
+        }
+    }
 }
 
 /// Which delta a comparison used (each must be used by some fixture).
@@ -314,6 +326,11 @@ impl Used {
 ///   changes table and adds an index for review lookup;
 /// * D9 (v22): the delegated work, operation, and Task schema, with legacy jobs mapped;
 ///   v23 appends the delegation event history and host observation tables;
+/// * D10 (v24): the old job table `ai_jobs` and its indexes are dropped,
+///   every row copied verbatim into `research_history` (appended to
+///   `sqlite_master` with `work_batches`, the batch index and the rebuilt
+///   `work_replays`, which leaves its place), and the retired provider
+///   settings rows are deleted;
 /// * D4: `journal_mode` is `wal` on both sides (no delta; listed
 ///   so a change shows up here);
 /// * D5: the v14 step leaves an ignored
@@ -338,10 +355,27 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
     // sqlite_master: same rows in the same order, then D3's two and D6's
     // three.
     let om = ours["sqlite_master"].as_array().unwrap();
-    let tm = theirs["sqlite_master"].as_array().unwrap();
+    // D10: v24 drops the old job table and its indexes.
+    let tm: Vec<Value> = theirs["sqlite_master"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|t| {
+            !delegation_schema::V24_DROPPED
+                .iter()
+                .any(|d| t[1] == json!(d))
+        })
+        .cloned()
+        .collect();
+    let tm = &tm;
     assert_eq!(
         om.len(),
-        tm.len() + 5 + 14 + delegation_schema::OBJECTS.len() + delegation_schema::V23_OBJECTS.len(),
+        tm.len()
+            + 5
+            + 14
+            + delegation_schema::objects_v24().count()
+            + delegation_schema::V23_OBJECTS.len()
+            + delegation_schema::V24_OBJECTS.len(),
         "v{v} sqlite_master length"
     );
     for (o, t) in om.iter().zip(tm) {
@@ -414,9 +448,9 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
     );
     used.hit("D8");
     for (row, (ty, name, table)) in om[tm.len() + 19..].iter().zip(
-        delegation_schema::OBJECTS
-            .iter()
-            .chain(delegation_schema::V23_OBJECTS),
+        delegation_schema::objects_v24()
+            .chain(delegation_schema::V23_OBJECTS)
+            .chain(delegation_schema::V24_OBJECTS),
     ) {
         assert_eq!(
             row.as_array().unwrap()[..3],
@@ -435,12 +469,13 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
             && !n.starts_with("agent_")
             && !delegation_schema::V23_OBJECTS
                 .iter()
+                .chain(delegation_schema::V24_OBJECTS)
                 .any(|(ty, name, _)| *ty == "table" && *name == n.as_str())
             && !delegation_schema::OBJECTS
                 .iter()
                 .any(|(ty, name, _)| *ty == "table" && *name == n.as_str())
     });
-    let mut their_names: Vec<&String> = tt.keys().collect();
+    let mut their_names: Vec<&String> = tt.keys().filter(|n| *n != "ai_jobs").collect();
     names.sort();
     their_names.sort();
     assert_eq!(names, their_names, "v{v} tables");
@@ -457,9 +492,58 @@ fn compare_with_python(v: i64, ours: &Value, used: &mut Used) {
         assert_eq!(ot[agent]["rows"], json!([]), "v{v} {agent}");
     }
     for (name, t) in tt {
+        if name == "ai_jobs" {
+            // D10: every old job, column for column, in `research_history`.
+            let history = &ot["research_history"];
+            let col = |table: &Value, c: &str| {
+                table["columns"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .position(|x| x[1] == c)
+                    .unwrap()
+            };
+            let trows = t["rows"].as_array().unwrap();
+            let orows = history["rows"].as_array().unwrap();
+            assert_eq!(orows.len(), trows.len(), "v{v} research_history rows");
+            for tr in trows {
+                let id = &tr[col(t, "id")];
+                let or = orows
+                    .iter()
+                    .find(|r| &r[col(history, "id")] == id)
+                    .unwrap_or_else(|| panic!("v{v}: job {id} not in research_history"));
+                for c in t["columns"].as_array().unwrap() {
+                    let c = c[1].as_str().unwrap();
+                    assert_eq!(or[col(history, c)], tr[col(t, c)], "v{v} job {id} {c}");
+                }
+            }
+            if !trows.is_empty() {
+                used.hit("D10-rows");
+            }
+            continue;
+        }
         let o = &ot[name];
         if name == "schema_version" {
             assert_eq!(o["columns"], t["columns"]);
+            continue;
+        }
+        if name == "settings" {
+            // D10: the retired provider settings rows are deleted.
+            let retired = [
+                "ai_provider_id",
+                "ai_model_id",
+                "ai_max_parallel",
+                "ai_queue_paused",
+            ];
+            let mut want = t.clone();
+            want["rows"]
+                .as_array_mut()
+                .unwrap()
+                .retain(|r| !retired.iter().any(|k| r[0] == json!(format!("'{k}'"))));
+            if want["rows"] != t["rows"] {
+                used.hit("D10-settings");
+            }
+            assert_eq!(o, &want, "v{v} table {name}");
             continue;
         }
         if name == "check_findings" {
@@ -575,7 +659,19 @@ fn every_old_version_ends_where_the_python_ends_plus_this_builds_deltas() {
         seen_v14_stamp |= ours.to_string().contains(PLACEHOLDER);
     }
     for k in [
-        "D1", "D2-sql", "D2-rows", "D3", "D4", "D5", "D6", "D7-sql", "D7-rows", "D8", "D9",
+        "D1",
+        "D2-sql",
+        "D2-rows",
+        "D3",
+        "D4",
+        "D5",
+        "D6",
+        "D7-sql",
+        "D7-rows",
+        "D8",
+        "D9",
+        "D10-rows",
+        "D10-settings",
     ] {
         assert!(used.0.contains_key(k), "delta {k} never exercised");
     }

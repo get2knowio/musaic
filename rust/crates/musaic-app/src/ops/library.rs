@@ -258,8 +258,9 @@ impl Library<'_> {
             hint,
             force,
         )?;
-        // The trace note names AI only when a provider is ready.
-        r.reword_notes(self.app.ai_wording());
+        // The memoized trace note keeps the Python app's text; it is shown
+        // without naming AI.
+        r.reword_notes();
         Ok(r)
     }
 }

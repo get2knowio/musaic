@@ -83,7 +83,9 @@ fn fresh_schema_equals_the_migrated_python_database() {
 /// Compared with what `db.bootstrap()` itself writes. The only
 /// differences are the migrations' (v17: `fingerprint_impl`; v18: AcoustID
 /// lookup outcome columns and `fingerprint_rejects`; v19: `check_inputs`
-/// and the fingerprint inputs index; v20: two albums columns; v21: the agent tables; v22: durable delegation), enumerated
+/// and the fingerprint inputs index; v20: two albums columns; v21: the agent tables; v22: durable delegation;
+/// v23: event history; v24: the old job table dropped, `research_history`,
+/// `work_batches`, `work_replays` rebuilt), enumerated
 /// here; an unlisted difference or an
 /// unused delta fails.
 #[test]
@@ -104,7 +106,11 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
     // index (v19). Every new
     // text is the one the migrations produce on the Python app's own file.
     let ours = master(conn);
-    let theirs = golden_master(&g);
+    // v24 drops the old job table and its indexes.
+    let theirs: Vec<MasterRow> = golden_master(&g)
+        .into_iter()
+        .filter(|t| !delegation_schema::V24_DROPPED.contains(&t.1.as_str()))
+        .collect();
     let (_d, migrated) = migrated_python_empty();
     // (type, name, words the new SQL must contain, decision)
     let changed: &[(&str, &str, &[&str], &str)] = &[
@@ -196,7 +202,11 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
     let mut used = vec![false; changed.len()];
     assert_eq!(
         ours.len(),
-        theirs.len() + added.len() + delegation_schema::OBJECTS.len() + v23.len()
+        theirs.len()
+            + added.len()
+            + delegation_schema::objects_v24().count()
+            + v23.len()
+            + delegation_schema::V24_OBJECTS.len()
     );
     for (o, t) in ours.iter().zip(&theirs) {
         assert_eq!(
@@ -222,10 +232,13 @@ fn fresh_database_equals_the_python_bootstrap_plus_the_migration_deltas() {
         used.iter().all(|u| *u),
         "unused delta: {changed:?} {used:?}"
     );
-    for (o, (ty, name, table)) in ours[theirs.len()..]
-        .iter()
-        .zip(added.iter().chain(delegation_schema::OBJECTS).chain(v23))
-    {
+    for (o, (ty, name, table)) in ours[theirs.len()..].iter().zip(
+        added
+            .iter()
+            .chain(delegation_schema::objects_v24())
+            .chain(v23)
+            .chain(delegation_schema::V24_OBJECTS),
+    ) {
         assert_eq!((o.0.as_str(), o.1.as_str()), (*ty, *name));
         assert_eq!(o.2, *table);
         let m = migrated.iter().find(|m| m.1 == o.1).unwrap();

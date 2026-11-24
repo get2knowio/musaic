@@ -44,16 +44,16 @@ export interface Album {
   // pair to render the right state.
   mb_release_group_mbid?: string | null;
   mb_last_checked_at?: string | null;
-  // v12 — timestamp of the most recent AI metadata job whose output
+  // v12 — timestamp of the most recent metadata research request whose output
   // the user acted on (applied OR discarded). NULL = the album hasn't
-  // been through an AI metadata pass that the user reviewed yet.
+  // been through a metadata research pass that the user reviewed yet.
   metadata_ai_acted_on_at?: string | null;
   // v15 — presence marker. NULL when the album's directory is on disk;
   // ISO-8601 timestamp when the scanner didn't see it (drive unmount,
   // user moved it, FS hiccup, deleted from another tool). The Library
   // grid greys the tile, the DetailSheet shows a "Missing since X"
   // banner with a "Remove from library" button, and mutation
-  // affordances (Apply, AI, cover upload) disable. The album row +
+  // affordances (Apply, research, cover upload) disable. The album row +
   // computed children (fingerprints, MB anchor, track tags) survive
   // until the user explicitly removes it via DELETE /api/albums/{id}.
   missing_since?: string | null;
@@ -237,7 +237,7 @@ export interface ScanCancelResponse {
 
 export type ApiError = { status: number; detail: string };
 
-// ----- AI suggestions -----
+// ----- Research suggestions -----
 
 export interface TrackSuggestionEntry {
   filename: string;
@@ -251,7 +251,7 @@ export interface MetadataSuggestionResponse {
   notes: string;
   confidence: "low" | "medium" | "high" | "unknown" | string;
   raw_excerpt: string;
-  /** When AI confidently identified the album on MusicBrainz, this is the
+  /** When research confidently identified the album on MusicBrainz, this is the
    *  release-group MBID (already validated UUID + verified live). The MBID
    *  has been persisted server-side by the time the user sees the response;
    *  the field is here purely so the UI can surface "we identified it as X"
@@ -268,14 +268,14 @@ export interface CoverSuggestionResponse {
   raw_excerpt: string;
 }
 
-// ----- AI Job queue -----
+// ----- Research request (job card) -----
 
 export type JobType = "metadata" | "cover" | "metadata+cover";
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "acted_on";
 
 export interface JobResult {
   delegated?: boolean;
-  /** Captured Claude transcript leading up to a failed job. Populated
+  /** Captured assistant transcript leading up to a failed job. Populated
    *  by the worker when the SDK call throws — provides context that
    *  the bare exception message ("exit code 1 …") usually doesn't.
    *  Absent on completed jobs. */
@@ -285,7 +285,7 @@ export interface JobResult {
     tracks: TrackSuggestionEntry[];
     notes: string;
     confidence: string;
-    /** Canonical MusicBrainz release-group MBID, when AI confidently
+    /** Canonical MusicBrainz release-group MBID, when research confidently
      *  identified the album. Validated to UUID format + verified live
      *  against MB before being included here, then persisted server-side
      *  via cache.set_album_mb_anchor as a side-effect of job completion

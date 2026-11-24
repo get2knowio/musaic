@@ -1273,13 +1273,12 @@ async fn refused(setup: impl FnOnce(&World), code: &str) {
 }
 
 fn job(w: &World, dir: &str, status: &str) {
-    w.conn()
-        .execute(
-            "INSERT INTO ai_jobs (id, album_id, album_path, job_type, status, created_at) \
-             VALUES ('job1', ?1, 'x', 'metadata', ?2, 't')",
-            [w.id_of(dir), status.to_string()],
-        )
-        .unwrap();
+    // An old job, as schema v24 folded it.
+    let job = musaic_db::research_history::JobRow {
+        album_path: "x".into(),
+        ..musaic_db::research_history::JobRow::seed("job1", &w.id_of(dir), "metadata", status, "t")
+    };
+    musaic_db::research_history::import_legacy_job(&w.conn(), &job).unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

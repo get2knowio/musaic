@@ -4,6 +4,7 @@
 use rusqlite::{Connection, OptionalExtension, Row, Transaction, params};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
+use crate::research_history::JobRow;
 use crate::{Result, immediate};
 
 const LEASE_MS: i64 = 5 * 60 * 1000;
@@ -36,6 +37,10 @@ pub struct WorkRow {
     pub result_id: Option<String>,
     pub legacy_job_id: Option<String>,
     pub review_reserved: bool,
+    /// The bulk run that made the request (`work_batches.id`); set at insert,
+    /// never changed. Absent from answers saved before v24.
+    #[serde(default)]
+    pub batch_id: Option<String>,
 }
 
 pub(crate) fn work(row: &Row<'_>) -> rusqlite::Result<WorkRow> {
@@ -63,6 +68,7 @@ pub(crate) fn work(row: &Row<'_>) -> rusqlite::Result<WorkRow> {
         result_id: row.get("result_id")?,
         legacy_job_id: row.get("legacy_job_id")?,
         review_reserved: row.get("review_reserved")?,
+        batch_id: row.get("batch_id")?,
     })
 }
 
@@ -107,6 +113,8 @@ pub struct List<'a> {
     pub principal_id: &'a str,
     pub state: Option<&'a str>,
     pub kind: Option<&'a str>,
+    /// Only the items of this batch (an unknown batch lists nothing).
+    pub batch_id: Option<&'a str>,
     pub after: Option<&'a str>,
     pub limit: i64,
 }
@@ -133,52 +141,67 @@ pub(crate) fn migrate_legacy(tx: &Transaction<'_>) -> Result<()> {
         "INSERT INTO library_epoch(singleton, epoch) VALUES (1, ?1)",
         [&epoch],
     )?;
-    let mut stmt = tx.prepare(
-        "SELECT id, album_id, job_type, status, acted_on_action, error,
-                COALESCE(CAST(unixepoch(created_at, 'subsec') * 1000 AS INTEGER),0),
-                COALESCE(CAST(unixepoch(COALESCE(acted_on_at,completed_at,started_at,created_at),
-                          'subsec') * 1000 AS INTEGER),0)
-         FROM ai_jobs ORDER BY created_at, id",
+    let jobs: Vec<JobRow> = {
+        let mut stmt = tx.prepare("SELECT * FROM ai_jobs ORDER BY created_at, id")?;
+        stmt.query_map([], JobRow::from_row)?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    for job in &jobs {
+        link_job(tx, &epoch, job)?;
+    }
+    Ok(())
+}
+
+/// The requests one old job maps to, in `epoch`: one per kind its type
+/// names (`metadata+cover` makes two in one group), each carrying the old
+/// job's id in `legacy_job_id`, its state mapped from the old status and its
+/// times from the old ISO text. A row of a type no kind matches makes none
+/// (it stays a history-only record). The v21 -> v22 step calls it for every
+/// old row in a new epoch; v23 -> v24 for each old row that has no request yet,
+/// in the epoch already there.
+pub(crate) fn link_job(tx: &Connection, epoch: &str, job: &JobRow) -> Result<()> {
+    let legacy = job.id.as_str();
+    let kinds: &[&str] = match job.job_type.as_str() {
+        "metadata" => &["metadata.identify"],
+        "metadata+cover" => &["metadata.identify", "cover.research"],
+        "cover" => &["cover.research"],
+        _ => return Ok(()),
+    };
+    let (state, error) = match (job.status.as_str(), job.acted_on_action.as_deref()) {
+        ("queued" | "running", _) => ("queued", None),
+        ("completed", _) => ("awaiting_review", Some("legacy_result_unconverted")),
+        ("failed", _) => ("failed", job.error.as_deref()),
+        ("acted_on", Some("applied")) => ("applied", None),
+        ("acted_on", _) => ("discarded", None),
+        _ => ("failed", Some("legacy_state_unsupported")),
+    };
+    // The same expressions the v22 step read the old row with, so a time
+    // SQLite cannot parse still becomes 0.
+    let (created, updated): (i64, i64) = tx.query_row(
+        "SELECT COALESCE(CAST(unixepoch(?1, 'subsec') * 1000 AS INTEGER),0),
+                COALESCE(CAST(unixepoch(COALESCE(?2,?3,?4,?1), 'subsec') * 1000 AS INTEGER),0)",
+        params![
+            job.created_at,
+            job.acted_on_at,
+            job.completed_at,
+            job.started_at
+        ],
+        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
-    let mut rows = stmt.query([])?;
-    while let Some(row) = rows.next()? {
-        let legacy: String = row.get(0)?;
-        let album: String = row.get(1)?;
-        let job_type: String = row.get(2)?;
-        let kinds: &[&str] = match job_type.as_str() {
-            "metadata" => &["metadata.identify"],
-            "metadata+cover" => &["metadata.identify", "cover.research"],
-            "cover" => &["cover.research"],
-            _ => continue,
-        };
-        let action: Option<String> = row.get(4)?;
-        let error: Option<String> = row.get(5)?;
-        let status: String = row.get(3)?;
-        let (state, error) = match (status.as_str(), action.as_deref()) {
-            ("queued" | "running", _) => ("queued", None),
-            ("completed", _) => ("awaiting_review", Some("legacy_result_unconverted")),
-            ("failed", _) => ("failed", error.as_deref()),
-            ("acted_on", Some("applied")) => ("applied", None),
-            ("acted_on", _) => ("discarded", None),
-            _ => ("failed", Some("legacy_state_unsupported")),
-        };
-        let created: i64 = row.get(6)?;
-        let updated: i64 = row.get(7)?;
-        let group = uuid(tx)?;
-        for kind in kinds {
-            let id = uuid(tx)?;
-            // Hydrated by the app from current album data before delegation.
-            // Raw legacy context stays in the unmodified ai_jobs row.
-            let digest = format!("legacy:{legacy}:{kind}");
-            tx.execute(
-                "INSERT INTO delegated_work
-                     (id,group_id,kind,album_id,library_epoch,base_revision,state,input_json,
-                      input_digest,created_at,updated_at,available_at,max_attempts,last_error,legacy_job_id)
-                 VALUES (?1,?2,?3,?4,?5,'',?6,'{}',?7,?8,?9,?9,?10,?11,?12)",
-                params![id,group,kind,album,epoch,state,digest,created,updated,DEFAULT_MAX_ATTEMPTS,error,legacy],
-            )?;
-            record_audit(tx, &epoch, Some(&id), None, "migrated", updated)?;
-        }
+    let group = uuid(tx)?;
+    for kind in kinds {
+        let id = uuid(tx)?;
+        // Hydrated by the app from current album data before delegation.
+        // Raw legacy context stays in the old job's history record.
+        let digest = format!("legacy:{legacy}:{kind}");
+        tx.execute(
+            "INSERT INTO delegated_work
+                 (id,group_id,kind,album_id,library_epoch,base_revision,state,input_json,
+                  input_digest,created_at,updated_at,available_at,max_attempts,last_error,legacy_job_id)
+             VALUES (?1,?2,?3,?4,?5,'',?6,'{}',?7,?8,?9,?9,?10,?11,?12)",
+            params![id,group,kind,job.album_id,epoch,state,digest,created,updated,DEFAULT_MAX_ATTEMPTS,error,legacy],
+        )?;
+        record_audit(tx, epoch, Some(&id), None, "migrated", updated)?;
     }
     Ok(())
 }
@@ -200,6 +223,7 @@ pub fn list(conn: &Connection, filter: List<'_>) -> Result<Vec<WorkRow>> {
          WHERE library_epoch = (SELECT epoch FROM library_epoch WHERE singleton=1)
            AND ((state='queued' AND base_revision <> '') OR principal_id=?1)
            AND (?2 IS NULL OR state=?2) AND (?3 IS NULL OR kind=?3) AND (?4 IS NULL OR id>?4)
+           AND (?6 IS NULL OR batch_id=?6)
          ORDER BY id LIMIT ?5",
     )?;
     let rows = stmt.query_map(
@@ -208,7 +232,8 @@ pub fn list(conn: &Connection, filter: List<'_>) -> Result<Vec<WorkRow>> {
             filter.state,
             filter.kind,
             filter.after,
-            filter.limit.clamp(1, 101)
+            filter.limit.clamp(1, 101),
+            filter.batch_id
         ],
         work,
     )?;
@@ -265,6 +290,53 @@ pub fn desktop_items(conn: &Connection) -> Result<Vec<DesktopItem>> {
 pub fn desktop_list(conn: &Connection) -> Result<Vec<WorkRow>> {
     let mut stmt = conn.prepare("SELECT * FROM delegated_work ORDER BY created_at DESC, id")?;
     let rows = stmt.query_map([], work)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// One unresolved research request, as the album-level refusals (merge,
+/// multi-disc conversion and gather) name it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Unresolved {
+    pub album_id: String,
+    /// The id the desktop's job routes answer to.
+    pub group_id: String,
+    pub kind: String,
+    pub state: String,
+    /// The old job vocabulary the refusals keep: `queued`; `running` for
+    /// claimed or running; `completed` for awaiting review.
+    pub status: String,
+}
+
+/// The unresolved requests (queued, claimed, running, awaiting review) of the
+/// current epoch whose album is one of `album_ids`, by album, oldest first.
+/// The one predicate a merge or a conversion refuses on: a request made for
+/// one album id is about that folder and those files. Only the current epoch
+/// can hold an unresolved request (an epoch rotation cancels the rest).
+pub fn unresolved_for_albums(conn: &Connection, album_ids: &[&str]) -> Result<Vec<Unresolved>> {
+    if album_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let ids = serde_json::to_string(album_ids).expect("strings serialize");
+    let mut stmt = conn.prepare(&format!(
+        "SELECT album_id, group_id, kind, state,
+                CASE state WHEN 'queued' THEN 'queued'
+                           WHEN 'awaiting_review' THEN 'completed'
+                           ELSE 'running' END
+         FROM delegated_work
+         WHERE library_epoch=(SELECT epoch FROM library_epoch WHERE singleton=1)
+           AND state IN {UNRESOLVED}
+           AND album_id IN (SELECT value FROM json_each(?1))
+         ORDER BY album_id, created_at, id"
+    ))?;
+    let rows = stmt.query_map([ids], |r| {
+        Ok(Unresolved {
+            album_id: r.get(0)?,
+            group_id: r.get(1)?,
+            kind: r.get(2)?,
+            state: r.get(3)?,
+            status: r.get(4)?,
+        })
+    })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
@@ -327,8 +399,69 @@ pub fn enqueue(conn: &Connection, work: &[NewWork<'_>], now: i64) -> Result<Vec<
     Ok(rows)
 }
 
+/// The bulk run a request belongs to: its `work_batches` row is created by
+/// the transaction of the run's first request, so a run that makes no request
+/// makes no batch.
+#[derive(Clone, Copy, Debug)]
+pub struct NewBatch<'a> {
+    pub id: &'a str,
+    pub check_id: &'a str,
+    /// When the run started, ms.
+    pub started_at: i64,
+}
+
 pub fn enqueue_in(tx: &Transaction<'_>, items: &[NewWork<'_>], now: i64) -> Result<Vec<WorkRow>> {
+    enqueue_items(tx, items, None, now)
+}
+
+/// [`enqueue_in`] for a bulk run: each request it inserts carries `batch.id`
+/// (an existing unresolved request it returns keeps its own batch, if any).
+/// Creates the batch row on the first call (`INSERT OR IGNORE`); a batch of
+/// another library epoch is refused, writing nothing.
+pub fn enqueue_batched_in(
+    tx: &Transaction<'_>,
+    items: &[NewWork<'_>],
+    batch: &NewBatch<'_>,
+    now: i64,
+) -> Result<Vec<WorkRow>> {
+    enqueue_items(tx, items, Some(batch), now)
+}
+
+/// [`enqueue_batched_in`] in its own transaction.
+pub fn enqueue_batched(
+    conn: &Connection,
+    items: &[NewWork<'_>],
+    batch: &NewBatch<'_>,
+    now: i64,
+) -> Result<Vec<WorkRow>> {
+    let tx = immediate(conn)?;
+    let rows = enqueue_batched_in(&tx, items, batch, now)?;
+    tx.commit()?;
+    Ok(rows)
+}
+
+fn enqueue_items(
+    tx: &Transaction<'_>,
+    items: &[NewWork<'_>],
+    batch: Option<&NewBatch<'_>>,
+    now: i64,
+) -> Result<Vec<WorkRow>> {
     let epoch = epoch(tx)?;
+    if let Some(batch) = batch {
+        tx.execute(
+            "INSERT OR IGNORE INTO work_batches(id,library_epoch,check_id,started_at)
+             VALUES (?1,?2,?3,?4)",
+            params![batch.id, epoch, batch.check_id, batch.started_at],
+        )?;
+        let owner: String = tx.query_row(
+            "SELECT library_epoch FROM work_batches WHERE id=?1",
+            [batch.id],
+            |r| r.get(0),
+        )?;
+        if owner != epoch {
+            return Err(crate::Error::ForeignBatch(batch.id.to_owned()));
+        }
+    }
     let find = format!(
         "SELECT * FROM delegated_work WHERE library_epoch=?1 AND album_id=?2 AND kind=?3
           AND state IN {UNRESOLVED} AND (input_digest=?4 OR base_revision='')
@@ -384,8 +517,8 @@ pub fn enqueue_in(tx: &Transaction<'_>, items: &[NewWork<'_>], now: i64) -> Resu
         let inserted = tx.query_row(
             "INSERT INTO delegated_work
                (id,group_id,kind,album_id,library_epoch,base_revision,state,input_json,input_digest,
-                created_at,updated_at,available_at,max_attempts)
-             VALUES (?1,?2,?3,?4,?5,?6,'queued',?7,?8,?9,?9,?9,?10) RETURNING *",
+                created_at,updated_at,available_at,max_attempts,batch_id)
+             VALUES (?1,?2,?3,?4,?5,?6,'queued',?7,?8,?9,?9,?9,?10,?11) RETURNING *",
             params![
                 item.id,
                 group,
@@ -396,7 +529,8 @@ pub fn enqueue_in(tx: &Transaction<'_>, items: &[NewWork<'_>], now: i64) -> Resu
                 item.input_json,
                 item.input_digest,
                 now,
-                item.max_attempts
+                item.max_attempts,
+                batch.map(|b| b.id)
             ],
             work,
         )?;
@@ -424,6 +558,46 @@ pub fn hydrate_legacy(
     )? != 0;
     if updated {
         record_change(&tx, &epoch(&tx)?, Some(id), None, "legacy_hydrated", now)?;
+    }
+    tx.commit()?;
+    Ok(updated)
+}
+
+/// The queued requests of `album_id` in the current epoch, oldest first.
+pub fn queued_for_album(conn: &Connection, album_id: &str) -> Result<Vec<WorkRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT * FROM delegated_work WHERE album_id=?1 AND state='queued'
+           AND library_epoch=(SELECT epoch FROM library_epoch WHERE singleton=1)
+         ORDER BY created_at, id",
+    )?;
+    let rows = stmt.query_map([album_id], work)?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Writes a queued request's context derived again from its album as it is
+/// now (after the album's id or path changed, the old `base_revision` would
+/// refuse every claim as stale). Only a request still queued in the current
+/// epoch changes; its revision goes up and the change is recorded in the
+/// same transaction. `false` when nothing changed, including when another
+/// unresolved request of the album already has that input (`OR IGNORE`).
+pub fn rederive_queued(
+    conn: &Connection,
+    id: &str,
+    base_revision: &str,
+    input_json: &str,
+    input_digest: &str,
+    now: i64,
+) -> Result<bool> {
+    let tx = immediate(conn)?;
+    let updated = tx.execute(
+        "UPDATE OR IGNORE delegated_work SET base_revision=?2, input_json=?3, input_digest=?4,
+         updated_at=?5, revision=revision+1 WHERE id=?1 AND state='queued'
+         AND library_epoch=(SELECT epoch FROM library_epoch WHERE singleton=1)
+         AND (base_revision<>?2 OR input_json<>?3 OR input_digest<>?4)",
+        params![id, base_revision, input_json, input_digest, now],
+    )? != 0;
+    if updated {
+        record_change(&tx, &epoch(&tx)?, Some(id), None, "rederived", now)?;
     }
     tx.commit()?;
     Ok(updated)
@@ -697,6 +871,194 @@ pub fn claim_with_context(
     Ok(Ok(reply))
 }
 
+/// What one multi-item claim asks for.
+pub struct ClaimMany<'a> {
+    pub principal_id: &'a str,
+    pub idempotency_key: &'a str,
+    pub request_digest: &'a str,
+    pub batch_id: Option<&'a str>,
+    pub kind: Option<&'a str>,
+    /// How many items at most (the tool bounds it to 1..=25).
+    pub max: i64,
+    pub now: i64,
+}
+
+/// The saved answer of a multi-item claim: ids, generations and expiries,
+/// never a token (the app derives each token again from the key).
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+pub struct ClaimManyRow {
+    pub claims: Vec<ClaimRow>,
+}
+
+pub fn claim_many_replay(
+    conn: &Connection,
+    principal: &str,
+    key: &str,
+    request_digest: &str,
+) -> QueueResult<Option<ClaimManyRow>> {
+    replay(conn, principal, "claim_many", key, request_digest)
+}
+
+/// Claims up to `max` eligible items in one IMMEDIATE transaction: current
+/// epoch, queued, hydrated, available now, of the batch and kind asked for,
+/// oldest first (`created_at, id`). Each is taken with a conditional update,
+/// so no item is ever held by two principals; an item whose context is no
+/// longer current is skipped (left queued), never an error. Each claim gets
+/// its own attempt, lease and audit, outbox and event rows; one replay row
+/// holds the whole answer. Winning fewer than `max`, or none, is a normal
+/// answer. `lease_token_hash` gives the verifier of an item's token.
+pub fn claim_many_with_context(
+    conn: &Connection,
+    claim: ClaimMany<'_>,
+    mut lease_token_hash: impl FnMut(&str) -> String,
+    mut context_current: impl FnMut(&Connection, &WorkRow) -> Result<bool>,
+) -> QueueResult<ClaimManyRow> {
+    let tx = immediate(conn)?;
+    match claim_many_replay(
+        &tx,
+        claim.principal_id,
+        claim.idempotency_key,
+        claim.request_digest,
+    )? {
+        Ok(Some(row)) => return Ok(Ok(row)),
+        Err(refusal) => return Ok(Err(refusal)),
+        Ok(None) => {}
+    }
+    expire_in(&tx, None, claim.now)?;
+    let epoch = epoch(&tx)?;
+    let max = usize::try_from(claim.max.clamp(1, 25)).unwrap_or(1);
+    let mut reply = ClaimManyRow::default();
+    // Keyset pages: a stale item stays queued and must not hide the ones after it.
+    let mut after: Option<(i64, String)> = None;
+    'pages: while reply.claims.len() < max {
+        let page: Vec<WorkRow> = {
+            let mut stmt = tx.prepare(
+                "SELECT * FROM delegated_work
+                 WHERE library_epoch=?1 AND state='queued' AND base_revision<>''
+                   AND available_at<=?2
+                   AND (?3 IS NULL OR batch_id=?3) AND (?4 IS NULL OR kind=?4)
+                   AND (?5 IS NULL OR created_at>?5 OR (created_at=?5 AND id>?6))
+                 ORDER BY created_at, id LIMIT 64",
+            )?;
+            stmt.query_map(
+                params![
+                    epoch,
+                    claim.now,
+                    claim.batch_id,
+                    claim.kind,
+                    after.as_ref().map(|a| a.0),
+                    after.as_ref().map(|a| a.1.as_str()),
+                ],
+                work,
+            )?
+            .collect::<rusqlite::Result<_>>()?
+        };
+        let Some(last) = page.last() else {
+            break;
+        };
+        after = Some((last.created_at, last.id.clone()));
+        for row in page {
+            if reply.claims.len() >= max {
+                break 'pages;
+            }
+            if !context_current(&tx, &row)? {
+                continue;
+            }
+            let generation = row.claim_generation + 1;
+            let expires = claim.now.saturating_add(LEASE_MS);
+            let hash = lease_token_hash(&row.id);
+            let taken = tx.execute(
+                "UPDATE delegated_work SET state='claimed', revision=revision+1, updated_at=?2,
+                    principal_id=?3, lease_token_hash=?4, lease_expires_at=?5, claim_generation=?6,
+                    attempts=attempts+1, last_error=NULL WHERE id=?1 AND state='queued'",
+                params![
+                    row.id,
+                    claim.now,
+                    claim.principal_id,
+                    hash,
+                    expires,
+                    generation
+                ],
+            )?;
+            if taken == 0 {
+                continue;
+            }
+            tx.execute(
+                "INSERT INTO work_attempts(work_id,generation,principal_id,lease_token_hash,started_at,expires_at,last_heartbeat_at)
+                 VALUES (?1,?2,?3,?4,?5,?6,?5)",
+                params![row.id, generation, claim.principal_id, hash, claim.now, expires],
+            )?;
+            record_change(&tx, &epoch, Some(&row.id), None, "claimed", claim.now)?;
+            reply.claims.push(ClaimRow {
+                work_id: row.id,
+                claim_generation: generation,
+                lease_expires_at: expires,
+                input_digest: row.input_digest,
+            });
+        }
+    }
+    save_replay(
+        &tx,
+        claim.principal_id,
+        "claim_many",
+        claim.idempotency_key,
+        claim.request_digest,
+        &reply,
+    )?;
+    tx.commit()?;
+    Ok(Ok(reply))
+}
+
+/// Renews each lease as [`renew`] does, in one transaction: a lease that is
+/// refused (or whose context is no longer current, `StaleContext`) does not
+/// stop the others. The answers are in the order asked: the new expiry, or
+/// the refusal.
+pub fn renew_many(
+    conn: &Connection,
+    leases: &[Lease<'_>],
+    mut context_current: impl FnMut(&Connection, &WorkRow) -> Result<bool>,
+) -> Result<Vec<std::result::Result<i64, Refusal>>> {
+    let tx = immediate(conn)?;
+    let mut out = Vec::with_capacity(leases.len());
+    for lease in leases {
+        let row = match leased(&tx, *lease)? {
+            Ok(row) => row,
+            Err(refusal) => {
+                out.push(Err(refusal));
+                continue;
+            }
+        };
+        if !context_current(&tx, &row)? {
+            out.push(Err(Refusal::StaleContext));
+            continue;
+        }
+        out.push(Ok(renew_in(&tx, &row, lease)?));
+    }
+    tx.commit()?;
+    Ok(out)
+}
+
+fn renew_in(tx: &Transaction<'_>, row: &WorkRow, lease: &Lease<'_>) -> Result<i64> {
+    let expires = lease.now.saturating_add(LEASE_MS);
+    tx.execute(
+        "UPDATE delegated_work SET lease_expires_at=?2,updated_at=?3,revision=revision+1 WHERE id=?1",
+        params![row.id, expires, lease.now],
+    )?;
+    tx.execute(
+        "UPDATE work_attempts SET expires_at=?3,last_heartbeat_at=?4 WHERE work_id=?1 AND generation=?2",
+        params![row.id, lease.claim_generation, expires, lease.now],
+    )?;
+    record_change(
+        tx,
+        &row.library_epoch,
+        Some(&row.id),
+        None,
+        "renewed",
+        lease.now,
+    )?;
+    Ok(expires)
+}
+
 fn leased(conn: &Connection, lease: Lease<'_>) -> QueueResult<WorkRow> {
     let Some(row) = get(conn, lease.work_id)? else {
         return Ok(Err(Refusal::NotFound));
@@ -763,23 +1125,7 @@ pub fn renew(conn: &Connection, lease: Lease<'_>) -> QueueResult<i64> {
         Ok(row) => row,
         Err(refusal) => return Ok(Err(refusal)),
     };
-    let expires = lease.now.saturating_add(LEASE_MS);
-    tx.execute(
-        "UPDATE delegated_work SET lease_expires_at=?2,updated_at=?3,revision=revision+1 WHERE id=?1",
-        params![row.id,expires,lease.now],
-    )?;
-    tx.execute(
-        "UPDATE work_attempts SET expires_at=?3,last_heartbeat_at=?4 WHERE work_id=?1 AND generation=?2",
-        params![row.id, lease.claim_generation, expires, lease.now],
-    )?;
-    record_change(
-        &tx,
-        &row.library_epoch,
-        Some(&row.id),
-        None,
-        "renewed",
-        lease.now,
-    )?;
+    let expires = renew_in(&tx, &row, &lease)?;
     tx.commit()?;
     Ok(Ok(expires))
 }
@@ -1155,6 +1501,158 @@ fn cancel_for(
     let updated = close_lease(&tx, &row, "cancelled", None, "cancelled", 0, now)?;
     tx.commit()?;
     Ok(Ok(updated))
+}
+
+/// Cancels every unresolved item of `rows` that is waiting or held (queued,
+/// claimed, running) as the desktop's "Cancel research" does, in the caller's
+/// transaction: one audit, outbox and event row per item. Items awaiting
+/// review or finished are left as they are. Returns how many were cancelled.
+pub(crate) fn cancel_rows_in(tx: &Transaction<'_>, rows: &[WorkRow], now: i64) -> Result<usize> {
+    let current = epoch(tx)?;
+    let mut cancelled = 0;
+    for row in rows {
+        if row.library_epoch != current
+            || !matches!(row.state.as_str(), "queued" | "claimed" | "running")
+        {
+            continue;
+        }
+        close_lease(tx, row, "cancelled", None, "cancelled", 0, now)?;
+        cancelled += 1;
+    }
+    Ok(cancelled)
+}
+
+/// One bulk run's batch with its items counted by state (derived, never
+/// stored).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BatchRow {
+    pub id: String,
+    pub library_epoch: String,
+    pub check_id: String,
+    pub started_at: i64,
+    pub finished_at: Option<i64>,
+    /// `(state, count)` for every state that has an item.
+    pub counts: Vec<(String, i64)>,
+}
+
+impl BatchRow {
+    pub fn size(&self) -> i64 {
+        self.counts.iter().map(|(_, n)| n).sum()
+    }
+    pub fn count(&self, state: &str) -> i64 {
+        self.counts
+            .iter()
+            .find(|(s, _)| s == state)
+            .map_or(0, |(_, n)| *n)
+    }
+}
+
+fn batch_rows(conn: &Connection, id: Option<&str>) -> Result<Vec<BatchRow>> {
+    let mut stmt = conn.prepare(
+        "SELECT b.id, b.library_epoch, b.check_id, b.started_at, b.finished_at
+         FROM work_batches b
+         WHERE (?1 IS NULL OR b.id=?1)
+           AND EXISTS (SELECT 1 FROM delegated_work w WHERE w.batch_id=b.id)
+         ORDER BY b.started_at DESC, b.id",
+    )?;
+    let mut batches: Vec<BatchRow> = stmt
+        .query_map([id], |r| {
+            Ok(BatchRow {
+                id: r.get(0)?,
+                library_epoch: r.get(1)?,
+                check_id: r.get(2)?,
+                started_at: r.get(3)?,
+                finished_at: r.get(4)?,
+                counts: Vec::new(),
+            })
+        })?
+        .collect::<rusqlite::Result<_>>()?;
+    let mut counts = conn.prepare(
+        "SELECT state, count(*) FROM delegated_work WHERE batch_id=?1 GROUP BY state ORDER BY state",
+    )?;
+    for batch in &mut batches {
+        batch.counts = counts
+            .query_map([&batch.id], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+    }
+    Ok(batches)
+}
+
+/// Every batch that still has a request, of any library epoch, newest first.
+pub fn batches(conn: &Connection) -> Result<Vec<BatchRow>> {
+    batch_rows(conn, None)
+}
+
+/// One batch, `None` when unknown or when no request is left in it.
+pub fn batch(conn: &Connection, id: &str) -> Result<Option<BatchRow>> {
+    Ok(batch_rows(conn, Some(id))?.pop())
+}
+
+/// The items of a batch as the desktop lists them: held first, then queued,
+/// awaiting review, failed, cancelled, applied, discarded; newest first within
+/// a state. Any epoch; Missing albums are listed too.
+pub fn batch_items(conn: &Connection, id: &str) -> Result<Vec<DesktopItem>> {
+    let mut stmt = conn.prepare(
+        "SELECT w.*, p.name AS holder_name, a.last_heartbeat_at AS heartbeat
+         FROM delegated_work w
+         LEFT JOIN agent_pairings p ON p.id=w.principal_id AND w.state IN ('claimed','running')
+         LEFT JOIN work_attempts a ON a.work_id=w.id AND a.generation=w.claim_generation
+              AND w.state IN ('claimed','running')
+         WHERE w.batch_id=?1
+         ORDER BY CASE w.state WHEN 'running' THEN 0 WHEN 'claimed' THEN 1 WHEN 'queued' THEN 2
+                  WHEN 'awaiting_review' THEN 3 WHEN 'failed' THEN 4 WHEN 'cancelled' THEN 5
+                  WHEN 'applied' THEN 6 ELSE 7 END,
+                  w.created_at DESC, w.id",
+    )?;
+    let rows = stmt.query_map([id], |r| {
+        Ok(DesktopItem {
+            row: work(r)?,
+            holder: r.get("holder_name")?,
+            last_heartbeat_at: r.get("heartbeat")?,
+        })
+    })?;
+    Ok(rows.collect::<rusqlite::Result<_>>()?)
+}
+
+/// Records that the run which made the batch reached its end. A batch the run
+/// made no request for has no row; nothing to do then.
+pub fn finish_batch(conn: &Connection, id: &str, now: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE work_batches SET finished_at=?2 WHERE id=?1 AND finished_at IS NULL",
+        params![id, now],
+    )?;
+    Ok(())
+}
+
+/// Cancels every waiting or held item of a batch in one transaction (see
+/// [`cancel_rows_in`]). `None` when the batch is unknown or empty.
+pub fn cancel_batch(conn: &Connection, id: &str, now: i64) -> Result<Option<usize>> {
+    let tx = immediate(conn)?;
+    if batch(&tx, id)?.is_none() {
+        return Ok(None);
+    }
+    let rows: Vec<WorkRow> = {
+        let mut stmt = tx.prepare(
+            "SELECT * FROM delegated_work WHERE batch_id=?1
+               AND state IN ('queued','claimed','running') ORDER BY created_at, id",
+        )?;
+        stmt.query_map([id], work)?
+            .collect::<rusqlite::Result<_>>()?
+    };
+    let cancelled = cancel_rows_in(&tx, &rows, now)?;
+    tx.commit()?;
+    Ok(Some(cancelled))
+}
+
+/// Removes the batches no request names any more (after Clear or a card's
+/// delete), in the caller's transaction.
+pub(crate) fn drop_empty_batches(tx: &Connection) -> Result<()> {
+    tx.execute(
+        "DELETE FROM work_batches
+         WHERE NOT EXISTS (SELECT 1 FROM delegated_work w WHERE w.batch_id=work_batches.id)",
+        [],
+    )?;
+    Ok(())
 }
 
 fn current_review(conn: &Connection, id: &str) -> QueueResult<WorkRow> {

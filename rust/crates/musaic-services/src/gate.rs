@@ -63,19 +63,17 @@ pub enum WorkKind {
     Analyze,
     CheckRun,
     QuickFixAll,
-    AiJob,
     /// A short write (settings, tags, delete album, ...).
     Other,
 }
 
 impl WorkKind {
-    pub const ALL: [WorkKind; 7] = [
+    pub const ALL: [WorkKind; 6] = [
         WorkKind::Scan,
         WorkKind::Apply,
         WorkKind::Analyze,
         WorkKind::CheckRun,
         WorkKind::QuickFixAll,
-        WorkKind::AiJob,
         WorkKind::Other,
     ];
 
@@ -83,17 +81,14 @@ impl WorkKind {
         self as usize
     }
 
-    /// A short phrase for a confirmation message. An AI job is "an AI job"
-    /// only when an AI provider is ready (`wording`), else "a job" (the
-    /// frontend's Jobs page is "Jobs" then).
-    pub fn describe(self, wording: musaic_core::AiWording) -> &'static str {
+    /// A short phrase for a confirmation message.
+    pub fn describe(self) -> &'static str {
         match self {
             WorkKind::Scan => "a library scan",
             WorkKind::Apply => "applying changes to an album",
             WorkKind::Analyze => "audio analysis",
             WorkKind::CheckRun => "a health check run",
             WorkKind::QuickFixAll => "a bulk quick fix",
-            WorkKind::AiJob => wording.pick("an AI job", "a job"),
             WorkKind::Other => "a change to the library",
         }
     }
@@ -104,7 +99,7 @@ struct State {
     /// Writing work in progress.
     active: usize,
     /// `active` split by [`WorkKind`] (indexed by `WorkKind::index`).
-    kinds: [usize; 7],
+    kinds: [usize; 6],
     restoring: bool,
     /// Reruns refused while the current restore runs.
     deferred: Option<DeferredRerun>,
@@ -362,7 +357,7 @@ mod tests {
         assert_eq!(g.running(), (vec![], false));
         let rg = g.begin_restore().unwrap();
         assert_eq!(g.running(), (vec![], true));
-        assert!(g.begin(WorkKind::AiJob).is_err());
+        assert!(g.begin(WorkKind::QuickFixAll).is_err());
         drop(rg);
         assert_eq!(g.snapshot(), (0, false));
     }

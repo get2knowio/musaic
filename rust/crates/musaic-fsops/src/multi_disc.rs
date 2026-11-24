@@ -1568,17 +1568,39 @@ impl ConversionPreview {
     }
 }
 
-/// Whether any of `ids` has an AI job queued or running.
-fn active_jobs(conn: &Connection, ids: &[&str]) -> musaic_db::Result<Vec<String>> {
-    let json = serde_json::Value::from(ids.to_vec()).to_string();
-    let mut stmt = conn.prepare(
-        "SELECT DISTINCT album_id FROM ai_jobs WHERE status IN ('queued', 'running') \
-         AND album_id IN (SELECT value FROM json_each(?1)) ORDER BY album_id",
-    )?;
-    let v = stmt
-        .query_map([json], |r| r.get::<_, String>(0))?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    Ok(v)
+/// Which of `ids` have an unresolved research request (queued, claimed,
+/// running or awaiting review), with the old job status the blocker text
+/// names (`delegated_work::Unresolved::status`), one per album, by album id.
+/// A proposal awaiting review was made against the folder being moved, so
+/// it blocks as a queued or running request does.
+fn active_jobs(conn: &Connection, ids: &[&str]) -> musaic_db::Result<Vec<(String, String)>> {
+    let mut jobs: Vec<(String, String)> =
+        musaic_db::delegated_work::unresolved_for_albums(conn, ids)?
+            .into_iter()
+            .map(|u| (u.album_id, u.status))
+            .collect();
+    jobs.sort();
+    let mut seen = BTreeSet::new();
+    jobs.retain(|(id, _)| seen.insert(id.clone()));
+    Ok(jobs)
+}
+
+/// The `job_active` blocker for one album.
+fn job_blocker(name: &str, status: &str) -> Blocker {
+    Blocker {
+        code: blocker::JOB_ACTIVE,
+        message: if status == "completed" {
+            format!(
+                "A research request on {name} has a suggestion waiting, made for that disc alone. \
+Apply or discard it in Review first."
+            )
+        } else {
+            format!(
+                "A research request on {name} is waiting or in progress. Let it finish or cancel \
+it in Review first."
+            )
+        },
+    }
 }
 
 #[cfg(unix)]
@@ -1828,12 +1850,9 @@ clears the next time the check runs."
         plan.blockers.extend(disk_blockers(&folders, target));
     }
     if one_folder {
-        for id in active_jobs(conn, &ids)? {
+        for (id, status) in active_jobs(conn, &ids)? {
             let name = row_of(&id).and_then(|r| r.dir_name.clone()).unwrap_or(id);
-            plan.blockers.push(Blocker {
-                code: blocker::JOB_ACTIVE,
-                message: format!("A job is queued or running on {name}. Wait for it to finish."),
-            });
+            plan.blockers.push(job_blocker(&name, &status));
         }
     } else {
         let name_of = |id: &str| {
@@ -1883,35 +1902,8 @@ fn set_blockers(
     name_of: &dyn Fn(&str) -> String,
 ) -> musaic_db::Result<Vec<Blocker>> {
     let mut out = Vec::new();
-    let json = serde_json::Value::from(ids.to_vec()).to_string();
-    let statuses =
-        serde_json::Value::from(musaic_db::ai_jobs::ACTIVE_STATUSES.to_vec()).to_string();
-    let mut stmt = conn.prepare(
-        "SELECT album_id, status FROM ai_jobs WHERE album_id IN (SELECT value FROM json_each(?1)) \
-         AND status IN (SELECT value FROM json_each(?2)) ORDER BY album_id, status",
-    )?;
-    let jobs = stmt
-        .query_map([&json, &statuses], |r| {
-            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
-        })?
-        .collect::<rusqlite::Result<Vec<_>>>()?;
-    let mut seen = BTreeSet::new();
-    for (id, status) in jobs {
-        if !seen.insert(id.clone()) {
-            continue;
-        }
-        let name = name_of(&id);
-        out.push(Blocker {
-            code: blocker::JOB_ACTIVE,
-            message: if status == "completed" {
-                format!(
-                    "A job on {name} has a suggestion waiting, made for that disc alone. Act on it \
-or discard it on the Jobs page first."
-                )
-            } else {
-                format!("A job is queued or running on {name}. Wait for it to finish.")
-            },
-        });
+    for (id, status) in active_jobs(conn, ids)? {
+        out.push(job_blocker(&name_of(&id), &status));
     }
     let mut groups: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for id in ids {
@@ -2332,12 +2324,9 @@ recorded ({}). The record is {}.",
         plan.blockers
             .extend(disk_blockers(&[(facts.dir_name.clone(), path)], target));
     }
-    for id in active_jobs(conn, &[album_id])? {
+    for (id, status) in active_jobs(conn, &[album_id])? {
         let name = row.dir_name.clone().unwrap_or(id);
-        plan.blockers.push(Blocker {
-            code: blocker::JOB_ACTIVE,
-            message: format!("A job is queued or running on {name}. Wait for it to finish."),
-        });
+        plan.blockers.push(job_blocker(&name, &status));
     }
     let pairs: Vec<(Option<i64>, Option<i64>)> =
         plan.tracks.iter().map(|t| (t.disc, t.track)).collect();
@@ -2866,14 +2855,8 @@ cannot tell whether it was moved.",
         plan.blockers
             .extend(set_blockers(conn, &with_rows, &name_of)?);
     } else {
-        for id in active_jobs(conn, &[dest_id.as_str()])? {
-            plan.blockers.push(Blocker {
-                code: blocker::JOB_ACTIVE,
-                message: format!(
-                    "A job is queued or running on {}. Wait for it to finish.",
-                    name_of(&id)
-                ),
-            });
+        for (id, status) in active_jobs(conn, &[dest_id.as_str()])? {
+            plan.blockers.push(job_blocker(&name_of(&id), &status));
         }
     }
     let pairs: Vec<(Option<i64>, Option<i64>)> =

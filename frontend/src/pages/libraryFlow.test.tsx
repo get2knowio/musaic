@@ -94,7 +94,6 @@ afterEach(() => {
 function client(): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["config"], { library_dir: "/music", exists: true } as AppConfig);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["jobs"], []);
   qc.setQueryData(["checks"], CHECKS);
   qc.setQueryData(["findings"], [finding(1, "a1"), finding(2, "a2")]);
@@ -179,7 +178,7 @@ describe("library links", () => {
   it("names a Review view for its return link", () => {
     const label = (id: string) => (id === "track-gaps" ? "Track gaps" : id);
     expect(reviewViewName("?check=track-gaps&album=a1", label)).toBe("Track gaps");
-    expect(reviewViewName("?kind=failed", label)).toBe("Failed jobs");
+    expect(reviewViewName("?kind=failed", label)).toBe("Failed research");
     expect(reviewViewName("?show=ignored", label)).toBe("Ignored findings");
     expect(reviewViewName("", label)).toBeNull();
   });

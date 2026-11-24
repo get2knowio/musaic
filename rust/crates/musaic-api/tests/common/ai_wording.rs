@@ -1,9 +1,7 @@
-//! Backend text names AI only when a provider is ready (a deliberate
-//! change), as an enumerated delta for the Python app comparisons.
-//!
-//! These tests run the build's default provider (`musaic_ai::Unconfigured`,
-//! never ready), so every response is in the no-provider wording. The delta
-//! turns the Python app's record into that wording, and nothing else:
+//! Backend text that named AI in the Python app is neutral here (a
+//! deliberate change; Musaic has no built-in model provider), as an
+//! enumerated delta for the Python app comparisons. The delta turns the
+//! Python app's record into the neutral wording, and nothing else:
 //!
 //! - a check description listed in `musaic_checks::wording::NEUTRAL_DESCRIPTIONS`
 //!   (matched exactly against the registry's original text) becomes the neutral one;
@@ -14,9 +12,6 @@
 //! [`json`] rewrites a JSON value; [`text`] rewrites SSE / JSON text, where a
 //! string may be written with or without `\uXXXX` escapes. Both return how
 //! many replacements they made so a caller can require the delta to occur.
-//! With a ready provider the Python app's record stands unchanged (pinned in
-//! musaic-checks golden_pure.rs, musaic-ai golden_units.rs / golden_worker.rs
-//! and this crate's ai_wording.rs).
 #![allow(dead_code)]
 
 use musaic_checks::Registry;
@@ -25,7 +20,7 @@ use musaic_checks::wording::NEUTRAL_DESCRIPTIONS;
 use musaic_resolve::resolution::{UNANCHORED_NOTE, UNANCHORED_NOTE_NEUTRAL};
 use serde_json::Value;
 
-/// (original text, no-provider text) for whole strings.
+/// (original text, shown text) for whole strings.
 pub fn whole_strings() -> Vec<(&'static str, &'static str)> {
     let reg = Registry::default();
     let mut out = vec![(UNANCHORED_NOTE, UNANCHORED_NOTE_NEUTRAL)];

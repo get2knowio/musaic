@@ -222,7 +222,7 @@ macro_rules! document_accessors {
 }
 
 /// One finding of a check, in the shape the checks API reports it (the summary
-/// in the wording of the AI's readiness at the time it was read).
+/// as shown, [`musaic_checks::wording::finding_summary`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct FindingRecord(serde_json::Value);
 

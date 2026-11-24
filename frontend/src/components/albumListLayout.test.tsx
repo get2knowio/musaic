@@ -57,7 +57,6 @@ const ALBUMS = [
 
 function renderList() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={["/library?view=list"]}>
@@ -126,7 +125,6 @@ describe("a missing folder", () => {
 
   it("and in Tiles", () => {
     const qc = new QueryClient();
-    qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
     render(
       <QueryClientProvider client={qc}>
         <MemoryRouter initialEntries={["/library"]}>

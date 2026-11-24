@@ -84,7 +84,6 @@ function client(f: Finding[] = findings, j: Job[] = jobs, checks: CheckSummary[]
   qc.setQueryData(["findings"], f);
   qc.setQueryData(["jobs"], j);
   qc.setQueryData(["agent", "approvals", "pending"], []);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["albums-snapshot"], [
     makeAlbum({ id: "present", title: "Here" }),
     makeAlbum({ id: "gone", title: "Gone", missing_since: "2026-01-02T00:00:00Z" }),
@@ -253,11 +252,11 @@ describe("All open", () => {
     expect(railRows()).toEqual([
       "All open6",
       "Proposed changes1",
-      "Failed jobs1",
+      "Failed research1",
       "Track gaps3",
       "No cover art1",
       "Ignored findings",
-      "Jobs in progress and history",
+      "Research requests and history",
     ]);
     expect(current()).toEqual(["All open6"]);
     expect(summary()).toBe("6 items · 2 albums");
@@ -306,7 +305,7 @@ describe("filters", () => {
 
   it("type filters list proposed changes or failed jobs", () => {
     renderAt("/review");
-    pick("Failed jobs");
+    pick("Failed research");
     expect(where()).toBe("/review?kind=failed");
     expect(rowKeys()).toEqual(["job:failed"]);
     expect(screen.getByRole("button", { name: "Clear 1 failed" })).toBeTruthy();
@@ -387,7 +386,7 @@ describe("jobs in progress and job history are in the Activity panel", () => {
   it("the rail opens Activity over Review; the jobs stay uncounted", async () => {
     renderAt("/review");
     expect(badge()).toBe("6");
-    pick("Jobs in progress and history");
+    pick("Research requests and history");
     const panel = await screen.findByRole("dialog", { name: "Activity" });
     expect(where()).toBe("/review");
     expect(within(panel).getByText("Album running")).toBeTruthy();

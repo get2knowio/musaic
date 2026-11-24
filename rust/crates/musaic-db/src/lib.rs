@@ -1,10 +1,12 @@
 //! Persistence layer.
 //!
 //! Opens the SQLite database the Python app wrote (schema v16), takes a
-//! backup, and migrates it one way to v22 (v17: `fingerprint_impl`; v18:
+//! backup, and migrates it one way to v24 (v17: `fingerprint_impl`; v18:
 //! the AcoustID lookup outcome and rejected files; v19: `check_inputs`,
 //! what each health check last ran against; v20: each album's per-file disc
-//! numbers and tag disc total; v21: agent bridge; v22: durable delegation); or creates a fresh
+//! numbers and tag disc total; v21: agent bridge; v22: durable delegation;
+//! v23: delegation event history; v24: one store for research, the old job
+//! table folded into `research_history`, and work batches); or creates a fresh
 //! database ([`Db::open_or_create`]) with the Python app's v16 statements
 //! followed by the same migrations, so a fresh file and a migrated one have
 //! identical schemas.
@@ -12,7 +14,6 @@
 pub mod agent;
 pub mod agent_hosts;
 pub mod agent_operations;
-pub mod ai_jobs;
 pub mod albums;
 pub mod backup;
 pub mod check_inputs;
@@ -22,9 +23,11 @@ pub mod findings;
 pub mod fingerprints_ext;
 pub mod mb_anchor;
 pub mod merge;
-mod migrate;
+#[doc(hidden)]
+pub mod migrate;
 mod python_chain;
 pub mod renames;
+pub mod research_history;
 pub mod research_jobs;
 mod schema_migrations;
 mod schema_v16;
@@ -44,7 +47,7 @@ pub use musaic_core::album_id;
 pub use python_chain::OLDEST_SCHEMA_VERSION;
 
 /// Schema version this build reads and writes.
-pub const SCHEMA_VERSION: i64 = 23;
+pub const SCHEMA_VERSION: i64 = 24;
 /// Last schema version written by the Python app.
 pub const PYTHON_SCHEMA_VERSION: i64 = 16;
 
@@ -70,6 +73,10 @@ pub enum Error {
     /// nothing was written.
     #[error("{0}")]
     MergeRefused(merge::MergeRefusal),
+    /// A research request named a batch of another library epoch; nothing
+    /// was written.
+    #[error("batch {0} does not belong to the current library")]
+    ForeignBatch(String),
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
     #[error(transparent)]

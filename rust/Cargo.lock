@@ -2688,19 +2688,14 @@ dependencies = [
 name = "musaic-ai"
 version = "0.2.0-rc.2"
 dependencies = [
- "base64 0.23.1",
- "musaic-ai",
  "musaic-core",
  "musaic-db",
  "musaic-fsops",
  "musaic-resolve",
  "musaic-services",
  "musaic-testdata",
- "regex",
  "rusqlite",
  "serde_json",
- "sha2 0.11.1",
- "tempfile",
 ]
 
 [[package]]

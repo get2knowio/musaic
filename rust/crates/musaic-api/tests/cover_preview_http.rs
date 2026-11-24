@@ -97,14 +97,21 @@ fn state(sb: &Sandbox, t: Arc<dyn Transport + Send + Sync>) -> AppState {
 /// A job row with `result_json` as given (the shape the worker stores).
 fn insert_job(sb: &Sandbox, id: &str, result: Option<serde_json::Value>) {
     let conn = rusqlite::Connection::open(sb.cfg.join("library.db")).unwrap();
-    conn.execute(
-        "INSERT INTO ai_jobs (id, album_id, album_path, album_title, job_type, status, \
-         result_json, created_at, completed_at) \
-         VALUES (?1, 'a1', '/lib/A - B [FLAC]', 'B', 'cover', 'completed', ?2, \
-         '2026-11-12T00:00:00', '2026-11-12T00:00:01')",
-        rusqlite::params![id, result.map(|r| r.to_string())],
-    )
-    .unwrap();
+    // An old job, as schema v24 folded it.
+    let job = musaic_db::research_history::JobRow {
+        album_path: "/lib/A - B [FLAC]".into(),
+        album_title: "B".into(),
+        result_json: result.map(|r| r.to_string()),
+        completed_at: Some("2026-11-12T00:00:01".into()),
+        ..musaic_db::research_history::JobRow::seed(
+            id,
+            "a1",
+            "cover",
+            "completed",
+            "2026-11-12T00:00:00",
+        )
+    };
+    musaic_db::research_history::import_legacy_job(&conn, &job).unwrap();
 }
 
 fn cover_result(url: Option<&str>) -> serde_json::Value {
@@ -141,6 +148,31 @@ async fn found_image_is_served_same_origin() {
         Some("/api/ai/jobs/{job_id}/cover-preview")
     );
     assert_eq!(t.sent(), [CAA, IA]);
+}
+
+/// The jobs list shows a linked old job under its card, the group of the
+/// requests the migration made for it; the preview finds the old result
+/// through that id too.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_linked_old_job_previews_by_its_card_id() {
+    let sb = Sandbox::new();
+    let t = Arc::new(Scripted::default().with(CAA, 200, &[("Content-Type", "image/jpeg")], JPEG));
+    let st = state(&sb, t.clone());
+    insert_job(&sb, "00000000000000a2", Some(cover_result(Some(CAA))));
+    let group: String = rusqlite::Connection::open(sb.cfg.join("library.db"))
+        .unwrap()
+        .query_row(
+            "SELECT group_id FROM delegated_work WHERE legacy_job_id = '00000000000000a2'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_ne!(group, "00000000000000a2");
+    let app = router(st);
+    let got = call(&app, "GET", &path(&group), None).await;
+    assert_eq!(got.status, 200, "{}", got.text());
+    assert_eq!(got.body, JPEG);
+    assert_eq!(t.sent(), [CAA]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

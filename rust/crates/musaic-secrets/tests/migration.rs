@@ -4,7 +4,8 @@
 //! check the outcomes the decisions state (a row only fills an empty keyring
 //! slot; the keyring wins; a row goes only when the keyring demonstrably holds
 //! a value; the pre-migration backup is scrubbed too, stays a valid v16 file,
-//! and is never left half-written; with no keyring nothing changes). Inputs
+//! and is never left half-written; with no keyring nothing changes but the
+//! retired keys' rows; a retired key is scrubbed, never moved). Inputs
 //! are an Python app-written database (testdata/db/v16-synthetic-offline.db, whose
 //! one settings row is the offline capture's dummy AcoustID key) and rows
 //! written with the Python app's setter semantics. Byte-level checks scan every
@@ -26,14 +27,28 @@ use common::{dump, file_contains, files_containing, names, open_copy, settings_r
 use musaic_db::{BACKUP_FILE_NAME, Db, backup, settings};
 use musaic_secrets::migrate::SCRUB_TMP_SUFFIX;
 use musaic_secrets::{
-    MemoryStore, SecretStore, StoreError, clear_all, migrate_settings_secrets, secret,
-    secret_status, set_secret,
+    MemoryStore, RETIRED_SECRET_KEYS, SecretStore, StoreError, clear_all, migrate_settings_secrets,
+    secret, secret_status, set_secret,
 };
 use rusqlite::{Connection, OpenFlags};
 
 const DUMMY: &str = "migration-offline-dummy";
 const FAKE_AI: &str = "test-key-not-real";
 const NEWER: &str = "test-newer-key-not-real";
+const FAKE_FIRECRAWL: &str = "test-firecrawl-key-not-real";
+
+/// Store calls (`get:`, `set:`, `delete:`) that named a retired key.
+fn retired_calls(store: &MemoryStore) -> Vec<String> {
+    store
+        .calls()
+        .into_iter()
+        .filter(|c| {
+            RETIRED_SECRET_KEYS
+                .iter()
+                .any(|k| c.ends_with(&format!(":{k}")))
+        })
+        .collect()
+}
 
 fn ro(p: &Path) -> Connection {
     Connection::open_with_flags(p, OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap()
@@ -125,7 +140,9 @@ fn overwritten_values_are_scrubbed_too() {
     settings::set_raw(conn, "ai_api_key", old).unwrap();
     settings::set_raw(conn, "ai_api_key", FAKE_AI).unwrap();
     let store = MemoryStore::new();
-    migrate_settings_secrets(&db, &store).unwrap();
+    let r = migrate_settings_secrets(&db, &store).unwrap();
+    assert_eq!(r.dropped_retired, vec!["ai_api_key"]);
+    assert!(store.entries().is_empty(), "a retired key is never moved");
     // Whole values and the distinctive tail of the overwritten one (a later
     // cell can land on part of the freed one).
     for needle in [old, FAKE_AI, "longer-than-the-new-one", "test-old-key"] {
@@ -216,16 +233,18 @@ fn backup_that_cannot_be_scrubbed_is_left_untouched() {
 }
 
 /// A failed write into an empty slot keeps the row in the
-/// live db AND the backup; the other keys still move.
+/// live db AND the backup; a retired key's row still goes (never moved).
 #[test]
 fn failed_write_keeps_the_row() {
     let (_t, dir, db) = open_copy("v16-synthetic-offline.db");
     let conn = db.connection();
-    settings::set_raw(conn, "firecrawl_api_key", "test-firecrawl-key-not-real").unwrap();
+    settings::set_raw(conn, "firecrawl_api_key", FAKE_FIRECRAWL).unwrap();
     let store = MemoryStore::new();
     store.fail_set_for("acoustid_api_key");
     let r = migrate_settings_secrets(&db, &store).unwrap();
-    assert_eq!(r.moved, vec!["firecrawl_api_key"]);
+    assert!(r.moved.is_empty());
+    assert_eq!(r.dropped_retired, vec!["firecrawl_api_key"]);
+    assert!(retired_calls(&store).is_empty(), "{:?}", store.calls());
     assert_eq!(r.failed.len(), 1);
     assert!(store.calls().contains(&"set:acoustid_api_key".to_owned()));
     assert_eq!(
@@ -273,17 +292,31 @@ fn read_back_mismatch_keeps_the_row() {
     );
 }
 
-/// With no keyring nothing changes anywhere: live rows
-/// (blank ones too), backup bytes, and no temp files.
+/// With no keyring nothing changes anywhere but the retired keys' rows: the
+/// migrated key's live row (a blank one too), backup bytes, and no temp files.
+/// A retired row needs no keyring and goes anyway.
 #[test]
 fn unavailable_keyring_changes_nothing() {
     let (_t, dir, db) = open_copy("v16-synthetic-offline.db");
-    settings::set_raw(db.connection(), "ai_api_key", "  ").unwrap();
-    let rows = settings_rows(db.connection());
+    settings::set_raw(db.connection(), "ai_api_key", FAKE_AI).unwrap();
+    let mut rows = settings_rows(db.connection());
     let backup_bytes = std::fs::read(dir.join(BACKUP_FILE_NAME)).unwrap();
     let store = MemoryStore::unavailable();
     let r = migrate_settings_secrets(&db, &store).unwrap();
-    assert_eq!(r.failed.len(), 2);
+    assert_eq!(r.failed.len(), 1);
+    assert_eq!(r.failed[0].0, "acoustid_api_key");
+    assert_eq!(r.removed_rows(), ["ai_api_key"]);
+    assert!(r.backup_scrubbed.is_empty());
+    assert!(retired_calls(&store).is_empty(), "{:?}", store.calls());
+    rows.remove("ai_api_key");
+    assert_eq!(settings_rows(db.connection()), rows);
+    assert!(files_containing(&dir, FAKE_AI).is_empty());
+
+    // A blank migrated row stays too.
+    settings::set_raw(db.connection(), "acoustid_api_key", "  ").unwrap();
+    let rows = settings_rows(db.connection());
+    let r = migrate_settings_secrets(&db, &store).unwrap();
+    assert_eq!(r.failed.len(), 1);
     assert!(r.removed_rows().is_empty() && r.backup_scrubbed.is_empty());
     assert_eq!(settings_rows(db.connection()), rows);
     assert_eq!(
@@ -339,18 +372,80 @@ fn restore_of_an_old_backup_does_not_bring_the_old_key_back() {
 fn blank_row_is_dropped_without_touching_the_store() {
     let (_t, _dir, db) = open_copy("v16-empty.db");
     let conn = db.connection();
-    settings::set_raw(conn, "firecrawl_api_key", "   ").unwrap();
+    settings::set_raw(conn, "acoustid_api_key", "   ").unwrap();
     let store = MemoryStore::new();
-    store
-        .set("firecrawl_api_key", "test-firecrawl-key-not-real")
-        .unwrap();
+    store.set("acoustid_api_key", NEWER).unwrap();
     let r = migrate_settings_secrets(&db, &store).unwrap();
-    assert_eq!(r.dropped_blank, vec!["firecrawl_api_key"]);
-    assert_eq!(settings::get_raw(conn, "firecrawl_api_key").unwrap(), None);
+    assert_eq!(r.dropped_blank, vec!["acoustid_api_key"]);
+    assert_eq!(settings::get_raw(conn, "acoustid_api_key").unwrap(), None);
+    assert_eq!(secret(&store, "acoustid_api_key").unwrap(), NEWER);
+}
+
+/// Retired keys (FR-027): their rows are scrubbed from the live database and
+/// the pre-migration backup, never moved to the keyring, with no keyring call
+/// for them (an entry the keyring already holds is left for the startup
+/// removal); the AcoustID key still moves. Blank retired rows go too.
+#[test]
+fn retired_rows_are_scrubbed_not_moved() {
+    let (_t, dir, db) = open_copy("v16-synthetic-offline.db");
+    let conn = db.connection();
+    settings::set_raw(conn, "ai_api_key", FAKE_AI).unwrap();
+    settings::set_raw(conn, "firecrawl_api_key", "  ").unwrap();
+    {
+        let b = Connection::open(dir.join(BACKUP_FILE_NAME)).unwrap();
+        settings::set_raw(&b, "ai_api_key", FAKE_AI).unwrap();
+        settings::set_raw(&b, "firecrawl_api_key", FAKE_FIRECRAWL).unwrap();
+    }
+    assert!(file_contains(&dir.join(BACKUP_FILE_NAME), FAKE_FIRECRAWL));
+    let store = MemoryStore::new();
+    let r = migrate_settings_secrets(&db, &store).unwrap();
+    assert_eq!(r.moved, vec!["acoustid_api_key"]);
+    assert_eq!(r.dropped_retired, vec!["ai_api_key", "firecrawl_api_key"]);
+    assert!(r.dropped_blank.is_empty() && r.failed.is_empty());
     assert_eq!(
-        secret(&store, "firecrawl_api_key").unwrap(),
-        "test-firecrawl-key-not-real"
+        r.removed_rows(),
+        ["acoustid_api_key", "ai_api_key", "firecrawl_api_key"]
     );
+    let mut scrubbed = r.backup_scrubbed.clone();
+    scrubbed.sort_unstable();
+    assert_eq!(
+        scrubbed,
+        ["acoustid_api_key", "ai_api_key", "firecrawl_api_key"]
+    );
+    assert!(r.backup_error.is_none(), "{:?}", r.backup_error);
+    assert_eq!(
+        store.entries().into_keys().collect::<Vec<_>>(),
+        ["acoustid_api_key"]
+    );
+    assert!(retired_calls(&store).is_empty(), "{:?}", store.calls());
+    for k in RETIRED_SECRET_KEYS {
+        assert_eq!(settings::get_raw(conn, k).unwrap(), None, "{k}");
+    }
+    for v in [DUMMY, FAKE_AI, FAKE_FIRECRAWL] {
+        assert!(files_containing(&dir, v).is_empty(), "{v}");
+    }
+    assert_backup_is_fixture_minus(&dir, &["acoustid_api_key"]);
+
+    // Rerun: nothing left to do, still no call for a retired key.
+    let r = migrate_settings_secrets(&db, &store).unwrap();
+    assert!(r.is_noop(), "{r:?}");
+    assert!(retired_calls(&store).is_empty(), "{:?}", store.calls());
+
+    // A keyring entry a retired key already has is not consulted, kept or
+    // overwritten here.
+    let store = MemoryStore::new();
+    store.set("ai_api_key", NEWER).unwrap();
+    settings::set_raw(conn, "ai_api_key", FAKE_AI).unwrap();
+    let r = migrate_settings_secrets(&db, &store).unwrap();
+    assert_eq!(r.dropped_retired, vec!["ai_api_key"]);
+    assert!(r.kept_keyring.is_empty());
+    assert_eq!(
+        retired_calls(&store),
+        ["set:ai_api_key"],
+        "only the test's own call"
+    );
+    assert_eq!(secret(&store, "ai_api_key").unwrap(), NEWER);
+    assert!(files_containing(&dir, FAKE_AI).is_empty());
 }
 
 /// A database with no pre-migration backup beside it (already v17) migrates
@@ -374,10 +469,12 @@ fn no_backup_beside_the_database_is_fine() {
 #[test]
 fn clearing_removes_entries() {
     let store = MemoryStore::new();
-    set_secret(&store, "ai_api_key", FAKE_AI).unwrap();
-    set_secret(&store, "ai_api_key", "  ").unwrap();
+    set_secret(&store, "acoustid_api_key", FAKE_AI).unwrap();
+    set_secret(&store, "acoustid_api_key", "  ").unwrap();
     assert!(store.entries().is_empty());
     set_secret(&store, "acoustid_api_key", DUMMY).unwrap();
+    // A retired entry left from an older build is cleared too.
+    store.set("ai_api_key", FAKE_AI).unwrap();
     clear_all(&store).unwrap();
     clear_all(&store).unwrap();
     assert!(store.entries().is_empty());
@@ -391,6 +488,22 @@ fn clearing_removes_entries() {
     assert!(
         set_secret(&store, "ai_model_id", "x").is_err(),
         "not a secret key"
+    );
+    // A retired key is no longer writable, and the refusal makes no call.
+    let calls = store.calls().len();
+    for k in RETIRED_SECRET_KEYS {
+        assert!(set_secret(&store, k, FAKE_AI).is_err(), "{k}");
+        assert!(set_secret(&store, k, "").is_err(), "{k}");
+    }
+    assert_eq!(store.calls().len(), calls);
+    assert!(store.entries().is_empty());
+    assert_eq!(
+        secret_status(&store)
+            .set
+            .iter()
+            .map(|(k, _)| *k)
+            .collect::<Vec<_>>(),
+        ["acoustid_api_key"]
     );
 }
 

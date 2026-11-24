@@ -160,27 +160,19 @@ impl AlbumResolution {
 }
 
 /// The Python app's trace note for an album no tier anchored. The resolver
-/// always records this text (results are memoized and also fed to the AI
-/// prompt); [`AlbumResolution::reword_notes`] rewords it where it is shown.
+/// always records this text (results are memoized and the recorded goldens
+/// hold it); [`AlbumResolution::reword_notes`] rewords it where it is shown.
 pub const UNANCHORED_NOTE: &str = "No anchor found via Tiers 0a-0c; AI escalation may be required";
 
-/// [`UNANCHORED_NOTE`] when no AI provider is ready.
+/// [`UNANCHORED_NOTE`] as shown.
 pub const UNANCHORED_NOTE_NEUTRAL: &str = "No anchor found via Tiers 0a-0c";
 
 impl AlbumResolution {
     /// The `notes` as shown to the user (`GET /api/albums/{id}/resolution`,
-    /// the badge tooltip). With [`AiWording::NamesAi`] nothing changes; with
-    /// [`AiWording::Neutral`] [`UNANCHORED_NOTE`] becomes
-    /// [`UNANCHORED_NOTE_NEUTRAL`]. Call it on a copy: the memoized resolution
-    /// itself is never changed, so a change of readiness only changes what the
-    /// next read shows.
-    ///
-    /// [`AiWording::NamesAi`]: musaic_core::AiWording::NamesAi
-    /// [`AiWording::Neutral`]: musaic_core::AiWording::Neutral
-    pub fn reword_notes(&mut self, wording: musaic_core::AiWording) {
-        if wording.names_ai() {
-            return;
-        }
+    /// the badge tooltip): [`UNANCHORED_NOTE`] becomes
+    /// [`UNANCHORED_NOTE_NEUTRAL`]. Call it on a copy: the memoized
+    /// resolution itself is never changed.
+    pub fn reword_notes(&mut self) {
         for n in self.notes.iter_mut() {
             if n == UNANCHORED_NOTE {
                 *n = UNANCHORED_NOTE_NEUTRAL.to_string();
@@ -231,7 +223,7 @@ pub fn refine_from_anchor(
 ///   fetch failed or listed nothing usable) every FLAC is listed with its
 ///   fingerprint fields and counted unresolved, so `unresolved_track_count`
 ///   equals the number of tracks. The Python app lists none and counts 0, which
-///   the AI worker's skip rule reads as "fully resolved".
+///   the synthesis' skip rule (`musaic_ai::synth`) reads as "fully resolved".
 pub fn refine_from_anchor_scoped(
     resolution: &mut AlbumResolution,
     m: &MbMatch,

@@ -1,7 +1,7 @@
 //! First-launch move of secret settings rows into the store.
 //!
 //! The keyring is the single source of truth. For each of
-//! [`SECRET_KEYS`] that has a row in the live `settings` table:
+//! [`MIGRATED_SECRET_KEYS`] that has a row in the live `settings` table:
 //!
 //! 1. the value is stripped, as the Python accessors strip it on read
 //!    (`(get_raw(key) or "").strip()`); a blank row holds nothing and is dropped;
@@ -25,9 +25,18 @@
 //!    an earlier call could not (blocked, or the process stopped after the
 //!    delete).
 //!
+//! A row of one of [`RETIRED_SECRET_KEYS`] (keys the app no longer uses) is
+//! removed in the same scrub, whatever its value and whatever the keyring
+//! holds: it is never written to the keyring (that would create the entry the
+//! app is retiring), and no keyring call is made for it, so it goes even when
+//! the keyring is unavailable. It is reported in
+//! [`MigrationReport::dropped_retired`]. The same holds in the backup and the
+//! older copies below.
+//!
 //! Then the pre-migration backup (`library.v16.before-rust.db` next to
-//! the live file) gets the same treatment: every secret row in it is
-//! removed if the keyring holds a value for that key. The scrub works on a
+//! the live file) gets the same treatment: every migrated secret row in it is
+//! removed if the keyring holds a value for that key (or it is blank), and
+//! every retired one unconditionally. The scrub works on a
 //! temporary copy that is integrity-checked and renamed over the backup, so a
 //! crash leaves either the old backup or the scrubbed one, never a broken file;
 //! a leftover temporary copy is deleted on the next run.
@@ -47,9 +56,10 @@
 //! [`MIN_VALUE_BYTES`] are not searched for as raw bytes (too likely to occur
 //! by chance); the row checks still apply to them.
 //!
-//! A key the keyring cannot confirm keeps its row everywhere; the next launch
-//! retries. With the keyring unavailable no row is moved or deleted and no
-//! backup is scrubbed; only content-preserving steps run (the WAL
+//! A migrated key the keyring cannot confirm keeps its row everywhere; the
+//! next launch retries. With the keyring unavailable no migrated row is moved
+//! or deleted; only retired rows are scrubbed (from the live file, the backup
+//! and the copies), besides the content-preserving steps (the WAL
 //! checkpoint, and folding a backup that is not a self-contained
 //! rollback-journal file into one).
 
@@ -60,8 +70,10 @@ use std::time::Duration;
 use musaic_db::{BACKUP_FILE_NAME, Db};
 use rusqlite::{Connection, OpenFlags};
 
-use crate::SECRET_KEYS;
+#[cfg(doc)]
+use crate::RETIRED_SECRET_KEYS;
 use crate::store::{SecretStore, StoreError};
+use crate::{MIGRATED_SECRET_KEYS, SECRET_KEYS, is_retired_key};
 
 /// Suffix of the temporary copy the backup is scrubbed in.
 pub const SCRUB_TMP_SUFFIX: &str = ".scrub-tmp";
@@ -79,6 +91,9 @@ pub struct MigrationReport {
     pub kept_keyring: Vec<&'static str>,
     /// Blank in the database; row deleted, keyring untouched.
     pub dropped_blank: Vec<&'static str>,
+    /// A retired key ([`RETIRED_SECRET_KEYS`]); row deleted whatever its
+    /// value, never written to the keyring, no keyring call made.
+    pub dropped_retired: Vec<&'static str>,
     /// Could not be confirmed in the keyring; row left in place.
     pub failed: Vec<(&'static str, StoreError)>,
     /// Secret rows removed from the pre-migration backup.
@@ -106,6 +121,7 @@ impl MigrationReport {
             .iter()
             .chain(&self.kept_keyring)
             .chain(&self.dropped_blank)
+            .chain(&self.dropped_retired)
             .copied()
             .collect();
         v.sort_unstable();
@@ -134,6 +150,14 @@ pub(crate) fn write_verified(
 /// Whether the keyring holds a non-empty value for `key`.
 fn keyring_holds(store: &dyn SecretStore, key: &str) -> Result<bool, StoreError> {
     Ok(store.get(key)?.is_some_and(|v| !v.trim().is_empty()))
+}
+
+/// Whether a row of `key` in a backup or an older copy may be removed: a
+/// retired key always (with no keyring call); a migrated one when it is blank
+/// or the keyring demonstrably holds a value for it. A keyring error
+/// (unavailable) keeps a migrated row, blank or not.
+fn may_remove(store: &dyn SecretStore, key: &str, blank: bool) -> bool {
+    is_retired_key(key) || matches!(keyring_holds(store, key), Ok(holds) if holds || blank)
 }
 
 /// The pre-migration backup that sits next to `db`: whichever
@@ -180,6 +204,10 @@ pub fn migrate_settings_secrets(
         let Some(raw) = musaic_db::settings::get_raw(conn, key)? else {
             continue;
         };
+        if is_retired_key(key) {
+            report.dropped_retired.push(key);
+            continue;
+        }
         let value = musaic_core::pycompat::strip(&raw);
         // The keyring is consulted even for a blank row, so that with no
         // keyring nothing at all changes.
@@ -353,8 +381,9 @@ fn settle_backup(backup: &Path) -> musaic_db::Result<()> {
     Ok(())
 }
 
-/// Remove, from the backup at `backup`, every secret row whose key the keyring
-/// demonstrably holds (blank rows too). Returns the keys removed.
+/// Remove, from the backup at `backup`, every retired secret row and every
+/// migrated one whose key the keyring demonstrably holds (blank rows too).
+/// Returns the keys removed.
 fn scrub_backup(backup: &Path, store: &dyn SecretStore) -> musaic_db::Result<Vec<&'static str>> {
     let tmp = sidecar(backup, SCRUB_TMP_SUFFIX);
     // A crash during an earlier scrub may have left a copy (possibly still
@@ -383,13 +412,9 @@ fn scrub_backup(backup: &Path, store: &dyn SecretStore) -> musaic_db::Result<Vec
     let mut rows_removed = Vec::new();
     for (key, val) in rows {
         let blank = musaic_core::pycompat::strip(&val).is_empty();
-        // A keyring error (unavailable) leaves the row, blank or not.
-        match keyring_holds(store, key) {
-            Ok(holds) if holds || blank => {
-                remove.push(key);
-                rows_removed.push((key, val));
-            }
-            _ => {}
+        if may_remove(store, key, blank) {
+            remove.push(key);
+            rows_removed.push((key, val));
         }
     }
     if remove.is_empty() {
@@ -466,7 +491,8 @@ fn schema_version(conn: &Connection) -> rusqlite::Result<i64> {
 pub const MIN_VALUE_BYTES: usize = 8;
 
 /// The byte sequences that must not survive a scrub of `rows`: each removed
-/// row's value (as stored and stripped) and the keyring's value for its key.
+/// row's value (as stored and stripped) and, for a migrated key, the
+/// keyring's value for it (a retired key is never looked up).
 fn removed_value_needles(
     rows: &[(&'static str, String)],
     store: &dyn SecretStore,
@@ -480,6 +506,9 @@ fn removed_value_needles(
     for (k, raw) in rows {
         add(k, raw);
         add(k, musaic_core::pycompat::strip(raw));
+        if is_retired_key(k) {
+            continue;
+        }
         if let Ok(Some(kv)) = store.get(k) {
             add(k, &kv);
             add(k, musaic_core::pycompat::strip(&kv));
@@ -488,10 +517,10 @@ fn removed_value_needles(
     v
 }
 
-/// The keyring's values (for every secret key it holds), as needles.
+/// The keyring's values (for every migrated key it holds), as needles.
 fn keyring_needles(store: &dyn SecretStore) -> Vec<(&'static str, Vec<u8>)> {
     let mut v: Vec<(&'static str, Vec<u8>)> = Vec::new();
-    for k in SECRET_KEYS {
+    for k in MIGRATED_SECRET_KEYS {
         if let Ok(Some(kv)) = store.get(k) {
             let kv = musaic_core::pycompat::strip(&kv);
             if kv.len() >= MIN_VALUE_BYTES {
@@ -768,9 +797,10 @@ fn scrub_copy(
             let mut removed = Vec::new();
             for (key, val) in rows {
                 let blank = musaic_core::pycompat::strip(&val).is_empty();
-                match keyring_holds(store, key) {
-                    Ok(holds) if holds || blank => removed.push((key, val)),
-                    _ => out.kept.push(key),
+                if may_remove(store, key, blank) {
+                    removed.push((key, val));
+                } else {
+                    out.kept.push(key);
                 }
             }
             if removed.is_empty() && !values_present && copy.wal.is_none() {

@@ -7,8 +7,9 @@
 //! here; the v20 disc columns only once they hold a value,
 //! `SKIPPED_WHEN_NULL`), its fingerprint rows (implementation, time computed, AcoustID
 //! recording and score; read from `idx_track_fingerprints_inputs`, not the
-//! fingerprint text), its blocked MusicBrainz release groups and its AI jobs
-//! (type, status and times: no-cover-art reads recent cover jobs). Files are
+//! fingerprint text), its blocked MusicBrainz release groups and its
+//! research (requests and old job history records: no-cover-art reads
+//! recent cover research). Files are
 //! represented by what the scan stores about them (the row's track lists,
 //! cover columns and directory mtime), so a change on disk counts once a
 //! scan has seen it: scans observe. A check's digest for an album is the
@@ -37,7 +38,7 @@ use crate::base::{Check, CheckCtx, CheckEnv, CheckError, CheckScope, Granularity
 
 /// Folded into every digest: bump it when what a digest covers changes, so
 /// every check is rerun once.
-pub const INPUTS_VERSION: &str = "check-inputs/2";
+pub const INPUTS_VERSION: &str = "check-inputs/3";
 
 /// A SHA-256 over typed, length-prefixed fields (two different field
 /// sequences never feed the same bytes).
@@ -164,12 +165,25 @@ pub fn album_digests(
         "blocked",
         &mut hashers,
     )?;
+    // Research (schema v24): what a check can read of a request is its kind,
+    // state, result and creation time (no-cover-art's window and rule). Not
+    // `revision` or `updated_at`: every lease renewal and progress report
+    // bumps them, and an assistant renews once a minute, so folding them in
+    // would make every check of every album being researched stale again and
+    // again. An old job's history record is never updated but for its album
+    // id, so its id, type, status and acted-on time cover it.
     fold_child_rows(
         conn,
-        "SELECT album_id, id, job_type, status, created_at, completed_at, acted_on_at, \
-                acted_on_action, length(result_json) \
-         FROM ai_jobs ORDER BY album_id, id",
-        "job",
+        "SELECT album_id, id, kind, state, result_id, legacy_job_id, created_at \
+         FROM delegated_work ORDER BY album_id, id",
+        "request",
+        &mut hashers,
+    )?;
+    fold_child_rows(
+        conn,
+        "SELECT album_id, id, job_type, status, acted_on_at \
+         FROM research_history ORDER BY album_id, id",
+        "history",
         &mut hashers,
     )?;
     Ok(hashers.into_iter().map(|(id, h)| (id, h.hex())).collect())

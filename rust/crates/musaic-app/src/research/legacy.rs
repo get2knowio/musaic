@@ -10,8 +10,8 @@ use musaic_commands::tools::work::{
     Recommendation, SCHEMA_VERSION, TrackChange, WorkContext, WorkKind, WorkOutcome, WorkResult,
     is_uuid,
 };
-use musaic_db::ai_jobs::JobRow;
 use musaic_db::delegated_work::{self, Completion, WorkRow};
+use musaic_db::research_history::JobRow;
 use rusqlite::Connection;
 use serde::Deserialize;
 

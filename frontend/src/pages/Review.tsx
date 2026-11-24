@@ -11,11 +11,9 @@ import { SourceNotice } from "@/components/SourceNotice";
 import {
   DeleteConfirmDialog,
   JobRow,
-  PausedBanner,
   type PendingDelete,
 } from "@/components/JobRow";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
-import { useAiStatus } from "@/hooks/useAiStatus";
 import {
   albumCount,
   countText,
@@ -39,19 +37,19 @@ import type { Album, CheckSummary, Finding, Job } from "@/lib/types";
  *
  * It opens to All open: every open finding whatever its severity
  * (informational ones included, nothing behind a tab or disclosure),
- * every proposed change and every failed job, most pressing first
+ * every proposed change and every failed research request, most pressing first
  * (`sortReviewItems`), each row with a short urgency label. The header
  * counts the items shown and the albums they are about; the Sidebar badge
  * is the same count of All open, so a filter ("2 of 3 items") never
  * changes it.
  *
  * Left, the filters: All open, then each type (proposed changes, failed
- * jobs, assistant requests, and each check once) with its count; exactly one is current. An
+ * research, assistant requests, and each check once) with its count; exactly one is current. An
  * album filter (`?album=<id>`, set from an album's panel) narrows any of
  * them and is shown as a chip in the header.
  *
  * Below them, not counted: ignored findings, and a way to the Activity
- * panel, which holds jobs in progress and job history (they are not review
+ * panel, which holds research requests in progress and their history (they are not review
  * items).
  *
  * The URL holds the state, so Back from an album's panel returns to it:
@@ -111,7 +109,7 @@ function sameView(a: View, b: View): boolean {
 const FILTER_TITLE: Record<"all" | "proposed" | "failed" | "approvals", string> = {
   all: "All open",
   proposed: "Proposed changes",
-  failed: "Failed jobs",
+  failed: "Failed research",
   approvals: "Assistant requests",
 };
 
@@ -129,21 +127,23 @@ export default function ReviewPage() {
   const review = useReview();
   const { data: checks = [] } = useChecks();
   const { data: allJobs = [] } = useJobs();
-  const ai = useAiStatus();
   const { data: albums = [] } = useAlbumsSnapshot();
   const albumsById = useMemo(() => new Map<string, Album>(albums.map((a) => [a.id, a])), [albums]);
   const checksById = useMemo(() => new Map(checks.map((c) => [c.meta.id, c])), [checks]);
   const checkLabel = (id: string) => checksById.get(id)?.meta.label ?? id;
   const [bulkCheck, setBulkCheck] = useState<CheckSummary | null>(null);
 
-  // ---- job deletes ----
+  // ---- removing history, cancelling requests ----
+  // A waiting or running request is cancelled through the dialog (the
+  // research cancel, FR-036); only an applied or discarded record is
+  // removed at once.
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const deleteJob = useDeleteJob();
   const bulkDelete = useBulkDeleteJobs();
   const onSingleDelete = (job: Job) => {
     if (job.status === "acted_on") {
       deleteJob.mutate(job.id, {
-        onError: (err) => toast.error((err as Error).message || "Could not delete job", { duration: 4000 }),
+        onError: (err) => toast.error((err as Error).message || "Could not remove it", { duration: 4000 }),
       });
       return;
     }
@@ -152,7 +152,7 @@ export default function ReviewPage() {
   const onBulkDelete = (p: Extract<PendingDelete, { kind: "bulk" }>) => {
     if (p.statuses.length === 1 && p.statuses[0] === "acted_on") {
       bulkDelete.mutate(p.statuses, {
-        onError: (err) => toast.error((err as Error).message || "Could not bulk delete", { duration: 4000 }),
+        onError: (err) => toast.error((err as Error).message || "Could not clear the history", { duration: 4000 }),
       });
       return;
     }
@@ -392,7 +392,7 @@ export default function ReviewPage() {
             <h2 className="text-md font-medium mb-1.5">Nothing to review</h2>
             <p className="text-sm text-fg-3 max-w-md mx-auto">
               Checks run on their own in the background. Anything they find, any change proposed for an
-              album and any job that fails will be listed here.
+              album and any research request that fails will be listed here.
             </p>
           </div>
         );
@@ -543,7 +543,6 @@ export default function ReviewPage() {
         )}
       </div>
 
-      <PausedBanner aiReady={ai.ready} />
       <SourceNotice
         sources={[review.sources.findings, review.sources.jobs, review.sources.approvals]}
         className="mx-4 mt-3 mb-1"
@@ -582,7 +581,7 @@ export default function ReviewPage() {
             )}
             {(rail.failed > 0 || (view.kind === "inbox" && view.filter.kind === "failed")) && (
               <RailRow
-                label="Failed jobs"
+                label="Failed research"
                 count={rail.failed}
                 active={view.kind === "inbox" && view.filter.kind === "failed"}
                 onSelect={() => select({ kind: "inbox", filter: { kind: "failed" } })}
@@ -621,7 +620,7 @@ export default function ReviewPage() {
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
               }
             >
-              <span className="truncate flex-1">Jobs in progress and history</span>
+              <span className="truncate flex-1">Research requests and history</span>
               <ActivityIcon className="w-3 h-3 text-fg-4" aria-hidden />
             </button>
           </RailGroup>
@@ -632,7 +631,7 @@ export default function ReviewPage() {
         </div>
       </div>
 
-      <DeleteConfirmDialog pending={pendingDelete} onClose={() => setPendingDelete(null)} aiReady={ai.ready} />
+      <DeleteConfirmDialog pending={pendingDelete} onClose={() => setPendingDelete(null)} />
       {bulkCheck && (
         <BulkQuickFixDialog
           open

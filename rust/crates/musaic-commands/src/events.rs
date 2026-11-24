@@ -143,6 +143,10 @@ pub struct WorkEventData {
     pub state: WorkState,
     pub revision: i64,
     pub library_epoch: String,
+    /// The bulk run that made the request; absent when none did, so a payload
+    /// without a batch is byte-for-byte what it was before the field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -278,7 +282,11 @@ fn payload_schema() -> Value {
             "kind": {"enum": KINDS},
             "state": {"enum": STATES},
             "revision": {"type": "integer"},
-            "libraryEpoch": {"type": "string"}
+            "libraryEpoch": {"type": "string"},
+            "batchId": {
+                "type": "string",
+                "description": "Opaque reference to the bulk run that made this request. Absent for requests not made by a bulk run."
+            }
         }
     })
 }
@@ -351,16 +359,22 @@ pub fn events_catalog_markdown() -> String {
         "# Musaic events\n\nGenerated from the event catalog; do not edit by hand.\n\n\
          Extension `io.modelcontextprotocol/events` on protocol revision `2026-07-28`. \
          An event says that work changed; read the work with `musaic_work_get`. \
-         Delivery is at least once: deduplicate by `eventId` and rely on the atomic claim.\n\n",
+         Delivery is at least once: deduplicate by `eventId` and rely on the atomic claim.\n\n\
+         Compatibility: since skill 1.1.0, work event payloads may carry `batchId`. The field is optional and additive, \
+         so the event types stay `.v1`. Read the payload schema from `events/list` rather than a cached copy: \
+         a client that validates against the earlier schema with `additionalProperties: false` will reject events that carry it.\n\n",
     );
     for d in descriptors(STREAM_SUPPORTED) {
         out.push_str(&format!("## `{}`\n\n{}\n\n", d.name, d.description));
         out.push_str(&format!("Delivery: {}.\n\n", d.delivery.join(", ")));
-        out.push_str("`data` holds exactly:\n\n");
+        out.push_str("`data` holds these keys and no others:\n\n");
         out.push_str("- `workId` (string)\n");
         out.push_str(&format!("- `kind` (one of {})\n", list(&KINDS)));
         out.push_str(&format!("- `state` (one of {})\n", list(&STATES)));
-        out.push_str("- `revision` (integer)\n- `libraryEpoch` (string)\n\n");
+        out.push_str("- `revision` (integer)\n- `libraryEpoch` (string)\n");
+        out.push_str(
+            "- `batchId` (string, optional): an opaque reference to the bulk run that made the request; absent for requests not made by a bulk run\n\n",
+        );
         out.push_str("Arguments (all optional): `kinds`, `states`; any other key is refused.\n\n");
     }
     out.push_str("## Polling\n\n");
@@ -419,7 +433,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn data_has_exactly_the_five_required_keys() {
+    fn data_has_the_five_required_keys_and_an_optional_batch() {
         let schema = payload_schema();
         assert_eq!(schema["additionalProperties"], false);
         let required: Vec<&str> = schema["required"]
@@ -432,14 +446,17 @@ mod tests {
             required,
             ["workId", "kind", "state", "revision", "libraryEpoch"]
         );
+        // The five required keys plus the optional `batchId` (spec 006).
         let props: Vec<&String> = schema["properties"].as_object().unwrap().keys().collect();
-        assert_eq!(props.len(), 5);
-        let data = WorkEventData {
+        assert_eq!(props.len(), 6);
+        assert!(schema["properties"]["batchId"].is_object());
+        let mut data = WorkEventData {
             work_id: "w".into(),
             kind: WorkKind::CoverResearch,
             state: WorkState::Queued,
             revision: 1,
             library_epoch: "e".into(),
+            batch_id: None,
         };
         let keys: std::collections::BTreeSet<_> = serde_json::to_value(&data)
             .unwrap()
@@ -448,7 +465,19 @@ mod tests {
             .keys()
             .cloned()
             .collect();
-        let want: std::collections::BTreeSet<_> = required.iter().map(|s| s.to_string()).collect();
+        let mut want: std::collections::BTreeSet<_> =
+            required.iter().map(|s| s.to_string()).collect();
+        // Without a batch the key is absent, not null.
+        assert_eq!(keys, want);
+        data.batch_id = Some("6f0c0000-0000-4000-8000-000000000000".into());
+        let keys: std::collections::BTreeSet<_> = serde_json::to_value(&data)
+            .unwrap()
+            .as_object()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        want.insert("batchId".into());
         assert_eq!(keys, want);
     }
 

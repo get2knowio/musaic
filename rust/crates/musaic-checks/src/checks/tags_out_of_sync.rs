@@ -1,6 +1,7 @@
 //! `tags-out-of-sync` (port of `checks/tags_out_of_sync.py`): blank required
 //! fields, drift from the resolver's canonical values, missing sort tags.
-//! Detection only; the fix needs the apply pipeline and the AI queue.
+//! Detection only; the fix needs the apply pipeline and, for what the
+//! resolver cannot settle, a research request.
 
 use std::path::Path;
 
@@ -206,7 +207,7 @@ pub fn build_summary(
 /// only where findings are shown ([`crate::wording::finding_summary`]).
 pub const NO_ANCHOR_SUFFIX: &str = " (no MB anchor — AI required)";
 
-/// [`NO_ANCHOR_SUFFIX`] when no AI provider is ready.
+/// [`NO_ANCHOR_SUFFIX`] as shown.
 pub const NO_ANCHOR_SUFFIX_NEUTRAL: &str = " (no MusicBrainz match yet)";
 
 fn blank(v: Option<&str>) -> bool {

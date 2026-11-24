@@ -269,7 +269,7 @@ async fn setting_the_acoustid_key_kicks_the_fingerprint_pool() {
     .await;
     assert_eq!(r.status, 200);
     for body in [
-        json!({"ai_model_id": "m"}),
+        json!({"snapshot_retention_count": 5}),
         json!({"acoustid_api_key": "  "}),
     ] {
         let r = call(&app, "PATCH", "/api/settings", Some(&body)).await;

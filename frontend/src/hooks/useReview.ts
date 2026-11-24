@@ -32,6 +32,7 @@ import { useJobs } from "./useJobs";
 import { useAgentApprovals } from "./useAgents";
 import type { AgentApproval } from "@/lib/api";
 import type { Finding, Job } from "@/lib/types";
+import { isHistoryOnlyJob } from "@/lib/filters";
 
 /** The findings endpoint's default row limit (10000). A list that reaches
  *  it may be missing findings, so the count is then a lower bound. */
@@ -66,7 +67,7 @@ export function isOpenFinding(f: Finding): boolean {
 }
 
 export function isReviewJob(j: Job): boolean {
-  return j.status === "completed" || j.status === "failed";
+  return (j.status === "completed" || j.status === "failed") && !isHistoryOnlyJob(j);
 }
 
 function findingUrgency(f: Finding): Urgency {
@@ -236,8 +237,10 @@ export function useReview(): ReviewInbox {
       items,
       count: items.length,
       countIsLowerBound: fs.length >= FINDINGS_LIST_LIMIT || states.includes("unavailable"),
-      inProgress: js.filter((j) => j.status === "queued" || j.status === "running").sort(newestFirst),
-      finishedJobs: js.filter((j) => j.status === "acted_on").sort(newestFirst),
+      inProgress: js
+        .filter((j) => (j.status === "queued" || j.status === "running") && !isHistoryOnlyJob(j))
+        .sort(newestFirst),
+      finishedJobs: js.filter((j) => j.status === "acted_on" || isHistoryOnlyJob(j)).sort(newestFirst),
       sources: {
         findings: {
           label: "findings",

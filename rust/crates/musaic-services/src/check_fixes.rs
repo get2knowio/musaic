@@ -21,18 +21,16 @@
 //! [`FixSources`]: fingerprinting, the resolver's anchor, and the two
 //! MusicBrainz lookups the cover and track-gaps cascades make. With these
 //! the four resolver / MusicBrainz checks run the Python app's deterministic
-//! cascade here. Where the Python app would enqueue an AI job, the result is
-//! [`FixOutcome::NeedsAiJob`] carrying the job it would enqueue and the
-//! message it would answer on success; the AI queue is the host's, so the
-//! host enqueues it (and owns the "Already has an active job ({status})"
-//! conflict answer).
-//!
-//! Deliberate change: when the host says no model backend exists
-//! ([`FixEnv::model_unavailable`]), such a fix answers
-//! `{ok: false, message: <not-available message>, job_id: null}` instead of
-//! [`FixOutcome::NeedsAiJob`]; a tags-out-of-sync fix that wrote resolver
-//! values first answers `"<what it wrote>; <not-available message>"`.
-//! Quick fixes never queue a job, so quick-fix-all is unchanged.
+//! cascade here. Where the resolver cannot settle an album (the Python app
+//! queued a job for its built-in model there), the result is [`FixOutcome::NeedsAiJob`]
+//! carrying the research to request; the host makes the research request
+//! (and answers with it). A tags-out-of-sync fix that wrote resolver values
+//! first says so in [`AiJobRequest::applied_summary`].
+//! A quick fix never requests anything itself. Quick-fix-all with a
+//! [`Delegate`] (the host's bulk research) hands each album the resolver could
+//! not settle, for the four research-capable checks, to that delegate, which
+//! makes one research request in the run's batch; without one the run is the
+//! resolver-only run it always was, frame for frame.
 //!
 //! # Deliberate changes and reproduced quirks
 //!
@@ -272,10 +270,6 @@ pub struct FixEnv<'a> {
     /// Local-time `YYYY-MM-DDTHH-MM-SS` for a trash name collision.
     pub trash_stamp: &'a dyn Fn() -> String,
     pub track_order: TrackOrder,
-    /// `Some(message)` when no model backend
-    /// exists (the host reads it from its AI provider). Where a fix would
-    /// enqueue an AI job it answers `{ok: false, message}` instead.
-    pub model_unavailable: Option<&'a str>,
 }
 
 impl FixEnv<'_> {
@@ -331,7 +325,8 @@ impl FixResult {
     }
 }
 
-/// The AI job the Python app would enqueue (`jobs.enqueue(...)`).
+/// The research a fix asks for where the resolver cannot settle the album
+/// (where the Python app called `jobs.enqueue(...)`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AiJobRequest {
     pub album_id: String,
@@ -342,18 +337,41 @@ pub struct AiJobRequest {
     pub hint: String,
     /// Local resolver changes already written before requesting further research.
     pub applied_summary: Option<String>,
-    /// What the Python app answers (`ok: true`, with the new job id) when the
-    /// enqueue succeeds. On a conflict it answers `ok: false`, "Already has
-    /// an active job ({status})" with the existing job's id instead.
-    pub message: String,
+}
+
+/// What the host did with one album the resolver could not settle.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Delegated {
+    /// A new request was made, in the run's batch.
+    Requested { batch_id: String },
+    /// The album already had an unresolved request of that kind; it keeps its
+    /// own batch membership.
+    AlreadyRequested,
+    /// The host refused (album went Missing, guard, database error): counted
+    /// as an error with this text.
+    Refused(String),
+}
+
+/// The host's bulk research: called once per album the resolver could not
+/// settle, with the request the single Fix would make.
+pub type Delegate<'d> = dyn FnMut(&mut Connection, &AiJobRequest) -> Delegated + 'd;
+
+/// What a quick fix came to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QuickFix {
+    /// Done here (fixed, or skipped with its message).
+    Done(FixResult),
+    /// The resolver could not settle it and research was asked for: the
+    /// request the single Fix would make (empty hint).
+    NeedsResearch(AiJobRequest),
 }
 
 /// What a fix attempt came to.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FixOutcome {
-    /// Done here; no AI involved.
+    /// Done here.
     Done(FixResult),
-    /// The Python app would enqueue this AI job now (the queue is the host's).
+    /// The resolver could not settle it: the host requests this research.
     NeedsAiJob(AiJobRequest),
 }
 
@@ -368,6 +386,10 @@ pub enum QuickFixOutcome {
     Error,
     /// Not attempted: the album is Missing, or the check has no quick fix.
     NotApplicable,
+    /// Handed to the host's research: a new request was made.
+    SentForResearch,
+    /// Handed to the host's research: the album already had a request.
+    AlreadyRequested,
 }
 
 impl QuickFixOutcome {
@@ -378,13 +400,15 @@ impl QuickFixOutcome {
             QuickFixOutcome::Skipped => "skipped",
             QuickFixOutcome::Error => "error",
             QuickFixOutcome::NotApplicable => "not-applicable",
+            QuickFixOutcome::SentForResearch => "sent-for-research",
+            QuickFixOutcome::AlreadyRequested => "already-requested",
         }
     }
 }
 
 /// How a quick-fix-all run came out: findings by outcome, after the check was
 /// rerun over the albums that were fixed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuickFixSummary {
     pub total: usize,
     /// Findings that are gone.
@@ -394,7 +418,26 @@ pub struct QuickFixSummary {
     pub not_applicable: usize,
     /// Fixes that reported success but left their finding open.
     pub still_open: usize,
+    /// Present only when the run had a [`Delegate`] (research asked for), so
+    /// a resolver-only run's summary is what it always was.
+    pub research: Option<ResearchSummary>,
 }
+
+/// What a quick-fix-all run handed to research.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ResearchSummary {
+    /// New requests made, all in one batch.
+    pub sent_for_research: usize,
+    /// Albums that already had an unresolved request of that kind.
+    pub already_requested: usize,
+    /// The run's batch; `None` when the run made no request.
+    pub batch_id: Option<String>,
+}
+
+/// The progress message of an album sent for research.
+pub const SENT_FOR_RESEARCH_MESSAGE: &str = "Sent for research.";
+/// The progress message of an album that already had a request.
+pub const ALREADY_REQUESTED_MESSAGE: &str = "Research is already requested for this album.";
 
 /// One step of a quick-fix-all run: `Start`, one `Progress` per open finding,
 /// then `Done`. `Error` replaces whatever would have followed when the loop
@@ -468,26 +511,14 @@ fn load_album(conn: &Connection, album_id: &str) -> Result<Option<AlbumBrief>, O
     .map_err(db_err)
 }
 
-/// The AI job the Python app would enqueue here, or, with no model backend
-/// `{ok: false, message: <not-available message>}`.
-fn ai_job(
-    env: &FixEnv<'_>,
-    album_id: &str,
-    album: &AlbumBrief,
-    job_type: &'static str,
-    hint: &str,
-    message: impl Into<String>,
-) -> FixOutcome {
-    if let Some(m) = env.model_unavailable {
-        return done(false, m);
-    }
+/// The research the host requests for this album.
+fn ai_job(album_id: &str, album: &AlbumBrief, job_type: &'static str, hint: &str) -> FixOutcome {
     FixOutcome::NeedsAiJob(AiJobRequest {
         album_id: album_id.to_string(),
         album_path: album.path.clone().unwrap_or_default(),
         album_title: album.job_title(),
         job_type,
         hint: hint.to_string(),
-        message: message.into(),
         applied_summary: None,
     })
 }
@@ -554,11 +585,15 @@ fn fix_one(env: &mut FixEnv<'_>, f: &FindingRow, hint: &str) -> Result<FixOutcom
 
 /// `try_quick_fix_finding`: `None` = the check has no quick-fix path (or
 /// the album vanished, for the checks that say so); `Err` = what the Python app
-/// raised (the dispatcher reports it as an `error` outcome).
+/// raised (the dispatcher reports it as an `error` outcome). With `research`,
+/// the four research-capable checks answer [`QuickFix::NeedsResearch`] where
+/// the resolver found nothing (instead of the skip message); without it every
+/// answer is [`QuickFix::Done`].
 pub fn try_quick_fix_finding(
     env: &mut FixEnv<'_>,
     finding_id: i64,
-) -> Result<Option<FixResult>, String> {
+    research: bool,
+) -> Result<Option<QuickFix>, String> {
     let f = findings::get_finding(env.conn, finding_id)
         .map_err(|e| format!("OperationalError: {e}"))?
         .ok_or_else(|| format!("ValueError: finding {finding_id} not found"))?;
@@ -570,14 +605,48 @@ pub fn try_quick_fix_finding(
     }
     let album_id = f.album_id.as_deref();
     let r = match f.check_id.as_str() {
-        "inconsistent-artist-sort" => Some(artist_sort_quick(env, &f)),
+        "inconsistent-artist-sort" => Some(Quick::Done(artist_sort_quick(env, &f))),
         "tags-out-of-sync" => tags_quick(env, album_id)?,
         "unidentified-album" => unidentified_quick(env, album_id)?,
         "no-cover-art" => cover_quick(env, album_id)?,
         "track-gaps" => gaps_quick(env, album_id)?,
         _ => None,
     };
-    Ok(r)
+    let Some(r) = r else { return Ok(None) };
+    Ok(Some(match r {
+        Quick::Done(r) => QuickFix::Done(r),
+        Quick::Unsettled {
+            album,
+            job_type,
+            skip,
+        } => {
+            let album_id = album_id.unwrap_or_default();
+            if research {
+                QuickFix::NeedsResearch(AiJobRequest {
+                    album_id: album_id.to_string(),
+                    album_path: album.path.clone().unwrap_or_default(),
+                    album_title: album.job_title(),
+                    job_type,
+                    hint: String::new(),
+                    applied_summary: None,
+                })
+            } else {
+                QuickFix::Done(FixResult::new(false, skip))
+            }
+        }
+    }))
+}
+
+/// A quick fix's answer before the run decides about research.
+enum Quick {
+    Done(FixResult),
+    /// The resolver found nothing to apply: `skip` is the resolver-only
+    /// answer; with research the album is handed on as a `job_type` request.
+    Unsettled {
+        album: AlbumBrief,
+        job_type: &'static str,
+        skip: String,
+    },
 }
 
 // ---------- tags-out-of-sync ----------
@@ -664,8 +733,6 @@ fn applicable(d: &AlbumDiffs) -> bool {
         && d.sort_proposals.is_empty())
 }
 
-const TAGS_AI: &str = "Asking Claude to fill in the missing tags";
-
 fn tags_fix(
     env: &mut FixEnv<'_>,
     album_id: Option<&str>,
@@ -678,7 +745,7 @@ fn tags_fix(
         return Ok(done(false, "Album not found in cache"));
     };
     if !hint.is_empty() {
-        return Ok(ai_job(env, album_id, &brief, "metadata", hint, TAGS_AI));
+        return Ok(ai_job(album_id, &brief, "metadata", hint));
     }
     let d = tags_sync::compute_diffs(env.conn, env.checks.resolver.as_ref(), &row);
     if !d.has_any() {
@@ -695,17 +762,7 @@ fn tags_fix(
     if !d.ai_fallback_fields.is_empty()
         || (!d.missing_core.is_empty() && d.applicable_album.is_empty())
     {
-        // With no model backend, what was written is kept and
-        // named before the not-available message.
-        if let (Some(m), false) = (env.model_unavailable, applied.is_empty()) {
-            return Ok(done(false, format!("{applied}; {m}")));
-        }
-        let msg = if applied.is_empty() {
-            TAGS_AI.to_string()
-        } else {
-            format!("{applied}; also asking Claude to fill the rest")
-        };
-        let mut outcome = ai_job(env, album_id, &brief, "metadata", "", msg);
+        let mut outcome = ai_job(album_id, &brief, "metadata", "");
         if !applied.is_empty()
             && let FixOutcome::NeedsAiJob(request) = &mut outcome
         {
@@ -723,22 +780,28 @@ fn tags_fix(
     ))
 }
 
-fn tags_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<FixResult>, String> {
+fn tags_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Quick>, String> {
     let Some(album_id) = album_id else {
         return Ok(None);
     };
-    let Some((row, _)) = tags_row(env.conn, album_id).map_err(op_text)? else {
+    let Some((row, brief)) = tags_row(env.conn, album_id).map_err(op_text)? else {
         return Ok(None);
     };
     let d = tags_sync::compute_diffs(env.conn, env.checks.resolver.as_ref(), &row);
     if !applicable(&d) {
-        return Ok(Some(FixResult::new(
-            false,
-            "No deterministic fixes available (anchor or canonical missing)",
-        )));
+        let skip = "No deterministic fixes available (anchor or canonical missing)".to_string();
+        // Nothing differs at all: there is nothing to research either.
+        if !d.has_any() {
+            return Ok(Some(Quick::Done(FixResult::new(false, skip))));
+        }
+        return Ok(Some(Quick::Unsettled {
+            album: brief,
+            job_type: "metadata",
+            skip,
+        }));
     }
     let (ok, msg) = apply_resolver_diffs(env, album_id, &d);
-    Ok(Some(FixResult::new(ok, msg)))
+    Ok(Some(Quick::Done(FixResult::new(ok, msg))))
 }
 
 // ---------- unidentified-album ----------
@@ -791,17 +854,17 @@ fn try_fingerprint(env: &mut FixEnv<'_>, album_id: &str, path: &str) -> FixResul
 }
 
 /// The skip message of an album neither the directory-name search nor the
-/// fingerprints anchor (`_try_resolver`), less the Python app's AI-escalation
-/// advice (no model backend exists to escalate to).
+/// fingerprints anchor (`_try_resolver`), less the Python app's escalation
+/// advice (the per-finding Fix requests research instead).
 pub const UNRESOLVED_SKIP_MESSAGE: &str = "couldn't identify the album from the directory name or fingerprints \u{2014} try editing the directory name to the canonical \"Artist - Album\" form";
 
 /// `_try_resolver`.
 fn try_resolver(env: &mut FixEnv<'_>, album_id: &str) -> FixResult {
     match env.sources.resolve_anchor(env.conn, album_id) {
         Err(e) => FixResult::new(false, format!("resolver error: {e}")),
-        // Deliberate change: the Python app's text ends ", or use the
-        // per-finding Fix to escalate to AI"; without a model backend that
-        // Fix answers ok:false (not available), so the advice is dropped.
+        // Deliberate change: the Python app's text ends with advice to
+        // escalate through the per-finding Fix; that Fix now requests
+        // research, so the advice is dropped.
         Ok(None) => FixResult::new(false, UNRESOLVED_SKIP_MESSAGE),
         Ok(Some(a)) => {
             // Python int() truncates toward zero.
@@ -847,20 +910,13 @@ fn unidentified_fix(
             return Ok(done(true, join_fp(&fp_message, r.message)));
         }
     }
-    Ok(ai_job(
-        env,
-        album_id,
-        &album,
-        "metadata",
-        hint,
-        "Asking Claude to identify this album on MusicBrainz",
-    ))
+    Ok(ai_job(album_id, &album, "metadata", hint))
 }
 
 fn unidentified_quick(
     env: &mut FixEnv<'_>,
     album_id: Option<&str>,
-) -> Result<Option<FixResult>, String> {
+) -> Result<Option<Quick>, String> {
     let Some(album_id) = album_id else {
         return Ok(None);
     };
@@ -873,7 +929,16 @@ fn unidentified_quick(
         fp_message = try_fingerprint(env, album_id, &path).message;
     }
     let r = try_resolver(env, album_id);
-    Ok(Some(FixResult::new(r.ok, join_fp(&fp_message, r.message))))
+    let unsettled = !r.ok && r.message == UNRESOLVED_SKIP_MESSAGE;
+    let message = join_fp(&fp_message, r.message);
+    if unsettled {
+        return Ok(Some(Quick::Unsettled {
+            album,
+            job_type: "metadata",
+            skip: message,
+        }));
+    }
+    Ok(Some(Quick::Done(FixResult::new(r.ok, message))))
 }
 
 // ---------- no-cover-art ----------
@@ -911,29 +976,24 @@ fn cover_fix(
     {
         return Ok(FixOutcome::Done(r));
     }
-    Ok(ai_job(
-        env,
-        album_id,
-        &album,
-        "cover",
-        hint,
-        "Asking Claude to find cover art for this album",
-    ))
+    Ok(ai_job(album_id, &album, "cover", hint))
 }
 
-fn cover_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<FixResult>, String> {
+fn cover_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Quick>, String> {
     let Some(album_id) = album_id else {
         return Ok(None);
     };
-    if load_album(env.conn, album_id).map_err(op_text)?.is_none() {
+    let Some(album) = load_album(env.conn, album_id).map_err(op_text)? else {
         return Ok(None);
-    }
-    Ok(Some(cover_try_mb(env, album_id).unwrap_or_else(|| {
-        FixResult::new(
-            false,
-            "MusicBrainz / Cover Art Archive doesn't have a cover for this album",
-        )
-    })))
+    };
+    Ok(Some(match cover_try_mb(env, album_id) {
+        Some(r) => Quick::Done(r),
+        None => Quick::Unsettled {
+            album,
+            job_type: "cover",
+            skip: "MusicBrainz / Cover Art Archive doesn't have a cover for this album".into(),
+        },
+    }))
 }
 
 // ---------- track-gaps ----------
@@ -1029,33 +1089,29 @@ fn gaps_fix(
             return Ok(FixOutcome::Done(r));
         }
     }
-    Ok(ai_job(
-        env,
-        album_id,
-        &album,
-        "metadata",
-        hint,
-        "Asking Claude to verify the track sequence and propose a fix",
-    ))
+    Ok(ai_job(album_id, &album, "metadata", hint))
 }
 
-fn gaps_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<FixResult>, String> {
+fn gaps_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Quick>, String> {
     let Some(album_id) = album_id else {
         return Ok(None);
     };
     let Some(album) = load_album(env.conn, album_id).map_err(op_text)? else {
         // Unlike the other checks, track-gaps reports this as a skip.
-        return Ok(Some(FixResult::new(false, "Album not found in cache")));
+        return Ok(Some(Quick::Done(FixResult::new(
+            false,
+            "Album not found in cache",
+        ))));
     };
     let path = album.path.clone().unwrap_or_default();
-    Ok(Some(
-        gaps_try_deterministic(env, album_id, &path).unwrap_or_else(|| {
-            FixResult::new(
-                false,
-                "No deterministic fix found (MB title + fingerprint both inconclusive)",
-            )
-        }),
-    ))
+    Ok(Some(match gaps_try_deterministic(env, album_id, &path) {
+        Some(r) => Quick::Done(r),
+        None => Quick::Unsettled {
+            album,
+            job_type: "metadata",
+            skip: "No deterministic fix found (MB title + fingerprint both inconclusive)".into(),
+        },
+    }))
 }
 
 // ---------- inconsistent-artist-sort ----------
@@ -1195,10 +1251,18 @@ pub fn apply_cluster_sort(
 /// `between` is called before every finding but the first: the Python app
 /// sleeps one second there (MusicBrainz pacing). The host decides; the
 /// network layer already paces MusicBrainz itself.
+///
+/// `delegate`, when given (the listener asked for research), receives every
+/// album the resolver could not settle for the four research-capable checks,
+/// after the Missing skip; its answer is the finding's outcome
+/// (`sent-for-research`, `already-requested`, or an `error` with the
+/// refusal's text), and the summary gains [`ResearchSummary`]. A run stopped
+/// part-way keeps the requests already made.
 pub fn quick_fix_all(
     env: &mut FixEnv<'_>,
     check_id: &str,
     between: &mut dyn FnMut(),
+    mut delegate: Option<&mut Delegate<'_>>,
     sink: &mut dyn FnMut(QuickFixEvent) -> ControlFlow<()>,
 ) -> Result<(), OpError> {
     if env.checks.registry.get(check_id).is_none() {
@@ -1225,7 +1289,9 @@ pub fn quick_fix_all(
     .collect();
     let total = ids.len();
     let run = catch_unwind(AssertUnwindSafe(|| {
-        musaic_events::context::with_bulk_run(|| quick_fix_loop(env, check_id, &ids, between, sink))
+        musaic_events::context::with_bulk_run(|| {
+            quick_fix_loop(env, check_id, &ids, between, delegate.as_deref_mut(), sink)
+        })
     }));
     if let Err(p) = run {
         let detail = format!("panic: {}", panic_text(p.as_ref()));
@@ -1308,8 +1374,11 @@ fn quick_fix_loop(
     check_id: &str,
     ids: &[i64],
     between: &mut dyn FnMut(),
+    mut delegate: Option<&mut Delegate<'_>>,
     sink: &mut dyn FnMut(QuickFixEvent) -> ControlFlow<()>,
 ) {
+    let research = delegate.is_some();
+    let mut summary = research.then(ResearchSummary::default);
     let total = ids.len();
     {
         if sink(QuickFixEvent::Start { total }).is_break() {
@@ -1328,7 +1397,7 @@ fn quick_fix_loop(
             let attempt = match missing_album_of(env.conn, album.as_deref()) {
                 Some(since) => Err(since),
                 None => Ok(catch_unwind(AssertUnwindSafe(|| {
-                    try_quick_fix_finding(env, *fid)
+                    try_quick_fix_finding(env, *fid, research)
                 }))),
             };
             let (outcome, message) = match attempt {
@@ -1358,14 +1427,50 @@ fn quick_fix_loop(
                             "Check has no quick-fix path".to_string(),
                         )
                     }
-                    Ok(Some(r)) if r.ok => {
+                    Ok(Some(QuickFix::Done(r))) if r.ok => {
                         fixed += 1;
                         applied.push((*fid, album.clone()));
                         (QuickFixOutcome::Fixed, r.message)
                     }
-                    Ok(Some(r)) => {
+                    Ok(Some(QuickFix::Done(r))) => {
                         skipped += 1;
                         (QuickFixOutcome::Skipped, r.message)
+                    }
+                    Ok(Some(QuickFix::NeedsResearch(request))) => {
+                        let answer = match delegate.as_deref_mut() {
+                            Some(delegate) => {
+                                catch_unwind(AssertUnwindSafe(|| delegate(env.conn, &request)))
+                                    .unwrap_or_else(|p| {
+                                        Delegated::Refused(format!(
+                                            "panic: {}",
+                                            panic_text(p.as_ref())
+                                        ))
+                                    })
+                            }
+                            None => Delegated::Refused("Research was not asked for.".into()),
+                        };
+                        let counts = summary.get_or_insert_with(ResearchSummary::default);
+                        match answer {
+                            Delegated::Requested { batch_id } => {
+                                counts.sent_for_research += 1;
+                                counts.batch_id.get_or_insert(batch_id);
+                                (
+                                    QuickFixOutcome::SentForResearch,
+                                    SENT_FOR_RESEARCH_MESSAGE.to_string(),
+                                )
+                            }
+                            Delegated::AlreadyRequested => {
+                                counts.already_requested += 1;
+                                (
+                                    QuickFixOutcome::AlreadyRequested,
+                                    ALREADY_REQUESTED_MESSAGE.to_string(),
+                                )
+                            }
+                            Delegated::Refused(text) => {
+                                errors += 1;
+                                (QuickFixOutcome::Error, text)
+                            }
+                        }
                     }
                 },
             };
@@ -1389,6 +1494,7 @@ fn quick_fix_loop(
             errors,
             not_applicable: na,
             still_open,
+            research: summary,
         }));
     }
 }
