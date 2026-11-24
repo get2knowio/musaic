@@ -148,7 +148,8 @@ impl Fixes<'_> {
     /// panicked. A fix that panics is an `Error` progress and the loop goes on.
     ///
     /// With `research`, an album the resolver cannot settle (four checks) is
-    /// sent for research: one request each, all in one new batch whose row the
+    /// sent for research, as is a tags-out-of-sync album it settles only in
+    /// part, once the settled fields are written: one request each, all in one new batch whose row the
     /// first request's transaction creates (a run that makes none makes no
     /// batch). Each request commits with its audit, outbox and event rows;
     /// their `AgentStateChanged(work)` events are published every

@@ -30,7 +30,9 @@
 //! [`Delegate`] (the host's bulk research) hands each album the resolver could
 //! not settle, for the four research-capable checks, to that delegate, which
 //! makes one research request in the run's batch; without one the run is the
-//! resolver-only run it always was, frame for frame.
+//! resolver-only run it always was, frame for frame. A tags-out-of-sync album
+//! the resolver settles only in part is both: the settled fields are written,
+//! then the rest goes to the delegate as the single Fix would request it.
 //!
 //! # Deliberate changes and reproduced quirks
 //!
@@ -361,8 +363,9 @@ pub type Delegate<'d> = dyn FnMut(&mut Connection, &AiJobRequest) -> Delegated +
 pub enum QuickFix {
     /// Done here (fixed, or skipped with its message).
     Done(FixResult),
-    /// The resolver could not settle it and research was asked for: the
-    /// request the single Fix would make (empty hint).
+    /// The resolver could not settle it (or settled only part of it, which
+    /// [`AiJobRequest::applied_summary`] then says was written) and research
+    /// was asked for: the request the single Fix would make (empty hint).
     NeedsResearch(AiJobRequest),
 }
 
@@ -587,8 +590,9 @@ fn fix_one(env: &mut FixEnv<'_>, f: &FindingRow, hint: &str) -> Result<FixOutcom
 /// the album vanished, for the checks that say so); `Err` = what the Python app
 /// raised (the dispatcher reports it as an `error` outcome). With `research`,
 /// the four research-capable checks answer [`QuickFix::NeedsResearch`] where
-/// the resolver found nothing (instead of the skip message); without it every
-/// answer is [`QuickFix::Done`].
+/// the resolver found nothing (instead of the skip message) or, for
+/// tags-out-of-sync, wrote only part of what differs (instead of the success
+/// message); without it every answer is [`QuickFix::Done`].
 pub fn try_quick_fix_finding(
     env: &mut FixEnv<'_>,
     finding_id: i64,
@@ -620,21 +624,41 @@ pub fn try_quick_fix_finding(
             job_type,
             skip,
         } => {
-            let album_id = album_id.unwrap_or_default();
             if research {
-                QuickFix::NeedsResearch(AiJobRequest {
-                    album_id: album_id.to_string(),
-                    album_path: album.path.clone().unwrap_or_default(),
-                    album_title: album.job_title(),
-                    job_type,
-                    hint: String::new(),
-                    applied_summary: None,
-                })
+                QuickFix::NeedsResearch(research_request(album_id, &album, job_type, None))
             } else {
                 QuickFix::Done(FixResult::new(false, skip))
             }
         }
+        Quick::PartlySettled {
+            album,
+            job_type,
+            applied,
+        } => {
+            if research {
+                QuickFix::NeedsResearch(research_request(album_id, &album, job_type, Some(applied)))
+            } else {
+                QuickFix::Done(FixResult::new(true, applied))
+            }
+        }
     }))
+}
+
+/// The request a quick fix hands on: the single Fix's, with no hint.
+fn research_request(
+    album_id: Option<&str>,
+    album: &AlbumBrief,
+    job_type: &'static str,
+    applied_summary: Option<String>,
+) -> AiJobRequest {
+    AiJobRequest {
+        album_id: album_id.unwrap_or_default().to_string(),
+        album_path: album.path.clone().unwrap_or_default(),
+        album_title: album.job_title(),
+        job_type,
+        hint: String::new(),
+        applied_summary,
+    }
 }
 
 /// A quick fix's answer before the run decides about research.
@@ -646,6 +670,14 @@ enum Quick {
         album: AlbumBrief,
         job_type: &'static str,
         skip: String,
+    },
+    /// The resolver's values were written (`applied` says which) but some
+    /// fields are still unsettled: resolver-only, that is a success with
+    /// `applied`; with research the rest is handed on as a `job_type` request.
+    PartlySettled {
+        album: AlbumBrief,
+        job_type: &'static str,
+        applied: String,
     },
 }
 
@@ -733,6 +765,13 @@ fn applicable(d: &AlbumDiffs) -> bool {
         && d.sort_proposals.is_empty())
 }
 
+/// Whether some of what differs is beyond the resolver: a field only research
+/// can fill, or a missing core field with nothing to write at album level.
+fn needs_research(d: &AlbumDiffs) -> bool {
+    !d.ai_fallback_fields.is_empty()
+        || (!d.missing_core.is_empty() && d.applicable_album.is_empty())
+}
+
 fn tags_fix(
     env: &mut FixEnv<'_>,
     album_id: Option<&str>,
@@ -759,9 +798,7 @@ fn tags_fix(
         }
         applied = msg;
     }
-    if !d.ai_fallback_fields.is_empty()
-        || (!d.missing_core.is_empty() && d.applicable_album.is_empty())
-    {
+    if needs_research(&d) {
         let mut outcome = ai_job(album_id, &brief, "metadata", "");
         if !applied.is_empty()
             && let FixOutcome::NeedsAiJob(request) = &mut outcome
@@ -801,6 +838,15 @@ fn tags_quick(env: &mut FixEnv<'_>, album_id: Option<&str>) -> Result<Option<Qui
         }));
     }
     let (ok, msg) = apply_resolver_diffs(env, album_id, &d);
+    // What was written stays written; what the resolver could not settle is
+    // what the single Fix would go on to request.
+    if ok && needs_research(&d) {
+        return Ok(Some(Quick::PartlySettled {
+            album: brief,
+            job_type: "metadata",
+            applied: msg,
+        }));
+    }
     Ok(Some(Quick::Done(FixResult::new(ok, msg))))
 }
 
@@ -1254,7 +1300,9 @@ pub fn apply_cluster_sort(
 ///
 /// `delegate`, when given (the listener asked for research), receives every
 /// album the resolver could not settle for the four research-capable checks,
-/// after the Missing skip; its answer is the finding's outcome
+/// after the Missing skip (a tags-out-of-sync album settled only in part
+/// after its settled fields are written, and its progress message says what
+/// was written first); its answer is the finding's outcome
 /// (`sent-for-research`, `already-requested`, or an `error` with the
 /// refusal's text), and the summary gains [`ResearchSummary`]. A run stopped
 /// part-way keeps the requests already made.
@@ -1437,6 +1485,12 @@ fn quick_fix_loop(
                         (QuickFixOutcome::Skipped, r.message)
                     }
                     Ok(Some(QuickFix::NeedsResearch(request))) => {
+                        // A partly settled album says what was written first,
+                        // as the single Fix does.
+                        let say = |text: String| match &request.applied_summary {
+                            Some(applied) => format!("{applied}. {text}"),
+                            None => text,
+                        };
                         let answer = match delegate.as_deref_mut() {
                             Some(delegate) => {
                                 catch_unwind(AssertUnwindSafe(|| delegate(env.conn, &request)))
@@ -1456,19 +1510,19 @@ fn quick_fix_loop(
                                 counts.batch_id.get_or_insert(batch_id);
                                 (
                                     QuickFixOutcome::SentForResearch,
-                                    SENT_FOR_RESEARCH_MESSAGE.to_string(),
+                                    say(SENT_FOR_RESEARCH_MESSAGE.to_string()),
                                 )
                             }
                             Delegated::AlreadyRequested => {
                                 counts.already_requested += 1;
                                 (
                                     QuickFixOutcome::AlreadyRequested,
-                                    ALREADY_REQUESTED_MESSAGE.to_string(),
+                                    say(ALREADY_REQUESTED_MESSAGE.to_string()),
                                 )
                             }
                             Delegated::Refused(text) => {
                                 errors += 1;
-                                (QuickFixOutcome::Error, text)
+                                (QuickFixOutcome::Error, say(text))
                             }
                         }
                     }

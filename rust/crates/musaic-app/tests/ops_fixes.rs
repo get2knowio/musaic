@@ -35,8 +35,17 @@ fn eventually(what: &str, mut f: impl FnMut() -> bool) {
 fn checked_with(
     more: impl FnOnce(musaic_app::AppBuilder) -> musaic_app::AppBuilder,
 ) -> (App, common::Scratch) {
+    checked_after(more, |_| {})
+}
+
+/// [`checked_with`], with `prepare` given the library copy before the scan.
+fn checked_after(
+    more: impl FnOnce(musaic_app::AppBuilder) -> musaic_app::AppBuilder,
+    prepare: impl FnOnce(&std::path::Path),
+) -> (App, common::Scratch) {
     let (app, s) = common::app_quiet_pool(more);
-    common::configure(&app, &s);
+    let lib = common::configure(&app, &s);
+    prepare(&lib);
     app.ops().scan().subscribe(false).unwrap().count();
     eventually("the work guard released", || {
         app.gate().snapshot() == (0, false)
@@ -792,4 +801,142 @@ fn a_thousand_unsettled_albums_make_one_batch_of_a_thousand() {
     assert!(events.iter().all(|ids| ids.len() <= 128));
     assert_eq!(events.iter().map(Vec::len).sum::<usize>(), N);
     assert_eq!(count(&names(&feed), "BulkBatchCompleted"), 1);
+}
+
+// ---------- bulk research over a partly settled tags fix ----------
+
+/// The album whose only tags-out-of-sync trigger offline is its article-led
+/// artist with no sort tags: the resolver settles it in full.
+const LANTERNS: &str = "The Lanterns - Porchlight [FLAC]";
+
+/// A checked library where The Lanterns also lack their genre: the sort tags
+/// are settled, the genre is not.
+fn lanterns_without_genre() -> (App, common::Scratch) {
+    checked_after(
+        |b| b,
+        |lib| {
+            for entry in std::fs::read_dir(lib.join(LANTERNS)).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension().is_some_and(|e| e == "flac") {
+                    let mut flac = musaic_tags::FlacFile::open(&path).unwrap();
+                    flac.tags_mut().remove("GENRE");
+                    flac.save().unwrap();
+                }
+            }
+        },
+    )
+}
+
+/// The Lanterns' album id and its open tags-out-of-sync finding.
+fn lanterns_finding(app: &App) -> (String, i64) {
+    let conn = musaic_db::open_connection(app.db_path()).unwrap();
+    conn.query_row(
+        "SELECT a.id, f.id FROM albums a JOIN check_findings f ON f.album_id = a.id \
+         WHERE a.dir_name = ?1 AND f.check_id = 'tags-out-of-sync' AND f.resolved_at IS NULL",
+        [LANTERNS],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )
+    .unwrap()
+}
+
+fn album_text(app: &App, album: &str, column: &str) -> Option<String> {
+    let conn = musaic_db::open_connection(app.db_path()).unwrap();
+    conn.query_row(
+        &format!("SELECT {column} FROM albums WHERE id=?1"),
+        [album],
+        |r| r.get(0),
+    )
+    .unwrap()
+}
+
+fn progress_of(seen: &[QuickFixEvent], finding: i64) -> (QuickFixOutcome, String) {
+    seen.iter()
+        .find_map(|e| match e {
+            QuickFixEvent::Progress {
+                finding_id,
+                outcome,
+                message,
+            } if *finding_id == finding => Some((*outcome, message.clone())),
+            _ => None,
+        })
+        .expect("a progress item for the finding")
+}
+
+#[test]
+fn bulk_research_writes_what_is_settled_and_requests_the_rest_once() {
+    let (app, _s) = lanterns_without_genre();
+    let (album, finding) = lanterns_finding(&app);
+    assert_eq!(album_text(&app, &album, "album_artist_sort"), None);
+    assert_eq!(album_text(&app, &album, "genre"), None);
+
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", true);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::SentForResearch, "{message}");
+    assert!(message.starts_with("Wrote "), "{message}");
+    assert!(message.ends_with("Sent for research."), "{message}");
+    // The settled field is written; the genre is left to the research.
+    assert_eq!(
+        album_text(&app, &album, "album_artist_sort").as_deref(),
+        Some("Lanterns, The")
+    );
+    assert_eq!(album_text(&app, &album, "genre"), None);
+    let s = bulk::summary(&seen);
+    let r = s.research.clone().expect("research counts");
+    assert_eq!((r.sent_for_research, r.already_requested), (1, 0), "{s:?}");
+    let batch = r.batch_id.clone().expect("a batch");
+    let rows = bulk::rows(&app, "SELECT album_id, batch_id FROM delegated_work");
+    assert_eq!(rows, vec![(album.clone(), Some(batch))]);
+    assert_eq!(app.ops().jobs().research_batches().unwrap().len(), 1);
+
+    // A second run finds the genre still missing and joins the request.
+    app.ops()
+        .checks()
+        .run("tags-out-of-sync", "all", None)
+        .unwrap();
+    let (_, finding) = lanterns_finding(&app);
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", true);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::AlreadyRequested, "{message}");
+    let r = bulk::summary(&seen).research.unwrap();
+    assert_eq!((r.sent_for_research, r.already_requested), (0, 1));
+    assert_eq!(
+        r.batch_id, None,
+        "a run that makes no request makes no batch"
+    );
+    assert_eq!(job_rows(&app), 1);
+    assert_eq!(app.ops().jobs().research_batches().unwrap().len(), 1);
+}
+
+#[test]
+fn bulk_research_off_writes_what_is_settled_and_requests_nothing() {
+    let (app, _s) = lanterns_without_genre();
+    let (album, finding) = lanterns_finding(&app);
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", false);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::Fixed, "{message}");
+    assert!(message.starts_with("Wrote "), "{message}");
+    assert_eq!(
+        album_text(&app, &album, "album_artist_sort").as_deref(),
+        Some("Lanterns, The")
+    );
+    assert!(bulk::summary(&seen).research.is_none());
+    assert_eq!(job_rows(&app), 0);
+    assert!(app.ops().jobs().research_batches().unwrap().is_empty());
+}
+
+#[test]
+fn bulk_research_over_a_fully_settled_tags_fix_requests_nothing() {
+    let (app, _s) = checked();
+    let (album, finding) = lanterns_finding(&app);
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", true);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::Fixed, "{message}");
+    assert_eq!(
+        album_text(&app, &album, "album_artist_sort").as_deref(),
+        Some("Lanterns, The")
+    );
+    let r = bulk::summary(&seen).research.unwrap();
+    assert_eq!((r.sent_for_research, r.already_requested), (0, 0));
+    assert_eq!(r.batch_id, None);
+    assert_eq!(job_rows(&app), 0);
 }
