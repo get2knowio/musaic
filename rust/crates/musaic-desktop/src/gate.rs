@@ -53,7 +53,10 @@
 //!   temporary directory and has the opener open it, so Claude Desktop shows
 //!   its own install dialog. The request accepts no body and the answer
 //!   never carries the generated file's path. One at a time; when opening
-//!   fails the file is removed. Same checks as the reveal endpoints. The
+//!   fails the file is removed. On macOS "opened" means `/usr/bin/open`
+//!   exited 0 (or was still running after a bounded wait): when no
+//!   application handles the file the answer is `open-failed`
+//!   ([`crate::open_file`]). Same checks as the reveal endpoints. The
 //!   marker advertises it (`connectClaude: true`).
 //! * **Native menu state** (`POST /__musaic/menu-state`): the page reports
 //!   which native menu commands are enabled and which check items are

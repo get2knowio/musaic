@@ -49,13 +49,16 @@
 //! every SSE stream, stops the server (port released), runs
 //! `AppState::shutdown` (fingerprint pool stopped with a bounded wait, AI
 //! worker stopped, the database's WAL checkpointed) and
-//! removes the instance info file. The shell spawns no child processes.
+//! removes the instance info file. The shell spawns no child processes but
+//! one: on macOS, Connect Claude Desktop runs `/usr/bin/open` on the generated
+//! extension file and waits (bounded) for its answer ([`open_file`]).
 
 pub mod backend;
 pub mod gate;
 pub mod instance;
 pub mod menu;
 pub mod nav;
+pub mod open_file;
 pub mod options;
 pub mod quit;
 pub mod report;
@@ -224,13 +227,23 @@ impl Hooks for TauriHooks {
             return Ok(());
         }
         // The operating system hands the file to whatever opens `.mcpb`
-        // files. Nothing is started here and no program is named.
+        // files; no application is named.
+        if cfg!(target_os = "macos") {
+            // The opener plugin would only start `open` and report success
+            // whatever happened; wait for the helper's answer instead.
+            return open_file::open_and_wait(
+                Path::new(open_file::MACOS_OPEN),
+                path,
+                open_file::OPEN_TIMEOUT,
+            )
+            .map(|_| ());
+        }
         self.app
             .opener()
             .open_path(path.to_string_lossy(), None::<&str>)
             // A fixed sentence: the opener's error can name the file, and the
             // answer never carries the generated file's path.
-            .map_err(|_| "the system could not open the extension file".to_string())
+            .map_err(|_| open_file::COULD_NOT_START.to_string())
     }
 
     fn menu_state(&self, items: Vec<menu::ItemState>) {

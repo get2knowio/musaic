@@ -6,11 +6,13 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode, header};
 use http_body_util::BodyExt;
 use musaic_desktop::gate::{self, Gate, Hooks};
+use musaic_desktop::open_file;
 use tower::ServiceExt;
 
 const PORT: u16 = 41998;
@@ -23,6 +25,9 @@ struct Recording {
     /// Whether the file existed at the moment the hook was called.
     existed: Mutex<Vec<bool>>,
     fails: std::sync::atomic::AtomicBool,
+    /// A stand-in for the system's open helper: when set, the hook runs it
+    /// through the real `open_file::open_and_wait`, as the macOS shell does.
+    program: Mutex<Option<(PathBuf, Duration)>>,
 }
 
 impl Hooks for Recording {
@@ -35,6 +40,9 @@ impl Hooks for Recording {
     fn open_bundle(&self, path: &std::path::Path) -> Result<(), String> {
         self.existed.lock().unwrap().push(path.is_file());
         self.opened.lock().unwrap().push(path.to_path_buf());
+        if let Some((program, timeout)) = self.program.lock().unwrap().clone() {
+            return open_file::open_and_wait(&program, path, timeout).map(|_| ());
+        }
         if self.fails.load(std::sync::atomic::Ordering::SeqCst) {
             Err("no program opens it".into())
         } else {
@@ -272,4 +280,123 @@ fn a_shell_without_a_window_refuses_by_default() {
         Bare.open_bundle(std::path::Path::new("/nonexistent"))
             .is_err()
     );
+}
+
+/// A stand-in helper: a shell script in its own scratch folder that records
+/// each argument on a line of `args`, writes them to stderr (which must not
+/// reach the answer), then runs `then`.
+#[cfg(unix)]
+fn stand_in(dir: &std::path::Path, then: &str) -> PathBuf {
+    use std::os::unix::fs::PermissionsExt;
+    let program = dir.join("open-stand-in");
+    let args = dir.join("args");
+    let script = format!(
+        "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\" >> '{}'; done\necho \"$@\" >&2\n{then}\n",
+        args.display()
+    );
+    std::fs::write(&program, script).unwrap();
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+    program
+}
+
+#[cfg(unix)]
+fn recorded_args(dir: &std::path::Path) -> Vec<String> {
+    std::fs::read_to_string(dir.join("args"))
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_string)
+        .collect()
+}
+
+/// The case of issue #388: the helper starts, finds no application for the
+/// file and exits non-zero. The answer is `open-failed` with a fixed
+/// sentence, and the file is removed.
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_open_no_application_handled_is_reported_and_the_file_removed() {
+    let w = world(true);
+    let bin = tempfile::tempdir().unwrap();
+    let program = stand_in(bin.path(), "exit 1");
+    *w.hooks.program.lock().unwrap() = Some((program, Duration::from_secs(10)));
+    let (s, body) = send(&w, good("")).await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["opened"], false);
+    assert_eq!(v["reason"], "open-failed");
+    assert_eq!(v["message"], open_file::NOT_HANDLED);
+    let opened = w.hooks.opened.lock().unwrap().clone();
+    assert_eq!(
+        recorded_args(bin.path()),
+        [opened[0].to_string_lossy().into_owned()],
+        "the helper got the file as its one argument"
+    );
+    assert!(!body.contains(".mcpb"), "no path: {body}");
+    assert_eq!(temp_entries(&w), 0, "removed");
+}
+
+#[cfg(unix)]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_open_the_helper_reports_handled_keeps_the_file() {
+    let w = world(true);
+    let bin = tempfile::tempdir().unwrap();
+    let program = stand_in(bin.path(), "exit 0");
+    *w.hooks.program.lock().unwrap() = Some((program, Duration::from_secs(10)));
+    let (s, body) = send(&w, good("")).await;
+    assert_eq!(s, StatusCode::OK, "{body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["opened"], true);
+    assert_eq!(recorded_args(bin.path()).len(), 1);
+    assert_eq!(temp_entries(&w), 1, "the file stays for the host to read");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_helper_that_cannot_start_is_reported_and_the_file_removed() {
+    let w = world(true);
+    let bin = tempfile::tempdir().unwrap();
+    *w.hooks.program.lock().unwrap() =
+        Some((bin.path().join("no-such-helper"), Duration::from_secs(10)));
+    let (s, body) = send(&w, good("")).await;
+    assert_eq!(s, StatusCode::INTERNAL_SERVER_ERROR, "{body}");
+    let v: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(v["reason"], "open-failed");
+    assert_eq!(v["message"], open_file::COULD_NOT_START);
+    assert_eq!(temp_entries(&w), 0, "removed");
+}
+
+/// A helper still running at the deadline counts as handled (an application
+/// that takes long to start), and the wait is bounded.
+#[cfg(unix)]
+#[test]
+fn a_slow_helper_is_not_waited_for_past_the_deadline() {
+    let dir = tempfile::tempdir().unwrap();
+    let program = stand_in(dir.path(), "sleep 5");
+    let file = dir.path().join("not-opened.txt");
+    let started = std::time::Instant::now();
+    let r = open_file::open_and_wait(&program, &file, Duration::from_millis(300));
+    assert_eq!(r, Ok(open_file::Opened::StillRunning));
+    assert!(started.elapsed() < Duration::from_secs(3), "bounded wait");
+}
+
+#[cfg(unix)]
+#[test]
+fn the_helper_gets_the_path_as_one_argument_without_a_shell() {
+    let dir = tempfile::tempdir().unwrap();
+    let program = stand_in(dir.path(), "exit 0");
+    let file = dir.path().join("a file; with $(spaces) and `ticks`");
+    let r = open_file::open_and_wait(&program, &file, Duration::from_secs(10));
+    assert_eq!(r, Ok(open_file::Opened::Handled));
+    assert_eq!(
+        recorded_args(dir.path()),
+        [file.to_string_lossy().into_owned()]
+    );
+}
+
+#[test]
+fn a_relative_path_is_refused_without_starting_anything() {
+    let r = open_file::open_and_wait(
+        std::path::Path::new("/nonexistent-helper"),
+        std::path::Path::new("-a Calculator"),
+        Duration::from_secs(1),
+    );
+    assert_eq!(r, Err(open_file::COULD_NOT_START.to_string()));
 }
