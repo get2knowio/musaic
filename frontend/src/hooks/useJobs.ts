@@ -171,13 +171,14 @@ export function useCancelResearchGroup() {
 
 /**
  * Live research queue counts (running, queued, and how many requests
- * "Clear applied or discarded" removes). The jobs stream writes every
- * snapshot into this cache; until its first frame the counts are zero.
+ * "Clear applied or discarded" and "Clear failed" remove). The jobs stream
+ * writes every snapshot into this cache; until its first frame the counts
+ * are zero.
  */
 export function useQueueState() {
   return useQuery<QueueState>({
     queryKey: QUEUE_STATE_QUERY_KEY,
-    queryFn: async (): Promise<QueueState> => ({ running: 0, queued: 0, clearable: 0 }),
+    queryFn: async (): Promise<QueueState> => ({ running: 0, queued: 0, clearable: 0, clearable_failed: 0 }),
     staleTime: Infinity,  // SSE keeps it fresh
   });
 }

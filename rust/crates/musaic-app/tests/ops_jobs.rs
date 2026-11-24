@@ -325,6 +325,58 @@ fn clear_counts_and_removes_requests_and_history_only_records() {
     assert_eq!(count(&app, "SELECT count(*) FROM albums"), albums_before);
 }
 
+// "Clear failed" asks for the server's count: a failed card, failed and
+// cancelled requests in a bulk run's batch (no card lists them) and a
+// history-only failed record are all removed, so all are counted.
+#[test]
+fn the_failed_clear_count_is_what_the_delete_removes() {
+    let (app, _s) = common::app();
+    seed(&app, "j1", "a1", "failed");
+    seed(&app, "j2", "a2", "failed");
+    seed(&app, "j3", "a3", "queued");
+    seed(&app, "j4", "a4", "acted_on:applied");
+    seed_typed(&app, "h1", "a5", "lyrics", "failed");
+    {
+        let conn = musaic_db::open_connection(app.db_path()).unwrap();
+        conn.execute(
+            "INSERT INTO work_batches(id,library_epoch,check_id,started_at,finished_at)
+             SELECT 'b1', library_epoch, 'no-cover-art', 0, 1 FROM delegated_work
+             WHERE legacy_job_id='j2'",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE delegated_work SET batch_id='b1' WHERE legacy_job_id IN ('j2','j3')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE delegated_work SET state='cancelled' WHERE legacy_job_id='j3'",
+            [],
+        )
+        .unwrap();
+    }
+    let ops = app.ops();
+    let jobs = ops.jobs();
+    // One failed card is listed; the batched requests are not.
+    let failed_cards = jobs
+        .list(None)
+        .unwrap()
+        .into_iter()
+        .filter(|j| j.status == "failed")
+        .count();
+    assert!(failed_cards < 4, "{failed_cards}");
+    let q = jobs.queue_state().unwrap();
+    assert_eq!((q.clearable_failed, q.clearable), (4, 1));
+    let mut feed = jobs.feed();
+    assert_eq!(next_list(&mut feed).queue_state.clearable_failed, 4);
+    let removed = jobs.delete_many(&["failed".to_string()]).unwrap();
+    assert_eq!(removed.count as i64, q.clearable_failed);
+    let q = jobs.queue_state().unwrap();
+    assert_eq!((q.clearable_failed, q.clearable), (0, 1));
+    assert_eq!(next_list(&mut feed).queue_state.clearable_failed, 0);
+}
+
 #[test]
 fn delete_one_removes_a_finished_card_or_a_history_record_and_wakes_the_feed() {
     let (app, _s) = common::app();

@@ -84,6 +84,8 @@ function client(f: Finding[] = findings, j: Job[] = jobs, checks: CheckSummary[]
   qc.setQueryData(["findings"], f);
   qc.setQueryData(["jobs"], j);
   qc.setQueryData(["agent", "approvals", "pending"], []);
+  // The jobs stream's counts: "Clear failed" would remove one request.
+  qc.setQueryData(["jobs", "queueState"], { running: 1, queued: 0, clearable: 1, clearable_failed: 1 });
   qc.setQueryData(["albums-snapshot"], [
     makeAlbum({ id: "present", title: "Here" }),
     makeAlbum({ id: "gone", title: "Gone", missing_since: "2026-01-02T00:00:00Z" }),
@@ -313,6 +315,31 @@ describe("filters", () => {
     expect(where()).toBe("/review?kind=proposed");
     expect(rowKeys()).toEqual(["job:proposed"]);
     expect(summary()).toBe("1 of 6 items · 1 album");
+  });
+
+  it("Clear failed shows the server's count, which also covers batched requests and history-only records", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ deleted_count: 4, statuses: ["failed"] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const qc = client();
+    // One failed card is listed; the delete also removes a failed and a
+    // cancelled batched request and a failed history-only record.
+    qc.setQueryData(["jobs", "queueState"], { running: 1, queued: 0, clearable: 1, clearable_failed: 4 });
+    renderAt("/review?kind=failed", qc);
+    expect(rowKeys()).toEqual(["job:failed"]);
+    fireEvent.click(screen.getByRole("button", { name: "Clear 4 failed" }));
+    expect(await screen.findByRole("heading", { name: "Remove 4 failed records?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove 4" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/ai/jobs?status=failed", expect.objectContaining({ method: "DELETE" })),
+    );
+    // The stream's next frame: nothing left to clear, no button.
+    act(() => qc.setQueryData(["jobs", "queueState"], { running: 1, queued: 0, clearable: 1, clearable_failed: 0 }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Clear \d+ failed$/ })).toBeNull());
   });
 
   it("an album filter narrows any type, shows as a chip, and clears", () => {

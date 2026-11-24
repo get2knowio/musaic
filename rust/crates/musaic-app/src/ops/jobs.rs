@@ -20,8 +20,9 @@ use crate::App;
 
 /// The queue's state: `paused` (always `false`) and the parallelism limit
 /// (always 1), kept so the stream's frames keep their shape; how many jobs
-/// run and wait now, and how many requests and history-only records Clear
-/// (`delete_many(["acted_on"])`) would remove.
+/// run and wait now, and how many requests and history-only records each
+/// Clear would remove: `clearable` for `delete_many(["acted_on"])`,
+/// `clearable_failed` for `delete_many(["failed"])`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct QueueState {
     pub paused: bool,
@@ -29,6 +30,7 @@ pub struct QueueState {
     pub running: i64,
     pub queued: i64,
     pub clearable: i64,
+    pub clearable_failed: i64,
 }
 
 /// The newest jobs (at most 200) with the queue's state: one value of the jobs
@@ -119,6 +121,7 @@ fn queue_state(conn: &Connection) -> Result<QueueState, OpError> {
         running,
         queued,
         clearable: musaic_db::research_jobs::clearable(conn, &["acted_on"])?,
+        clearable_failed: musaic_db::research_jobs::clearable(conn, &["failed"])?,
     })
 }
 
@@ -418,7 +421,8 @@ impl Jobs<'_> {
     /// or cancelled one, each with its attempts, results and replays and the
     /// history record it alone named, plus the history-only records of that
     /// status. The count is requests plus history-only records removed; it
-    /// equals `queue_state().clearable` for `acted_on`. Wakes the feeds only
+    /// equals `queue_state().clearable` for `acted_on` and
+    /// `queue_state().clearable_failed` for `failed`. Wakes the feeds only
     /// if it deleted something.
     pub fn delete_many(&self, statuses: &[String]) -> Result<DeletedJobs, OpError> {
         let _guard = self.app.gate().begin_work()?;

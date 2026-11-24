@@ -26,7 +26,7 @@ import {
   type ReviewItem,
 } from "@/hooks/useReview";
 import { useChecks, useIgnoredFindings } from "@/hooks/useChecks";
-import { useBulkDeleteJobs, useDeleteJob, useJobs } from "@/hooks/useJobs";
+import { useBulkDeleteJobs, useDeleteJob, useJobs, useQueueState } from "@/hooks/useJobs";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { openActivityPanel, type ActivitySection } from "@/lib/activityPanel";
 import { displayArtist } from "@/lib/albumFields";
@@ -140,6 +140,11 @@ export default function ReviewPage() {
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const deleteJob = useDeleteJob();
   const bulkDelete = useBulkDeleteJobs();
+  // What "Clear failed" removes, counted by the server (the jobs stream's
+  // queue_state): failed and cancelled requests, batched ones included, and
+  // history-only records, which the cards listed here do not all show.
+  const { data: queue } = useQueueState();
+  const clearableFailed = queue?.clearable_failed ?? 0;
   const onSingleDelete = (job: Job) => {
     if (job.status === "acted_on") {
       deleteJob.mutate(job.id, {
@@ -375,7 +380,7 @@ export default function ReviewPage() {
       filter.kind === "check" && showIgnored
         ? (ignoredQ.data ?? []).filter((f) => f.check_id === filter.id && (!album || f.album_id === album))
         : [];
-    const failedJobs = filter.kind === "failed" ? visible.filter((i) => i.kind === "job" && !i.job.result?.delegated) : [];
+    const clearFailed = filter.kind === "failed" && !album ? clearableFailed : 0;
     const bulk = check?.meta.bulk_action_label && check.open_count > 0 ? check : null;
     const bulkScope = bulk
       ? `${bulk.meta.bulk_action_label} works on all ${bulk.open_count} open ${bulk.meta.label} ` +
@@ -446,16 +451,16 @@ export default function ReviewPage() {
                   {bulk.meta.bulk_action_label} ({bulk.open_count})
                 </button>
               )}
-              {failedJobs.length > 0 && !album && (
+              {clearFailed > 0 && (
                 <button
                   type="button"
                   onClick={() =>
-                    onBulkDelete({ kind: "bulk", statuses: ["failed"], label: "failed", count: failedJobs.length })
+                    onBulkDelete({ kind: "bulk", statuses: ["failed"], label: "failed", count: clearFailed })
                   }
                   className={QUIET_BUTTON}
                 >
                   <Trash2 className="w-3 h-3" />
-                  Clear {failedJobs.length} failed
+                  Clear {clearFailed} failed
                 </button>
               )}
             </>

@@ -302,6 +302,9 @@ export interface QueueState {
   queued: number;
   /** How many research requests "Clear applied or discarded" removes. */
   clearable: number;
+  /** How many "Clear failed" removes: failed and cancelled requests (batched
+   *  ones included) and failed history-only records. */
+  clearable_failed: number;
 }
 
 export function getSettings(): Promise<AppSettings> {

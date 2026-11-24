@@ -79,7 +79,8 @@ fn clear_scope(status: &str) -> Option<(&'static str, String)> {
 }
 
 /// How many requests and history-only records [`clear`] would remove for
-/// `statuses` now (the desktop's Clear button count, `queue_state.clearable`).
+/// `statuses` now (the desktop's Clear counts: `queue_state.clearable` for
+/// `acted_on`, `queue_state.clearable_failed` for `failed`).
 pub fn clearable(conn: &Connection, statuses: &[&str]) -> Result<i64> {
     let mut count = 0;
     for (states, history) in statuses.iter().filter_map(|s| clear_scope(s)) {

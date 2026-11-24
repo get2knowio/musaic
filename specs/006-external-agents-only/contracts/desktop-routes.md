@@ -49,7 +49,7 @@ Wire shapes below are settled (slice 2) and are what the backend renders. Times 
 | `GET`/`DELETE` | `/api/ai/jobs/{job_id}` | `jobs.get` / `jobs.delete` | read and delete from the single store (a group id or a history record id) |
 | `GET` | `/api/ai/jobs/{job_id}/cover-preview` | `apply.job_cover_preview` | reads `research_history.result_json` |
 | `GET` | `/api/ai/jobs/active/{album_id}` (and alias) | `jobs.active_for_album` | single store only; batched items included |
-| `GET` | `/api/ai/jobs/stream` (and alias) | `jobs.feed` | same frames; wakes on delegation changes only; `queue_state` gains `clearable` (the number "Clear applied or discarded" removes, research D13) |
+| `GET` | `/api/ai/jobs/stream` (and alias) | `jobs.feed` | same frames; wakes on delegation changes only; `queue_state` gains `clearable` (the number "Clear applied or discarded" removes, research D13) and `clearable_failed` (the number "Clear failed" removes: failed and cancelled requests, batched ones included, and failed history-only records) |
 | `GET` | `/api/research/work` | `jobs.delegated_work` | each item gains `groupId` and `batchId` (see `DelegatedItem` above); batched items are listed like any other |
 | `GET` | `/api/settings` | `settings.get` | no `ai_provider_id`, `ai_model_id`, `ai_max_parallel`, `ai_queue_paused`, `ai_api_key_set`, `firecrawl_api_key_set` |
 | `PATCH` | `/api/settings` | `settings.patch` | those names are ignored like any unknown key; no provider validation; no `ai_jobs_changed()` |

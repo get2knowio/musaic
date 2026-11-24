@@ -61,12 +61,17 @@ pub fn deleted_many(d: &DeletedJobs) -> Json {
 
 /// The stream's `jobs` frame: `{"jobs": [...200 newest], "queue_state": ...}` as
 /// the Python app's `json.dumps` text. The frame's `queue_state` adds
-/// `clearable` after the Python keys: what Clear would remove, counted in
-/// requests (a card can hold two).
+/// `clearable` and `clearable_failed` after the Python keys: what Clear
+/// applied or discarded, and Clear failed, would remove, counted in requests
+/// (a card can hold two) plus history-only records.
 pub fn jobs_frame(l: &JobsList) -> String {
     let mut state = queue_state_py(&l.queue_state);
     if let Py::Dict(entries) = &mut state {
         entries.push(("clearable".into(), Py::Int(l.queue_state.clearable)));
+        entries.push((
+            "clearable_failed".into(),
+            Py::Int(l.queue_state.clearable_failed),
+        ));
     }
     let payload = Py::dict([("jobs", jobs_py(&l.jobs)), ("queue_state", state)]);
     sse::frame("jobs", &payload.dumps())
