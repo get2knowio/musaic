@@ -146,6 +146,44 @@ impl T {
         self
     }
 
+    /// An assistant's proposal on `album`, valid until 2099.
+    fn proposal(&self, id: &str, album: &str) -> &Self {
+        self.c()
+            .execute(
+                "INSERT OR IGNORE INTO agent_pairings (id, name, scopes, secret_fingerprint, \
+                 created_at) VALUES ('p', 'Assistant', '[]', 'f', 't')",
+                [],
+            )
+            .unwrap();
+        self.c()
+            .execute(
+                "INSERT INTO agent_proposals (id, pairing_id, album_id, base_revision, patch, \
+                 digest, kinds, diff, created_at, expires_at) \
+                 VALUES (?1, 'p', ?2, 'rev', '{}', 'd', '[]', '{}', '2026-11-18T11:00:00Z', \
+                 '2099-01-01T00:00:00Z')",
+                params![id, album],
+            )
+            .unwrap();
+        self
+    }
+
+    /// A finished change record of an assistant on `album`; its after-image
+    /// names the same album.
+    fn change(&self, id: &str, album: &str) -> &Self {
+        self.c()
+            .execute(
+                "INSERT INTO agent_changes (id, pairing_id, proposal_id, album_id, created_at, \
+                 state, before, after) VALUES (?1, NULL, 'pr', ?2, 't', 'applied', '{}', ?3)",
+                params![
+                    id,
+                    album,
+                    format!(r#"{{"albumId":"{album}","folder":"{album}","files":{{}}}}"#)
+                ],
+            )
+            .unwrap();
+        self
+    }
+
     fn input(&self, check: &str, album: &str) -> &Self {
         self.c()
             .execute(
@@ -482,6 +520,11 @@ fn full_library() -> T {
         .input("no-cover", "bystander")
         .input("dupes", "");
     t.run_scope("[\"x1\", \"x2\"]");
+    // An assistant's proposals and change records.
+    t.proposal("pr-x1", "x1")
+        .proposal("pr-t", "t")
+        .change("ch-x2", "x2")
+        .change("ch-bystander", "bystander");
     // AI review stamps: x2 is the latest.
     t.set("t", "metadata_ai_acted_on_at", Some("2026-01-01T00:00:00Z"))
         .set("x1", "metadata_ai_acted_on_at", None)
@@ -507,11 +550,28 @@ fn folds_every_table_and_deletes_the_emptied_rows() {
             check_findings_resolved: 3,
             ai_jobs: 2,
             check_inputs: 4,
+            agent_proposals: 1,
+            agent_changes: 1,
             release_group: None,
             release: None,
             release_cleared: false,
             metadata_ai_acted_on_at: Some("2026-05-01T00:00:00Z".into()),
         }
+    );
+    // An assistant's rows follow the survivor; a member's proposal, made
+    // against one disc, is expired; the survivor's own stays valid.
+    assert_eq!(
+        t.rows("SELECT id, album_id, expires_at FROM agent_proposals ORDER BY id"),
+        [
+            "'pr-t'|'t'|'2099-01-01T00:00:00Z'",
+            "'pr-x1'|'t'|'2026-11-18T11:00:00Z'"
+        ]
+    );
+    assert_eq!(
+        t.rows(
+            "SELECT id, album_id, json_extract(after, '$.albumId') FROM agent_changes ORDER BY id"
+        ),
+        ["'ch-bystander'|'bystander'|'bystander'", "'ch-x2'|'t'|'t'"]
     );
     assert_eq!(
         t.rows("SELECT id FROM albums ORDER BY id"),
@@ -810,6 +870,105 @@ fn unknown_ids_are_refused() {
         refused(&t, |c| merge_album_rows(c, &req(&removed, "t"))),
         MergeRefusal::UnknownAlbum("removed-three".into())
     );
+    // An assistant's proposal or change record holds an id the same way.
+    t.proposal("pr", "removed-four");
+    let removed = ids(&["removed-four"]);
+    assert_eq!(
+        refused(&t, |c| merge_album_rows(c, &req(&removed, "t"))),
+        MergeRefusal::UnknownAlbum("removed-four".into())
+    );
+    t.change("ch", "removed-five");
+    let removed = ids(&["removed-five"]);
+    assert_eq!(
+        refused(&t, |c| merge_album_rows(c, &req(&removed, "t"))),
+        MergeRefusal::UnknownAlbum("removed-five".into())
+    );
+}
+
+/// A rename (and a scan adoption, which moves the row the same way) takes
+/// an assistant's proposals and change records with the album: the change
+/// record's column and its after-image both, and a record written before
+/// whose after-image alone names the album (its own change renamed the
+/// folder) too. Proposals are expired: they were made against the old row.
+#[test]
+fn a_rename_moves_an_assistants_rows_and_expires_its_proposals() {
+    let mut t = T::new();
+    t.album("a").album("other");
+    t.proposal("pr-a", "a")
+        .proposal("pr-other", "other")
+        .change("ch-a", "a")
+        .change("ch-other", "other");
+    // A change made on "old" that renamed the folder to "a".
+    t.change("ch-renamed", "old");
+    t.c()
+        .execute(
+            "UPDATE agent_changes SET after = json_set(after, '$.albumId', 'a') \
+             WHERE id = 'ch-renamed'",
+            [],
+        )
+        .unwrap();
+    // A change still running: no after-image yet.
+    t.c()
+        .execute(
+            "INSERT INTO agent_changes (id, proposal_id, album_id, created_at, state, before) \
+             VALUES ('ch-running', 'pr', 'a', 't', 'recorded', '{}')",
+            [],
+        )
+        .unwrap();
+
+    let moved = rename_album_directory(t.db.connection_mut(), "a", "b", "/music/b", "b").unwrap();
+    assert_eq!((moved.agent_proposals, moved.agent_changes), (1, 3));
+    assert_eq!(
+        t.rows("SELECT id, album_id, expires_at FROM agent_proposals ORDER BY id"),
+        [
+            "'pr-a'|'b'|'2026-11-18T11:00:00Z'",
+            "'pr-other'|'other'|'2099-01-01T00:00:00Z'"
+        ]
+    );
+    assert_eq!(
+        t.rows(
+            "SELECT id, album_id, json_extract(after, '$.albumId'), json_valid(after) \
+             FROM agent_changes ORDER BY id"
+        ),
+        [
+            "'ch-a'|'b'|'b'|1",
+            "'ch-other'|'other'|'other'|1",
+            "'ch-renamed'|'old'|'b'|1",
+            "'ch-running'|'b'|NULL|NULL"
+        ]
+    );
+    // The rest of the after-image is untouched.
+    assert_eq!(
+        t.get("SELECT json_extract(after, '$.folder') FROM agent_changes WHERE id = 'ch-a'"),
+        Some("a".into())
+    );
+}
+
+/// Rows of an assistant left under an id no album has hold that id: a scan
+/// must not adopt another folder onto it.
+#[test]
+fn an_id_an_assistant_still_names_is_in_use() {
+    let t = T::new();
+    t.proposal("pr", "gone-proposal")
+        .change("ch", "gone-change");
+    let in_use = |id: &str| musaic_db::renames::album_key_in_use(t.c(), id, "/music/new").unwrap();
+    assert!(in_use("gone-proposal"));
+    assert!(in_use("gone-change"));
+    assert!(!in_use("free"));
+}
+
+/// Every table with an `album_id` column is in the one inventory of album
+/// id holders, so a rename, an adoption and a merge all know about it.
+#[test]
+fn every_table_with_an_album_id_is_a_listed_holder() {
+    let t = T::new();
+    let tables = t.rows(
+        "SELECT m.name FROM sqlite_master m, pragma_table_info(m.name) p \
+         WHERE m.type = 'table' AND p.name = 'album_id' ORDER BY m.name",
+    );
+    let mut listed: Vec<String> = ALBUM_ID_HOLDERS.iter().map(|t| format!("'{t}'")).collect();
+    listed.sort();
+    assert_eq!(tables, listed);
 }
 
 #[test]

@@ -224,6 +224,8 @@ impl World {
             "research_history",
             "delegated_work",
             "album_blocked_mb_release_groups",
+            "agent_proposals",
+            "agent_changes",
         ] {
             let mut st = c
                 .prepare(&format!("SELECT * FROM {table} ORDER BY rowid"))
@@ -324,6 +326,27 @@ fn add_dependents(c: &Connection, id: &str, path: &str) {
         [lib.as_str(), id],
     )
     .unwrap();
+    // An assistant's proposal and a change record of an applied change.
+    c.execute(
+        "INSERT OR IGNORE INTO agent_pairings (id, name, scopes, secret_fingerprint, created_at) \
+         VALUES ('pa', 'Assistant', '[]', 'f', 't')",
+        [],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO agent_proposals (id, pairing_id, album_id, base_revision, patch, digest, \
+         kinds, diff, created_at, expires_at) VALUES ('pr', 'pa', ?1, 'rev', '{}', 'd', '[]', \
+         '{}', '2030-01-01T00:00:00Z', '2030-01-01T00:30:00Z')",
+        [id],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO agent_changes (id, pairing_id, proposal_id, album_id, created_at, state, \
+         before, after) VALUES ('ch', 'pa', 'pr', ?1, 't', 'applied', '{}', \
+         json_object('albumId', ?1, 'folder', 'f', 'files', json_object()))",
+        [id],
+    )
+    .unwrap();
 }
 
 /// Rows per table under `id`.
@@ -339,6 +362,9 @@ fn dependents(c: &Connection, id: &str) -> Value {
         "ai_jobs": n("SELECT COUNT(*) FROM research_history WHERE album_id = ?1"),
         "research_requests": n("SELECT COUNT(*) FROM delegated_work WHERE album_id = ?1"),
         "blocklist": n("SELECT COUNT(*) FROM album_blocked_mb_release_groups WHERE album_id = ?1"),
+        "agent_proposals": n("SELECT COUNT(*) FROM agent_proposals WHERE album_id = ?1"),
+        "agent_changes": n("SELECT COUNT(*) FROM agent_changes WHERE album_id = ?1 \
+                            AND json_extract(after, '$.albumId') = ?1"),
         "anchor": n("SELECT COUNT(*) FROM albums WHERE id = ?1 AND mb_release_group_mbid = 'rg-1' \
                      AND mb_release_mbid = 'rel-1' AND mb_match_score = 97"),
     })
@@ -348,7 +374,7 @@ fn all_dependents() -> Value {
     json!({
         "track_fingerprints": 1, "fingerprint_rejects": 1, "track_tags": 1,
         "check_findings": 2, "ignored_findings": 1, "ai_jobs": 1, "research_requests": 1, "blocklist": 1,
-        "anchor": 1,
+        "agent_proposals": 1, "agent_changes": 1, "anchor": 1,
     })
 }
 
@@ -356,7 +382,7 @@ fn no_dependents() -> Value {
     json!({
         "track_fingerprints": 0, "fingerprint_rejects": 0, "track_tags": 0,
         "check_findings": 0, "ignored_findings": 0, "ai_jobs": 0, "research_requests": 0, "blocklist": 0,
-        "anchor": 0,
+        "agent_proposals": 0, "agent_changes": 0, "anchor": 0,
     })
 }
 

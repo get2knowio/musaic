@@ -490,6 +490,84 @@ fn undo_renames_the_files_and_the_folder_back() {
     assert_eq!(undo_events, want, "a rename and an apply, as before");
 }
 
+/// The album changes id after the assistant's change: its folder is listed
+/// under another spelling of the same folder, and a scan adopts it (rule 3:
+/// the files are the same, only the id changed). The change record follows
+/// the album, so it is listed under the new id and the Undo still puts the
+/// tags back. A proposal made before follows too, expired: it was made
+/// against the old row, so applying it asks for a new preview.
+#[test]
+fn undo_still_works_after_the_album_changed_id() {
+    let c = case();
+    let dir = Path::new(&c.path);
+    let tags_before = tag_state(dir);
+    c.apply(json!({"tags": {"album": {"genre": "Assistant Genre"}}}));
+    let change = c.change_id();
+    let rev =
+        c.w.call(&c.p, "musaic_album_get", json!({"albumId": c.album}))
+            .unwrap()
+            .to_json()["revision"]
+            .clone();
+    let pending =
+        c.w.call(
+            &c.p,
+            "musaic_fix_preview",
+            json!({"albumId": c.album, "baseRevision": rev,
+                   "proposedPatch": {"tags": {"album": {"year": "1999"}}}}),
+        )
+        .unwrap()
+        .to_json();
+
+    // Another spelling of the same folder: lower case, which still opens
+    // the old spelling on a case-insensitive volume, and a symlink from the
+    // old spelling elsewhere (as the scan adoption tests do).
+    let name = dir.file_name().unwrap().to_string_lossy().into_owned();
+    let to = name.to_lowercase();
+    assert_ne!(name, to, "the folder name has upper-case letters");
+    let respelled = dir.parent().unwrap().join(&to);
+    std::fs::rename(dir, &respelled).unwrap();
+    #[cfg(target_os = "linux")]
+    std::os::unix::fs::symlink(&to, dir).unwrap();
+    if !dir.is_dir() {
+        eprintln!("skipped: this volume tells {name:?} and {to:?} apart");
+        return;
+    }
+    rescan(&c.w);
+    let albums = c.w.app.ops().library().list_albums(false).unwrap().albums;
+    let moved = albums
+        .iter()
+        .find(|a| Path::new(a.path()).file_name() == Some(std::ffi::OsStr::new(&to)))
+        .expect("the album was adopted under its new spelling");
+    let new_id = moved.id().to_string();
+    assert_ne!(new_id, c.album, "the album changed id");
+    assert!(!albums.iter().any(|a| a.id() == c.album));
+
+    let listed =
+        c.w.app
+            .ops()
+            .agent()
+            .list_changes(Some(&c.p.pairing_id))
+            .unwrap();
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(
+        listed[0].album_id, new_id,
+        "listed under the album's id now"
+    );
+    assert!(listed[0].undoable, "{listed:?}");
+
+    let out = c.undo(&change).unwrap();
+    assert!(out.complete, "{out:?}");
+    assert_eq!(tag_state(&respelled), tags_before);
+
+    let applied = c.w.call(
+        &c.p,
+        "musaic_fix_apply",
+        json!({"proposalId": pending["proposalId"], "digest": pending["digest"],
+               "idempotencyKey": "key-undo-after-adoption"}),
+    );
+    assert_eq!(common::tool_code(&applied), "PROPOSAL_EXPIRED");
+}
+
 #[test]
 fn a_later_edit_of_a_field_the_change_wrote_refuses_the_undo_and_writes_nothing() {
     let c = case();

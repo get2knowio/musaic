@@ -344,6 +344,10 @@ pub struct MergeReport {
     pub ai_jobs: usize,
     /// `check_inputs` rows deleted (from-albums and survivor).
     pub check_inputs: usize,
+    /// An assistant's proposals repointed to the survivor (and expired).
+    pub agent_proposals: usize,
+    /// An assistant's change records repointed to the survivor.
+    pub agent_changes: usize,
     /// The survivor's release group after the fold.
     pub release_group: Option<String>,
     /// The survivor's release after the fold.
@@ -411,6 +415,12 @@ pub fn merge_album_rows(conn: &Connection, req: &MergeRequest<'_>) -> Result<Mer
 ///   records repointed to the survivor so its history lists them;
 ///   `album_path` is a display copy and keeps the old text, as in a rename.
 ///   Unresolved requests refuse (above).
+/// * `agent_proposals`, `agent_changes`: repointed to the survivor, as a
+///   rename does ([`crate::renames::moved_agent_rows`]): change records
+///   keep their history (an Undo then refuses by itself, since the files
+///   moved), and proposals are expired, since they were made against one
+///   disc's folder. A pending proposal does not refuse the fold: it is a
+///   preview an assistant can make again, not work in progress.
 /// * `check_inputs`: the rows of every from-album and of the survivor are
 ///   deleted, so the background sweep checks the survivor again (its files
 ///   changed). Whole-library rows (`album_id = ''`) are left: their digest
@@ -486,7 +496,9 @@ pub fn merge_album_rows_tx(tx: &Transaction<'_>, req: &MergeRequest<'_>) -> Resu
                 "SELECT (SELECT COUNT(*) FROM check_findings WHERE album_id = ?1 AND resolved_at IS NULL) \
                       + (SELECT COUNT(*) FROM delegated_work WHERE album_id = ?1) \
                       + (SELECT COUNT(*) FROM research_history WHERE album_id = ?1) \
-                      + (SELECT COUNT(*) FROM check_inputs WHERE album_id = ?1)",
+                      + (SELECT COUNT(*) FROM check_inputs WHERE album_id = ?1) \
+                      + (SELECT COUNT(*) FROM agent_proposals WHERE album_id = ?1) \
+                      + (SELECT COUNT(*) FROM agent_changes WHERE album_id = ?1)",
                 id,
             )?;
             if leftovers > 0 {
@@ -631,8 +643,12 @@ pub fn merge_album_rows_tx(tx: &Transaction<'_>, req: &MergeRequest<'_>) -> Resu
         params_from_iter(with_into(req.now)),
     )?;
     let mut ai_jobs = 0;
+    let (mut agent_proposals, mut agent_changes) = (0, 0);
     for id in &ids {
         ai_jobs += crate::renames::moved_research(tx, id, into_id)?;
+        let agent = crate::renames::moved_agent_rows(tx, id, into_id)?;
+        agent_proposals += agent.agent_proposals;
+        agent_changes += agent.agent_changes;
     }
     let check_inputs = tx.execute(
         &format!("DELETE FROM check_inputs WHERE album_id IN (?,{in_from})"),
@@ -655,6 +671,8 @@ pub fn merge_album_rows_tx(tx: &Transaction<'_>, req: &MergeRequest<'_>) -> Resu
         check_findings_resolved,
         ai_jobs,
         check_inputs,
+        agent_proposals,
+        agent_changes,
         release_group,
         release,
         release_cleared,
