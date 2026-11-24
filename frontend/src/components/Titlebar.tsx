@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Keyboard, Loader2, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Keyboard, RefreshCw } from "lucide-react";
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import { useLocation } from "react-router-dom";
 import { useState } from "react";
@@ -54,7 +54,7 @@ export default function Titlebar() {
     state.library !== "available"
       ? "Configure a library directory in Settings first"
       : busy
-        ? "Scanning…"
+        ? "A scan is running"
         : "Rescan the library";
 
   return (
@@ -76,16 +76,18 @@ export default function Titlebar() {
           one control that opens the Activity panel over this page. */}
       <ActivityButton />
 
-      {/* Rescan */}
+      {/* Rescan. It keeps its name while a scan runs and is only disabled:
+          the Activity control beside it is the one place that reports
+          progress, so the toolbar never says "Scanning" twice. */}
       <button
         onClick={onRescan}
-        aria-label={busy ? "Scanning…" : "Rescan"}
+        aria-label="Rescan"
         disabled={rescanDisabled}
         className="inline-flex shrink-0 items-center gap-2 h-8 px-2.5 lg:px-3 border border-line rounded-md bg-panel text-fg-2 text-sm hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 disabled:cursor-not-allowed"
         title={rescanTitle}
       >
-        {busy ? <Loader2 className="w-3.5 h-3.5 spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-        <span className="hidden lg:inline">{busy ? "Scanning…" : "Rescan"}</span>
+        <RefreshCw className="w-3.5 h-3.5" />
+        <span className="hidden lg:inline">Rescan</span>
       </button>
 
       <ViewMenu commands={commands} />
