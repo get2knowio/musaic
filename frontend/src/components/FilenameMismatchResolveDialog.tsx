@@ -18,6 +18,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle, FileEdit, FolderInput, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import ChangedName from "@/components/ChangedName";
 import { applyFilenameRename, fetchFilenameRenamePreview } from "@/lib/api";
 import type {
   Finding,
@@ -402,13 +403,19 @@ export default function FilenameMismatchResolveDialog({
                   <span>Album folder</span>
                 </div>
                 <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center text-sm min-w-0">
-                  <div className="mono text-[12px] text-warn line-through truncate" title={dirRename.old}>
-                    {dirRename.old}
-                  </div>
+                  <ChangedName
+                    side="old"
+                    oldName={dirRename.old}
+                    newName={dirRename.new}
+                    className="mono text-[12px] text-warn line-through"
+                  />
                   <div className="text-fg-4 mono text-xs">→</div>
-                  <div className="mono text-[12px] text-ok truncate" title={dirRename.new}>
-                    {dirRename.new}
-                  </div>
+                  <ChangedName
+                    side="new"
+                    oldName={dirRename.old}
+                    newName={dirRename.new}
+                    className="mono text-[12px] text-ok"
+                  />
                 </div>
                 <div className="mt-1.5 text-[11px] text-fg-3 leading-relaxed">
                   The folder is renamed first, then the files inside it.
@@ -527,9 +534,12 @@ function RenameRow({ entry }: { entry: FilenameRenameEntry }) {
   return (
     <div className="px-3 py-2 text-sm min-w-0 grid grid-cols-[1fr_auto_1fr] gap-3 items-start">
       <div className="min-w-0">
-        <div className="mono text-[11px] text-warn line-through truncate" title={entry.filename}>
-          {entry.filename}
-        </div>
+        <ChangedName
+          side="old"
+          oldName={entry.filename}
+          newName={entry.expected}
+          className="mono text-[11px] text-warn line-through"
+        />
         <div className="text-[11px] text-fg-4 mt-0.5 truncate" title={entry.title}>
           {entry.tracknumber ? `${entry.tracknumber}. ` : ""}
           {entry.title}
@@ -538,12 +548,12 @@ function RenameRow({ entry }: { entry: FilenameRenameEntry }) {
       </div>
       <div className="text-fg-4 mono text-xs shrink-0 mt-1">→</div>
       <div className="min-w-0">
-        <div
-          className={`mono text-[11px] truncate ${stale ? "text-fg-4 line-through" : "text-ok"}`}
-          title={entry.expected}
-        >
-          {entry.expected}
-        </div>
+        <ChangedName
+          side="new"
+          oldName={entry.filename}
+          newName={entry.expected}
+          className={`mono text-[11px] ${stale ? "text-fg-4 line-through" : "text-ok"}`}
+        />
         {stale && entry.collides_with && (
           <div className="text-[11px] text-warn mt-0.5 truncate" title={entry.collides_with}>
             would collide with {entry.collides_with}
