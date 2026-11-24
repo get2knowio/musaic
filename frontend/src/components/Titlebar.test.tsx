@@ -15,9 +15,11 @@ vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }))
 
 import FilterBar from "@/components/FilterBar";
 import Titlebar from "@/components/Titlebar";
+import { setScanning } from "@/lib/rescanController";
 import type { AppConfig } from "@/lib/types";
 
 afterEach(() => {
+  setScanning(false);
   vi.unstubAllGlobals();
 });
 
@@ -43,6 +45,18 @@ function renderChrome() {
     </QueryClientProvider>,
   );
 }
+
+describe("Rescan while a scan runs", () => {
+  it("keeps its name and is disabled, so only the Activity control says Scanning", () => {
+    setScanning(true);
+    renderChrome();
+    const header = within(screen.getByRole("banner"));
+    const rescan = header.getByRole("button", { name: "Rescan" });
+    expect(rescan).toBeDisabled();
+    expect(within(rescan).getByText("Rescan")).toBeInTheDocument();
+    expect(header.queryByText("Scanning…")).toBeNull();
+  });
+});
 
 describe("chrome at narrow widths", () => {
   it("the titlebar can shrink below its content instead of widening the page", () => {
