@@ -45,7 +45,7 @@ nix = { version = "=0.32.0", default-features = false, features = ["fs"] }
 
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
-jsonschema = { version = "0.33", default-features = false }
+jsonschema = { version = "0.61", default-features = false }
 
 [lints]
 workspace = true
