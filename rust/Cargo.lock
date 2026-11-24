@@ -2774,6 +2774,7 @@ dependencies = [
  "musaic-services",
  "musaic-tags",
  "musaic-testdata",
+ "nix",
  "rusqlite",
  "same-file",
  "semver",

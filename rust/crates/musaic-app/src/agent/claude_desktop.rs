@@ -60,7 +60,8 @@ pub const fn shape_for(platform: Platform) -> BundleShape {
 /// Why the app's program cannot be put in a bundle although it exists.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Unstable {
-    /// Running from a mounted disk image.
+    /// Running from a mounted disk image: a volume under `/Volumes/` that is
+    /// read-only, or whose mount could not be read.
     DiskImage,
     /// Running from inside an AppImage.
     AppImage,
@@ -79,6 +80,39 @@ impl Unstable {
             Self::Translocated => "translocated",
             Self::Temporary => "temporary",
         }
+    }
+}
+
+/// How the volume holding a path is mounted, as far as it decides whether a
+/// program there will last.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MountKind {
+    /// Mounted read-only: what a downloaded disk image always is.
+    ReadOnly,
+    /// Mounted writable: an external drive (or a writable image), which lasts
+    /// as long as it stays attached.
+    Writable,
+    /// The mount could not be read.
+    Unknown,
+}
+
+/// The real probe: asks the filesystem whether the volume holding `path` is
+/// mounted read-only. Only macOS is asked, the one platform where a volume
+/// path is classified; elsewhere the answer is `Unknown`.
+pub fn probe_mount(path: &Path) -> MountKind {
+    #[cfg(target_os = "macos")]
+    {
+        use nix::sys::statvfs::{FsFlags, statvfs};
+        match statvfs(path) {
+            Ok(s) if s.flags().contains(FsFlags::ST_RDONLY) => MountKind::ReadOnly,
+            Ok(_) => MountKind::Writable,
+            Err(_) => MountKind::Unknown,
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = path;
+        MountKind::Unknown
     }
 }
 
@@ -154,6 +188,9 @@ pub struct HostEnv {
     pub non_default_config_dir: Option<PathBuf>,
     /// Remove leftover bundles at startup and on the periodic tick.
     pub cleanup: bool,
+    /// How the volume holding a path is mounted ([`probe_mount`] for the
+    /// app; a fixed answer in tests).
+    pub mount: fn(&Path) -> MountKind,
 }
 
 impl HostEnv {
@@ -180,6 +217,7 @@ impl HostEnv {
             allow_temporary_program: false,
             non_default_config_dir: non_default,
             cleanup: false,
+            mount: probe_mount,
         }
     }
 
@@ -220,24 +258,35 @@ impl HostEnv {
             return CliLocation::Missing;
         }
         let canonical = musaic_core::config::resolve_path(&path).unwrap_or(path);
+        match self.unstable_reason(&canonical) {
+            Some(reason) => CliLocation::Unstable(reason),
+            None => CliLocation::Found(canonical),
+        }
+    }
+
+    /// Why a program at this canonical location would not last, if it would
+    /// not. Under `/Volumes/` the mount decides: a downloaded disk image is
+    /// read-only, an external drive is writable, and a mount that cannot be
+    /// read is refused as a disk image.
+    fn unstable_reason(&self, canonical: &Path) -> Option<Unstable> {
         let text = canonical.to_string_lossy();
-        if text.starts_with("/Volumes/") {
-            return CliLocation::Unstable(Unstable::DiskImage);
+        if text.starts_with("/Volumes/") && (self.mount)(canonical) != MountKind::Writable {
+            return Some(Unstable::DiskImage);
         }
         if text.contains("/.mount_") {
-            return CliLocation::Unstable(Unstable::AppImage);
+            return Some(Unstable::AppImage);
         }
         if text.contains("/AppTranslocation/") {
-            return CliLocation::Unstable(Unstable::Translocated);
+            return Some(Unstable::Translocated);
         }
         if !self.allow_temporary_program {
             let temp = musaic_core::config::resolve_path(&self.temp_root)
                 .unwrap_or_else(|_| self.temp_root.clone());
             if canonical.starts_with(&temp) {
-                return CliLocation::Unstable(Unstable::Temporary);
+                return Some(Unstable::Temporary);
             }
         }
-        CliLocation::Found(canonical)
+        None
     }
 
     /// Whether Claude Desktop appears to be installed (research D11).
@@ -580,5 +629,78 @@ mod tests {
         assert_eq!(v["server"]["mcp_config"]["args"][2], "/a b/ü");
         assert!(v.get("user_config").is_none());
         assert!(v["server"]["mcp_config"].get("env").is_none());
+    }
+
+    fn env_with(mount: fn(&Path) -> MountKind) -> HostEnv {
+        HostEnv {
+            platform: Platform::Darwin,
+            home: None,
+            appdata: None,
+            local_appdata: None,
+            application_dirs: Vec::new(),
+            executable: None,
+            temp_root: PathBuf::from("/nonexistent-musaic-temp-root"),
+            allow_temporary_program: false,
+            non_default_config_dir: None,
+            cleanup: false,
+            mount,
+        }
+    }
+
+    const ON_VOLUME: &str = "/Volumes/Drive/Musaic.app/Contents/MacOS/musaic-cli";
+
+    #[test]
+    fn a_read_only_volume_is_refused_as_a_disk_image() {
+        let env = env_with(|_| MountKind::ReadOnly);
+        assert_eq!(
+            env.unstable_reason(Path::new(ON_VOLUME)),
+            Some(Unstable::DiskImage)
+        );
+    }
+
+    #[test]
+    fn a_writable_external_drive_is_accepted() {
+        let env = env_with(|_| MountKind::Writable);
+        assert_eq!(env.unstable_reason(Path::new(ON_VOLUME)), None);
+    }
+
+    #[test]
+    fn a_volume_whose_mount_cannot_be_read_is_refused() {
+        let env = env_with(|_| MountKind::Unknown);
+        assert_eq!(
+            env.unstable_reason(Path::new(ON_VOLUME)),
+            Some(Unstable::DiskImage)
+        );
+    }
+
+    #[test]
+    fn the_mount_is_asked_only_under_volumes() {
+        let env = env_with(|_| panic!("the mount is not asked outside /Volumes/"));
+        assert_eq!(
+            env.unstable_reason(Path::new(
+                "/Applications/Musaic.app/Contents/MacOS/musaic-cli"
+            )),
+            None
+        );
+        // A writable volume does not hide the other reasons.
+        let env = env_with(|_| MountKind::Writable);
+        assert_eq!(
+            env.unstable_reason(Path::new(
+                "/Volumes/Drive/AppTranslocation/X/d/Musaic.app/Contents/MacOS/musaic-cli"
+            )),
+            Some(Unstable::Translocated)
+        );
+    }
+
+    #[test]
+    fn the_real_probe_reads_a_mount_without_failing() {
+        // The probe is only read, never relied on for a value here: the
+        // temporary directory may be on any kind of volume.
+        let got = probe_mount(&std::env::temp_dir());
+        if cfg!(target_os = "macos") {
+            assert_ne!(got, MountKind::Unknown);
+        } else {
+            assert_eq!(got, MountKind::Unknown);
+        }
     }
 }

@@ -37,6 +37,12 @@ thiserror.workspace = true
 # shutdown); no runtime.
 tokio = { version = "1", features = ["sync", "macros"] }
 
+# macOS only, and already in the tree through `zip`: `statvfs` tells a
+# read-only disk image from a writable external drive under `/Volumes/`
+# without `unsafe`.
+[target.'cfg(target_os = "macos")'.dependencies]
+nix = { version = "=0.32.0", default-features = false, features = ["fs"] }
+
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
 jsonschema = { version = "0.33", default-features = false }

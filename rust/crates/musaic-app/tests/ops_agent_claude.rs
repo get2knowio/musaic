@@ -45,6 +45,9 @@ impl Setup {
             allow_temporary_program: false,
             non_default_config_dir: None,
             cleanup: false,
+            // Scratch trees are never under `/Volumes/`; a fixed answer keeps
+            // the real mount out of the tests.
+            mount: |_| cd::MountKind::Unknown,
         }
     }
     /// Claude Desktop "installed": its configuration directory exists.
@@ -180,7 +183,8 @@ fn every_readiness_state_is_reported() {
 fn the_disk_image_and_app_image_locations_are_refused() {
     let s = Setup::new();
     let env = s.env(Platform::Darwin);
-    // Only the path text decides; build the answer through the public rule.
+    // The path text decides (and, under `/Volumes/`, the mount: the module's
+    // own tests cover that); build the answer through the public rule.
     for (dir, want) in [
         ("Volumes/Musaic", Unstable::DiskImage),
         (".mount_Musaic1/usr/bin", Unstable::AppImage),

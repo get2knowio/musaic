@@ -37,6 +37,7 @@ fn world(config: Option<&str>) -> World {
         allow_temporary_program: false,
         non_default_config_dir: None,
         cleanup: false,
+        mount: |_| musaic_app::agent::claude_desktop::MountKind::Unknown,
     };
     if let Some(text) = config {
         let file = env.config_file().unwrap();

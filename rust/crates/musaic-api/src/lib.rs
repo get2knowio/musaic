@@ -47,7 +47,7 @@ pub use gate::{Busy, RestoreGuard, WorkGate, WorkGuard, WorkKind};
 pub use host_check::AllowedHosts;
 pub use launch::LaunchGate;
 pub use loopback::{LoopbackOptions, LoopbackServer, StopReport, serve_loopback};
-pub use musaic_app::agent::claude_desktop::HostEnv;
+pub use musaic_app::agent::claude_desktop::{HostEnv, MountKind};
 pub use musaic_app::ops::agent::{BundleShape, HandOffError};
 pub use musaic_commands::claude_desktop::Platform;
 pub use route_table::RouteRow;

@@ -76,6 +76,7 @@ fn world(claude: bool) -> World {
         allow_temporary_program: false,
         non_default_config_dir: None,
         cleanup: false,
+        mount: |_| musaic_api::MountKind::Unknown,
     };
     if claude {
         let file = env.config_file().unwrap();

@@ -28,7 +28,7 @@ Manifest, installed-program shape: `server.type = "binary"`, `entry_point` and `
 
 **D3. One definition of the host's file and of ownership.** *Chosen*: pure functions in `musaic-commands` (the only crate both sides already depend on; it stays free of database, app, axum and tokio). *Rejected*: copying the rule into the app (two rules that can disagree about whose entry it is).
 
-**D4. Verifying the program location.** A regular file beside the running executable, canonicalised. Refused when the location will not last. The fallback to the bare name `musaic-cli` stays for `connect_hint` (a hint for a terminal) but is never used for a bundle.
+**D4. Verifying the program location.** A regular file beside the running executable, canonicalised. Refused when the location will not last. Under `/Volumes/` (macOS) the mount decides: read-only or unreadable is a disk image and refused; writable is an external drive and accepted (`statvfs`, behind the injected `HostEnv`). The fallback to the bare name `musaic-cli` stays for `connect_hint` (a hint for a terminal) but is never used for a bundle.
 
 **D5. The hand-off.** *Chosen*: a shell request in the gate, like reveal: the page sends an empty POST, the shell calls one operation and opens the returned path. The path never reaches the page. *Rejected*: an `/api` route that returns a path (tools and routes return no filesystem path); a Tauri command (the web view has no IPC, and must not gain it).
 

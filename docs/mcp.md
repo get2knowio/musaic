@@ -193,6 +193,13 @@ keyring as before. After installing, add an assistant in Settings as usual. The 
 when opening fails, after 60 minutes, and at the next start. Musaic's extension is not signed, so
 Claude Desktop may say its publisher is not verified.
 
+The one-click route is refused while Musaic runs from somewhere that will not last: a mounted
+disk image, an AppImage, a translocated copy (macOS moves an app opened straight from Downloads
+to a random read-only folder) or the temporary folder. Move the app first. On macOS a location
+under `/Volumes/` counts as a disk image when that volume is mounted read-only (as a downloaded
+disk image always is) or when its mount cannot be read. A copy on a writable external drive is
+accepted: the extension works while that drive is attached, and stops when it is not.
+
 **The configuration-file route.** `musaic-cli setup --host claude-desktop` (see
 [agents.md](agents.md)). This is the only route on Linux, and the one to use when the program
 cannot be found beside the app.
