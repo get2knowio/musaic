@@ -9,6 +9,7 @@
 //! Nothing in here writes to the library, takes the work guard or touches the
 //! network; the operations in `ops::agent` do, through the services.
 
+pub mod claude_desktop;
 pub(crate) mod delegation;
 pub(crate) mod events;
 pub mod hosts;
@@ -17,6 +18,7 @@ pub mod operations;
 pub mod proposal;
 pub mod read;
 pub mod run;
+pub mod skill_archive;
 pub mod tasks;
 pub mod undo;
 
@@ -66,6 +68,9 @@ struct State {
     cancellation: HashMap<String, Arc<AtomicBool>>,
     /// The latest authenticated request of each pairing (diagnostics).
     last_seen: HashMap<String, SystemTime>,
+    /// The `musaic-cli` version each pairing's live session reported. Memory
+    /// only: it describes a running connection, so nothing stores it.
+    cli_versions: HashMap<String, String>,
 }
 
 type Waiting = Arc<Mutex<HashMap<String, (usize, SystemTime)>>>;
@@ -259,9 +264,28 @@ impl AgentHub {
         self.lock().last_seen.get(pairing).copied()
     }
 
+    /// Keep the program version a pairing's session reported; true when it is
+    /// new or different. An empty text clears it.
+    pub fn set_cli_version(&self, pairing: &str, version: &str) -> bool {
+        let mut s = self.lock();
+        if version.is_empty() {
+            return s.cli_versions.remove(pairing).is_some();
+        }
+        s.cli_versions
+            .insert(pairing.to_string(), version.to_string())
+            .as_deref()
+            != Some(version)
+    }
+
+    /// The program version a pairing's session last reported.
+    pub fn cli_version(&self, pairing: &str) -> Option<String> {
+        self.lock().cli_versions.get(pairing).cloned()
+    }
+
     /// Forget what is kept in memory about a pairing (revoke).
     pub fn forget_pairing(&self, pairing: &str) {
         self.lock().last_seen.remove(pairing);
+        self.lock().cli_versions.remove(pairing);
         self.waiting
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -614,6 +638,7 @@ pub fn start_expiry_ticker(app: &crate::App) {
                         let app = crate::App(inner);
                         app.ops().agent().expire_due();
                         app.ops().agent().sweep_delegation();
+                        claude_desktop::sweep_old(&app);
                     }
                     None => return,
                 }

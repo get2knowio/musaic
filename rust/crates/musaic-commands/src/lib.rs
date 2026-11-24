@@ -5,6 +5,7 @@
 pub mod auth;
 pub mod call;
 pub mod catalog;
+pub mod claude_desktop;
 pub mod descriptor;
 pub mod errors;
 pub mod events;

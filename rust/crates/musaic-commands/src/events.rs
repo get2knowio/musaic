@@ -249,6 +249,10 @@ pub struct HostObservation {
     pub skills: bool,
     #[serde(default)]
     pub events: bool,
+    /// The version of the `musaic-cli` that relayed the host's session, set by
+    /// the program itself when it connects. Older programs omit it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cli_version: Option<String>,
 }
 
 /// What `GET session` returns to the CLI's `doctor`.

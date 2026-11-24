@@ -14,8 +14,10 @@ import {
   useUndoAgentChange,
 } from "@/hooks/useAgents";
 import { useReturnFocus } from "@/components/DetailSheet/useReturnFocus";
+import ConnectClaudeDesktop from "@/components/ConnectClaudeDesktop";
 import {
   AGENT_KINDS,
+  SKILL_ARCHIVE_URL,
   type AgentChange,
   type AgentDecision,
   type AgentKind,
@@ -27,8 +29,12 @@ import {
   AGENT_FACTS_NOTE,
   AGENT_FACT_LABEL,
   AGENT_KIND_LABEL,
+  CLAUDE_COPY,
   PROCESS_PENDING_INSTRUCTIONS,
   ago,
+  commandLine,
+  differentProgramText,
+  olderProgramText,
   decisionsFor,
   outcomeText,
 } from "@/lib/agentCopy";
@@ -83,6 +89,7 @@ export default function AgentsPanel() {
         assistants you no longer use.
       </p>
 
+      <ClaudeActions />
       <PairForm onCreated={setCreated} />
       {created && <ConnectInfo pairing={created} onDone={() => setCreated(null)} />}
 
@@ -116,6 +123,37 @@ export default function AgentsPanel() {
         />
       )}
     </div>
+  );
+}
+
+/** Connect Claude Desktop, save the skill for Claude, and the assistants
+ * that cannot reach Musaic yet (no control: nothing to press). */
+function ClaudeActions() {
+  const [connecting, setConnecting] = useState(false);
+  return (
+    <section aria-label="Connect and skill" className="rounded-md border border-line bg-panel-2 p-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" onClick={() => setConnecting(true)} className={BUTTON}>
+          {CLAUDE_COPY.connectAction}
+        </button>
+        <a href={SKILL_ARCHIVE_URL} download className={`${BUTTON} inline-flex items-center`}>
+          {CLAUDE_COPY.skillAction}
+        </a>
+      </div>
+      <div className="text-xs text-fg-3 space-y-1">
+        <ol aria-label="Add the skill in Claude" className="list-decimal pl-5">
+          {CLAUDE_COPY.skillSteps.map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <p>{CLAUDE_COPY.skillNote}</p>
+      </div>
+      <div className="text-xs text-fg-3">
+        <h3 className="font-medium text-fg-2">{CLAUDE_COPY.otherHeading}</h3>
+        <p>{CLAUDE_COPY.otherBody}</p>
+      </div>
+      {connecting && <ConnectClaudeDesktop onClose={() => setConnecting(false)} />}
+    </section>
   );
 }
 
@@ -188,14 +226,8 @@ function PairForm({ onCreated }: { onCreated: (p: AgentPairingCreated) => void }
   );
 }
 
-/** A command-line word as it must be typed: quoted when it holds a space
- * (an absolute path to the bundled CLI or a config folder can). */
-function shellWord(word: string): string {
-  return /\s/.test(word) ? `"${word.replace(/"/g, '\\"')}"` : word;
-}
-
 function ConnectInfo({ pairing, onDone }: { pairing: AgentPairingCreated; onDone: () => void }) {
-  const command = [pairing.connect.command, ...pairing.connect.args].map(shellWord).join(" ");
+  const command = commandLine({ program: pairing.connect.command, args: pairing.connect.args });
   return (
     <section aria-label="Connect the assistant" className="rounded-md border border-accent-line bg-accent-soft p-3 space-y-2 text-sm">
       <h3 className="font-medium">{pairing.name} is added. Now connect it.</h3>
@@ -342,6 +374,16 @@ function Diagnostics({ pairing }: { pairing: AgentPairing }) {
             <dd className="text-fg-2">{value}</dd>
           </div>
         ))}
+        {d.cliVersion && d.appVersion && d.cliVersion !== d.appVersion && (
+          <>
+            <dt className="text-fg-3">Program</dt>
+            <dd className="text-warn" data-cli-older={d.cliOlder === true ? "true" : undefined}>
+              {d.cliOlder === true
+                ? olderProgramText(d.cliVersion, d.appVersion)
+                : differentProgramText(d.cliVersion, d.appVersion)}
+            </dd>
+          </>
+        )}
         {host && (
           <>
             <dt className="text-fg-3">Host</dt>

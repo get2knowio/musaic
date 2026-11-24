@@ -120,6 +120,8 @@ pub struct AppBuilder {
     sweep_settle: Duration,
     sweep_network: Option<bool>,
     sweep_refresh_tick: Duration,
+    host_env: Option<crate::agent::claude_desktop::HostEnv>,
+    host_cleanup: bool,
 }
 
 /// How long [`App::shutdown`] waits for the fingerprint pool's thread to
@@ -189,6 +191,8 @@ impl AppBuilder {
             sweep_settle: musaic_services::check_sweep::SETTLE,
             sweep_network: None,
             sweep_refresh_tick: musaic_services::check_sweep::REFRESH_TICK,
+            host_env: None,
+            host_cleanup: false,
         }
     }
 
@@ -197,6 +201,22 @@ impl AppBuilder {
     /// mode is another transport (a logged one) says so here.
     pub fn sweep_network(mut self, on: bool) -> Self {
         self.sweep_network = Some(on);
+        self
+    }
+
+    /// Replace the machine the Claude Desktop report and bundle read (home,
+    /// platform, executable, temporary root). Tests inject a scratch one; the
+    /// default is the running machine.
+    pub fn host_env(mut self, env: crate::agent::claude_desktop::HostEnv) -> Self {
+        self.host_env = Some(env);
+        self
+    }
+
+    /// Remove leftover Claude Desktop bundles at startup and on the periodic
+    /// tick. The desktop and the standalone server turn it on; a test's app
+    /// leaves the real temporary directory alone.
+    pub fn host_cleanup(mut self, on: bool) -> Self {
+        self.host_cleanup = on;
         self
     }
 
@@ -559,6 +579,14 @@ impl AppBuilder {
             shutdown_pool_wait: self.shutdown_pool_wait,
             sweeper,
             sweep_changes,
+            host_env: {
+                let mut env = self.host_env.unwrap_or_else(|| {
+                    crate::agent::claude_desktop::HostEnv::real(&self.config_dir)
+                });
+                env.cleanup = env.cleanup || self.host_cleanup;
+                env
+            },
+            hand_off_busy: std::sync::atomic::AtomicBool::new(false),
             agent: crate::agent::AgentHub::new(clock_for_agent),
             agent_secrets,
             agent_index_store,
@@ -589,6 +617,7 @@ impl AppBuilder {
         crate::desktop_research::subscribe_legacy_hydration(&state);
         crate::desktop_research::subscribe_rename_rederive(&state);
         crate::agent::startup_housekeeping(&state);
+        crate::agent::claude_desktop::sweep_at_start(&state);
         crate::agent::start_expiry_ticker(&state);
         if self.check_sweep {
             let online = self
@@ -626,6 +655,10 @@ fn retry_once(inner: &AppInner) -> Option<ScrubOutcome> {
 /// The application's parts. Fields are public so a host (musaic-api's
 /// handlers) reads them directly.
 pub struct AppInner {
+    /// The machine the Claude Desktop report and bundle read.
+    pub host_env: crate::agent::claude_desktop::HostEnv,
+    /// A Claude Desktop bundle is being prepared.
+    pub hand_off_busy: std::sync::atomic::AtomicBool,
     /// Set when shutdown begins: a request waiting on the network's pacing
     /// or a retry delay ends at once instead of holding shutdown.
     pub net_cancel: Arc<std::sync::atomic::AtomicBool>,

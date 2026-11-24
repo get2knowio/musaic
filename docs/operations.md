@@ -55,10 +55,10 @@ requirement FR-019.
 ## The inventory
 
 The table below has one row per row of `musaic_api::route_table()`, in registration order.
-**112 rows**: 67 routes of the Python app (its provider list, queue resume, job retry and
+**114 rows**: 67 routes of the Python app (its provider list, queue resume, job retry and
 acted-on routes are removed: Musaic has no built-in model, research goes to an assistant
-the user added), the 43 `EXTRA_ROUTES` (the agent bridge's routes among them), and 2 routing aliases
-(`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **108 rows are
+the user added), the 45 `EXTRA_ROUTES` (the agent bridge's routes among them), and 2 routing aliases
+(`DELETE /api/ai/jobs/stream`, `POST /api/ai/jobs/active/{album_id}`). **110 rows are
 operation-bearing** (each names exactly one operation, which `operations_inventory.rs`
 checks); 4 are HTTP face only (the two aliases and the two static-file routes).
 **11 rows are streamed**: the scan and its follow-only reader, 5 runs (apply, cover upload, analyze, quick-fix-all and
@@ -179,7 +179,9 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `POST` | `/api/agent/approvals/{approval_id}/approve` | agent | carries behaviour | the decision happens once; an apply then runs under the work guard after revalidating everything (revision, files, expiry, pairing); a start spawns its worker; publishes `AgentStateChanged` | `agent.decide_approval` | ApprovalRecord | NotFound, Conflict (no longer pending), Internal | no | card, decision, revalidation, before-image, apply |
 | `POST` | `/api/agent/approvals/{approval_id}/deny` | agent | thin adapter | the decision happens once; nothing is written; publishes `AgentStateChanged` | `agent.decide_approval` | ApprovalRecord | NotFound, Conflict (no longer pending), Internal | no | card, decision |
 | `GET` | `/api/agent/changes` | agent | thin adapter | body construction; whether Undo would run now is derived from the files (state, album present, the files still hold what the change left); nothing is written | `agent.list_changes` | list of ChangeRecord (newest first, at most 20) | NotFound (unknown pairing), Internal | no | query `pairing` (optional) |
-| `GET` | `/api/agent/diagnostics` | agent | thin adapter | desktop only; four facts per pairing with times, shown in Settings, Assistants as Added, Connected, Listening for work (a subscription active within 90 s) and Last request picked up and the host's report; nothing is written and nothing says "ready" | `agent.diagnostics` | list of PairingDiagnostics | Internal | no | default |
+| `GET` | `/api/agent/diagnostics` | agent | thin adapter | desktop only; four facts per pairing with times, shown in Settings, Assistants as Added, Connected, Listening for work (a subscription active within 90 s) and Last request picked up and the host's report, plus the `musaic-cli` version the live session reported, whether it is older than the app, and the app's version; nothing is written and nothing says "ready" | `agent.diagnostics` | list of PairingDiagnostics (with `cliVersion`, `cliOlder`, `appVersion`) | Internal | no | default |
+| `GET` | `/api/agent/claude-desktop` | agent | thin adapter | desktop only; read-only readiness report for Connect Claude Desktop, derived from the files as they are now: whether Claude Desktop was found, whose `musaic` entry its configuration file holds, whether the Musaic extension's folder is there, the exact command the extension would run, the configuration-file command; nothing is written | `agent.claude_desktop_status` | ClaudeDesktopStatus | none | no | default |
+| `GET` | `/api/agent/skill-archive` | agent | thin adapter | desktop download; the embedded skill (guide and references) as a zip under one folder, deterministic bytes, named for the skill's version | `agent.skill_archive` | SkillArchive (a zip) | Internal | no | default |
 | `POST` | `/api/agent/changes/{change_id}/undo` | agent | carries behaviour | desktop only (no agent tool); takes the apply guard; refuses a change that is not applied or partial, already undone, an undo itself, on a Missing album, or whose files changed since (listing what); records its own before-image, renames back through the rename service, restores tags, pictures and cover files through the apply pipeline (`AlbumRenamed`, `AlbumTagsChanged`, `AlbumCoverChanged` as any rename and apply), marks the change `undone`, records an activity row, publishes `AgentStateChanged(changes)` | `agent.undo_change` | UndoOutcome (the change, the undo's record id, complete or what was not put back) | NotFound, Restoring, Busy, Conflict (state, Missing album), ChangedSince (409 with `changed`), Unavailable (nothing put back), Internal | no | guard, change, state, album, changed since, saved copies, own before-image, renames, apply, finish |
 | `POST` | `/__musaic/agent/v1/hello` | agent | thin adapter | the agent route guard (loopback peer, exact Host, no Origin, JSON, 256 KiB) | `agent.hello` | HelloResponse (instance id, one-time nonce) | none | no | guard only |
 | `POST` | `/__musaic/agent/v1/exchange` | agent | thin adapter | mutual HMAC proof of the pairing secret; every failure is one `NOT_PAIRED`; lockout after 5 failures in a minute | `agent.exchange` | ExchangeResponse (token, scopes, server proof) | NotPaired, LockedOut | no | guard, lockout, nonce, instance, pairing, secret, proof |
@@ -191,10 +193,19 @@ is `{*full_path}` and a path parameter keeps its name). Further cells are free t
 | `POST` | `/__musaic/agent/v1/tasks/cancel` | agent | thin adapter | bearer token and principal ownership | `agent.task_cancel` | Cancellation status | Typed task error | no | guard, token, operation |
 | `POST` | `/__musaic/agent/v1/events/list` | agent | thin adapter | bearer token; the pairing must be active and allowed to read work | `agent.events_list` | the two event types (`musaic.work.requested.v1`, `musaic.work.updated.v1`) with their schemas | EventForbidden | no | guard, token, permission |
 | `POST` | `/__musaic/agent/v1/events/poll` | agent | thin adapter | bearer token; permission re-checked on every wake; at most 4 waiting polls per pairing; waits without a work guard or a connection; events whose work the caller can no longer see are skipped | `agent.events_poll` | PollResult (events, cursor, truncated, hasMore, nextPollMs) | EventInvalid, EventNotFound, EventForbidden, EventLimit | no | guard, token, parse, permission, cursor, filters, then wait |
-| `POST` | `/__musaic/agent/v1/session/observe` | agent | thin adapter | bearer token; the host's name, version and profile are bounded and cleaned, shown as "reported by the host"; a bad body stores nothing and never fails the session; publishes `AgentStateChanged(hosts)` when the stored values changed (at most once per pairing every 5 seconds) | `agent.observe_host` | `{}` | none | no | guard, token, clean, store, publish |
+| `POST` | `/__musaic/agent/v1/session/observe` | agent | thin adapter | bearer token; the host's name, version and profile, and the optional `cliVersion` of the CLI, are bounded and cleaned (the CLI version is kept in memory only), shown as "reported by the host"; a bad body stores nothing and never fails the session; publishes `AgentStateChanged(hosts)` when the stored values changed (at most once per pairing every 5 seconds) | `agent.observe_host` | `{}` | none | no | guard, token, clean, store, publish |
 | `GET` | `/__musaic/agent/v1/session` | agent | thin adapter | bearer token; the pairing's own row only | `agent.session_status` | SessionStatus (observation, skill version, subscription active) | Internal | no | guard, token |
 | `GET` | `/` | HTTP face only | thin adapter | static file: `index.html` of the built UI; 404 without a UI dir | - | - | - | no | default |
 | `GET` | `/{*full_path}` | HTTP face only | carries behaviour | static files and the SPA fallback; refuses `api/` paths, contains the path under the UI dir, `/assets/*` 404s when missing | - | - | - | no | default |
+
+### The desktop shell's request
+
+Not a route of the router, so not a row above: the desktop shell's guarded request
+`POST /__musaic/connect/claude-desktop` (launch cookie, exact Host, same Origin, no body) calls
+one operation, `agent.claude_desktop_bundle`, which refuses unless the readiness report's route is
+the bundle, takes one hand-off at a time and writes `Musaic.mcpb` to a private folder under the
+temporary directory; the shell then opens that file and answers without its path. A failed open
+calls `agent.discard_claude_desktop_bundle`. The standalone server has no such request.
 
 ## Deviations and decisions
 

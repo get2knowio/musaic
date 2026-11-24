@@ -220,3 +220,34 @@ fn the_call_command_prints_one_json_document_and_the_exit_codes_follow_the_contr
         23
     );
 }
+
+#[test]
+fn another_app_version_is_one_stderr_line_and_the_session_still_works() {
+    use musaic_commands::descriptor;
+    let w = World::with(true, true);
+    let id = w.pair(&[K::LibraryRead]);
+    let secret_hex = w.secret_hex(&id);
+    // The same version: no warning at all.
+    let (_, err) = talk(spawn(&w.config, true), &legacy_session());
+    assert!(!err.contains("not the same version"), "{err}");
+    // The app says it is another version (same contract, same instance).
+    let real = descriptor::read_validated(&w.config).unwrap();
+    let other = descriptor::Descriptor {
+        app_version: "0.0.0-other".into(),
+        ..real
+    };
+    descriptor::write_atomic_owner_only(&w.config, &other).unwrap();
+    let (lines, err) = talk(spawn(&w.config, true), &legacy_session());
+    let msgs = parse_all(&lines);
+    let call = msgs.iter().find(|m| m["id"] == 3).unwrap();
+    assert_eq!(call["result"]["isError"], false, "{call}");
+    let warnings: Vec<&str> = err
+        .lines()
+        .filter(|l| l.contains("not the same version"))
+        .collect();
+    assert_eq!(warnings.len(), 1, "{err}");
+    assert!(warnings[0].contains("0.0.0-other"), "{err}");
+    assert!(warnings[0].contains(env!("CARGO_PKG_VERSION")), "{err}");
+    assert!(!lines.join("\n").contains("not the same version"));
+    assert!(!err.contains(&secret_hex));
+}

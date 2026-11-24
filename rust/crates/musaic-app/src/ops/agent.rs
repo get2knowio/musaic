@@ -38,7 +38,11 @@ use sha2::{Digest, Sha256};
 use super::error::OpError;
 use crate::App;
 pub use crate::agent::Principal;
-pub use crate::agent::hosts::{HostRecord, PairingDiagnostics};
+pub use crate::agent::claude_desktop::{
+    BundleShape, ClaudeDesktopStatus, CliState, Command, PreparedBundle, Route, Unstable,
+};
+pub use crate::agent::hosts::{HostRecord, PairingDiagnostics, app_version};
+pub use crate::agent::skill_archive::SkillArchive;
 
 /// Pairings that may be active at once.
 pub const MAX_ACTIVE_PAIRINGS: i64 = 20;
@@ -84,6 +88,40 @@ impl From<musaic_db::Error> for AgentError {
 impl From<rusqlite::Error> for AgentError {
     fn from(e: rusqlite::Error) -> Self {
         AgentError::Op(OpError::internal(e))
+    }
+}
+
+/// Why a Claude Desktop hand-off produced no file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HandOffError {
+    /// The report's route is not the bundle; the text says why.
+    NotReady(String),
+    /// Another hand-off is being prepared.
+    Busy,
+    /// The file could not be written.
+    WriteFailed(String),
+}
+
+/// The sentence for why the one-click route is not open.
+fn not_ready_reason(status: &ClaudeDesktopStatus) -> &'static str {
+    use musaic_commands::claude_desktop::EntryOwner;
+    if !status.bundle_supported {
+        "this platform has no extension support"
+    } else if !status.claude_found {
+        "Claude Desktop was not found"
+    } else {
+        match (status.config_entry, &status.cli) {
+            (EntryOwner::Ours, _) => {
+                "Claude Desktop is already connected through its configuration file"
+            }
+            (EntryOwner::Foreign, _) => {
+                "Claude Desktop's configuration file has a musaic entry Musaic did not write"
+            }
+            (EntryOwner::Unreadable, _) => "Claude Desktop's configuration file could not be read",
+            (_, CliState::Missing) => "the command-line program was not found beside the app",
+            (_, CliState::Unstable(_)) => "the app is running from a place that will not last",
+            _ => "not ready",
+        }
     }
 }
 
@@ -461,20 +499,81 @@ impl Agent<'_> {
         }
         // The bundled CLI sits beside the app's executable (macOS
         // `Contents/MacOS`, next to `Musaic.exe` on Windows), which is not on
-        // PATH: name it by its absolute path when it is there.
-        let bundled = std::env::current_exe().ok().and_then(|exe| {
-            let name = if cfg!(windows) {
-                "musaic-cli.exe"
-            } else {
-                "musaic-cli"
-            };
-            let p = exe.parent()?.join(name);
-            p.is_file().then(|| p.to_string_lossy().into_owned())
-        });
+        // PATH: name it by its absolute path when it is there and will last.
+        let bundled = match self.app.0.host_env.cli_location() {
+            crate::agent::claude_desktop::CliLocation::Found(p) => {
+                Some(p.to_string_lossy().into_owned())
+            }
+            _ => None,
+        };
         ConnectHint {
             command: bundled.unwrap_or_else(|| "musaic-cli".into()),
             args,
         }
+    }
+
+    /// What Connect Claude Desktop reports before anything is written: derived
+    /// from the files as they are now. Reads only; Claude's own files are
+    /// never changed.
+    pub fn claude_desktop_status(&self) -> ClaudeDesktopStatus {
+        crate::agent::claude_desktop::status(&self.app.0.host_env, app_version())
+    }
+
+    /// Write the Claude Desktop bundle to a fresh private directory and give
+    /// back where it is, for the shell to open. Refused unless the report's
+    /// route is the bundle; one at a time. The caller never shows the path.
+    pub fn claude_desktop_bundle(&self) -> Result<PreparedBundle, HandOffError> {
+        use crate::agent::claude_desktop as cd;
+        use std::sync::atomic::Ordering;
+        let app = self.app;
+        if app
+            .0
+            .hand_off_busy
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return Err(HandOffError::Busy);
+        }
+        struct Release<'a>(&'a std::sync::atomic::AtomicBool);
+        impl Drop for Release<'_> {
+            fn drop(&mut self) {
+                self.0.store(false, Ordering::Release);
+            }
+        }
+        let _release = Release(&app.0.hand_off_busy);
+        let env = &app.0.host_env;
+        let status = cd::status(env, app_version());
+        if status.route != Route::Bundle {
+            return Err(HandOffError::NotReady(not_ready_reason(&status).into()));
+        }
+        let cd::CliLocation::Found(program) = env.cli_location() else {
+            return Err(HandOffError::NotReady(
+                "the command-line program was not found".into(),
+            ));
+        };
+        let shape = status.shape;
+        let command = cd::bundle_command(env, shape, &program);
+        let bytes = cd::write_bundle(&command, shape, app_version(), env.platform, &program)
+            .map_err(HandOffError::WriteFailed)?;
+        let path = cd::prepare(&env.temp_root, &bytes)
+            // The kind only: the error of a temporary directory carries its
+            // path, and no path reaches the page.
+            .map_err(|e| HandOffError::WriteFailed(e.kind().to_string()))?;
+        Ok(PreparedBundle {
+            path,
+            command,
+            shape,
+        })
+    }
+
+    /// Delete a generated bundle and its directory (the hand-off failed).
+    pub fn discard_claude_desktop_bundle(&self, bundle: &PreparedBundle) {
+        crate::agent::claude_desktop::remove(&bundle.path);
+    }
+
+    /// The skill as a zip, ready to be saved and uploaded in Claude.
+    pub fn skill_archive(&self) -> Result<SkillArchive, OpError> {
+        crate::agent::skill_archive::build().map_err(OpError::internal)
     }
 
     /// Every pairing, oldest first, revoked ones included.

@@ -195,6 +195,14 @@ impl AppStateBuilder {
     pub fn check_sweep(self, on: bool) -> Self {
         self.with(|b| b.check_sweep(on))
     }
+    /// [`AppBuilder::host_env`].
+    pub fn host_env(self, env: musaic_app::agent::claude_desktop::HostEnv) -> Self {
+        self.with(|b| b.host_env(env))
+    }
+    /// [`AppBuilder::host_cleanup`].
+    pub fn host_cleanup(self, on: bool) -> Self {
+        self.with(|b| b.host_cleanup(on))
+    }
     /// [`AppBuilder::sweep_network`].
     pub fn sweep_network(self, on: bool) -> Self {
         self.with(|b| b.sweep_network(on))

@@ -188,6 +188,7 @@ fn no_credential_reaches_the_database_the_config_dir_or_the_log() {
             tasks: true,
             skills: true,
             events: true,
+            cli_version: None,
         },
     );
     let _ = w

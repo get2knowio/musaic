@@ -44,6 +44,11 @@ pub struct Client {
     creds: Box<dyn CredentialSource>,
     pairing: Option<String>,
     session: Mutex<Option<Session>>,
+    /// The host observation last reported, and the app instance it reached.
+    /// The app keeps the program's version in memory only, so a restarted
+    /// app (a new instance) is told again; see [`Client::session`].
+    reported: Mutex<(Option<HostObservation>, Option<String>)>,
+    resending: std::sync::atomic::AtomicBool,
 }
 
 fn err(code: ToolErrorCode, message: impl Into<String>) -> ToolError {
@@ -55,6 +60,33 @@ fn not_running() -> ToolError {
         ToolErrorCode::AppNotRunning,
         "Musaic is not running. Start Musaic, then try again. The CLI never starts Musaic itself.",
     )
+}
+
+/// The refusal when the running app speaks another tool contract than this
+/// program: the two cannot work together, and connecting again from the app
+/// replaces the program the assistant runs with the app's own (FR-026).
+pub fn check_contract(app_contract: &str) -> Result<(), ToolError> {
+    if app_contract == musaic_commands::CONTRACT_VERSION {
+        return Ok(());
+    }
+    Err(err(
+        ToolErrorCode::ProfileUnsupported,
+        format!(
+            "musaic-cli {} cannot work with the running Musaic app: they use different tool contracts. Connect again from the Musaic app (Settings, Agents).",
+            env!("CARGO_PKG_VERSION")
+        ),
+    ))
+}
+
+/// The one stderr line `mcp` writes at start when the running app is another
+/// version than this program; `None` when they match.
+pub fn version_warning(app_version: &str) -> Option<String> {
+    (app_version != env!("CARGO_PKG_VERSION")).then(|| {
+        format!(
+            "musaic-cli: {}",
+            crate::doctor::version_mismatch_text(env!("CARGO_PKG_VERSION"), app_version)
+        )
+    })
 }
 
 /// The id of a config dir, as the app computes it.
@@ -118,6 +150,8 @@ impl Client {
             creds,
             pairing,
             session: Mutex::new(None),
+            reported: Mutex::new((None, None)),
+            resending: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -176,6 +210,7 @@ impl Client {
     fn connect(&self) -> Result<Session, ToolError> {
         let d = self.descriptor()?;
         let hello = self.hello(&d)?;
+        check_contract(&hello.contract_version)?;
         let pairing = self.choose_pairing()?;
         let secret = self
             .creds
@@ -258,7 +293,40 @@ impl Client {
             *guard = Some(self.connect()?);
         }
         let s = guard.as_ref().expect("a session was just made");
-        Ok((s.port, s.token.clone()))
+        let out = (s.port, s.token.clone());
+        let instance = stale.then(|| s.instance_id.clone());
+        drop(guard);
+        if let Some(instance) = instance {
+            self.report_again_to(&instance);
+        }
+        Ok(out)
+    }
+
+    /// A new session with an app instance that has not heard the last host
+    /// observation (the app restarted): send it again, best effort. The host
+    /// reports only changes, so without this a restarted app would never
+    /// learn this program's version.
+    fn report_again_to(&self, instance: &str) {
+        use std::sync::atomic::Ordering;
+        let last = {
+            let r = self
+                .reported
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match &r.0 {
+                Some(o) if r.1.as_deref() != Some(instance) => o.clone(),
+                _ => return,
+            }
+        };
+        if self
+            .resending
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let _ = musaic_mcp::Backend::observe_host(self, last);
+        self.resending.store(false, Ordering::Release);
     }
 
     /// The instance id of the current session, if connected.
@@ -417,9 +485,22 @@ impl musaic_mcp::Backend for Client {
         })
     }
 
-    fn observe_host(&self, observation: HostObservation) -> Result<(), ToolError> {
+    fn observe_host(&self, mut observation: HostObservation) -> Result<(), ToolError> {
+        // The app shows when this program is older than itself.
+        observation
+            .cli_version
+            .get_or_insert_with(|| env!("CARGO_PKG_VERSION").to_string());
         let input = serde_json::to_value(&observation).expect("an observation is JSON");
-        self.post_authenticated("session/observe", &input)
-            .map(|_| ())
+        self.reported
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .0 = Some(observation);
+        self.post_authenticated("session/observe", &input)?;
+        let instance = self.instance_id();
+        self.reported
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .1 = instance;
+        Ok(())
     }
 }

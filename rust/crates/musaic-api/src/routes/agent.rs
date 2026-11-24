@@ -19,8 +19,8 @@ use axum::extract::{Path as UrlPath, State};
 use axum::http::StatusCode;
 use axum::response::Response;
 use musaic_app::ops::agent::{
-    ActivityRecord, AgentError, ApprovalFilter, ApprovalRecord, ChangeRecord, PairingDiagnostics,
-    PairingRecord,
+    ActivityRecord, AgentError, ApprovalFilter, ApprovalRecord, BundleShape, ChangeRecord,
+    ClaudeDesktopStatus, CliState, Command, PairingDiagnostics, PairingRecord, Route,
 };
 use musaic_commands::auth::ExchangeRequest;
 use musaic_commands::{Decision, PermissionKind, ToolError, ToolErrorCode, parse_call};
@@ -527,7 +527,77 @@ fn diagnostics_json(d: &PairingDiagnostics) -> Value {
         "subscription": {"active": d.subscription_active, "at": d.subscription_at},
         "lastClaim": {"at": d.last_claim_at, "workId": d.last_claim_work_id},
         "host": host,
+        "cliVersion": d.cli_version,
+        "cliOlder": d.cli_older,
+        "appVersion": musaic_app::ops::agent::app_version(),
     })
+}
+
+fn command_json(c: &Command) -> Value {
+    json!({"program": c.program, "args": c.args})
+}
+
+fn claude_desktop_json(s: &ClaudeDesktopStatus) -> Value {
+    use musaic_commands::claude_desktop::EntryOwner;
+    let cli = match &s.cli {
+        CliState::Found(c) => json!({"state": "found", "command": command_json(c)}),
+        CliState::Missing => json!({"state": "missing"}),
+        CliState::Unstable(u) => json!({"state": "unstable", "reason": u.as_str()}),
+    };
+    json!({
+        "platform": s.platform.as_str(),
+        "bundleSupported": s.bundle_supported,
+        "claudeFound": s.claude_found,
+        "configEntry": match s.config_entry {
+            EntryOwner::Absent => "absent",
+            EntryOwner::Ours => "ours",
+            EntryOwner::Foreign => "foreign",
+            EntryOwner::Unreadable => "unreadable",
+        },
+        "extension": s.extension.as_str(),
+        "cli": cli,
+        "shape": match s.shape {
+            BundleShape::Installed => "installed",
+            BundleShape::SelfContained => "self-contained",
+        },
+        "route": match s.route {
+            Route::Bundle => "bundle",
+            Route::ConfigFileOnly => "config-file-only",
+            Route::Blocked => "blocked",
+        },
+        "setupCommand": s.setup_command.as_ref().map(command_json),
+        "uninstallCommand": s.uninstall_command.as_ref().map(command_json),
+        "appVersion": s.app_version,
+    })
+}
+
+pub async fn claude_desktop_status(State(st): State<AppState>) -> ApiResult {
+    blocking(move || {
+        ok_value(claude_desktop_json(
+            &st.ops().agent().claude_desktop_status(),
+        ))
+    })
+    .await?
+}
+
+pub async fn skill_archive(State(st): State<AppState>) -> ApiResult {
+    blocking(move || {
+        let archive = st.ops().agent().skill_archive().map_err(ApiError::from)?;
+        let mut r = Response::new(axum::body::Body::from(archive.bytes));
+        r.headers_mut().insert(
+            axum::http::header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("application/zip"),
+        );
+        if let Ok(v) = axum::http::HeaderValue::from_str(&format!(
+            "attachment; filename=\"{}\"",
+            archive.file_name
+        )) {
+            r.headers_mut()
+                .insert(axum::http::header::CONTENT_DISPOSITION, v);
+        }
+        Ok(r)
+    })
+    .await?
 }
 
 pub async fn diagnostics(State(st): State<AppState>) -> ApiResult {

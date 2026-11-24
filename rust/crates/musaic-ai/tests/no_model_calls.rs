@@ -91,7 +91,16 @@ fn no_source_names_a_provider_or_spawns_a_process() {
                 if name == "musaic-app/src/logging.rs" || line.contains("assert!(!") {
                     continue;
                 }
-                let lower = line.to_lowercase();
+                // Claude Desktop is an assistant host the person may connect
+                // (spec 007), named in the connection code; it is not a model
+                // provider, and its per-user install folder is `AnthropicClaude`.
+                let lower = line
+                    .to_lowercase()
+                    .replace("claude desktop", "")
+                    .replace("claude-desktop", "")
+                    .replace("claude_desktop", "")
+                    .replace("anthropicclaude", "")
+                    .replace("\"claude.app\"", "");
                 for n in providers {
                     if lower.contains(n) {
                         hits.push(format!("{name}:{}: names {n}", i + 1));

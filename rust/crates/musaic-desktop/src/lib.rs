@@ -49,19 +49,22 @@
 //! every SSE stream, stops the server (port released), runs
 //! `AppState::shutdown` (fingerprint pool stopped with a bounded wait, AI
 //! worker stopped, the database's WAL checkpointed) and
-//! removes the instance info file. The shell spawns no child processes.
+//! removes the instance info file. The shell spawns no child processes but
+//! one: on macOS, Connect Claude Desktop runs `/usr/bin/open` on the generated
+//! extension file and waits (bounded) for its answer ([`open_file`]).
 
 pub mod backend;
 pub mod gate;
 pub mod instance;
 pub mod menu;
 pub mod nav;
+pub mod open_file;
 pub mod options;
 pub mod quit;
 pub mod report;
 pub mod window_state;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::Duration;
@@ -214,6 +217,33 @@ impl Hooks for TauriHooks {
             let _ = tx.send(r);
         });
         rx
+    }
+
+    fn open_bundle(&self, path: &Path) -> Result<(), String> {
+        if self.report.enabled() {
+            // Selftest runs record the request and open nothing.
+            self.report
+                .event("connect-claude", serde_json::json!({"opened": false}));
+            return Ok(());
+        }
+        // The operating system hands the file to whatever opens `.mcpb`
+        // files; no application is named.
+        if cfg!(target_os = "macos") {
+            // The opener plugin would only start `open` and report success
+            // whatever happened; wait for the helper's answer instead.
+            return open_file::open_and_wait(
+                Path::new(open_file::MACOS_OPEN),
+                path,
+                open_file::OPEN_TIMEOUT,
+            )
+            .map(|_| ());
+        }
+        self.app
+            .opener()
+            .open_path(path.to_string_lossy(), None::<&str>)
+            // A fixed sentence: the opener's error can name the file, and the
+            // answer never carries the generated file's path.
+            .map_err(|_| open_file::COULD_NOT_START.to_string())
     }
 
     fn menu_state(&self, items: Vec<menu::ItemState>) {

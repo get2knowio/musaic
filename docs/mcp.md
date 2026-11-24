@@ -177,6 +177,64 @@ support, use **Process pending Musaic work** in Settings, Assistants: copy the i
 give it to the agent when you want it to work (or set up your host's own schedule or hook
 yourself). Musaic does not imply that a host polls.
 
+## Claude Desktop
+
+Two routes, one at a time. Do not use both.
+
+**The one-click route (the Musaic app).** In **Settings, Assistants** choose **Connect Claude
+Desktop**. Musaic first shows what it found (whether Claude Desktop is installed, whether its
+configuration file already has a `musaic` entry and whose, and the exact program the extension
+will run), then, only inside the desktop window and only after you confirm, writes an MCP bundle
+(`Musaic.mcpb`: a zip with `manifest.json` and `icon.png`) to a private temporary folder and asks
+the operating system to open it. Claude Desktop then shows its own install dialog; nothing is
+installed until you choose Install there. The bundle declares no settings and no environment
+values and holds no secret: the program it runs, `musaic-cli mcp`, reads its credentials from your
+keyring as before. After installing, add an assistant in Settings as usual. The file is removed
+when opening fails, after 60 minutes, and at the next start. Musaic's extension is not signed, so
+Claude Desktop may say its publisher is not verified.
+
+The one-click route is refused while Musaic runs from somewhere that will not last: a mounted
+disk image, an AppImage, a translocated copy (macOS moves an app opened straight from Downloads
+to a random read-only folder) or the temporary folder. Move the app first. On macOS a location
+under `/Volumes/` counts as a disk image when that volume is mounted read-only (as a downloaded
+disk image always is) or when its mount cannot be read. A copy on a writable external drive is
+accepted: the extension works while that drive is attached, and stops when it is not.
+
+**The configuration-file route.** `musaic-cli setup --host claude-desktop` (see
+[agents.md](agents.md)). This is the only route on Linux, and the one to use when the program
+cannot be found beside the app.
+
+**Which shape the bundle has.** *Installed program*: the extension's command is the absolute
+location of the `musaic-cli` that ships inside the app. *Self-contained*: the bundle carries a
+copy. Both are built and tested; one constant per platform (`shape_for`) picks. Observed on macOS,
+Claude Desktop 6.28899.6: Claude ran `musaic-cli mcp` at its location outside the bundle, so macOS
+uses the installed program. Windows is unverified and uses the same shape until an observation
+says otherwise.
+
+**Detecting an installed extension.** The readiness report, `doctor`, `setup` and `uninstall` look,
+read-only, for the folder Claude Desktop unpacks the extension into:
+`Claude Extensions/local.mcpb.musaic.musaic` inside the folder that holds
+`claude_desktop_config.json`. This was observed on macOS (Claude Desktop 6.28899.6; the folder
+disappeared when the extension was removed) and is not a documented location; the same relative
+folder is assumed on Windows and is unverified. The folder name follows the bundle's author name
+and name, which Musaic fixes as "Musaic" and "musaic". A missing folder is reported as "not
+detected", never as proof that nothing is installed. An installed extension does not block
+installing again (opening the file reinstalls it); a detected extension together with a `musaic`
+configuration entry is reported as Musaic running twice.
+
+**The skill.** **Save the Musaic skill for Claude** downloads
+`musaic-work-delegation-<version>.zip`: the skill's guide and references under one folder, the
+same bytes every time. In Claude open Settings, then the skills section, and upload the zip.
+Musaic cannot install a skill into Claude for you.
+
+**Not available yet.** The Grok app, the ChatGPT app and web, the Gemini app, and Claude on the
+web and on phones can only reach servers on the internet. Musaic listens only on this computer,
+so they cannot connect to it yet.
+
+What was checked, with which Claude Desktop version and system, is in
+`specs/007-claude-desktop-bundle/evidence/compatibility.md`; cells not yet recorded are marked
+untested.
+
 ## What is not here
 
 Local agents are supported. Musaic has no direct cloud connectivity: an agent that runs in a

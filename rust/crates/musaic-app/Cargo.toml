@@ -25,6 +25,11 @@ rusqlite.workspace = true
 same-file = "1"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.11"
+semver = "1"
+# Deflate only, through the `flate2` already in the tree: the Claude Desktop bundle
+# and the skill archive are small deflated zips written with fixed timestamps.
+zip = { version = "=9.8.2", default-features = false, features = ["deflate-flate2"] }
+tempfile.workspace = true
 # Only `src/ops/record.rs` names it (the settings document keeps its stored key order).
 serde_json.workspace = true
 thiserror.workspace = true
@@ -32,9 +37,14 @@ thiserror.workspace = true
 # shutdown); no runtime.
 tokio = { version = "1", features = ["sync", "macros"] }
 
+# macOS only, and already in the tree through `zip`: `statvfs` tells a
+# read-only disk image from a writable external drive under `/Volumes/`
+# without `unsafe`.
+[target.'cfg(target_os = "macos")'.dependencies]
+nix = { version = "=0.32.0", default-features = false, features = ["fs"] }
+
 [dev-dependencies]
 musaic-testdata = { path = "../musaic-testdata" }
-tempfile.workspace = true
 jsonschema = { version = "0.33", default-features = false }
 
 [lints]

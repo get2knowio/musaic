@@ -81,6 +81,7 @@ fn observation() -> HostObservation {
         tasks: true,
         skills: false,
         events: true,
+        cli_version: None,
     }
 }
 

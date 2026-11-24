@@ -46,6 +46,7 @@ pub fn report(
 ) -> (Value, bool) {
     let mut healthy = true;
     let mut descriptor = json!({});
+    let mut version_note: Option<String> = None;
     let mut hello_ok = false;
     let mut profiles: Vec<String> = Vec::new();
     match client.descriptor() {
@@ -53,12 +54,26 @@ pub fn report(
             descriptor["instanceId"] = json!(d.instance_id);
             descriptor["port"] = json!(d.port);
             descriptor["pidAlive"] = json!(pid_alive(d.pid));
+            descriptor["appVersion"] = json!(d.app_version);
+            if d.app_version != env!("CARGO_PKG_VERSION") {
+                version_note = Some(version_mismatch_text(
+                    env!("CARGO_PKG_VERSION"),
+                    &d.app_version,
+                ));
+            }
             profiles = d.protocol_profiles.clone();
             match client.hello(&d) {
-                Ok(_) => {
-                    descriptor["status"] = json!("ok");
-                    hello_ok = true;
-                }
+                Ok(h) => match crate::client::check_contract(&h.contract_version) {
+                    Ok(()) => {
+                        descriptor["status"] = json!("ok");
+                        hello_ok = true;
+                    }
+                    Err(e) => {
+                        descriptor["status"] = json!("contract_mismatch");
+                        descriptor["reason"] = json!(e.message);
+                        healthy = false;
+                    }
+                },
                 Err(_) => {
                     descriptor["status"] = json!("stale");
                     healthy = false;
@@ -146,20 +161,69 @@ pub fn report(
         }
     }
     let _ = DescriptorError::Absent;
-    (
-        json!({
-            "executable": executable,
-            "version": env!("CARGO_PKG_VERSION"),
-            "configDir": config_dir.display().to_string(),
-            "descriptor": descriptor,
-            "pairing": pairing,
-            "scopes": scopes,
-            "transport": "stdio",
-            "profiles": profiles,
-            "extensions": extensions,
-            "skill": crate::skill_install::status(paths),
-            "session": session,
-        }),
-        healthy,
-    )
+    let mut report = json!({
+        "executable": executable,
+        "version": env!("CARGO_PKG_VERSION"),
+        "configDir": config_dir.display().to_string(),
+        "descriptor": descriptor,
+        "pairing": pairing,
+        "scopes": scopes,
+        "transport": "stdio",
+        "profiles": profiles,
+        "extensions": extensions,
+        "skill": crate::skill_install::status(paths),
+        "session": session,
+        "claudeDesktop": claude_desktop_line(paths),
+    });
+    if let Some(note) = version_note {
+        report["versionNote"] = json!(note);
+    }
+    (report, healthy)
+}
+
+/// The words for a program and an app that are not the same version.
+pub fn version_mismatch_text(cli: &str, app: &str) -> String {
+    format!("musaic-cli {cli} is not the same version as the running app ({app}).")
+}
+
+/// One line about Claude Desktop's configuration file: whether it holds a
+/// `musaic` entry and whose. Read-only; a connection made through the
+/// extension does not appear there and is managed in Claude itself.
+fn claude_desktop_line(paths: &crate::setup::HostPaths) -> Value {
+    use musaic_commands::claude_desktop::{EntryOwner, entry_owner};
+    // As the app's report: only a missing file is "no entry"; one that exists
+    // but cannot be read says nothing about what it holds.
+    let owner = match std::fs::read_to_string(&paths.claude_desktop) {
+        Ok(text) => entry_owner(Some(&text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => EntryOwner::Absent,
+        Err(_) => EntryOwner::Unreadable,
+    };
+    let (state, words) = match owner {
+        EntryOwner::Absent => (
+            "none",
+            "no musaic entry in Claude Desktop's configuration file",
+        ),
+        EntryOwner::Ours => ("ours", "the musaic entry was written by Musaic"),
+        EntryOwner::Foreign => ("foreign", "the musaic entry was not written by Musaic"),
+        EntryOwner::Unreadable => (
+            "unreadable",
+            "Claude Desktop's configuration file cannot be read",
+        ),
+    };
+    let extension = crate::setup::extension_state(paths);
+    // "Not detected" says only that the folder was not found; it is never
+    // worded as proof that no extension is installed.
+    let ext_words = match extension {
+        musaic_commands::claude_desktop::ExtensionState::Detected => {
+            "The Musaic extension is installed in Claude Desktop; it is managed in Claude Desktop's extension settings."
+        }
+        _ => {
+            "A Musaic extension installed from the app is managed in Claude Desktop's extension settings."
+        }
+    };
+    json!({
+        "entry": state,
+        "extension": extension.as_str(),
+        "message": format!("{words}. {ext_words}"),
+    })
 }

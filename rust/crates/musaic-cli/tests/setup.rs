@@ -400,3 +400,118 @@ fn a_desktop_config_that_does_not_exist_yet_is_created_when_the_app_is_installed
         "there was nothing to back up"
     );
 }
+
+#[test]
+fn uninstall_with_no_entry_of_ours_says_where_an_extension_is_removed() {
+    let h = home();
+    let mut o = opts(&h);
+    o.uninstall = true;
+    o.host = "claude-desktop".into();
+    let out = run(&o);
+    assert_eq!(out.code, 0, "{}", out.json);
+    assert_eq!(
+        out.json["hosts"][0]["reason"],
+        "No Musaic entry in Claude Desktop's configuration file. If you connected from the Musaic app, remove the Musaic extension in Claude Desktop's extension settings."
+    );
+    assert_eq!(read(&h.paths.claude_desktop), DESKTOP, "nothing changed");
+}
+
+#[test]
+fn uninstall_leaves_a_foreign_entry_and_still_names_the_extension_settings() {
+    let h = home();
+    std::fs::write(
+        &h.paths.claude_desktop,
+        r#"{"mcpServers":{"musaic":{"command":"/x/other","args":["mcp"]}}}"#,
+    )
+    .unwrap();
+    let before = read(&h.paths.claude_desktop);
+    let mut o = opts(&h);
+    o.uninstall = true;
+    o.host = "claude-desktop".into();
+    let out = run(&o);
+    let reason = out.json["hosts"][0]["reason"].as_str().unwrap();
+    assert!(reason.contains("not written by Musaic"), "{reason}");
+    assert!(reason.contains("extension settings"), "{reason}");
+    assert_eq!(read(&h.paths.claude_desktop), before);
+}
+
+#[test]
+fn setup_for_claude_desktop_warns_about_two_servers() {
+    let h = home();
+    let mut o = opts(&h);
+    o.dry_run = true;
+    o.host = "claude-desktop".into();
+    let out = run(&o);
+    assert_eq!(
+        out.json["warnings"][0],
+        "If you already installed the Musaic extension from the app, remove it in Claude Desktop first; otherwise Claude would run two Musaic servers."
+    );
+    let mut o = opts(&h);
+    o.dry_run = true;
+    o.host = "claude-code".into();
+    assert!(run(&o).json.get("warnings").is_none());
+}
+
+fn install_extension(h: &Home) {
+    let dir = h
+        .paths
+        .claude_desktop
+        .parent()
+        .unwrap()
+        .join("Claude Extensions/local.mcpb.musaic.musaic");
+    std::fs::create_dir_all(dir).unwrap();
+}
+
+#[test]
+fn setup_warns_when_the_extension_is_detected_and_still_writes() {
+    let h = home();
+    install_extension(&h);
+    let mut o = opts(&h);
+    o.host = "claude-desktop".into();
+    let out = run(&o);
+    assert_eq!(out.code, 0, "{}", out.json);
+    let warnings = out.json["warnings"].as_array().unwrap();
+    assert_eq!(warnings.len(), 2);
+    assert!(
+        warnings[1]
+            .as_str()
+            .unwrap()
+            .contains("extension is already installed")
+    );
+    assert!(
+        read(&h.paths.claude_desktop).contains("\"musaic\""),
+        "the entry was written"
+    );
+}
+
+#[test]
+fn uninstall_names_the_extension_when_it_is_detected() {
+    let h = home();
+    install_extension(&h);
+    let mut o = opts(&h);
+    o.uninstall = true;
+    o.host = "claude-desktop".into();
+    let out = run(&o);
+    assert_eq!(
+        out.json["hosts"][0]["reason"],
+        "The Musaic extension is still installed in Claude Desktop. Remove it in Claude Desktop's extension settings."
+    );
+
+    // After removing an entry of ours, the extension is still mentioned.
+    let h = home();
+    install_extension(&h);
+    let mut add = opts(&h);
+    add.host = "claude-desktop".into();
+    assert_eq!(run(&add).code, 0);
+    let mut o = opts(&h);
+    o.uninstall = true;
+    o.host = "claude-desktop".into();
+    let out = run(&o);
+    assert_eq!(out.json["hosts"][0]["action"], "remove");
+    assert!(
+        out.json["warnings"][0]
+            .as_str()
+            .unwrap()
+            .contains("still installed")
+    );
+}

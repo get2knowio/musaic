@@ -47,6 +47,17 @@
 //!   picker (cookie, exact Host, the app's own Origin, POST). The marker
 //!   advertises it (`reveal: true`, `fileManager: "Finder" | "Explorer" |
 //!   "file manager"`).
+//! * **Connect Claude Desktop** (`POST /__musaic/connect/claude-desktop`):
+//!   the page sends an empty POST; this layer asks the one operation
+//!   `agent.claude_desktop_bundle` to write the extension file to a private
+//!   temporary directory and has the opener open it, so Claude Desktop shows
+//!   its own install dialog. The request accepts no body and the answer
+//!   never carries the generated file's path. One at a time; when opening
+//!   fails the file is removed. On macOS "opened" means `/usr/bin/open`
+//!   exited 0 (or was still running after a bounded wait): when no
+//!   application handles the file the answer is `open-failed`
+//!   ([`crate::open_file`]). Same checks as the reveal endpoints. The
+//!   marker advertises it (`connectClaude: true`).
 //! * **Native menu state** (`POST /__musaic/menu-state`): the page reports
 //!   which native menu commands are enabled and which check items are
 //!   ticked (menu.rs, [`crate::menu::parse_state`]: allow-listed ids only).
@@ -86,6 +97,9 @@ pub const REVEAL_PREFIX: &str = "/__musaic/reveal/";
 pub const REVEAL_ALBUM_PREFIX: &str = "/__musaic/reveal/album/";
 /// `POST /__musaic/reveal/trash`.
 pub const REVEAL_TRASH_PATH: &str = "/__musaic/reveal/trash";
+/// `POST /__musaic/connect/claude-desktop`: write the Claude Desktop
+/// extension file and open it.
+pub const CONNECT_CLAUDE_PATH: &str = "/__musaic/connect/claude-desktop";
 /// `POST /__musaic/menu-state` (menu.rs).
 pub const MENU_STATE_PATH: &str = "/__musaic/menu-state";
 /// Selftest controls (`--selftest-report` runs only).
@@ -140,7 +154,7 @@ pub const DIALOG_SHIM_JS: &str = r#"(function () {
   // nativeMenu, the menu bar sends "musaic:command" events (menu.rs) and
   // takes its enabled state from POST /__musaic/menu-state.
   Object.defineProperty(window, "__musaicDesktop", {
-    value: Object.freeze({ folderPicker: true, reveal: true, fileManager: "__MUSAIC_FILE_MANAGER__", nativeMenu: __MUSAIC_NATIVE_MENU__ }),
+    value: Object.freeze({ folderPicker: true, reveal: true, connectClaude: true, fileManager: "__MUSAIC_FILE_MANAGER__", nativeMenu: __MUSAIC_NATIVE_MENU__ }),
     enumerable: false, configurable: false, writable: false
   });
 })();"#;
@@ -184,6 +198,12 @@ pub trait Hooks: Send + Sync {
         let _ = tx.send(Err("no window".into()));
         rx
     }
+    /// Hand a generated extension file to the operating system to open with
+    /// the program that handles it (Claude Desktop). Blocking. The default
+    /// (no window) refuses.
+    fn open_bundle(&self, _path: &Path) -> Result<(), String> {
+        Err("no window".into())
+    }
     /// The page's native menu state (allow-listed items only). The default
     /// (no menu bar) ignores it.
     fn menu_state(&self, _items: Vec<crate::menu::ItemState>) {}
@@ -208,6 +228,8 @@ pub struct Gate {
     hooks: Arc<dyn Hooks>,
     /// The served app: where an album id's folder and the trash are.
     app: AppState,
+    /// A Claude Desktop hand-off is under way (preparing or opening).
+    connecting: std::sync::atomic::AtomicBool,
 }
 
 impl Gate {
@@ -224,6 +246,7 @@ impl Gate {
             focus_secret,
             hooks,
             app,
+            connecting: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -300,6 +323,16 @@ pub async fn guard(State(gate): State<Arc<Gate>>, req: Request, next: Next) -> R
             return with_csp(detail(StatusCode::FORBIDDEN, "Forbidden"));
         }
         return with_csp(reveal(&gate, what).await);
+    }
+    if path == CONNECT_CLAUDE_PATH {
+        let h = req.headers();
+        if !gate.launch.host_is_self(h) || !gate.launch.authorizes(h) {
+            return with_csp(detail(StatusCode::FORBIDDEN, NO_TOKEN));
+        }
+        if req.method() != Method::POST || !gate.launch.origin_is_self(h) {
+            return with_csp(detail(StatusCode::FORBIDDEN, "Forbidden"));
+        }
+        return with_csp(connect_claude(gate.clone(), req).await);
     }
     if path == MENU_STATE_PATH {
         let h = req.headers();
@@ -485,4 +518,100 @@ async fn reveal(gate: &Gate, what: &str) -> Response {
             "Couldn't open the file manager.",
         ),
     }
+}
+
+/// The answer of the Claude Desktop hand-off. Never the file's path.
+fn connect_answer(status: StatusCode, body: serde_json::Value) -> Response {
+    let mut r = Response::new(Body::from(body.to_string()));
+    *r.status_mut() = status;
+    r.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/json"),
+    );
+    r
+}
+
+fn refused_connect(status: StatusCode, reason: &str, message: &str) -> Response {
+    connect_answer(
+        status,
+        serde_json::json!({"opened": false, "reason": reason, "message": message}),
+    )
+}
+
+/// Clears [`Gate::connecting`] when the hand-off's work ends. It travels with
+/// the blocking work, not with the request: a page that goes away mid-request
+/// drops the request's future, and the flag must still come down.
+struct ConnectDone(Arc<Gate>);
+
+impl Drop for ConnectDone {
+    fn drop(&mut self) {
+        self.0
+            .connecting
+            .store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
+async fn connect_claude(gate: Arc<Gate>, req: Request) -> Response {
+    use std::sync::atomic::Ordering;
+    // The request takes nothing: a body is somebody trying to steer it.
+    match axum::body::to_bytes(req.into_body(), 1).await {
+        Ok(b) if b.is_empty() => {}
+        _ => return detail(StatusCode::BAD_REQUEST, "This request takes no body."),
+    }
+    if gate
+        .connecting
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return refused_connect(
+            StatusCode::CONFLICT,
+            "busy",
+            "Another connection is being prepared. Try again in a moment.",
+        );
+    }
+    let done = ConnectDone(gate.clone());
+    let app = gate.app.clone();
+    let hooks = gate.hooks.clone();
+    let outcome = tokio::task::spawn_blocking(move || {
+        use musaic_api::HandOffError;
+        let _done = done;
+        let ops = app.ops();
+        let agent = ops.agent();
+        match agent.claude_desktop_bundle() {
+            Err(HandOffError::NotReady(why)) => refused_connect(
+                StatusCode::CONFLICT,
+                "not-ready",
+                &format!("Musaic cannot connect Claude Desktop yet: {why}."),
+            ),
+            Err(HandOffError::Busy) => refused_connect(
+                StatusCode::CONFLICT,
+                "busy",
+                "Another connection is being prepared. Try again in a moment.",
+            ),
+            Err(HandOffError::WriteFailed(why)) => refused_connect(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "write-failed",
+                &format!("Musaic could not write the extension file: {why}"),
+            ),
+            Ok(bundle) => match hooks.open_bundle(&bundle.path) {
+                Ok(()) => connect_answer(
+                    StatusCode::OK,
+                    serde_json::json!({
+                        "opened": true,
+                        "command": {"program": bundle.command.program, "args": bundle.command.args},
+                        "shape": match bundle.shape {
+                            musaic_api::BundleShape::Installed => "installed",
+                            musaic_api::BundleShape::SelfContained => "self-contained",
+                        },
+                    }),
+                ),
+                Err(why) => {
+                    agent.discard_claude_desktop_bundle(&bundle);
+                    refused_connect(StatusCode::INTERNAL_SERVER_ERROR, "open-failed", &why)
+                }
+            },
+        }
+    })
+    .await;
+    outcome.unwrap_or_else(|_| detail(StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error"))
 }

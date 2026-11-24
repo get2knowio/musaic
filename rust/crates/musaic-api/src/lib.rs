@@ -47,6 +47,9 @@ pub use gate::{Busy, RestoreGuard, WorkGate, WorkGuard, WorkKind};
 pub use host_check::AllowedHosts;
 pub use launch::LaunchGate;
 pub use loopback::{LoopbackOptions, LoopbackServer, StopReport, serve_loopback};
+pub use musaic_app::agent::claude_desktop::{HostEnv, MountKind};
+pub use musaic_app::ops::agent::{BundleShape, HandOffError};
+pub use musaic_commands::claude_desktop::Platform;
 pub use route_table::RouteRow;
 pub use sources::{Fingerprinting, Network};
 pub use state::{
@@ -219,6 +222,16 @@ pub const EXTRA_ROUTES: &[(&str, &str, &str)] = &[
         "per pairing, four separate facts with times (paired, bridge reachable, subscription active, last work claimed) and what the host reported; for Settings -> Agents; not a route of the Python app",
     ),
     (
+        "GET",
+        AGENT_CLAUDE_DESKTOP_ROUTE,
+        "what Connect Claude Desktop reports before anything is written: whether Claude Desktop was found, whose musaic entry its configuration file holds, the exact command the extension would run; read-only; for Settings -> Agents; not a route of the Python app",
+    ),
+    (
+        "GET",
+        AGENT_SKILL_ARCHIVE_ROUTE,
+        "the Musaic skill as a zip to upload in Claude's skills settings, the same bytes for the same version; not a route of the Python app",
+    ),
+    (
         "POST",
         AGENT_UNDO_ROUTE,
         "undo an assistant's applied change from its recorded before-image: only the person at the window can, and only while the album still holds what the change left; not a route of the Python app",
@@ -296,6 +309,8 @@ pub const AGENT_DENY_ROUTE: &str = "/api/agent/approvals/{approval_id}/deny";
 pub const AGENT_CHANGES_ROUTE: &str = "/api/agent/changes";
 pub const AGENT_UNDO_ROUTE: &str = "/api/agent/changes/{change_id}/undo";
 pub const AGENT_DIAGNOSTICS_ROUTE: &str = "/api/agent/diagnostics";
+pub const AGENT_CLAUDE_DESKTOP_ROUTE: &str = "/api/agent/claude-desktop";
+pub const AGENT_SKILL_ARCHIVE_ROUTE: &str = "/api/agent/skill-archive";
 
 /// `GET` / `PUT /api/ui-prefs` ([`EXTRA_ROUTES`]).
 pub const UI_PREFS_ROUTE: &str = "/api/ui-prefs";
@@ -670,6 +685,11 @@ fn routes() -> (Router<AppState>, Vec<RouteRow>) {
         )
         .route(AGENT_UNDO_ROUTE, post(agent::undo_change))
         .route(AGENT_DIAGNOSTICS_ROUTE, get(agent::diagnostics))
+        .route(
+            AGENT_CLAUDE_DESKTOP_ROUTE,
+            get(agent::claude_desktop_status),
+        )
+        .route(AGENT_SKILL_ARCHIVE_ROUTE, get(agent::skill_archive))
         .route("/", get(system::spa_root))
         .route("/{*full_path}", get(system::spa_fallback));
     for (method, path, _) in STUBS {

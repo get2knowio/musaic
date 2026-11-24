@@ -61,7 +61,8 @@ and starts nothing, and waited for; fingerprint pool joined,
 the threads of agent operations asked to stop at their next item and joined) and
 the instance file and the agent descriptor are removed. No child processes are ever spawned,
 except, on Windows, the system's `whoami.exe` and `icacls.exe`, run briefly and without a
-window to give the agent descriptor its owner-only access control list.
+window to give the agent descriptor its owner-only access control list, and, on macOS,
+`/usr/bin/open` when the user connects Claude Desktop (see Connect Claude Desktop below).
 
 ### Quitting while work runs
 
@@ -154,6 +155,17 @@ browser behaviour.
   page sends an album id, never a path; the shell looks the folder up in the
   configured library, so nothing else can be revealed. 404 for an unknown id or
   a folder not on disk (a Missing album), 409 when no library is configured.
+- **Connect Claude Desktop.** `POST /__musaic/connect/claude-desktop` takes no body (a body is
+  refused). The shell asks the one operation `agent.claude_desktop_bundle` to write the extension
+  file (`Musaic.mcpb`) to a private folder under the system temporary directory, then has the
+  system open it so Claude Desktop shows its own install dialog. On macOS the shell runs
+  `/usr/bin/open` on the file itself (an argument array, no shell, output discarded) and reads its
+  exit status, waiting at most 15 seconds: a non-zero exit (no application opens `.mcpb` files)
+  answers `open-failed`; a helper still running at the deadline counts as opened. Elsewhere the
+  opener plugin opens it. Answers `{"opened": true,
+  "command", "shape"}` or `{"opened": false, "reason", "message"}`; never the file's path. One at
+  a time; a failed open removes the file; leftovers are removed after 60 minutes and at start.
+  The marker advertises it as `connectClaude`. No capability is added to the web view.
 - **Window state** (`src/window_state.rs`). Size, position and maximized state
   are kept in `<config>/window-state.json`. A window whose title bar would not
   be reachable on any attached display is centred. `--hidden` runs neither read

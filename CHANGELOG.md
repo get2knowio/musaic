@@ -13,6 +13,15 @@ Security.
 
 ## [Unreleased]
 
+### Added
+
+- **Connect Claude Desktop** and **Save the Musaic skill for Claude** in Settings, Assistants.
+  The first shows what Musaic found (including whether the extension is already installed), then
+  writes an MCP bundle and opens it so Claude Desktop shows its own install dialog; the second
+  downloads the skill as a zip. `musaic-cli` reports its version to the app, and the Assistants
+  view marks a program older than the app. `setup`, `uninstall` and `doctor` mention the
+  extension route and detect an installed extension.
+
 ## [0.2.0-rc.2] - 2026-11-21
 
 ### Added

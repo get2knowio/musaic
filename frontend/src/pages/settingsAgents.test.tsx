@@ -79,7 +79,7 @@ describe("Assistants section", () => {
   it("pairing posts the name and scopes, then shows how to connect and no secret", async () => {
     handler = (url, init) =>
       url === "/api/agent/pairings" && init?.method === "POST"
-        ? json({ ...helper, connect: { command: "musaic-cli", args: ["setup", "--pairing", "p1"] } })
+        ? json({ ...helper, connect: { command: "musaic-cli", args: ["setup"] } })
         : json({ detail: "not found" }, 404);
     renderPanel([]);
     fireEvent.change(screen.getByRole("textbox", { name: "Assistant name" }), { target: { value: " Helper " } });
@@ -87,7 +87,7 @@ describe("Assistants section", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add assistant" }));
 
     const section = await screen.findByRole("region", { name: "Connect the assistant" });
-    expect(within(section).getByText("musaic-cli setup --pairing p1")).toBeTruthy();
+    expect(within(section).getByText("musaic-cli setup")).toBeTruthy();
     expect(section.textContent).toContain("docs/agents.md");
     const post = calls.find((c) => c.init?.method === "POST")!;
     expect(JSON.parse(String(post.init!.body))).toEqual({
@@ -271,5 +271,51 @@ describe("Assistant diagnostics", () => {
       </QueryClientProvider>,
     );
     expect(document.querySelector("dl")).toBeNull();
+  });
+});
+
+describe("Claude section", () => {
+  it("offers both actions, the skill steps and the not-available-yet list without controls", () => {
+    renderPanel([]);
+    expect(screen.getByRole("button", { name: "Connect Claude Desktop" })).toBeTruthy();
+    const skill = screen.getByRole("link", { name: "Save the Musaic skill for Claude" });
+    expect(skill.getAttribute("href")).toBe("/api/agent/skill-archive");
+    const steps = screen.getByRole("list", { name: "Add the skill in Claude" });
+    expect(within(steps).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByText("Musaic cannot install a skill into Claude for you.")).toBeTruthy();
+    const heading = screen.getByRole("heading", { name: "Not available yet" });
+    const block = heading.parentElement!;
+    expect(block.textContent).toContain("Grok app, the ChatGPT app and web, the Gemini app, and Claude on the web and on phones");
+    expect(within(block).queryAllByRole("button")).toHaveLength(0);
+    expect(within(block).queryAllByRole("link")).toHaveLength(0);
+  });
+
+  it("marks a program older than the app, with both versions", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
+    qc.setQueryData(["agent", "pairings"], [helper]);
+    qc.setQueryData(["agent", "diagnostics"], [
+      {
+        pairingId: "p1",
+        name: "Helper",
+        scopes: ["library.read"],
+        revoked: false,
+        paired: { at: "2026-01-02T03:04:05Z" },
+        reachable: { at: null },
+        subscription: { active: false, at: null },
+        lastClaim: { at: null, workId: null },
+        host: null,
+        cliVersion: "0.1.0",
+        cliOlder: true,
+        appVersion: "0.2.0",
+      },
+    ]);
+    render(
+      <QueryClientProvider client={qc}>
+        <AgentsPanel />
+      </QueryClientProvider>,
+    );
+    expect(
+      screen.getByText("Running Musaic's command-line program 0.1.0; the app is 0.2.0. Connect Claude Desktop again to update it."),
+    ).toBeTruthy();
   });
 });

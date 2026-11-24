@@ -567,6 +567,9 @@ async fn main() {
         // Every health check runs on its own (issue #187); checks that
         // need the network only when there is one.
         .check_sweep(true)
+        // No `host_cleanup`: this server never writes a Claude Desktop
+        // bundle, and its startup sweep would remove the one a running
+        // desktop app has just handed to Claude Desktop.
         .sweep_network(network_name != "offline")
         .frontend_dir(frontend)
         .log_sink(log.sink())
