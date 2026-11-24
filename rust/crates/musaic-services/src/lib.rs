@@ -11,8 +11,8 @@
 //! - [`scan`]: [`scan::ScanService`], its replayable buffer and status.
 //! - [`scan_run`]: starting a scan on its own thread under a work guard,
 //!   logging its start and end, forwarding its events to a client.
-//! - [`ai_jobs`]: the AI job queue's rules over the database (enqueue,
-//!   acted-on, retry, delete, bulk delete, provider selection defaults).
+//! - [`research_request`]: the checks a research request's routes make
+//!   (job type, album, bulk delete statuses).
 //! - [`albums`]: album dicts as the Python app renders them (scanner dict, DB row).
 //! - [`json`]: ordered JSON rendered like Python's `json.dumps`.
 //! - [`recording_canonical`]: the duplicate-tracks finding's MusicBrainz
@@ -28,8 +28,7 @@
 //!   [`production::ChecksResolution`], [`production::NetCovers`],
 //!   [`production::AppFixSources`]).
 //! - [`fix_flow`]: the check-fix flow around [`check_fixes`] (the fix
-//!   environment from the host's parts, source choice, trash stamp, and
-//!   the fix route's fall-through to the AI queue).
+//!   environment from the host's parts, source choice, trash stamp).
 //! - [`check_ops`]: running one check with its log line, ignore /
 //!   unignore of a check's finding, the filename-mismatch plan preview.
 //! - [`db_admin`]: database backup, restore under the restore gate, and
@@ -37,9 +36,9 @@
 //! - [`library_ops`]: library and album operations (snapshot drop and
 //!   list, the Python app's album sort and album lookup, track listing, album
 //!   removal, MusicBrainz anchor clearing).
-//! - [`settings_patch`]: `PATCH /api/settings` (range checks, provider
-//!   allowlist, the transaction with secret writes and undo, the pool
-//!   restart on a new AcoustID key).
+//! - [`settings_patch`]: `PATCH /api/settings` (range checks, the
+//!   transaction with secret writes and undo, the pool restart on a new
+//!   AcoustID key).
 //! - [`startup`]: small startup helpers a host assembles the services
 //!   with (database-opened log line, startup auto-snapshot, AcoustID key
 //!   read, resolver parts factory, checks clock, fingerprint pool deps and
@@ -52,12 +51,12 @@
 //!   [`thumb_pool`] is the scan's thumbnail pool.
 //! - [`keyscrub`]: the secret-settings migration runs ([`keyscrub::KeyScrub`],
 //!   keys moved into the OS keyring): their outcome, logging, timed retries and the
-//!   gated retry / shutdown attempts.
+//!   gated retry / shutdown attempts; and the one-time removal of the retired
+//!   keyring entries ([`keyscrub::remove_retired_keys`]).
 
 pub mod agent_changes;
 pub mod agent_proposal;
 pub mod agent_read;
-pub mod ai_jobs;
 pub mod albums;
 pub mod analyze;
 pub mod apply;
@@ -82,6 +81,7 @@ pub mod multi_disc_convert;
 pub mod multi_disc_gather;
 pub mod production;
 pub mod recording_canonical;
+pub mod research_request;
 pub mod scan;
 pub mod scan_adopt;
 pub mod scan_run;

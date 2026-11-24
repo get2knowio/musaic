@@ -7,7 +7,7 @@ interface TileGridProps {
   albums: Album[];
   /** Show this many skeletons after the real tiles (during a fresh scan). */
   skeletonCount?: number;
-  /** Map of album_id → active AI job, used to overlay a status badge. */
+  /** Map of album_id → active research request, used to overlay a status badge. */
   activeJobs?: Map<string, Job>;
 }
 

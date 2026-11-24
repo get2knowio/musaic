@@ -1,23 +1,23 @@
 //! Settings reads and secret writes as the API sees them.
 //!
-//! `all_settings` returns exactly the keys and value types of the Python
-//! app's `settings.all_settings()` (the `GET /api/settings` body): the three
-//! secrets appear only as `<key>_set` booleans, now answered by the store.
-//! One field is added: `keyring_available`, false when the store
-//! could not be reached, so the UI can say why keys read as not set.
+//! `all_settings` returns the keys and value types of the Python app's
+//! `settings.all_settings()` (the `GET /api/settings` body) minus the
+//! settings of the retired model provider and FireCrawl (`ai_max_parallel`,
+//! `ai_queue_paused`, `ai_provider_id`, `ai_model_id`, `ai_api_key_set`,
+//! `firecrawl_api_key_set`): the one secret left appears only as
+//! `acoustid_api_key_set`, answered by the store. One field is added:
+//! `keyring_available`, false when the store could not be reached, so the UI
+//! can say why keys read as not set.
 
 use rusqlite::Connection;
 use serde_json::{Map, Value, json};
 
 use musaic_core::pycompat;
-use musaic_db::settings::{get_bool, get_int, get_raw};
+use musaic_db::settings::{get_int, get_raw};
 
 use crate::migrate::write_verified;
 use crate::store::{SecretStore, StoreError};
-use crate::{SECRET_KEYS, is_secret_key};
-
-const DEFAULT_AI_PROVIDER_ID: &str = "claude";
-const DEFAULT_AI_MODEL_ID: &str = "claude-sonnet-4-6";
+use crate::{MIGRATED_SECRET_KEYS, SECRET_KEYS, is_migrated_key, is_secret_key};
 
 /// A secret's value, stripped; `""` when not set. Mirrors the Python
 /// accessors (`settings.ai_api_key()` etc.), reading the store.
@@ -30,10 +30,14 @@ pub fn secret(store: &dyn SecretStore, key: &str) -> Result<String, StoreError> 
 }
 
 /// `PATCH` semantics for one secret: the value is stripped; empty clears it.
-/// Written to the store only, and confirmed by reading it back.
+/// Written to the store only, and confirmed by reading it back. Only a
+/// migrated key ([`MIGRATED_SECRET_KEYS`]) is writable: a retired one, like
+/// any other name, is refused without a store call.
 pub fn set_secret(store: &dyn SecretStore, key: &str, value: &str) -> Result<(), StoreError> {
-    if !is_secret_key(key) {
-        return Err(StoreError::Backend(format!("{key} is not a secret key")));
+    if !is_migrated_key(key) {
+        return Err(StoreError::Backend(format!(
+            "{key} is not a writable secret key"
+        )));
     }
     let v = pycompat::strip(value);
     if v.is_empty() {
@@ -43,7 +47,7 @@ pub fn set_secret(store: &dyn SecretStore, key: &str, value: &str) -> Result<(),
     }
 }
 
-/// Remove every entry this app owns.
+/// Remove every entry this app owns, retired keys' included.
 pub fn clear_all(store: &dyn SecretStore) -> Result<(), StoreError> {
     for key in SECRET_KEYS {
         store.delete(key)?;
@@ -51,17 +55,18 @@ pub fn clear_all(store: &dyn SecretStore) -> Result<(), StoreError> {
     Ok(())
 }
 
-/// Whether the store answered, and which secrets are set.
+/// Whether the store answered, and which migrated secrets are set (a retired
+/// key is never looked up).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SecretStatus {
     /// `None` when the keyring answered; the error otherwise.
     pub unavailable: Option<StoreError>,
-    pub set: [(&'static str, bool); 3],
+    pub set: [(&'static str, bool); MIGRATED_SECRET_KEYS.len()],
 }
 
 pub fn secret_status(store: &dyn SecretStore) -> SecretStatus {
     let mut unavailable = None;
-    let set = SECRET_KEYS.map(|k| match secret(store, k) {
+    let set = MIGRATED_SECRET_KEYS.map(|k| match secret(store, k) {
         Ok(v) => (k, !v.is_empty()),
         Err(e) => {
             unavailable.get_or_insert(e);
@@ -151,22 +156,6 @@ pub fn all_settings(
 ) -> musaic_db::Result<Map<String, Value>> {
     let status = secret_status(store);
     let mut m = Map::new();
-    m.insert(
-        "ai_max_parallel".into(),
-        json!(get_int(conn, "ai_max_parallel", 1)?.clamp(1, 8)),
-    );
-    m.insert(
-        "ai_queue_paused".into(),
-        json!(get_bool(conn, "ai_queue_paused", false)?),
-    );
-    m.insert(
-        "ai_provider_id".into(),
-        json!(stripped_or(conn, "ai_provider_id", DEFAULT_AI_PROVIDER_ID)?),
-    );
-    m.insert(
-        "ai_model_id".into(),
-        json!(stripped_or(conn, "ai_model_id", DEFAULT_AI_MODEL_ID)?),
-    );
     for (key, set) in status.set {
         m.insert(format!("{key}_set"), json!(set));
     }

@@ -9,30 +9,9 @@ const toasts = vi.hoisted(() => ({
 }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
-// The no-model build's answer where an ai-job fix would queue a job: the
-// job's not-available message, as the Rust services build it
-// (musaic_ai::provider::NOT_AVAILABLE; it names no AI).
-const NOT_AVAILABLE =
-  "MusicBrainz has nothing more for this album, and this build has no other source to try.";
-
 import FindingFixButton from "@/components/FindingFixButton";
-import type { AiProvidersResponse } from "@/lib/api";
-import type { Finding } from "@/lib/types";
-
-const provider = (ready: boolean): AiProvidersResponse => ({
-  selected: { provider_id: "claude", model_id: "m", api_key_set: false },
-  providers: [
-    {
-      id: ready ? "claude" : "unconfigured",
-      accepts_api_key: false,
-      auth_hint: null,
-      ready,
-      requirement: ready ? null : "an AI backend",
-      remedy: null,
-    },
-  ],
-  uninstalled: [],
-});
+import type { Finding, Job } from "@/lib/types";
+import { makeJob } from "@/test/fixtures";
 
 const finding = (checkId: string): Finding => ({
   id: 7,
@@ -48,10 +27,10 @@ const finding = (checkId: string): Finding => ({
   ignored_reason: null,
 });
 
-function renderButton(ready: boolean, checkId: string, fixKind: "ai-job" | "deterministic") {
+function renderButton(checkId: string, fixKind: "ai-job" | "deterministic", jobs: Job[] = []) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  qc.setQueryData(["ai-providers"], provider(ready));
-  qc.setQueryData(["jobs"], []);
+  qc.setQueryData(["jobs"], jobs);
+  qc.setQueryData(["research", "work"], []);
   qc.setQueryData(["albums-snapshot"], []);
   return render(
     <QueryClientProvider client={qc}>
@@ -62,7 +41,7 @@ function renderButton(ready: boolean, checkId: string, fixKind: "ai-job" | "dete
   );
 }
 
-describe("FindingFixButton AI gating", () => {
+describe("FindingFixButton research-capable fixes", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
   let fixAnswer: { ok: boolean; message: string; job_id: string | null };
   beforeEach(() => {
@@ -82,47 +61,108 @@ describe("FindingFixButton AI gating", () => {
     vi.unstubAllGlobals();
   });
 
-  // The MusicBrainz part of an ai-job fix runs without a model.
-  it("offers an ai-job fix without a ready provider, with no hint dialog", async () => {
-    renderButton(false, "no-cover-art", "ai-job");
-    const btn = screen.getByRole("button", { name: "Embed MusicBrainz cover" });
-    expect(btn).toBeEnabled();
-    // Says what it does (an immediate write, with its scope), and names no
-    // AI when no model can run.
-    expect(btn.getAttribute("title")).toContain("embeds it in this album's files right away");
-    expect(btn.getAttribute("title")).not.toMatch(/\bAI\b|Claude/);
-    fireEvent.click(btn);
-    expect(screen.queryByRole("dialog")).toBeNull();
-    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain("/api/checks/no-cover-art/findings/7/fix");
-    expect((init as RequestInit).method).toBe("POST");
-    expect((init as RequestInit).body).toBeUndefined();
-    await waitFor(() => expect(toasts.success).toHaveBeenCalledWith("done", { duration: 3000 }));
-  });
+  // Every research-capable fix offers the hint first, whatever the
+  // assistant situation (FR-007); submitting sends the hint with the fix.
+  for (const [check, label] of [
+    ["no-cover-art", "Find cover art…"],
+    ["unidentified-album", "Identify album…"],
+    ["tags-out-of-sync", "Fill missing tags…"],
+    ["track-gaps", "Check track numbers…"],
+  ] as const) {
+    it(`${check}: offers the hint dialog, then posts the fix with the hint`, async () => {
+      fixAnswer = { ok: true, message: "Research requested. You can follow it in Review.", job_id: "g1" };
+      const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      renderButton(check, "ai-job");
+      const btn = screen.getByRole("button", { name: label });
+      expect(btn).toBeEnabled();
+      expect(btn.getAttribute("title")).not.toMatch(/\bAI\b|Claude/);
+      fireEvent.click(btn);
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.textContent).not.toMatch(/\bAI\b|Claude/);
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "2012 reissue" } });
+      const submit = Array.from(dialog.querySelectorAll("button")).find((b) =>
+        /^(Find cover art|Suggest fixes)/.test(b.textContent ?? ""),
+      );
+      fireEvent.click(submit!);
+      await waitFor(() =>
+        expect(fetchMock.mock.calls.some(([u]) => String(u).includes(`/api/checks/${check}/findings/7/fix`))).toBe(true),
+      );
+      const [, init] = fetchMock.mock.calls.find(([u]) => String(u).includes("/findings/7/fix"))!;
+      expect((init as RequestInit).method).toBe("POST");
+      expect(JSON.parse(String((init as RequestInit).body))).toEqual({ hint: "2012 reissue" });
+      // A request was made (job_id set): the jobs stream turns the button
+      // into "Queued", so no toast.
+      await new Promise((r) => setTimeout(r, 0));
+      expect(toasts.error).not.toHaveBeenCalled();
+      // The work events and the jobs stream refresh the jobs (rule 5).
+      expect(invalidate).not.toHaveBeenCalled();
+      invalidate.mockRestore();
+    });
+  }
 
-  // Where the fix would need a model, the server's ok:false
-  // not-available message is what the user sees.
-  it("shows the not-available message when the fix needs a model", async () => {
-    fixAnswer = { ok: false, message: NOT_AVAILABLE, job_id: null };
-    renderButton(false, "unidentified-album", "ai-job");
-    fireEvent.click(screen.getByRole("button", { name: "Look up on MusicBrainz" }));
-    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(NOT_AVAILABLE));
+  it("a refused fix shows the server's message and stays usable", async () => {
+    fixAnswer = { ok: false, message: "Refused for a reason.", job_id: null };
+    renderButton("unidentified-album", "ai-job");
+    fireEvent.click(screen.getByRole("button", { name: "Identify album…" }));
+    fireEvent.click(screen.getByRole("button", { name: /Suggest fixes/ }));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Refused for a reason."));
     expect(toasts.success).not.toHaveBeenCalled();
-    // The button stays usable (the finding is still open).
-    expect(screen.getByRole("button", { name: "Look up on MusicBrainz" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Identify album…" })).toBeEnabled();
   });
 
-  it("offers an ai-job fix with the hint dialog when a provider is ready", () => {
-    renderButton(true, "no-cover-art", "ai-job");
-    const btn = screen.getByRole("button", { name: "Find cover art…" });
-    expect(btn).toBeEnabled();
-    fireEvent.click(btn);
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  it("names research, not a model, while a request is waiting or held", () => {
+    const queued = makeJob({ id: "g1", album_id: "album-1", status: "queued", job_type: "metadata" });
+    const first = renderButton("unidentified-album", "ai-job", [queued]);
+    expect(screen.getByRole("button", { name: /Queued/ }).getAttribute("title")).toBe(
+      "Research is pending for this album",
+    );
+    first.unmount();
+    renderButton("unidentified-album", "ai-job", [{ ...queued, status: "running" }]);
+    expect(screen.getByRole("button", { name: /Running/ }).getAttribute("title")).toBe(
+      "An assistant is working on this",
+    );
   });
 
-  it("leaves deterministic fixes alone without a provider", async () => {
-    renderButton(false, "track-gaps-like-deterministic", "deterministic");
+  it("a Fix all batch's request for the album counts like a card: no second Fix while it is pending", () => {
+    // Batched requests have no job card; the delegated work list carries them.
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(["jobs"], []);
+    qc.setQueryData(["albums-snapshot"], []);
+    qc.setQueryData(["research", "work"], [
+      {
+        workId: "w1",
+        albumId: "album-1",
+        albumLabel: "Artist - Album",
+        kind: "metadata.identify",
+        state: "queued",
+        revision: 1,
+        holder: null,
+        lastHeartbeatAt: null,
+        leaseExpiresAt: null,
+        attempts: 0,
+        maxAttempts: 3,
+        lastError: null,
+        waitingForAgent: true,
+        groupId: "g1",
+        batchId: "11111111-2222-4333-8444-555555555555",
+      },
+    ]);
+    const tree = (checkId: string) => (
+      <QueryClientProvider client={qc}>
+        <MemoryRouter>
+          <FindingFixButton finding={finding(checkId)} fixKind="ai-job" />
+        </MemoryRouter>
+      </QueryClientProvider>
+    );
+    const view = render(tree("unidentified-album"));
+    expect(screen.getByRole("button", { name: /Queued/ })).toBeDisabled();
+    // A metadata request does not hold a cover finding's button.
+    view.rerender(tree("no-cover-art"));
+    expect(screen.getByRole("button", { name: "Find cover art…" })).toBeEnabled();
+  });
+
+  it("leaves deterministic fixes alone", async () => {
+    renderButton("track-gaps-like-deterministic", "deterministic");
     const btn = screen.getByRole("button", { name: /fix/i });
     expect(btn).toBeEnabled();
     fireEvent.click(btn);

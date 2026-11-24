@@ -258,3 +258,54 @@ fn errors_map_to_the_contract_codes() {
         C::DescriptorInvalid
     );
 }
+
+/// The event descriptors `events/list` serves (spec 006): the payload gains an
+/// optional `batchId`; the five required keys, the closed object and the
+/// `.v1` names are unchanged.
+#[test]
+fn event_payload_schema_lists_an_optional_batch_id() {
+    use musaic_commands::events::{self, EVENT_NAMES, WorkEventData};
+    use musaic_commands::tools::work::{WorkKind, WorkState};
+    assert_eq!(
+        EVENT_NAMES,
+        ["musaic.work.requested.v1", "musaic.work.updated.v1"]
+    );
+    assert_eq!(musaic_commands::CONTRACT_VERSION, "1");
+    for d in events::descriptors(true) {
+        let s = &d.payload_schema;
+        assert_eq!(s["additionalProperties"], false, "{}", d.name);
+        assert_eq!(
+            s["required"],
+            serde_json::json!(["workId", "kind", "state", "revision", "libraryEpoch"]),
+            "{}",
+            d.name
+        );
+        assert_eq!(s["properties"]["batchId"]["type"], "string", "{}", d.name);
+        assert!(
+            s["properties"]["batchId"]["description"]
+                .as_str()
+                .is_some_and(|t| t.contains("bulk run")),
+            "{}",
+            d.name
+        );
+        let validator = jsonschema::validator_for(s).unwrap();
+        let mut data = WorkEventData {
+            work_id: "99eafac2-9d45-41da-93c5-24e420afea21".into(),
+            kind: WorkKind::MetadataIdentify,
+            state: WorkState::Queued,
+            revision: 1,
+            library_epoch: "epoch".into(),
+            batch_id: None,
+        };
+        let without = serde_json::to_value(&data).unwrap();
+        assert!(without.get("batchId").is_none());
+        assert!(validator.is_valid(&without));
+        data.batch_id = Some("6f0c1d2e-3a4b-4c5d-8e6f-708192a3b4c5".into());
+        let with = serde_json::to_value(&data).unwrap();
+        assert!(validator.is_valid(&with));
+        let back: WorkEventData = serde_json::from_value(with).unwrap();
+        assert_eq!(back, data);
+    }
+    let md = events::events_catalog_markdown();
+    assert!(md.contains("`batchId`") && md.contains("rather than a cached copy"));
+}

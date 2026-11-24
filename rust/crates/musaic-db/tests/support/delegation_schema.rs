@@ -64,3 +64,45 @@ pub const V23_OBJECTS: &[(&str, &str, &str)] = &[
         "agent_host_observations",
     ),
 ];
+
+/// The objects of the Python app's schema that v24 drops: the old job table
+/// and its indexes, folded into `research_history`.
+#[allow(dead_code)]
+pub const V24_DROPPED: &[&str] = &[
+    "ai_jobs",
+    "sqlite_autoindex_ai_jobs_1",
+    "idx_ai_jobs_status",
+    "idx_ai_jobs_album",
+    "idx_ai_jobs_created",
+];
+
+/// The objects of [`OBJECTS`] that v24 rebuilds (`work_replays`, to allow
+/// `claim_many`): they leave their place and come back at the end, in
+/// [`V24_OBJECTS`].
+#[allow(dead_code)]
+pub const V24_REBUILT: &[&str] = &["work_replays", "sqlite_autoindex_work_replays_1"];
+
+/// [`OBJECTS`] as they stand after v24 (without [`V24_REBUILT`]).
+#[allow(dead_code)]
+pub fn objects_v24() -> impl Iterator<Item = &'static (&'static str, &'static str, &'static str)> {
+    OBJECTS.iter().filter(|o| !V24_REBUILT.contains(&o.1))
+}
+
+/// The v24 objects in `sqlite_master` order, after [`V23_OBJECTS`].
+#[allow(dead_code)]
+pub const V24_OBJECTS: &[(&str, &str, &str)] = &[
+    ("table", "research_history", "research_history"),
+    (
+        "index",
+        "sqlite_autoindex_research_history_1",
+        "research_history",
+    ),
+    ("index", "research_history_album", "research_history"),
+    ("index", "research_history_created", "research_history"),
+    ("table", "work_batches", "work_batches"),
+    ("index", "sqlite_autoindex_work_batches_1", "work_batches"),
+    ("index", "work_batches_epoch", "work_batches"),
+    ("index", "delegated_work_batch", "delegated_work"),
+    ("table", "work_replays", "work_replays"),
+    ("index", "sqlite_autoindex_work_replays_1", "work_replays"),
+];

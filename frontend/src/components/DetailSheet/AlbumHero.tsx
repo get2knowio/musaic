@@ -15,9 +15,9 @@ interface AlbumHeroProps {
    *  and apply there. Omitted when MusicBrainz has no cover to offer or it
    *  is already proposed. */
   onUseMusicBrainzCover?: () => void;
-  /** Queue an AI cover search. Omitted unless AI is ready
-   *  (lib/aiGating.ts) and a job can be queued. */
-  onAskAiForCover?: () => void;
+  /** Request cover research. Omitted while a request is unresolved or
+   *  the album can't take one. */
+  onRequestCoverResearch?: () => void;
 }
 
 /**
@@ -26,11 +26,10 @@ interface AlbumHeroProps {
  *
  * The one Cover control lives here: a visible button whose menu offers
  * the MusicBrainz cover (previewed and applied in the corrections),
- * upload / paste / URL (`CoverUploadDialog`) and, when AI is ready, an AI
- * search. A Missing album has no Cover control: its files cannot be
+ * upload / paste / URL (`CoverUploadDialog`) and cover research. A Missing album has no Cover control: its files cannot be
  * written.
  */
-export default function AlbumHero({ album, onUseMusicBrainzCover, onAskAiForCover }: AlbumHeroProps) {
+export default function AlbumHero({ album, onUseMusicBrainzCover, onRequestCoverResearch }: AlbumHeroProps) {
   const artist = album.is_compilation
     ? "Various Artists"
     : displayArtist(album, "Unknown artist");
@@ -73,7 +72,7 @@ export default function AlbumHero({ album, onUseMusicBrainzCover, onAskAiForCove
             hasCover={hasCover}
             onUpload={() => setUploadOpen(true)}
             onUseMusicBrainzCover={onUseMusicBrainzCover}
-            onAskAiForCover={onAskAiForCover}
+            onRequestCoverResearch={onRequestCoverResearch}
           />
         )}
       </div>
@@ -139,12 +138,12 @@ function CoverMenu({
   hasCover,
   onUpload,
   onUseMusicBrainzCover,
-  onAskAiForCover,
+  onRequestCoverResearch,
 }: {
   hasCover: boolean;
   onUpload: () => void;
   onUseMusicBrainzCover?: () => void;
-  onAskAiForCover?: () => void;
+  onRequestCoverResearch?: () => void;
 }) {
   const item =
     "flex items-center gap-2 px-2.5 h-8 rounded text-sm text-fg-2 outline-none cursor-pointer data-[highlighted]:bg-bg-3 data-[highlighted]:text-fg";
@@ -188,9 +187,9 @@ function CoverMenu({
           <DropdownMenu.Item className={item} onSelect={() => { pending.current = onUpload; }}>
             <Upload className="w-3.5 h-3.5" /> Upload, paste or URL…
           </DropdownMenu.Item>
-          {onAskAiForCover && (
-            <DropdownMenu.Item className={item} onSelect={() => { pending.current = onAskAiForCover; }}>
-              <Sparkles className="w-3.5 h-3.5" /> Ask AI to find a cover…
+          {onRequestCoverResearch && (
+            <DropdownMenu.Item className={item} onSelect={() => { pending.current = onRequestCoverResearch; }}>
+              <Sparkles className="w-3.5 h-3.5" /> Request cover research…
             </DropdownMenu.Item>
           )}
         </DropdownMenu.Content>

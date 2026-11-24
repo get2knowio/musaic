@@ -191,7 +191,6 @@ describe("Settings: fingerprinting section", () => {
   function renderSettings(keySet: boolean, status: FingerprintPoolStatus, hash = "") {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
     qc.setQueryData(["config"], { library_dir: null, exists: false });
-    qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
     qc.setQueryData(["jobs"], []);
     qc.setQueryData(["settings"], settings(keySet));
     qc.setQueryData(["fingerprint-pool-status"], status);

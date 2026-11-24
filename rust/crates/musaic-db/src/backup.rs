@@ -56,22 +56,35 @@ pub const SNAPSHOT_SUFFIX: &str = ".db";
 /// Tables an upload must have to count as a Musaic database.
 const REQUIRED_TABLES: [&str; 3] = ["albums", "libraries", "schema_version"];
 
-const COUNT_QUERIES: [(&str, &str); 7] = [
-    ("albums", "SELECT COUNT(*) FROM albums"),
+/// Each count's queries, tried in order until one runs: a file from an older
+/// schema lacks the newer tables (an upload, or a backup listed before it is
+/// restored), and a table that is missing in all of them counts 0.
+const COUNT_QUERIES: [(&str, &[&str]); 7] = [
+    ("albums", &["SELECT COUNT(*) FROM albums"]),
     (
         "albums_with_mbid",
-        "SELECT COUNT(*) FROM albums WHERE mb_release_group_mbid IS NOT NULL",
+        &["SELECT COUNT(*) FROM albums WHERE mb_release_group_mbid IS NOT NULL"],
     ),
     (
         "track_fingerprints",
-        "SELECT COUNT(*) FROM track_fingerprints",
+        &["SELECT COUNT(*) FROM track_fingerprints"],
     ),
-    ("track_tags", "SELECT COUNT(*) FROM track_tags"),
-    ("tag_vocabulary", "SELECT COUNT(*) FROM tag_vocabulary"),
-    ("ai_jobs", "SELECT COUNT(*) FROM ai_jobs"),
+    ("track_tags", &["SELECT COUNT(*) FROM track_tags"]),
+    ("tag_vocabulary", &["SELECT COUNT(*) FROM tag_vocabulary"]),
+    // The key keeps its old name. From v24: research requests of every
+    // epoch plus old job records no request names (history-only); before,
+    // the old job table.
+    (
+        "ai_jobs",
+        &[
+            "SELECT (SELECT COUNT(*) FROM delegated_work) + (SELECT COUNT(*) FROM research_history \
+             WHERE NOT EXISTS (SELECT 1 FROM delegated_work w WHERE w.legacy_job_id = research_history.id))",
+            "SELECT COUNT(*) FROM ai_jobs",
+        ],
+    ),
     (
         "check_findings_open",
-        "SELECT COUNT(*) FROM check_findings WHERE resolved_at IS NULL AND ignored_at IS NULL",
+        &["SELECT COUNT(*) FROM check_findings WHERE resolved_at IS NULL AND ignored_at IS NULL"],
     ),
 ];
 
@@ -81,8 +94,11 @@ pub type Counts = BTreeMap<String, i64>;
 pub fn gather_counts(conn: &Connection) -> Counts {
     COUNT_QUERIES
         .iter()
-        .map(|(label, sql)| {
-            let n = conn.query_row(sql, [], |r| r.get(0)).unwrap_or(0);
+        .map(|(label, queries)| {
+            let n = queries
+                .iter()
+                .find_map(|sql| conn.query_row(sql, [], |r| r.get(0)).ok())
+                .unwrap_or(0);
             ((*label).to_owned(), n)
         })
         .collect()
@@ -508,7 +524,7 @@ const SWAP_BUSY_STEP: Duration = Duration::from_millis(50);
 
 /// Windows refuses to rename a file while any handle to it is open, and the
 /// restore only holds back writers: a read that began before the restore
-/// (an HTTP GET, the job worker's poll) or a scanner holding the file can
+/// (an HTTP GET, the background check sweep) or a scanner holding the file can
 /// still have a connection on it for a moment. Its end is what is waited
 /// for, so the rename is retried for a bounded time rather than failing a
 /// restore the user can do nothing about. Elsewhere a rename never fails

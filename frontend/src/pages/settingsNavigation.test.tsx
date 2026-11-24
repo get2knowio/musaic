@@ -19,7 +19,6 @@ import type { VocabularyResponse } from "@/lib/types";
 
 function client(): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["vocabulary"], { vocabulary: [], orphans: [] } satisfies VocabularyResponse);
   qc.setQueryData(["album-tags", "a1"], { album_id: "a1", track_tags: {}, album_tags: [] });
   qc.setQueryData(["albums-snapshot"], []);

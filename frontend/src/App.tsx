@@ -27,7 +27,7 @@ import { useCommandHost } from "@/hooks/useCommands";
  *   [sidebar 188px | main 1fr]
  */
 export default function App() {
-  // Single subscriber to the AI jobs SSE stream — keeps the cached jobs
+  // Single subscriber to the research requests SSE stream — keeps the cached jobs
   // query fresh and fires Sonner toasts on completion / failure transitions.
   useJobsStream();
 

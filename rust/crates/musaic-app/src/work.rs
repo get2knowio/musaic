@@ -7,7 +7,7 @@
 //!
 //! * the restore gate's labelled work guards ([`musaic_services::gate::WorkKind`]):
 //!   scans, applies (and dry runs), analyses, check runs, quick-fix-all,
-//!   AI jobs, and every other writing request;
+//!   and every other writing request;
 //! * a database restore holding the gate;
 //! * the scan service's state (a scan started by any route);
 //! * the fingerprint pool's state.
@@ -28,9 +28,6 @@ pub struct WorkSnapshot {
     pub scan_running: bool,
     /// The fingerprint pool is working through the library.
     pub pool_running: bool,
-    /// An AI provider is ready ([`crate::App::ai_ready`]); without
-    /// one the prompt names no AI ("a job").
-    pub ai_ready: bool,
     /// Research leased to an external assistant, independent of local work guards.
     pub external_claims: usize,
 }
@@ -49,7 +46,7 @@ impl WorkSnapshot {
         for k in WorkKind::ALL {
             let on = has(k) || (k == WorkKind::Scan && self.scan_running);
             if on {
-                out.push(k.describe(musaic_core::AiWording::for_readiness(self.ai_ready)));
+                out.push(k.describe());
             }
         }
         if self.pool_running {
@@ -137,16 +134,13 @@ mod tests {
         ];
         let mut all = cases;
         for k in WorkKind::ALL {
-            for ai_ready in [false, true] {
-                all.push((
-                    WorkSnapshot {
-                        kinds: vec![(k, 1)],
-                        ai_ready,
-                        ..Default::default()
-                    },
-                    k.describe(musaic_core::AiWording::for_readiness(ai_ready)),
-                ));
-            }
+            all.push((
+                WorkSnapshot {
+                    kinds: vec![(k, 1)],
+                    ..Default::default()
+                },
+                k.describe(),
+            ));
         }
         for (s, phrase) in all {
             let p = s
@@ -162,35 +156,16 @@ mod tests {
     #[test]
     fn message_lists_each_once() {
         let s = WorkSnapshot {
-            kinds: vec![(WorkKind::Scan, 1), (WorkKind::AiJob, 2)],
+            kinds: vec![(WorkKind::Scan, 1), (WorkKind::QuickFixAll, 2)],
             restoring: false,
             scan_running: true,
             pool_running: true,
             external_claims: 0,
-            ai_ready: true,
-        };
-        assert_eq!(
-            s.quit_prompt().unwrap(),
-            "Musaic is still busy with a library scan, an AI job and fingerprinting the library. Quitting now stops it before it finishes. Quit anyway?"
-        );
-    }
-
-    // With no AI provider ready
-    // the prompt names the job without AI; with one it reads as above.
-    #[test]
-    fn quit_prompt_without_a_provider() {
-        let s = WorkSnapshot {
-            kinds: vec![(WorkKind::Scan, 1), (WorkKind::AiJob, 2)],
-            restoring: false,
-            scan_running: true,
-            pool_running: true,
-            external_claims: 0,
-            ai_ready: false,
         };
         let p = s.quit_prompt().unwrap();
         assert_eq!(
             p,
-            "Musaic is still busy with a library scan, a job and fingerprinting the library. Quitting now stops it before it finishes. Quit anyway?"
+            "Musaic is still busy with a library scan, a bulk quick fix and fingerprinting the library. Quitting now stops it before it finishes. Quit anyway?"
         );
         assert!(!p.contains("AI") && !p.contains("Claude"), "{p}");
     }

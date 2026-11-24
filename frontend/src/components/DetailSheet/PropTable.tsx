@@ -10,9 +10,6 @@ import type { Album } from "@/lib/types";
 
 interface PropTableProps {
   album: Album;
-  /** A model backend can run (lib/aiGating.ts). Without one the row and
-   *  the confirm text don't name AI or hints. */
-  aiReady?: boolean;
 }
 
 /**
@@ -23,7 +20,7 @@ interface PropTableProps {
  * (assumes all tracks share the same audio format, which holds for
  * CD-rips and LP-rips).
  */
-export default function PropTable({ album, aiReady = false }: PropTableProps) {
+export default function PropTable({ album }: PropTableProps) {
   return (
     <dl className="grid grid-cols-[110px_1fr] gap-y-2 gap-x-3 px-4 py-3 text-sm">
       <Row label="format">{formatString(album)}</Row>
@@ -43,8 +40,8 @@ export default function PropTable({ album, aiReady = false }: PropTableProps) {
           <span className="text-fg-4">none</span>
         )}
       </Row>
-      <Row label="MusicBrainz"><MusicBrainzCell album={album} aiReady={aiReady} /></Row>
-      <Row label={aiReady ? "AI reviewed" : "Reviewed"}>{aiReviewedCell(album)}</Row>
+      <Row label="MusicBrainz"><MusicBrainzCell album={album} /></Row>
+      <Row label="Reviewed">{reviewedCell(album)}</Row>
       <Row label="folder">
         <code className="mono text-xs text-fg-3 break-all">{album.path}</code>
         {/* Desktop window only; a Missing album's folder is
@@ -64,13 +61,11 @@ export default function PropTable({ album, aiReady = false }: PropTableProps) {
  *   - mbid null, checked_at present      → "Not found" + "(last checked …)"
  *   - both null                          → "Not yet checked"
  *
- * The "Wrong match" affordance is the same escape hatch the AI-suggestions
- * panel surfaces: it clears the cached anchor AND adds the MBID to the
- * album's blocklist so future automatic resolution can't pick the same
- * wrong release-group. Inlined here so the user can clear without first
- * having to run an AI job to surface the post-suggestion control.
+ * The "Wrong match" affordance clears the cached anchor AND adds the MBID
+ * to the album's blocklist so future automatic resolution can't pick the
+ * same wrong release-group.
  */
-function MusicBrainzCell({ album, aiReady }: { album: Album; aiReady: boolean }) {
+function MusicBrainzCell({ album }: { album: Album }) {
   const [clearing, setClearing] = useState(false);
 
   const mbid = album.mb_release_group_mbid ?? null;
@@ -79,16 +74,14 @@ function MusicBrainzCell({ album, aiReady }: { album: Album; aiReady: boolean })
   const onClear = async () => {
     if (clearing || !mbid) return;
     // Lightweight confirm — the action is recoverable (the user can re-run
-    // AI / the resolver to land a new anchor), but blocklisting is a real
+    // the resolver or request research to land a new anchor), but blocklisting is a real
     // side effect and a misclick shouldn't silently drop a good match.
     const ok = window.confirm(
       `Clear MusicBrainz match for this album?\n\n` +
       `${mbid}\n\n` +
       `This release-group will be added to the album's blocklist so ` +
       `automatic resolution can't pick it again. ` +
-      (aiReady
-        ? `You can re-identify the album with a hint via "Ask AI for corrections".`
-        : `The next lookup searches MusicBrainz again.`),
+      `The next lookup searches MusicBrainz again.`,
     );
     if (!ok) return;
     setClearing(true);
@@ -155,7 +148,7 @@ function MusicBrainzCell({ album, aiReady }: { album: Album; aiReady: boolean })
   return <span className="text-fg-4">not yet checked</span>;
 }
 
-function aiReviewedCell(album: Album): React.ReactNode {
+function reviewedCell(album: Album): React.ReactNode {
   const at = album.metadata_ai_acted_on_at ?? null;
   if (at) {
     return (

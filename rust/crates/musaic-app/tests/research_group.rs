@@ -156,7 +156,6 @@ fn a_locally_resolved_cover_is_kept_with_unresolved_metadata() {
 fn a_local_only_cover_uses_desktop_review_backup_and_undo_without_a_pairing() {
     let (w, album_id) = anchored_album();
     let ops = w.app.ops();
-    assert!(!w.app.ai_worker_running());
     assert!(ops.agent().list_pairings().unwrap().is_empty());
     ops.checks().run("filename-mismatch", "all", None).unwrap();
     ops.library().resolution(&album_id, false, "").unwrap();
@@ -242,6 +241,16 @@ fn discarding_a_pending_cover_records_the_disposition_without_writing() {
     )
     .unwrap();
     assert_eq!(jobs.research_items(&job.id).unwrap()[0].state, "discarded");
+    // Only a metadata proposal stamps the album's "Reviewed" row.
+    let reviewed: Option<String> = musaic_db::open_connection(w.app.db_path())
+        .unwrap()
+        .query_row(
+            "SELECT metadata_ai_acted_on_at FROM albums WHERE id = ?1",
+            [&album_id],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(reviewed, None);
     assert_eq!(musaic_services::agent_read::file_facts(row.path()), before);
     assert!(ops.agent().list_changes(None).unwrap().is_empty());
     assert!(folder.is_dir());

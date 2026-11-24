@@ -347,7 +347,7 @@ export function useScanStream(opts: { enabled: boolean }): UseScanStreamResult {
 
   // Just pull the cached snapshot from /api/albums — no SSE, no scan.
   // Used on every LibraryPage mount AFTER the initial session scan is done,
-  // so navigating Library ⇄ AI Jobs ⇄ Settings doesn't kick off a re-scan.
+  // so navigating Library ⇄ Review ⇄ Settings doesn't kick off a re-scan.
   const refreshFromCache = useCallback(() => {
     let cancelled = false;
     setScan({ ...INITIAL, status: "loading-cache" });

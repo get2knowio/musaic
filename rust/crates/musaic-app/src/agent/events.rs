@@ -267,6 +267,7 @@ fn read_page(
                     state,
                     revision: row.revision,
                     library_epoch: epoch.clone(),
+                    batch_id: row.batch_id,
                 },
                 cursor: Some(encode_cursor(&epoch, row.sequence)),
             });

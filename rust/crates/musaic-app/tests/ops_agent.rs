@@ -427,7 +427,6 @@ fn tokens_expire_at_fifteen_minutes_and_a_restart_drops_them_but_not_the_pairing
             .clock(c2.wall())
             .subscribers(false)
             .auto_snapshot(false)
-            .ai_worker(false)
             .build()
             .unwrap();
         (app2, instance_before, p, scratch)
@@ -1866,7 +1865,6 @@ fn a_restart_keeps_a_pending_card_and_its_operation() {
         .clock(clock.wall())
         .subscribers(false)
         .auto_snapshot(false)
-        .ai_worker(false)
         .build()
         .unwrap();
     let ops = app2.ops();
@@ -2677,7 +2675,6 @@ fn interrupted_apply_reports_confirmed_file_outcomes_and_needs_a_new_preview() {
         .clock(clock.wall())
         .subscribers(false)
         .auto_snapshot(false)
-        .ai_worker(false)
         .build()
         .unwrap();
     let conn = musaic_db::open_connection(new.db_path()).unwrap();
@@ -2690,4 +2687,160 @@ fn interrupted_apply_reports_confirmed_file_outcomes_and_needs_a_new_preview() {
     assert_eq!(error.code, ToolErrorCode::Unavailable);
     assert!(error.message.contains("preview remaining edits again"));
     assert_eq!(error.details.unwrap()["changeId"], "ch_test_confirmed");
+}
+
+// ---------- multi-item claim and renew (spec 006) ----------
+
+mod batches {
+    use super::*;
+    use musaic_app::ops::fixes::{Listening, QuickFixEvent};
+    use serde_json::Value;
+
+    /// A scanned world whose unidentified albums were sent for research in
+    /// one batch: (world, batch id, how many requests).
+    pub fn batched_world() -> (AgentWorld, String, usize) {
+        let w = common::agent_world_scanned();
+        w.app
+            .ops()
+            .checks()
+            .run("unidentified-album", "all", None)
+            .unwrap();
+        let mut batch = None;
+        w.app
+            .ops()
+            .fixes()
+            .quick_fix_all("unidentified-album", true, &mut |e| {
+                if let QuickFixEvent::Done(s) = &e {
+                    batch = s.research.clone();
+                }
+                Listening::Yes
+            })
+            .unwrap();
+        let r = batch.expect("research counts");
+        assert!(r.sent_for_research >= 2, "{r:?}");
+        (w, r.batch_id.unwrap(), r.sent_for_research)
+    }
+
+    pub fn ids(v: &Value, key: &str) -> Vec<String> {
+        v[key]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["workId"].as_str().unwrap().to_string())
+            .collect()
+    }
+}
+
+#[test]
+fn claim_many_and_renew_many_need_the_research_scope() {
+    let (w, batch, _) = batches::batched_world();
+    let reader = w.login(&w.pair("Reader only", &[K::LibraryRead]).pairing.id);
+    let claim = json!({"batchId": batch, "idempotencyKey": "burst-reader"});
+    assert_eq!(
+        tool_code(&w.call(&reader, "musaic_work_claim_many", claim.clone())),
+        "POLICY_DENIED"
+    );
+    let renew = json!({"leases": [{"workId": "3ef3f326-6a82-406c-a473-601562c3b579",
+        "claimGeneration": 1, "leaseToken": "0".repeat(64)}]});
+    assert_eq!(
+        tool_code(&w.call(&reader, "musaic_work_renew_many", renew)),
+        "POLICY_DENIED"
+    );
+    // The listing (read scope) filters by batch and names it on each item.
+    let listed = w
+        .call(&reader, "musaic_work_list", json!({"batchId": batch}))
+        .unwrap()
+        .to_json();
+    let items = listed["items"].as_array().unwrap();
+    assert!(!items.is_empty());
+    assert!(items.iter().all(|i| i["batchId"] == json!(batch)));
+    // A revoked pairing can do nothing.
+    let pairing = w.pair("Gone soon", READ).pairing.id;
+    let gone = w.login(&pairing);
+    w.app.ops().agent().revoke_pairing(&pairing).unwrap();
+    assert_ne!(
+        tool_code(&w.call(&gone, "musaic_work_claim_many", claim)),
+        "ok"
+    );
+}
+
+#[test]
+fn claim_many_claims_with_own_leases_replays_and_renews_them_together() {
+    let (w, batch, n) = batches::batched_world();
+    let researcher = w.login(&w.pair("Researcher", READ).pairing.id);
+    let body = json!({"batchId": batch, "max": 25, "idempotencyKey": "burst-0001"});
+    let first = w
+        .call(&researcher, "musaic_work_claim_many", body.clone())
+        .unwrap()
+        .to_json();
+    let claimed = batches::ids(&first, "claims");
+    assert_eq!(claimed.len(), n, "{first}");
+    // The same call again answers the same claims, tokens included.
+    let again = w
+        .call(&researcher, "musaic_work_claim_many", body)
+        .unwrap()
+        .to_json();
+    assert_eq!(again, first);
+    assert_eq!(
+        tool_code(&w.call(
+            &researcher,
+            "musaic_work_claim_many",
+            json!({"batchId": batch, "max": 3, "idempotencyKey": "burst-0001"})
+        )),
+        "IDEMPOTENCY_CONFLICT"
+    );
+    // Nothing left: an empty answer, not an error.
+    let none = w
+        .call(
+            &researcher,
+            "musaic_work_claim_many",
+            json!({"idempotencyKey": "burst-0002"}),
+        )
+        .unwrap()
+        .to_json();
+    assert_eq!(none["claims"], json!([]));
+    // Each lease works with the single-item tools (FR-035)...
+    let c0 = &first["claims"][0];
+    let lease0 = json!({"workId": c0["workId"], "claimGeneration": c0["claimGeneration"],
+        "leaseToken": c0["leaseToken"]});
+    assert_eq!(
+        tool_code(&w.call(&researcher, "musaic_work_renew", lease0.clone())),
+        "ok"
+    );
+    // ...and renew together, a bad one refused on its own.
+    w.clock.advance(60);
+    let mut leases: Vec<serde_json::Value> = first["claims"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| {
+            json!({"workId": c["workId"], "claimGeneration": c["claimGeneration"],
+            "leaseToken": c["leaseToken"]})
+        })
+        .collect();
+    leases[1]["leaseToken"] = json!("0".repeat(64));
+    let renewed = w
+        .call(
+            &researcher,
+            "musaic_work_renew_many",
+            json!({"leases": leases}),
+        )
+        .unwrap()
+        .to_json();
+    assert_eq!(batches::ids(&renewed, "renewed").len(), n - 1, "{renewed}");
+    assert_eq!(
+        renewed["refused"],
+        json!([{"workId": claimed[1], "code": "NOT_FOUND"}])
+    );
+    // Another assistant finds nothing to claim: no item is held twice.
+    let other = w.login(&w.pair("Second", READ).pairing.id);
+    let theirs = w
+        .call(
+            &other,
+            "musaic_work_claim_many",
+            json!({"batchId": batch, "idempotencyKey": "other-0001"}),
+        )
+        .unwrap()
+        .to_json();
+    assert_eq!(theirs["claims"], json!([]));
 }

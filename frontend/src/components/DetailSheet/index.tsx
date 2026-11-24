@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowLeft, CheckCircle2, CloudOff, Loader2, RotateCcw, Sparkles, Trash2, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, CloudOff, Loader2, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type Ref } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
@@ -14,7 +14,7 @@ import FindingsSection from "./FindingsSection";
 import MoreMenu from "./MoreMenu";
 import MyTagsSection from "./MyTagsSection";
 import Section from "./Section";
-import { ResearchGroup, RequestResearch } from "../ResearchGroup";
+import { ResearchGroup } from "../ResearchGroup";
 import HintDialog from "./HintDialog";
 import RemoveAlbumDialog from "./RemoveAlbumDialog";
 import { subscribePanelFocus, takePanelFocusRequest } from "./panelFocus";
@@ -23,19 +23,16 @@ import { PANEL_MIN_WIDTH, panelFillsRow } from "./layout";
 import { useTracks } from "@/hooks/useTracks";
 import {
   useActiveJobForAlbum,
-  useDeleteJob,
+  useCancelResearchGroup,
   useEnqueueJob,
   useJobs,
-  useMarkJobActedOn,
   usePriorCoverAttempts,
-  useRetryJob,
 } from "@/hooks/useJobs";
+import { useDelegatedWork } from "@/hooks/useDelegatedWork";
 import { useAlbumResolution } from "@/hooks/useAlbumResolution";
-import { useAiStatus } from "@/hooks/useAiStatus";
-import { canQueueJob, modelFreeCoverage, offersHintEntry } from "@/lib/aiGating";
 import { useApplyStream } from "@/hooks/useApplyStream";
 import { useResizableWidth } from "@/hooks/useResizableWidth";
-import { removeAlbumFromLibrary } from "@/lib/api";
+import { removeAlbumFromLibrary, type DelegatedWorkItem } from "@/lib/api";
 import { isApplyInFlight } from "@/lib/applyRegistry";
 import type { Album, AlbumResolution, Job, JobConflictDetail, JobType } from "@/lib/types";
 
@@ -202,10 +199,9 @@ function SheetBody({
   // the progress is back when this album is opened again.
   const apply = useApplyStream(album.id);
   const enqueue = useEnqueueJob();
-  const markActedOn = useMarkJobActedOn();
-  const deleteJob = useDeleteJob();
-  const retryJob = useRetryJob();
+  const cancelGroup = useCancelResearchGroup();
   const { data: allJobs = [] } = useJobs();
+  const { data: work } = useDelegatedWork();
 
   // The active job for THIS album (queued, running, or finished and not
   // yet applied or discarded). Sourced from the live jobs cache (kept fresh
@@ -215,21 +211,21 @@ function SheetBody({
   const activeJob = useActiveJobForAlbum(album.id);
 
   // Past cover-art lookups for this album that didn't yield a cover —
-  // surfaced in the HintDialog when the user is about to queue another
-  // AI cover search, so they don't repeat past dead ends.
+  // surfaced in the HintDialog when the user is about to request cover
+  // research again, so they don't repeat past dead ends.
   const priorCoverAttempts = usePriorCoverAttempts(album.id);
 
-  const { data: resolution } = useAlbumResolution(album.id);
-  // The worker's thresholds for skipping the model (lib/aiGating.ts);
-  // only a failed job's Retry still asks.
-  const coverage = modelFreeCoverage(resolution);
-  // Whether a model backend can run. Every AI-only entry point (the hint
-  // dialog and what opens it) is offered only then; without one the panel
-  // is complete with the resolver's corrections.
-  const ai = useAiStatus();
+  // Requests a Fix all run made for this album have no job card; the
+  // delegated work list carries them. Unresolved ones (waiting, held,
+  // running or awaiting review) count as a request like a card does.
+  const batchedItems = (Array.isArray(work) ? work : []).filter(
+    (i) => i.albumId === album.id && !!i.batchId && UNRESOLVED.has(i.state),
+  );
 
-  // Hint dialog state. `pendingType` is the job type the user is about to
-  // enqueue once they submit a hint.
+  const { data: resolution } = useAlbumResolution(album.id);
+
+  // Hint dialog state. `pendingType` is the request type the user is about
+  // to make once they submit a hint.
   const [pendingType, setPendingType] = useState<JobType | null>(null);
   // "Remove from library" confirmation (Missing albums only).
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -238,6 +234,9 @@ function SheetBody({
   // The user discarded the resolver's corrections; they come back when the
   // album is opened again.
   const [resolverDismissed, setResolverDismissed] = useState(false);
+  // A job card the user discarded here (an old job's history record has
+  // no review actions left, so Discard only hides it in this panel).
+  const [jobDismissed, setJobDismissed] = useState<string | null>(null);
 
   // Reset per-album local state when switching albums.
   useEffect(() => {
@@ -245,6 +244,7 @@ function SheetBody({
     setConfirmRemove(false);
     setCoverRequested(false);
     setResolverDismissed(false);
+    setJobDismissed(null);
   }, [album.id]);
 
   // Missing (`missing_since` set): the scan did not find the album's folder.
@@ -258,13 +258,16 @@ function SheetBody({
   // Live album for hero — use the apply-updated version once available.
   const displayAlbum: Album = apply.state.updatedAlbum ?? album;
 
+  const reviewableJob =
+    activeJob && !activeJob.result?.delegated && activeJob.id !== jobDismissed ? activeJob : null;
+
   // The proposed corrections, from a finished job or else from the
   // resolver; one diff, one set of ticks, one apply. A job's result for a
   // Missing album could not be applied (apply answers 409), so it is not
   // shown here; Review still lists it.
   const corrections = useCorrections({
     album: displayAlbum,
-    activeJob: activeJob?.result?.delegated ? null : activeJob,
+    activeJob: reviewableJob,
     resolution,
     tracks: tracks.data?.tracks ?? (tracks.isError ? [] : undefined),
     coverRequested,
@@ -275,9 +278,9 @@ function SheetBody({
   const reviewedJob = corrections.job;
   const isQueued = !isMissing && (activeJob?.status === "queued" || activeJob?.status === "running");
 
-  // Most recent failed job for this album that hasn't been acted on. Surfaced
-  // in the banner so the user can retry / inspect the error inline rather
-  // than navigating to Review and hunting the row.
+  // Most recent failed job for this album. Surfaced in the banner so the
+  // user can inspect the error inline; a research card's own items carry
+  // their Retry (ResearchGroup), an old job's history record has none.
   const recentFailedJob =
     !activeJob && !isApplying && !isMissing
       ? allJobs
@@ -285,39 +288,35 @@ function SheetBody({
           .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
       : null;
 
-  const onCancelQueued = async () => {
-    if (!activeJob) return;
+  // Cancel on a card cancels the research behind it (every waiting, held
+  // or running request of the card), never deletes it: deleting is only for
+  // finished history. The `work` events refresh the caches (rule 5).
+  const onCancelResearch = async (groupId: string) => {
+    if (!window.confirm("Cancel this research request? Results already waiting for review are kept.")) return;
     try {
-      await deleteJob.mutateAsync(activeJob.id);
-      toast("Cancelled queued job", { duration: 2500 });
+      const res = await cancelGroup.mutateAsync(groupId);
+      toast(res.cancelled === 1 ? "Research request cancelled" : `${res.cancelled} research requests cancelled`, {
+        duration: 2500,
+      });
     } catch (err) {
       const e = err as Error & { status?: number };
       if (e.status === 409) {
-        toast.warning("Job already started — can't cancel mid-run.");
+        toast.warning(e.message || "Nothing is waiting or in progress to cancel.");
       } else {
-        toast.error(e.message || "Couldn't cancel job");
+        toast.error(e.message || "Couldn't cancel the research request");
       }
     }
   };
 
-  const onRetryFailed = async (jobId: string) => {
-    try {
-      await retryJob.mutateAsync(jobId);
-      toast.success("Retrying…", { duration: 2500 });
-    } catch (err) {
-      const e = err as Error;
-      toast.error(e.message || "Couldn't retry job");
-    }
-  };
-  // Retrying a job that needs a model is certain to fail without one.
-  const canRetryFailed =
-    !recentFailedJob || canQueueJob(recentFailedJob.job_type, coverage, ai);
+  // ---- Request research ----
 
-  // ---- AI-only entry points (offered only when AI is ready) ----
-
-  const aiEntry = offersHintEntry(ai) && !isMissing && !isApplying;
-  const onAskAi = (which: JobType) => {
-    if (!offersHintEntry(ai) || activeJob) return;
+  // Any present album that is not being applied and has no unresolved
+  // request (a card or a batched item) can get one, whatever the assistant
+  // situation: a request made with no assistant added waits for one.
+  const hasUnresolvedRequest = !!activeJob || batchedItems.length > 0;
+  const researchEntry = !isMissing && !isApplying;
+  const onRequestResearch = (which: JobType) => {
+    if (hasUnresolvedRequest) return;
     setPendingType(which);
   };
 
@@ -337,15 +336,15 @@ function SheetBody({
         which === "metadata" ? "Metadata"
         : which === "cover" ? "Cover art"
         : "Metadata + cover";
-      toast(`${label} queued`, { duration: 3000 });
+      toast(`${label} research requested`, { duration: 3000 });
     } catch (err) {
-      // 409 = album already has an active job.
+      // 409 = album already has an unresolved request.
       const e = err as Error & { status?: number };
       const detail = (err as { detail?: JobConflictDetail }).detail;
       if (e.status === 409 || (typeof detail === "object" && detail?.error === "active_job_exists")) {
-        toast.warning("Already queued for this album", { duration: 4000 });
+        toast.warning("Research is already requested for this album", { duration: 4000 });
       } else {
-        toast.error("Could not queue job", {
+        toast.error("Could not request research", {
           description: (err as Error).message || undefined,
           duration: 4000,
         });
@@ -361,7 +360,7 @@ function SheetBody({
   // already proposed (an album with no cover gets the row on its own).
   const coverAlreadyProposed = corrections.rows.some((r) => r.kind === "cover");
   const offerMusicBrainzCover =
-    !isMissing && !isApplying && !activeJob && resolverOffersCover(resolution) && !coverAlreadyProposed;
+    !isMissing && !isApplying && !hasUnresolvedRequest && resolverOffersCover(resolution) && !coverAlreadyProposed;
   const onUseMusicBrainzCover = () => {
     setCoverRequested(true);
     setResolverDismissed(false);
@@ -374,9 +373,7 @@ function SheetBody({
 
   // When an apply finishes successfully — even if the panel has since moved
   // to another album or closed — propagate the updated album to the owner
-  // (so the tile re-renders with new cover/title/etc.) and, for a job's
-  // proposal, mark that job applied so it leaves the queue and the "needs
-  // review" badge.
+  // (so the tile re-renders with new cover/title/etc.).
   //
   // Cache invalidation is handled by the App-level useLibraryEventsStream
   // subscriber — the apply pipeline publishes AlbumTagsChanged (+
@@ -385,7 +382,6 @@ function SheetBody({
   // ["findings"], ["checks"] on its own.
   const onApply = () => {
     if (corrections.selectedCount === 0 || isApplying) return;
-    const jobId = reviewedJob?.id ?? null;
     const payload = corrections.payload();
     // The requested cover is part of this apply; once written, the album
     // has it and nothing is left to ask for.
@@ -393,14 +389,13 @@ function SheetBody({
     void apply.start(payload, {
       onUpdatedAlbum: (updated) => {
         onAlbumUpdated?.(updated);
-        if (jobId) markActedOn.mutate({ jobId, action: "applied" });
       },
     });
   };
 
   const onDiscard = () => {
     if (reviewedJob) {
-      markActedOn.mutate({ jobId: reviewedJob.id, action: "discarded" });
+      setJobDismissed(reviewedJob.id);
     } else {
       setResolverDismissed(true);
     }
@@ -430,7 +425,7 @@ function SheetBody({
     }
   };
 
-  const footerHasContent = isApplying || isMissing || reviewing || aiEntry;
+  const footerHasContent = isApplying || isMissing || reviewing || researchEntry;
 
   return (
     <>
@@ -480,7 +475,7 @@ function SheetBody({
         <AlbumHero
           album={displayAlbum}
           onUseMusicBrainzCover={offerMusicBrainzCover ? onUseMusicBrainzCover : undefined}
-          onAskAiForCover={aiEntry && !activeJob ? () => onAskAi("cover") : undefined}
+          onRequestCoverResearch={researchEntry && !hasUnresolvedRequest ? () => onRequestResearch("cover") : undefined}
         />
 
         {/* Missing: one message. What it says rests on the scan: a folder
@@ -491,11 +486,17 @@ function SheetBody({
           <MissingNotice since={displayAlbum.missing_since} path={displayAlbum.path} />
         )}
 
-        {/* In-flight job banner — shown while a job for THIS album is queued
-            or running. Queued jobs offer an inline Cancel; running jobs
-            can't be cancelled (the worker is mid-call). */}
+        {/* In-flight request banner — shown while a request for THIS album
+            is waiting or in progress. Cancel cancels the research behind
+            the card (POST /api/ai/jobs/{id}/cancel), never deletes it. */}
         {activeJob?.result?.delegated && <ResearchGroup job={activeJob} />}
-        {!activeJob && !ai.ready && !isMissing && !isApplying && <RequestResearch onRequest={(kind,hint)=>queueJob(kind,hint,false)} pending={enqueue.isPending} />}
+        {!activeJob && batchedItems.length > 0 && !isMissing && (
+          <BatchedRequestBanner
+            items={batchedItems}
+            onCancel={onCancelResearch}
+            cancelling={cancelGroup.isPending}
+          />
+        )}
         {isQueued && activeJob && !activeJob.result?.delegated && (
           <div className="mx-4 my-3 rounded-md border border-accent/40 bg-accent-soft p-3 text-sm flex items-center gap-2.5">
             <Loader2 className="w-4 h-4 spin text-accent shrink-0" />
@@ -507,21 +508,21 @@ function SheetBody({
                 {jobTypeBlurb(activeJob.job_type)} · you can close this panel and we'll let you know
               </div>
             </div>
-            {activeJob.status === "queued" && (
-              <button
-                onClick={onCancelQueued}
-                disabled={deleteJob.isPending}
-                className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 shrink-0"
-              >
-                {deleteJob.isPending ? "Cancelling…" : "Cancel"}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => void onCancelResearch(activeJob.id)}
+              disabled={cancelGroup.isPending}
+              title="Cancel this research request"
+              className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 shrink-0"
+            >
+              {cancelGroup.isPending ? "Cancelling…" : "Cancel"}
+            </button>
           </div>
         )}
 
-        {/* Failed-job banner — surfaces the most recent failure for this
-            album so the user can Retry / inspect inline, instead of navigating
-            to Review and finding the row. */}
+        {/* Failed-request banner — surfaces the most recent failure for
+            this album inline, instead of navigating to Review and finding
+            the row. */}
         {recentFailedJob?.result?.delegated && <ResearchGroup job={recentFailedJob} />}
         {recentFailedJob && !recentFailedJob.result?.delegated && (
           <div className="mx-4 my-3 rounded-md border border-err/40 bg-err-soft p-3 text-sm flex items-start gap-2.5">
@@ -538,19 +539,6 @@ function SheetBody({
               )}
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                onClick={() => onRetryFailed(recentFailedJob.id)}
-                disabled={retryJob.isPending || !canRetryFailed}
-                title={
-                  canRetryFailed
-                    ? undefined
-                    : "This job can be retried once MusicBrainz covers this album."
-                }
-                className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 inline-flex items-center gap-1"
-              >
-                <RotateCcw className="w-3 h-3" />
-                Retry
-              </button>
               <Link
                 to={`/review?job=${encodeURIComponent(recentFailedJob.id)}`}
                 className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition inline-flex items-center"
@@ -570,7 +558,7 @@ function SheetBody({
           <CorrectionsDiff
             album={displayAlbum}
             title={
-              corrections.source === "job" && ai.ready
+              corrections.source === "job"
                 ? "Suggested corrections"
                 : "MusicBrainz corrections"
             }
@@ -588,7 +576,7 @@ function SheetBody({
         )}
 
         <Section id="album-info" title="Album info">
-          <PropTable album={displayAlbum} aiReady={ai.ready} />
+          <PropTable album={displayAlbum} />
         </Section>
 
         {/* Findings. Hidden on Missing albums: their open findings persist
@@ -660,10 +648,9 @@ function SheetBody({
         )}
       </div>
 
-      {/* Hint dialog — the AI entry points' only door; never opened
-          without a ready AI backend. */}
+      {/* Hint dialog — the door to every research request made here. */}
       <HintDialog
-        open={pendingType !== null && offersHintEntry(ai)}
+        open={pendingType !== null}
         mode={pendingType ?? "metadata"}
         albumTitle={displayAlbum.title || displayAlbum.dir_name}
         priorCoverAttempts={
@@ -671,10 +658,6 @@ function SheetBody({
             ? priorCoverAttempts
             : []
         }
-        // Drives whether the "Include album cover" checkbox renders
-        // in the dialog. Toggle is meaningful only for metadata jobs
-        // on albums that actually have a cover to attach.
-        hasCover={displayAlbum.has_embedded_cover || !!displayAlbum.cover_file}
         onSubmit={onHintSubmit}
         onCancel={() => setPendingType(null)}
       />
@@ -701,20 +684,20 @@ function SheetBody({
           </>
         ) : (
           <>
-            {aiEntry && (
+            {researchEntry && (
               <button
                 type="button"
-                onClick={() => onAskAi("metadata")}
-                disabled={!!activeJob}
+                onClick={() => onRequestResearch("metadata")}
+                disabled={hasUnresolvedRequest}
                 className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition disabled:opacity-60 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
-                title={activeJob ? "An AI job already exists for this album" : undefined}
+                title={hasUnresolvedRequest ? "Research is already requested for this album" : undefined}
               >
                 <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                <span>Ask AI for corrections…</span>
+                <span>Request research…</span>
               </button>
             )}
             <div className="flex-1" />
-            <MoreMenu disabled={!!activeJob} />
+            <MoreMenu disabled={hasUnresolvedRequest} />
             {reviewing && (
               <>
                 <button
@@ -723,7 +706,7 @@ function SheetBody({
                   className="h-8 px-3 border border-line rounded text-sm text-fg-2 hover:bg-bg-3 transition inline-flex items-center whitespace-nowrap shrink-0"
                   title={
                     reviewedJob
-                      ? "Discard this job's proposal"
+                      ? "Hide this proposal until the album is opened again"
                       : "Hide these corrections until the album is opened again"
                   }
                 >
@@ -814,6 +797,62 @@ function MissingNotice({ since, path }: { since: string; path: string }) {
           stays here until you remove it.
         </p>
       </div>
+    </div>
+  );
+}
+
+/** The delegated work states a request is unresolved in. */
+const UNRESOLVED = new Set<DelegatedWorkItem["state"]>(["queued", "claimed", "running", "awaiting_review"]);
+/** Of those, the ones Cancel acts on (awaiting review is decided in Review). */
+const CANCELLABLE = new Set<DelegatedWorkItem["state"]>(["queued", "claimed", "running"]);
+
+/**
+ * The album's requests from a Fix all run (no job card of their own): what
+ * state they are in, Cancel while any is waiting, held or running, and the
+ * way to Review for one awaiting review.
+ */
+function BatchedRequestBanner({
+  items,
+  onCancel,
+  cancelling,
+}: {
+  items: DelegatedWorkItem[];
+  onCancel: (groupId: string) => Promise<void>;
+  cancelling: boolean;
+}) {
+  const cancellable = items.find((i) => CANCELLABLE.has(i.state) && i.groupId);
+  const awaiting = items.some((i) => i.state === "awaiting_review");
+  const label = awaiting
+    ? "Ready to review"
+    : items.some((i) => i.state === "claimed" || i.state === "running")
+      ? "In progress"
+      : "Waiting for an assistant";
+  return (
+    <div className="mx-4 my-3 rounded-md border border-accent/40 bg-accent-soft p-3 text-sm flex items-center gap-2.5">
+      {!awaiting && <Loader2 className="w-4 h-4 spin text-accent shrink-0" />}
+      <div className="flex-1 min-w-0">
+        <div className="font-medium text-fg">{label}</div>
+        <div className="text-xs text-fg-3 mt-0.5">Research requested by Fix all</div>
+      </div>
+      {cancellable?.groupId && (
+        <button
+          type="button"
+          onClick={() => void onCancel(cancellable.groupId!)}
+          disabled={cancelling}
+          title="Cancel this research request"
+          className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition disabled:opacity-60 shrink-0"
+        >
+          {cancelling ? "Cancelling…" : "Cancel"}
+        </button>
+      )}
+      {awaiting && (
+        <Link
+          to="/review"
+          className="h-7 px-2.5 border border-line bg-panel rounded text-xs text-fg-2 hover:bg-bg-3 hover:text-fg transition inline-flex items-center shrink-0"
+        >
+          View in Review
+        </Link>
+      )}
     </div>
   );
 }

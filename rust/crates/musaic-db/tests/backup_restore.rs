@@ -98,6 +98,31 @@ fn counts_match_the_python_app() {
     assert_eq!(json!(info.counts), g["fixture_counts"]["counts"]);
 }
 
+/// The `ai_jobs` count keeps its key across schema v24: an older file (an
+/// upload, a backup listed before it is restored) counts its old job table;
+/// from v24 it counts research requests of every epoch plus history-only
+/// records, so a combined job counts as its two requests.
+#[test]
+fn research_counts_keep_the_ai_jobs_key() {
+    let t = tempfile::tempdir().unwrap();
+    let old = t.path().join("v23.db");
+    std::fs::copy(musaic_testdata::public("db/v23-jobs.db"), &old).unwrap();
+    assert_eq!(backup::validate_upload(&old).unwrap().counts["ai_jobs"], 10);
+    let (db, _) = Db::open(&old).unwrap();
+    // Ten old jobs: two combined (two requests each), one `lyrics`
+    // (history-only, no request): 11 requests + 1 record.
+    assert_eq!(backup::gather_counts(db.connection())["ai_jobs"], 12);
+    // Clear-like removal of requests: a record whose requests are gone is
+    // history-only and counts once.
+    db.connection()
+        .execute_batch(
+            "PRAGMA foreign_keys = OFF; DELETE FROM delegated_work; PRAGMA foreign_keys = ON;",
+        )
+        .unwrap();
+    assert_eq!(backup::gather_counts(db.connection())["ai_jobs"], 10);
+    assert_eq!(backup::db_info(&db).counts["ai_jobs"], 10);
+}
+
 /// Download name and the named backup file.
 #[test]
 fn backup_files_are_named_like_the_python_app() {

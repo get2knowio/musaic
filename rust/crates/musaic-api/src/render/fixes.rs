@@ -132,14 +132,27 @@ pub fn quick_fix_payload(e: &QuickFixEvent) -> Json {
             ("outcome", Json::from(outcome.as_str())),
             ("message", Json::from(message.as_str())),
         ]),
-        QuickFixEvent::Done(s) => Json::obj([
-            ("total", Json::from(s.total)),
-            ("fixed", Json::from(s.fixed)),
-            ("skipped", Json::from(s.skipped)),
-            ("errors", Json::from(s.errors)),
-            ("not_applicable", Json::from(s.not_applicable)),
-            ("still_open", Json::from(s.still_open)),
-        ]),
+        QuickFixEvent::Done(s) => {
+            let mut pairs: Vec<(String, Json)> = vec![
+                ("total".into(), Json::from(s.total)),
+                ("fixed".into(), Json::from(s.fixed)),
+                ("skipped".into(), Json::from(s.skipped)),
+                ("errors".into(), Json::from(s.errors)),
+                ("not_applicable".into(), Json::from(s.not_applicable)),
+                ("still_open".into(), Json::from(s.still_open)),
+            ];
+            // Only for a run with research asked for, so a resolver-only
+            // run's frame stays what it always was.
+            if let Some(r) = &s.research {
+                pairs.push(("sent_for_research".into(), Json::from(r.sent_for_research)));
+                pairs.push(("already_requested".into(), Json::from(r.already_requested)));
+                pairs.push((
+                    "batch_id".into(),
+                    r.batch_id.clone().map_or(Json::Null, Json::Str),
+                ));
+            }
+            Json::Obj(pairs)
+        }
         QuickFixEvent::Error { detail } => Json::obj([("detail", Json::from(detail.as_str()))]),
     }
 }

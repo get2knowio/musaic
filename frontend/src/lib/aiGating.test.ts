@@ -1,46 +1,6 @@
 import { describe, it, expect } from "vitest";
-import {
-  aiStatus,
-  canQueueJob,
-  fixIsMusicBrainzOnly,
-  jobNeedsModel,
-  modelFreeCoverage,
-  offersHintEntry,
-  type AiStatus,
-} from "@/lib/aiGating";
-import type { AiProvidersResponse } from "@/lib/api";
+import { modelFreeCoverage } from "@/lib/aiGating";
 import type { AlbumResolution } from "@/lib/types";
-
-// The body the no-model build answers for GET /api/ai/providers
-// (rust/crates/musaic-api/src/routes/jobs.rs ai_providers + the
-// Unconfigured provider in musaic-ai/src/provider.rs): the stored
-// selection still says "claude", the one listed provider is not ready.
-const UNCONFIGURED: AiProvidersResponse = {
-  selected: { provider_id: "claude", model_id: "claude-sonnet-4-6", api_key_set: false },
-  providers: [
-    {
-      id: "unconfigured",
-      accepts_api_key: false,
-      auth_hint: "This build has no AI backend configured.",
-      ready: false,
-      requirement: "an AI backend",
-      remedy: "This build has no AI backend configured.",
-    },
-  ],
-  uninstalled: [],
-};
-
-const provider = (id: string, ready: boolean) => ({
-  id,
-  accepts_api_key: true,
-  auth_hint: null,
-  ready,
-  requirement: null,
-  remedy: null,
-});
-
-const READY: AiStatus = { known: true, ready: true, anyReady: true };
-const NOT_READY: AiStatus = { known: true, ready: false, anyReady: false };
 
 function resolution(over: {
   anchor?: number | null;
@@ -55,55 +15,7 @@ function resolution(over: {
   } as unknown as AlbumResolution;
 }
 
-describe("aiStatus", () => {
-  it("is not ready for the no-model build's providers answer", () => {
-    expect(aiStatus(UNCONFIGURED)).toEqual({ known: true, ready: false, anyReady: false });
-  });
-
-  it("is unknown (and not ready) before the answer arrives", () => {
-    expect(aiStatus(undefined)).toEqual({ known: false, ready: false, anyReady: false });
-  });
-
-  it("follows the selected provider when it is listed", () => {
-    const data: AiProvidersResponse = {
-      selected: { provider_id: "copilot", model_id: "m", api_key_set: false },
-      providers: [provider("claude", true), provider("copilot", false)],
-      uninstalled: [],
-    };
-    // The worker would use copilot, which can't run: not ready, but the
-    // settings keep the provider picker (another provider is ready).
-    expect(aiStatus(data)).toEqual({ known: true, ready: false, anyReady: true });
-  });
-
-  it("is ready when the selected provider is ready", () => {
-    const data: AiProvidersResponse = {
-      selected: { provider_id: "claude", model_id: "m", api_key_set: true },
-      providers: [provider("claude", true)],
-      uninstalled: [],
-    };
-    expect(aiStatus(data).ready).toBe(true);
-  });
-
-  it("uses the only provider when the selection names none of them", () => {
-    const data: AiProvidersResponse = {
-      selected: { provider_id: "claude", model_id: "m", api_key_set: false },
-      providers: [provider("only", true)],
-      uninstalled: [],
-    };
-    expect(aiStatus(data).ready).toBe(true);
-  });
-
-  it("is not ready when the selection names none of several providers", () => {
-    const data: AiProvidersResponse = {
-      selected: { provider_id: "gone", model_id: "m", api_key_set: false },
-      providers: [provider("a", true), provider("b", true)],
-      uninstalled: [],
-    };
-    expect(aiStatus(data)).toEqual({ known: true, ready: false, anyReady: true });
-  });
-});
-
-describe("modelFreeCoverage (the worker's thresholds)", () => {
+describe("modelFreeCoverage (the resolver's thresholds)", () => {
   it("covers metadata at anchor confidence 0.85 with every track resolved", () => {
     expect(modelFreeCoverage(resolution({ anchor: 0.85 })).metadata).toBe(true);
     expect(modelFreeCoverage(resolution({ anchor: 0.84 })).metadata).toBe(false);
@@ -119,45 +31,5 @@ describe("modelFreeCoverage (the worker's thresholds)", () => {
 
   it("covers nothing while the resolution is loading", () => {
     expect(modelFreeCoverage(undefined)).toEqual({ metadata: false, cover: false });
-  });
-});
-
-describe("jobNeedsModel / canQueueJob", () => {
-  const both = { metadata: true, cover: true };
-  const metaOnly = { metadata: true, cover: false };
-  const none = { metadata: false, cover: false };
-
-  it("needs a model unless the resolver covers every part of the job", () => {
-    expect(jobNeedsModel("metadata", metaOnly)).toBe(false);
-    expect(jobNeedsModel("cover", metaOnly)).toBe(true);
-    expect(jobNeedsModel("metadata+cover", metaOnly)).toBe(true);
-    expect(jobNeedsModel("metadata+cover", both)).toBe(false);
-  });
-
-  it("without AI, queues only covered jobs", () => {
-    expect(canQueueJob("metadata", metaOnly, NOT_READY)).toBe(true);
-    expect(canQueueJob("cover", metaOnly, NOT_READY)).toBe(false);
-    expect(canQueueJob("metadata", none, NOT_READY)).toBe(false);
-  });
-
-  it("with AI, queues anything (the Python version's behaviour)", () => {
-    expect(canQueueJob("metadata", none, READY)).toBe(true);
-    expect(canQueueJob("metadata+cover", none, READY)).toBe(true);
-  });
-});
-
-describe("hint entry and ai-job fixes", () => {
-  it("offers hint entry only when AI is ready", () => {
-    expect(offersHintEntry(READY)).toBe(true);
-    expect(offersHintEntry(NOT_READY)).toBe(false);
-  });
-
-  // ai-job fixes are always offered; without a ready provider
-  // they run MusicBrainz only.
-  it("marks ai-job fixes MusicBrainz-only exactly when AI is not ready", () => {
-    expect(fixIsMusicBrainzOnly("ai-job", NOT_READY)).toBe(true);
-    expect(fixIsMusicBrainzOnly("ai-job", READY)).toBe(false);
-    expect(fixIsMusicBrainzOnly("deterministic", NOT_READY)).toBe(false);
-    expect(fixIsMusicBrainzOnly("none", NOT_READY)).toBe(false);
   });
 });

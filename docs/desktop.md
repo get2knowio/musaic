@@ -57,7 +57,7 @@ Closing the window, Cmd-Q, `AppHandle::exit`, SIGTERM / SIGINT / SIGHUP on Unix
 and Ctrl-C on Windows all end in Tauri's exit event: every SSE stream is ended,
 the server drains for up to 3 seconds (then remaining connections are aborted),
 the application shuts down (a running library scan cancelled, so it saves nothing
-and starts nothing, and waited for; fingerprint pool joined, job worker stopped,
+and starts nothing, and waited for; fingerprint pool joined,
 the threads of agent operations asked to stop at their next item and joined) and
 the instance file and the agent descriptor are removed. No child processes are ever spawned,
 except, on Windows, the system's `whoami.exe` and `icacls.exe`, run briefly and without a
@@ -66,8 +66,8 @@ window to give the agent descriptor its owner-only access control list.
 ### Quitting while work runs
 
 Quitting while something is in progress (a scan, an apply, an analysis, a
-restore, a check run, a bulk quick fix, a job, the fingerprint pool, any other
-write) first asks "Quit anyway?" with **Quit** / **Keep running**; an idle app
+restore, a check run, a bulk quick fix, the fingerprint pool, any other
+write, or research an assistant has claimed) first asks "Quit anyway?" with **Quit** / **Keep running**; an idle app
 quits at once. The rule lives in `musaic_api::WorkSnapshot::quit_prompt` and
 `src/quit.rs` (one prompt at a time; once the user said Quit, the window close
 and exit request that follow are not asked again); the native dialog is shown
@@ -106,10 +106,10 @@ app menu, so there only the close button, the last window and signals apply.
   scripts, styles, fonts, images and connections from the app's own origin only
   (`img-src` also allows `data:` and `blob:`), no frames or objects. The IBM
   Plex fonts are bundled with the UI. A proposed remote cover is shown through
-  a same-origin route: `GET /api/ai/jobs/{job_id}/cover-preview` (the URL the
-  job stored) or `GET /api/albums/{album_id}/cover-preview` (the Cover Art
-  Archive front of the album's MusicBrainz anchor). The request names a job or
-  an album, never a URL; the server fetches under the cover-download rules below.
+  a same-origin route: `GET /api/ai/jobs/{job_id}/cover-preview` (the URL a
+  research result stored) or `GET /api/albums/{album_id}/cover-preview` (the Cover Art
+  Archive front of the album's MusicBrainz anchor). The request names a research
+  request or an album, never a URL; the server fetches under the cover-download rules below.
 - **No IPC.** No capabilities, no `#[tauri::command]`s, `withGlobalTauri: false`.
   The dialog, opener and window-state plugins are registered but called from
   Rust only; the opener's own link-click script is switched off. Native menu
@@ -267,7 +267,7 @@ address) so the guard can check both. `musaic-api`'s loopback server writes
 The webview manages pairings and decides approvals through the ordinary `/api/agent/*`
 routes (launch cookie required), refreshed by the `AgentStateChanged` bus event.
 
-Research requests and the operations behind MCP Tasks are stored in the same library database as the albums. The desktop resolves an album locally when it can. An assistant can claim unresolved metadata or cover research while the bridge is running. Review groups the results by album request. Approving a proposal checks the current files and saves a before-image for Undo.
+Research requests and the operations behind MCP Tasks are stored in the same library database as the albums. Musaic has no built-in model and starts no agent: the desktop resolves an album locally when it can, and an assistant you added can claim unresolved metadata or cover research while the bridge is running. A bulk Fix all can send what the resolver cannot settle as one batch of requests. Review groups the results by album request. Approving a proposal checks the current files and saves a before-image for Undo.
 
 The quit dialog lists external claims separately from local work. Closing the app leaves those claims to expire. Reopening with the same library preserves an unexpired claim. Restoring a database or switching libraries invalidates existing claims and Task handles.
 

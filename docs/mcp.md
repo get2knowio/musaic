@@ -30,7 +30,7 @@ session gets `-32601` (method not found) for `skills/*` and `events/*`. A host m
 the Events extension in its per-request capabilities; Musaic serves `events/*` either way, as
 the Events specification makes the client's declaration optional.
 `musaic_capabilities.extensions` lists what the server offers; what your host negotiated is
-on the pairing in **Settings, Agents** ("reported by the host").
+on the assistant in **Settings, Assistants** ("reported by the host").
 
 ## The skill
 
@@ -84,6 +84,10 @@ Digests are verifiable; activation and consent are not something the skill can c
    matches the bundled one.
 
 The skill's version is `metadata.version` in `SKILL.md` and is independent of the app's.
+Version 1.1.0 teaches batches: when several `requested` events with the same `batchId`
+arrive, list the work by `batchId`, claim with `musaic_work_claim_many` (up to 25 at a time)
+and renew with `musaic_work_renew_many`; each item is still completed, failed or released
+on its own.
 `musaic-cli catalog --check` fails when any served byte differs from the committed lock
 (`skill.lock.json`) without a version change.
 
@@ -95,8 +99,9 @@ Events say that delegated work changed; they carry no text. Two event types
 - `musaic.work.requested.v1`: work became available (created, requeued, released or retried).
 - `musaic.work.updated.v1`: any other change of a work item's state.
 
-Each event's `data` holds exactly `workId`, `kind`, `state`, `revision` and `libraryEpoch`.
-To act, read the work with `musaic_work_get`. Delivery is **at least once**: deduplicate by
+Each event's `data` holds `workId`, `kind`, `state`, `revision` and `libraryEpoch`, and
+`batchId` when the request was made by a bulk **Fix all** run (an opaque reference, no
+text). To act, read the work with `musaic_work_get`. Delivery is **at least once**: deduplicate by
 `eventId` and rely on the atomic claim, so two agents hearing the same event cannot both
 claim the work.
 
@@ -107,6 +112,31 @@ than `maxAgeMs` is answered with `truncated: true`, no events and a fresh cursor
 error. After a `truncated` answer (and after every reconnect) list the queued work again
 with `musaic_work_list`, then continue from the new cursor. A poll with no cursor returns no
 events and the current cursor, so list work first, then poll.
+
+**Compatibility.** Since skill 1.1.0, work event payloads may carry `batchId`. The field is
+optional and additive, so the event types stay `.v1`. Read the payload schema from
+`events/list` rather than a cached copy: a client that validates against the earlier schema
+with `additionalProperties: false` will reject events that carry it. The batch is stored
+with the event's history row, so a poll returns it even after the request is cleared.
+
+### Batches
+
+A bulk **Fix all** run with research on makes one research request per album the resolver
+could not settle, all with the same `batchId`. Two tools handle them without one call per
+item:
+
+- `musaic_work_claim_many` (`batchId` and `kind` optional, `max` 1 to 25, default 25, and an
+  `idempotencyKey`) claims up to `max` eligible queued requests in one transaction, oldest
+  first. Fewer than asked is not an error; a request whose album changed since it was
+  queued is skipped. Retrying with the same key returns the same claims; the same key with
+  a different input is `IDEMPOTENCY_CONFLICT`.
+- `musaic_work_renew_many` (`leases`, 1 to 25 distinct `workId`s)
+  renews each lease (its token and claim generation) as `musaic_work_renew` would, and reports `renewed` and `refused` per
+  item.
+
+`musaic_work_list` takes an optional `batchId` filter. Both tools need the same permissions
+as the single claim and renew (read access and proposal submission). The single-item tools
+behave as before.
 
 | Method | What it does |
 |---|---|
@@ -127,23 +157,23 @@ to this session.
 
 ## Connecting your own agent host
 
-You run the agent; Musaic never starts one. Pair it in **Settings, Agents**, connect it with
+You run the agent; Musaic never starts one. Add it in **Settings, Assistants**, connect it with
 `musaic-cli setup` (or add the entry by hand, see [agents.md](agents.md)), then check
 `musaic-cli doctor`.
 
-Settings, Agents shows four **separate facts** per pairing, each with the time it was last
-true, and no single "ready": *Paired*, *Bridge reachable* (the pairing last made an
-authenticated request), *Subscription active* (a stream is open, or the host polled for events in
-the last 90 seconds) and *Last work claimed*. Beside them is what the host reported about
+Settings, Assistants shows four **separate facts** per assistant, each with the time it was
+last true, and no single "ready": *Added*, *Connected* (the assistant last made an
+authenticated request), *Listening for work* (a stream is open, or the host polled for
+events in the last 90 seconds) and *Last request picked up*. Beside them is what the host reported about
 itself (name, version, protocol profile, which extensions it declared), shown as reported by
 the host, since Musaic cannot verify it. In-memory facts reset when Musaic restarts.
 
 Review shows **Delegated work** by state, with the holder, when it was last heard from and
-when its claim lapses, **"Waiting for an agent"** for queued work while no pairing has an
+when its claim lapses, **"Waiting for an assistant"** for queued work while no pairing has an
 active subscription, and Retry for failed or cancelled work.
 
 Whether an agent wakes up by itself depends on the host. If yours has no events or schedule
-support, use **Process pending Musaic work** in Settings, Agents: copy the instruction and
+support, use **Process pending Musaic work** in Settings, Assistants: copy the instruction and
 give it to the agent when you want it to work (or set up your host's own schedule or hook
 yourself). Musaic does not imply that a host polls.
 

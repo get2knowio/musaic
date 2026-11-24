@@ -394,13 +394,25 @@ impl Apply<'_> {
     pub fn job_cover_preview(&self, job_id: &str) -> Result<CoverPreview, OpError> {
         let url = {
             let conn = musaic_db::open_connection(self.app.db_path())?;
-            let job =
-                musaic_db::ai_jobs::get_job(&conn, job_id)?.ok_or_else(|| OpError::NotFound {
-                    details: None,
-                    what: Subject::Job,
-                    id: job_id.to_string(),
-                    message: "Job not found".into(),
-                })?;
+            // The jobs list names an old job that a migration linked to
+            // requests by its card (the requests' group); its stored result
+            // is the history record those requests name.
+            let record = match musaic_db::research_history::get(&conn, job_id)? {
+                Some(job) => Some(job),
+                None => match musaic_db::research_jobs::group(&conn, job_id)?
+                    .into_iter()
+                    .find_map(|w| w.legacy_job_id)
+                {
+                    Some(legacy) => musaic_db::research_history::get(&conn, &legacy)?,
+                    None => None,
+                },
+            };
+            let job = record.ok_or_else(|| OpError::NotFound {
+                details: None,
+                what: Subject::Job,
+                id: job_id.to_string(),
+                message: "Job not found".into(),
+            })?;
             stored_cover_url(job.result_json.as_deref())
                 .ok_or_else(|| no_cover(job_id, NO_COVER_URL))?
         };

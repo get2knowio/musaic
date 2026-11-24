@@ -443,3 +443,22 @@ pub fn scan_sanity_check(
         ),
     })
 }
+
+/// `cache.record_mb_lookup_failure`: stamps `mb_last_checked_at` on an album
+/// that has no release-group anchor ("tried, no match").
+pub fn record_mb_lookup_failure(conn: &Connection, album_id: &str, now_iso: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE albums SET mb_last_checked_at = ?1 WHERE id = ?2 AND mb_release_group_mbid IS NULL",
+        params![now_iso, album_id],
+    )?;
+    Ok(())
+}
+
+/// `cache.mark_metadata_ai_acted_on`.
+pub fn mark_metadata_ai_acted_on(conn: &Connection, album_id: &str, now_iso: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE albums SET metadata_ai_acted_on_at = ?1 WHERE id = ?2",
+        params![now_iso, album_id],
+    )?;
+    Ok(())
+}

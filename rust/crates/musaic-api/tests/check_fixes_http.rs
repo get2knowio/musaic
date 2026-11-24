@@ -13,21 +13,17 @@
 //! SSE text for quick-fix-all), bus events and the state after the step.
 //! Finding ids are mapped by (check, album, summary).
 //!
-//! The eight steps where the Python app enqueued an AI job
-//! (or answered its conflict) are now compared as recorded: `{ok, message,
-//! job_id}` (ids masked `<JOB>` on both sides, as the generator records
-//! them) and the `ai_jobs` rows (album, type, hint, status) after every step.
-//! The fix that writes first and then enqueues ("fix tags-out-of-sync
-//! resolver") answers as the Python app. The state is built without
-//! lifespan, so no AI worker runs (as in the Python app's recording). These runs
-//! give the app a provider with a model backend (never called): the Python
-//! app's enqueue is kept only then.
-//!
-//! With this build's default
-//! provider (no model backend) the same eight steps answer `{ok: false,
-//! message: <not-available message>, job_id: null}` and nothing is queued;
-//! every other fix step answers as recorded
-//! ([`without_a_model_backend_fixes_answer_not_available`]).
+//! The eight steps where the Python app enqueued an AI job (or answered
+//! its conflict) record a research request since every build delegates
+//! (the golden's `_meta.rust_changes`): `{ok, message, job_id}` with the
+//! request group's id masked `<JOB>` and checked to name a research group,
+//! the `AgentStateChanged` work event (item ids masked `<WORK>`), and under
+//! `ai_jobs` the request groups in job vocabulary (album, job type, hint,
+//! status; `RESEARCH_REQUESTS`) after every step. The fix that writes first
+//! and then requests research ("fix tags-out-of-sync resolver") prefixes
+//! what it wrote. A second Fix of the same album and kind returns the
+//! unresolved request it already has. The state is built without lifespan,
+//! as in the Python app's recording.
 //!
 //! Enumerated deltas (each must be used; anything else fails):
 //! - after "rename files" the Echo sidecar follows the moved
@@ -44,7 +40,7 @@
 //!   "Remove from library"), which must give exactly the Python app's recorded
 //!   state (AlbumDeleted, as the Python app published), so later steps compare
 //!   unchanged.
-//! - Without a model backend: quick-fix-all's
+//! - quick-fix-all's
 //!   unidentified-album skip messages lose ", or use the per-finding Fix to
 //!   escalate to AI": musaic-services tests/deltas/check_fixes.rs.
 //! - quick-fix-all reruns its check over the albums whose fix reported
@@ -87,6 +83,19 @@ const TAG_KEYS: [&str; 5] = [
     "ARTISTSORT",
 ];
 const CLUSTER_CHECK: &str = "inconsistent-artist-sort";
+
+/// The research requests in the old job vocabulary the golden records under
+/// `ai_jobs`: one row per request group (one review card), with the album,
+/// the job type its kinds map back to, the hint and the job-style status.
+const RESEARCH_REQUESTS: &str = "SELECT album_id, \
+       CASE WHEN SUM(kind = 'cover.research') = 0 THEN 'metadata' \
+            WHEN SUM(kind <> 'cover.research') = 0 THEN 'cover' \
+            ELSE 'metadata+cover' END, \
+       COALESCE(json_extract(MIN(input_json), '$.hint'), ''), \
+       CASE MIN(state) WHEN 'queued' THEN 'queued' WHEN 'claimed' THEN 'running' \
+            WHEN 'running' THEN 'running' WHEN 'awaiting_review' THEN 'completed' \
+            ELSE MIN(state) END \
+     FROM delegated_work GROUP BY group_id";
 
 /// The generator's stubs (musaic-services' golden test mirrors the same).
 #[derive(Default)]
@@ -175,9 +184,23 @@ impl Run {
         }
     }
 
+    /// The bus events since the last call; the work item ids an
+    /// `AgentStateChanged` names are random, masked `<WORK>` as the golden
+    /// records them.
     fn events(&self) -> Vec<Value> {
         let mut l = self.w.log.lock().unwrap();
-        let out = l.iter().map(|e| self.nv(&svc::event_json(e))).collect();
+        let out = l
+            .iter()
+            .map(|e| {
+                let mut v = self.nv(&svc::event_json(e));
+                if v["type"] == "AgentStateChanged"
+                    && let Some(ids) = v["ids"].as_array_mut()
+                {
+                    ids.iter_mut().for_each(|i| *i = json!("<WORK>"));
+                }
+                v
+            })
+            .collect();
         l.clear();
         out
     }
@@ -268,7 +291,7 @@ impl Run {
             "albums": self.rows(&conn, "SELECT id, path, dir_name, track_count, album_artist_sort, missing_since FROM albums"),
             "track_tags": self.rows(&conn, "SELECT album_id, filename, tag FROM track_tags"),
             "track_fingerprints": self.rows(&conn, "SELECT album_id, filename FROM track_fingerprints"),
-            "ai_jobs": self.rows(&conn, "SELECT album_id, job_type, hint, status FROM ai_jobs"),
+            "ai_jobs": self.rows(&conn, RESEARCH_REQUESTS),
             "open_findings": self.rows(&conn, "SELECT check_id, album_id, summary FROM check_findings WHERE resolved_at IS NULL AND ignored_at IS NULL"),
         })
     }
@@ -295,24 +318,11 @@ fn canon(v: &Value) -> Value {
     v
 }
 
-/// A provider with a model backend behind it (never called: no worker runs
-/// here). The Python app's recording enqueued its jobs whatever its provider;
-/// this build keeps that only when a backend exists.
-fn backend() -> Option<Arc<dyn musaic_ai::Provider>> {
-    Some(Arc::new(musaic_ai::provider::replay::ReplayProvider::new(
-        "claude",
-    )))
-}
-
 async fn setup(g: &Value) -> Run {
-    setup_with(g, None, backend()).await
+    setup_with(g, None).await
 }
 
-async fn setup_with(
-    g: &Value,
-    pause: Option<musaic_api::state::Pause>,
-    provider: Option<Arc<dyn musaic_ai::Provider>>,
-) -> Run {
+async fn setup_with(g: &Value, pause: Option<musaic_api::state::Pause>) -> Run {
     let mut extra = Vec::new();
     for st in g["steps"].as_array().unwrap() {
         if let Some(n) = st["args"]["dir_rename"]["new"].as_str() {
@@ -326,14 +336,9 @@ async fn setup_with(
         let counting: musaic_api::state::Pause = Arc::new(move || {
             p.fetch_add(1, Ordering::SeqCst);
         });
-        let b = b
-            .fix_sources(s1)
+        b.fix_sources(s1)
             .checks_resolution(s2)
-            .quick_fix_pause(pause.unwrap_or(counting));
-        match provider {
-            Some(p) => b.ai_provider(p),
-            None => b,
-        }
+            .quick_fix_pause(pause.unwrap_or(counting))
     });
     w.configure_and_scan().await;
     {
@@ -477,12 +482,8 @@ async fn check_fix_routes_replay_the_python_app() {
         canon(&g["initial_state"]),
         "state after setup"
     );
-    assert!(
-        !run.w.state.ai_worker_running(),
-        "no lifespan: no AI worker"
-    );
     let mut used = BTreeMap::from([
-        ("AI jobs enqueued", 0usize),
+        ("research requested", 0usize),
         ("sidecar after rename", 0),
         ("rename refusal sentence", 0),
         ("delete unreachable", 0),
@@ -498,6 +499,7 @@ async fn check_fix_routes_replay_the_python_app() {
     let mut rerun_resolved: Vec<Value> = Vec::new();
     let mut rerun_opened: Vec<Value> = Vec::new();
     let mut used_rerun = 0;
+    let mut last_group: Option<String> = None;
 
     for st in g["steps"].as_array().unwrap() {
         let label = st["label"].as_str().unwrap();
@@ -520,8 +522,15 @@ async fn check_fix_routes_replay_the_python_app() {
         } else {
             run.nv(&got.json())
         };
-        // The generator records AI job ids as <JOB>.
-        if body.get("job_id").is_some_and(Value::is_string) {
+        // The generator records job ids as <JOB>. Ours names the research
+        // request group the Fix made or found (one review card).
+        let group = body["job_id"].as_str().map(str::to_owned);
+        if let Some(group) = &group {
+            let items = musaic_db::research_jobs::group(&run.w.conn(), group).unwrap();
+            assert!(
+                !items.is_empty(),
+                "{label}: {group} names no research request"
+            );
             body["job_id"] = json!("<JOB>");
         }
         let mut step_resolved: Vec<Value> = Vec::new();
@@ -563,8 +572,15 @@ async fn check_fix_routes_replay_the_python_app() {
             .contains(&json!("needs-ai-job"))
             || label == "fix tags-out-of-sync resolver"
         {
-            // Matches the Python app (no delta); counted.
-            *used.get_mut("AI jobs enqueued").unwrap() += 1;
+            // Recorded as a research request (the golden's `rust_changes`).
+            *used.get_mut("research requested").unwrap() += 1;
+            assert!(group.is_some(), "{label}: no research request");
+            if label == "fix no-cover-art again (job conflict)" {
+                // The unresolved request of that album and kind is returned,
+                // not a second one.
+                assert_eq!(group, last_group, "{label}: same request");
+            }
+            last_group.clone_from(&group);
         }
         if st["unknowns"]
             .as_array()
@@ -712,7 +728,7 @@ async fn check_fix_routes_replay_the_python_app() {
         }
         prev_state = st["state"].clone();
     }
-    assert_eq!(used["AI jobs enqueued"], 8, "AI-queue steps");
+    assert_eq!(used["research requested"], 8, "research request steps");
     assert_eq!(used["sidecar after rename"], 1);
     assert_eq!(used["rename refusal sentence"], 1);
     assert_eq!(used["delete unreachable"], 1);
@@ -726,54 +742,6 @@ async fn check_fix_routes_replay_the_python_app() {
         tokio::time::sleep(std::time::Duration::from_millis(5)).await;
     }
     assert_eq!(run.w.state.gate().snapshot(), (0, false), "gate released");
-}
-
-// With the production provider-free builder, unresolved fixes are durable requests.
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn without_a_model_backend_fixes_queue_research() {
-    let g = svc::load_golden("check_fixes.json");
-    let run = setup_with(&g, None, None).await;
-    let ids = Ids::new(&run, &g);
-    let mut delegated = 0;
-    let mut as_recorded = 0;
-    for st in g["steps"].as_array().unwrap() {
-        if st["op"] != "fix_finding" {
-            continue;
-        }
-        let label = st["label"].as_str().unwrap();
-        let got = run.w.send(&ids.request(&st["request"])).await;
-        let body = run.nv(&got.json());
-        let _ = run.events();
-        let ai_step = st["unknowns"]
-            .as_array()
-            .unwrap()
-            .contains(&json!("needs-ai-job"))
-            || label == "fix tags-out-of-sync resolver";
-        if ai_step {
-            assert_eq!(got.status, 200, "{label}");
-            assert_eq!(body["ok"], true, "{label}: {body}");
-            let actual = got.json();
-            let group = actual["job_id"].as_str().expect("review group");
-            let items = musaic_db::research_jobs::group(&run.w.conn(), group).unwrap();
-            assert!(!items.is_empty(), "{label}");
-            if label == "fix tags-out-of-sync resolver" {
-                assert!(
-                    body["message"]
-                        .as_str()
-                        .unwrap()
-                        .starts_with("Wrote 1 album field")
-                );
-            }
-            delegated += 1;
-        } else {
-            assert_eq!(json!(got.status), st["status"], "{label}: status");
-            assert_eq!(body, st["body"], "{label}: body");
-            as_recorded += 1;
-        }
-        assert!(run.rows(&run.w.conn(), "SELECT id FROM ai_jobs").is_empty());
-    }
-    assert_eq!(delegated, 8);
-    assert_eq!(as_recorded, 7);
 }
 
 /// One request per fix route, with a body that passes validation.
@@ -834,7 +802,7 @@ async fn quick_fix_all_holds_the_gate_until_its_work_ends() {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
     });
-    let run = setup_with(&g, Some(pause), backend()).await;
+    let run = setup_with(&g, Some(pause)).await;
     // Releases the pause however this test ends (a failed assertion must
     // not leave the blocking task spinning, which would hang the runtime).
     struct Release(Arc<std::sync::atomic::AtomicBool>);

@@ -1,13 +1,10 @@
 //! A deliberate change, through the app: a confident
 //! MusicBrainz name-search hit is stored as the album's anchor, with
 //! `AlbumMbAnchorSet("musicbrainz")`, only when the name-search track-count /
-//! duration check passes. Both callers the app wires:
-//!
-//! - the check-fix path: `POST /api/checks/no-cover-art/findings/{id}/fix`
-//!   (`check_fixes::cover_fix` -> `AppFixSources::find_cover`);
-//! - the AI worker's MusicBrainz cover fallback
-//!   (`ai._fallback_cover_lookup` -> `WorkerEnv::find_cover`, here called
-//!   on the app's `AppEnv` as the worker calls it).
+//! duration check passes, through the check-fix path the app wires:
+//! `POST /api/checks/no-cover-art/findings/{id}/fix`
+//! (`check_fixes::cover_fix` -> `AppFixSources::find_cover`). (The old
+//! built-in worker's cover fallback, the second caller, is gone with it.)
 //!
 //! Replays the five `with id:` cases of
 //! testdata/golden/resolver/find_release.json (the Python app's
@@ -22,7 +19,7 @@
 //! - "listing has 9 tracks" / "listing 20% longer" / "listing
 //!   unrecorded": no anchor written and no `AlbumMbAnchorSet`, where the
 //!   Python app wrote and published;
-//! - both paths ask for the cover (`fetch_cover`), so requests to
+//! - the path asks for the cover (`fetch_cover`), so requests to
 //!   coverartarchive.org may follow the match (they are not compared: no
 //!   case records them; they fail as unobserved).
 
@@ -33,8 +30,6 @@ use std::sync::{Arc, Mutex};
 
 use base64::Engine;
 use common::call;
-use musaic_ai::{Py, WorkerEnv};
-use musaic_api::ai::AppEnv;
 use musaic_api::{AppState, Network, router};
 use musaic_core::Album;
 use musaic_events::{Event, Subscriber, Topic};
@@ -113,7 +108,6 @@ struct World {
     app: axum::Router,
     transport: Arc<Overlay>,
     events: Arc<Mutex<Vec<Value>>>,
-    lib: String,
     id: String,
 }
 
@@ -123,6 +117,7 @@ async fn world(case: &Value) -> World {
         std::fs::create_dir(td.path().join("lib")).unwrap();
         musaic_testdata::canonical(td.path().join("lib"))
     });
+    let lib_s = lib.to_string_lossy().into_owned();
     let transport = Arc::new(Overlay::new(&case["overlay"]));
     let st = AppState::builder(td.path().join("cfg"))
         .secrets(Arc::new(musaic_secrets::MemoryStore::new()))
@@ -133,7 +128,6 @@ async fn world(case: &Value) -> World {
         .build()
         .unwrap();
     let app = router(st.clone());
-    let lib_s = lib.to_string_lossy().into_owned();
     let r = call(
         &app,
         "POST",
@@ -202,7 +196,6 @@ async fn world(case: &Value) -> World {
         app,
         transport,
         events,
-        lib: lib_s,
         id,
     }
 }
@@ -240,22 +233,8 @@ async fn via_check_fix(w: &World) {
     assert_eq!(r.status, 200, "{}", r.text());
 }
 
-/// The AI worker's MusicBrainz cover fallback (`WorkerEnv::find_cover`).
-fn via_ai_fallback(st: &AppState, id: &str, lib: &str) {
-    let env = AppEnv::new(st);
-    let conn = rusqlite::Connection::open(st.db_path()).unwrap();
-    let album = Py::dict([
-        ("id", Py::str(id.to_string())),
-        (
-            "path",
-            Py::str(format!("{lib}/Ana Artist - Album One [FLAC]")),
-        ),
-    ]);
-    env.find_cover(&conn, &album, "").unwrap();
-}
-
 #[tokio::test(flavor = "multi_thread")]
-async fn both_app_paths_store_the_anchor_only_after_() {
+async fn the_fix_path_stores_the_anchor_only_after_the_listing_check() {
     musaic_testdata::require_private!("replay");
     let g: Value = musaic_testdata::golden("resolver/find_release.json");
     let cases: Vec<&Value> = g["cases"]
@@ -272,7 +251,7 @@ async fn both_app_paths_store_the_anchor_only_after_() {
     let mut used_rejected = BTreeSet::new();
     let mut used_browse = 0;
     let mut saved = 0;
-    for path in ["check-fix", "ai-fallback"] {
+    for path in ["check-fix"] {
         for case in &cases {
             let name = case["name"].as_str().unwrap();
             assert_eq!(
@@ -281,15 +260,7 @@ async fn both_app_paths_store_the_anchor_only_after_() {
             );
             let label = format!("{path}: {name}");
             let w = world(case).await;
-            match path {
-                "check-fix" => via_check_fix(&w).await,
-                _ => {
-                    let (st, id, lib) = (w.st.clone(), w.id.clone(), w.lib.clone());
-                    tokio::task::spawn_blocking(move || via_ai_fallback(&st, &id, &lib))
-                        .await
-                        .unwrap();
-                }
-            }
+            via_check_fix(&w).await;
 
             let mut want_writes = case["store_writes"].clone();
             let mut want_events: Vec<Value> = case["events"]
@@ -361,12 +332,9 @@ async fn both_app_paths_store_the_anchor_only_after_() {
     }
     assert_eq!(
         used_rejected.len(),
-        2 * REJECTED.len(),
+        REJECTED.len(),
         "every rejection delta used"
     );
-    assert_eq!(
-        used_browse, 8,
-        "the browse delta on every confident case, both paths"
-    );
-    assert_eq!(saved, 2, "only the agreeing listing is saved, on each path");
+    assert_eq!(used_browse, 4, "the browse delta on every confident case");
+    assert_eq!(saved, 1, "only the agreeing listing is saved");
 }

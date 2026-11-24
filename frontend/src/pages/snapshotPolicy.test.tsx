@@ -20,7 +20,6 @@ let patches: Record<string, unknown>[];
 
 function mount() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["db-info"], {
     counts: { albums: 0, albums_with_mbid: 0, track_fingerprints: 0, track_tags: 0, tag_vocabulary: 0, ai_jobs: 0, check_findings_open: 0 },
   } as unknown as DbInfo);

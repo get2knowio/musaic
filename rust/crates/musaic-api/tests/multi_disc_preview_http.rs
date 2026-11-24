@@ -323,16 +323,51 @@ async fn three_disc_folders_preview_and_refusals() {
     assert_eq!(codes(&w.preview(id).await), vec!["target_taken"]);
     std::fs::remove_dir(&taken).unwrap();
     // A job queued on a member.
+    {
+        // As schema v24 folded it: a history record and its queued request.
+        let conn = w.conn();
+        let (album, path): (String, String) = conn
+            .query_row(
+                "SELECT id, path FROM albums WHERE disc_number = 2",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        let job = musaic_db::research_history::JobRow {
+            album_path: path,
+            ..musaic_db::research_history::JobRow::seed(
+                "job-1",
+                &album,
+                "metadata",
+                "queued",
+                "2026-01-01T00:00:00Z",
+            )
+        };
+        musaic_db::research_history::import_legacy_job(&conn, &job).unwrap();
+    }
+    let p = w.preview(id).await;
+    assert_eq!(codes(&p), vec!["job_active"]);
+    let message = p["blockers"][0]["message"].as_str().unwrap();
+    assert!(
+        message.contains("research request") && message.contains("in Review"),
+        "{p}"
+    );
+    // A proposal awaiting review blocks too: it was made against the folder
+    // a conversion would move.
     w.conn()
-        .execute(
-            "INSERT INTO ai_jobs (id, album_id, album_path, job_type, status, created_at) \
-             SELECT 'job-1', id, path, 'metadata', 'queued', '2026-01-01T00:00:00Z' \
-             FROM albums WHERE disc_number = 2",
-            [],
-        )
+        .execute("UPDATE delegated_work SET state = 'awaiting_review'", [])
         .unwrap();
-    assert_eq!(codes(&w.preview(id).await), vec!["job_active"]);
-    w.conn().execute("DELETE FROM ai_jobs", []).unwrap();
+    let p = w.preview(id).await;
+    assert_eq!(codes(&p), vec!["job_active"]);
+    assert!(
+        p["blockers"][0]["message"].as_str().unwrap().contains(
+            "suggestion waiting, made for that disc alone. Apply or discard it in Review"
+        ),
+        "{p}"
+    );
+    w.conn()
+        .execute_batch("DELETE FROM delegated_work; DELETE FROM research_history;")
+        .unwrap();
     // A gap in disc 2's numbers.
     write_track(&d2, "02 - Song 2-2.flac", "3", Some(2), "Song 2-2");
     let p = w.preview(id).await;

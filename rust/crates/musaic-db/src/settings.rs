@@ -1,19 +1,19 @@
 //! Key/value settings store.
 //!
 //! Values are strings in the `settings` table; a missing row falls back to
-//! [`DEFAULTS`]. The three secret keys still read from the table here: moving
-//! them to the OS keyring is musaic-secrets' job.
+//! [`DEFAULTS`]. A secret key still reads from the table here: moving it to
+//! the OS keyring (or, for a retired one, scrubbing it) is musaic-secrets' job.
 
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::Result;
 
-/// Mirrors `DEFAULTS` in the Python app's `settings.py`; pinned by
-/// `testdata/golden/settings-defaults.json`.
+/// Mirrors `DEFAULTS` in the Python app's `settings.py` (pinned by
+/// `testdata/golden/settings-defaults.json`), minus the settings of the
+/// retired model provider and FireCrawl (`ai_max_parallel`,
+/// `ai_queue_paused`, `firecrawl_api_key`), which nothing reads any more.
 pub const DEFAULTS: &[(&str, &str)] = &[
     ("acoustid_api_key", ""),
-    ("ai_max_parallel", "1"),
-    ("ai_queue_paused", "0"),
     (
         "dir_template_compilation",
         "Various Artists - {album} [FLAC]",
@@ -30,7 +30,6 @@ pub const DEFAULTS: &[(&str, &str)] = &[
         "filename_template_single_artist",
         "{tracknumber:02} - {title}",
     ),
-    ("firecrawl_api_key", ""),
     ("snapshot_min_interval_hours", "24"),
     ("snapshot_retention_count", "10"),
 ];

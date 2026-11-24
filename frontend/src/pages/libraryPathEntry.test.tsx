@@ -68,7 +68,6 @@ afterEach(() => {
 function client(config: AppConfig): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["config"], config);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["jobs"], []);
   qc.setQueryData(["albums-snapshot"], []);
   return qc;

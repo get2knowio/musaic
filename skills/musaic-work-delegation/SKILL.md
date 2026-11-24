@@ -2,7 +2,7 @@
 name: musaic-work-delegation
 description: Research albums for the Musaic music-library app. Use when asked to process pending Musaic work, identify an album, correct its metadata or find cover art through the Musaic tools.
 metadata:
-  version: "1.0.1"
+  version: "1.1.0"
 ---
 
 # Musaic work delegation
@@ -16,6 +16,7 @@ This guide grants no scope and no permission. What you may do is set by the pair
 1. **Discover what you may do.** Call `musaic_capabilities` first. It lists your scopes, your policy for each permission, the contract version, the protocol profiles and the extensions the server offers. Do not assume a tool works because it exists; a refused call is normal and final for that request. See `references/tools.md`.
 2. **List pending work before you listen for events.** Call `musaic_work_list` with `state` set to `queued`, then page through with its cursor. An event tells you that something changed; the list tells you what is true now. Do this at start, after every reconnect, and after any event cursor reports `truncated`. See `references/events.md`.
 3. **Get, claim, renew, report.** For one item call `musaic_work_get` (the album context and an input digest), then `musaic_work_claim` with an idempotency key you make up and keep for retries. A claim lasts five minutes. Call `musaic_work_renew` about once a minute while you reason, and `musaic_work_progress` with a rising sequence number to say what stage you are at. Keep messages short. See `references/work-lifecycle.md`.
+   **Many requests from one bulk run.** When several `requested` events carry the same `batchId`, the person started a bulk run. Call `musaic_work_list` with that `batchId` to see its open items, then claim them with `musaic_work_claim_many` (up to 25 per call; winning fewer than you asked for, or none, is normal because another agent may be faster). Renew the leases you hold together with `musaic_work_renew_many`: each lease is renewed or refused on its own, and a refused one is no longer yours, so drop it and do not retry it blindly. There is no batch result: complete, fail or release each item on its own. Read the event payload schema from `events/list` each session rather than a cached copy, since optional fields such as `batchId` may be added.
 4. **Research with care.** Use MusicBrainz identifier types correctly (release group, release, recording are different identifiers). Compare the track list with the files, including multi-disc sets. Gather evidence, quote the source for each claim, and say what you are unsure about. See `references/metadata-evidence.md` and `references/cover-research.md`.
 5. **Submit a typed result.** Call `musaic_work_complete` with a result that has the schema in `references/result-schemas.md`: a `proposal` when you are confident, `no_match` when nothing fits, `needs_input` when only the person can decide. Finishing your research does not apply anything, and you never apply a result yourself.
 6. **Use the right way to wait on long operations.** Scans, checks and analysis start an operation. When your host negotiated Tasks, the result is a Task you poll with the host's task calls. Otherwise poll `musaic_operation_get` using the operation id, at the interval it suggests. See `references/async-operations.md`.

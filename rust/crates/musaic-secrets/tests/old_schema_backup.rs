@@ -1,7 +1,9 @@
 //! The pre-migration backup of a database older than v16
 //! (`library.v12.before-rust.db`) is scrubbed too. Fixture: the genuine v12
 //! database written by the Python app's own v12 code
-//! (testdata/golden/persistence/old-schemas/v12.db).
+//! (testdata/golden/persistence/old-schemas/v12.db). Its AcoustID key moves
+//! to the keyring; its FireCrawl key, a retired one, is scrubbed and never
+//! moved.
 
 mod common;
 
@@ -43,6 +45,18 @@ fn backup_of_a_v12_database_keeps_no_key() {
     let store = MemoryStore::new();
     let report = migrate_settings_secrets(&db, &store).unwrap();
     assert!(report.backup_error.is_none(), "{:?}", report.backup_error);
+    assert_eq!(report.moved, vec!["acoustid_api_key"]);
+    assert_eq!(report.dropped_retired, vec!["firecrawl_api_key"]);
+    assert!(report.backup_scrubbed.contains(&"firecrawl_api_key"));
+    assert_eq!(
+        store.entries().into_iter().collect::<Vec<_>>(),
+        [("acoustid_api_key".to_owned(), KEYS[0].to_owned())]
+    );
+    assert!(
+        !store.calls().iter().any(|c| c.contains("firecrawl")),
+        "no keyring call for a retired key: {:?}",
+        store.calls()
+    );
     drop(db);
 
     for entry in std::fs::read_dir(dir.path()).unwrap() {

@@ -80,6 +80,10 @@
       "payloadSchema": {
         "additionalProperties": false,
         "properties": {
+          "batchId": {
+            "description": "Opaque reference to the bulk run that made this request. Absent for requests not made by a bulk run.",
+            "type": "string"
+          },
           "kind": {
             "enum": [
               "metadata.identify",
@@ -160,6 +164,10 @@
       "payloadSchema": {
         "additionalProperties": false,
         "properties": {
+          "batchId": {
+            "description": "Opaque reference to the bulk run that made this request. Absent for requests not made by a bulk run.",
+            "type": "string"
+          },
           "kind": {
             "enum": [
               "metadata.identify",

@@ -29,6 +29,7 @@ import { useLibraryConfig } from "@/hooks/useLibraryConfig";
 import { useElementWidth } from "@/hooks/useElementWidth";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useScanStream } from "@/hooks/useScanStream";
+import { useDelegatedWork } from "@/hooks/useDelegatedWork";
 import { useJobs, useActiveJobAlbumMap } from "@/hooks/useJobs";
 import {
   applyFilter,
@@ -91,8 +92,14 @@ export default function LibraryPage() {
   // Albums needing attention (for the "Jobs to review" filter) — derived from
   // the live jobs cache.
   const { data: jobs = [] } = useJobs();
-  const needsAttention = useMemo(() => buildNeedsAttentionSet(jobs), [jobs]);
-  // album_id → active AI job (queued|running|completed-not-acted-on). Drives
+  // Requests of a Fix all batch have no job card: they come from the
+  // delegated work list (kept fresh by the `work` event family).
+  const { data: work } = useDelegatedWork();
+  const needsAttention = useMemo(
+    () => buildNeedsAttentionSet(jobs, Array.isArray(work) ? work : []),
+    [jobs, work],
+  );
+  // album_id → active research request (queued|running|completed-not-acted-on). Drives
   // the per-tile / per-row status overlay so the user can see at a glance
   // which albums already have a job queued and avoid double-queuing.
   const activeJobsMap = useActiveJobAlbumMap();

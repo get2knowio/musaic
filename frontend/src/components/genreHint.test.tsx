@@ -37,7 +37,6 @@ function client(findings: Finding[]) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   qc.setQueryData(["findings"], findings);
   qc.setQueryData(["checks"], []);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["jobs"], []);
   qc.setQueryData(["albums-snapshot"], []);
   return qc;

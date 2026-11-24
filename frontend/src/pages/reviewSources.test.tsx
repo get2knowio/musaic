@@ -102,7 +102,6 @@ afterEach(() => {
 function client(seed: { findings?: Finding[]; jobs?: Job[]; approvals?: AgentApproval[] | null } = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["checks"], summaries);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["albums-snapshot"], [makeAlbum({ id: "a1", title: "Here" })]);
   if (seed.findings) qc.setQueryData(["findings"], seed.findings);
   if (seed.jobs) qc.setQueryData(["jobs"], seed.jobs);

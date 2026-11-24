@@ -75,10 +75,11 @@ fn upgrades_every_legacy_state_grouped_once_and_retains_raw_history() {
     let (dir, db) = db();
     let file = dir.path().join("library.db");
     let conn = db.connection();
-    // The v23 tables arrived after this upgrade path; a v21 file has none.
+    // The v23 and v24 tables arrived after this upgrade path; a v21 file
+    // has none, and it still has the old job table v24 drops.
     conn.execute_batch(
         "DROP TABLE delegation_events; DROP TABLE delegation_event_state;
-         DROP TABLE agent_host_observations;",
+         DROP TABLE agent_host_observations; DROP TABLE research_history;",
     )
     .unwrap();
     for (_, name, _) in delegation_schema::OBJECTS
@@ -88,6 +89,16 @@ fn upgrades_every_legacy_state_grouped_once_and_retains_raw_history() {
     {
         conn.execute(&format!("DROP TABLE {name}"), []).unwrap();
     }
+    conn.execute_batch(
+        "DROP TABLE work_batches;
+         CREATE TABLE ai_jobs (
+             id TEXT PRIMARY KEY, album_id TEXT NOT NULL, album_path TEXT NOT NULL,
+             album_title TEXT, job_type TEXT NOT NULL, hint TEXT NOT NULL DEFAULT '',
+             status TEXT NOT NULL, result_json TEXT, error TEXT, acted_on_action TEXT,
+             created_at TEXT NOT NULL, started_at TEXT, completed_at TEXT, acted_on_at TEXT,
+             attach_cover INTEGER NOT NULL DEFAULT 1);",
+    )
+    .unwrap();
     conn.execute("UPDATE schema_version SET version=21", [])
         .unwrap();
     let legacy = [
@@ -183,7 +194,7 @@ fn upgrades_every_legacy_state_grouped_once_and_retains_raw_history() {
             && w.created_at == 1_795_356_000_000
             && w.updated_at == 1_795_356_060_000));
         assert_eq!(
-            musaic_db::ai_jobs::get_job(conn, &id)
+            musaic_db::research_history::get(conn, &id)
                 .unwrap()
                 .unwrap()
                 .result_json
@@ -237,6 +248,7 @@ fn concurrent_claims_and_restarts_preserve_fencing_and_replay() {
                 principal_id: loser,
                 state: None,
                 kind: None,
+                batch_id: None,
                 after: None,
                 limit: 10
             }
@@ -641,4 +653,437 @@ fn combined_enqueue_adopts_separate_claimed_children_under_one_card() {
             .unwrap()
             .is_ok()
     );
+}
+
+// ---------- batches, multi-item claim and renew (spec 006) ----------
+
+struct Owned {
+    id: String,
+    album: String,
+    digest: String,
+}
+
+fn owned(id: &str) -> Owned {
+    Owned {
+        id: id.to_owned(),
+        album: format!("album-{id}"),
+        digest: format!("input-{id}"),
+    }
+}
+
+fn new_work<'a>(o: &'a Owned, kind: &'a str) -> NewWork<'a> {
+    NewWork {
+        id: &o.id,
+        group_id: &o.id,
+        kind,
+        album_id: &o.album,
+        base_revision: "album-rev",
+        input_json: "{}",
+        input_digest: &o.digest,
+        max_attempts: queue::DEFAULT_MAX_ATTEMPTS,
+    }
+}
+
+const BATCH: &str = "6f0c2a3e-1b2c-4d5e-8f90-0123456789ab";
+const OTHER_BATCH: &str = "7a1d3b4f-2c3d-4e5f-9a01-123456789abc";
+
+fn batch(id: &str) -> queue::NewBatch<'_> {
+    queue::NewBatch {
+        id,
+        check_id: "unidentified-album",
+        started_at: NOW - 5,
+    }
+}
+
+/// `n` queued, hydrated items `prefix-0 ..`, one per album, in `batch_id`
+/// (or none), created one millisecond apart.
+fn seed(
+    conn: &Connection,
+    prefix: &str,
+    n: usize,
+    batch_id: Option<&str>,
+    kind: &str,
+) -> Vec<String> {
+    (0..n)
+        .map(|i| {
+            let o = owned(&format!("{prefix}-{i:04}"));
+            let w = new_work(&o, kind);
+            let now = NOW + i as i64;
+            match batch_id {
+                Some(b) => queue::enqueue_batched(conn, &[w], &batch(b), now).unwrap(),
+                None => queue::enqueue(conn, &[w], now).unwrap(),
+            };
+            o.id
+        })
+        .collect()
+}
+
+fn many<'a>(principal: &'a str, key: &'a str, digest: &'a str, max: i64) -> queue::ClaimMany<'a> {
+    queue::ClaimMany {
+        principal_id: principal,
+        idempotency_key: key,
+        request_digest: digest,
+        batch_id: None,
+        kind: None,
+        max,
+        now: NOW + 10_000,
+    }
+}
+
+fn claim_many(conn: &Connection, c: queue::ClaimMany<'_>) -> Result<Vec<String>, Refusal> {
+    let principal = c.principal_id.to_owned();
+    queue::claim_many_with_context(conn, c, |_| principal.clone(), |_, _| Ok(true))
+        .unwrap()
+        .map(|r| r.claims.into_iter().map(|c| c.work_id).collect())
+}
+
+#[test]
+fn claim_many_wins_what_is_eligible_and_fewer_is_not_an_error() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    let ids = seed(c, "w", 3, Some(BATCH), "metadata.identify");
+    let won = claim_many(c, many("agent", "burst-0001", "d1", 25)).unwrap();
+    assert_eq!(won, ids, "oldest first, all three of the 25 asked for");
+    for id in &ids {
+        let row = queue::get(c, id).unwrap().unwrap();
+        assert_eq!(row.state, "claimed");
+        assert_eq!(row.principal_id.as_deref(), Some("agent"));
+        assert_eq!(row.batch_id.as_deref(), Some(BATCH));
+    }
+    assert_eq!(count(c, "work_attempts"), 3);
+    // Nothing left: an empty answer, never an error.
+    assert!(
+        claim_many(c, many("agent", "burst-0002", "d2", 25))
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[test]
+fn claim_many_skips_stale_items_and_honours_the_filters() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    let batched = seed(c, "b", 4, Some(BATCH), "metadata.identify");
+    let other = seed(c, "o", 2, Some(OTHER_BATCH), "metadata.identify");
+    let covers = seed(c, "c", 2, Some(BATCH), "cover.research");
+    let loose = seed(c, "l", 2, None, "metadata.identify");
+    // An unhydrated item is never eligible.
+    c.execute(
+        "UPDATE delegated_work SET base_revision='' WHERE id=?1",
+        [&batched[3]],
+    )
+    .unwrap();
+
+    // The stale item (context no longer current) is skipped, left queued, and
+    // does not hide the ones after it.
+    let stale = batched[0].clone();
+    let got = queue::claim_many_with_context(
+        c,
+        queue::ClaimMany {
+            batch_id: Some(BATCH),
+            kind: Some("metadata.identify"),
+            ..many("agent", "filter-0001", "f1", 25)
+        },
+        |_| "agent".into(),
+        |_, row| Ok(row.id != stale),
+    )
+    .unwrap()
+    .unwrap();
+    let won: Vec<_> = got.claims.iter().map(|c| c.work_id.clone()).collect();
+    assert_eq!(won, vec![batched[1].clone(), batched[2].clone()]);
+    assert_eq!(queue::get(c, &stale).unwrap().unwrap().state, "queued");
+    for id in other.iter().chain(&covers).chain(&loose) {
+        assert_eq!(queue::get(c, id).unwrap().unwrap().state, "queued", "{id}");
+    }
+    // Kind alone reaches every batch and the unbatched queue; max bounds it.
+    let won = claim_many(
+        c,
+        queue::ClaimMany {
+            kind: Some("cover.research"),
+            ..many("agent", "filter-0002", "f2", 1)
+        },
+    )
+    .unwrap();
+    assert_eq!(won, vec![covers[0].clone()]);
+    // An unknown batch: nothing, not an error.
+    let won = claim_many(
+        c,
+        queue::ClaimMany {
+            batch_id: Some("00000000-0000-4000-8000-000000000000"),
+            ..many("agent", "filter-0003", "f3", 25)
+        },
+    )
+    .unwrap();
+    assert!(won.is_empty());
+}
+
+#[test]
+fn claim_many_replays_its_answer_and_refuses_a_changed_input() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    seed(c, "w", 5, Some(BATCH), "metadata.identify");
+    let first = queue::claim_many_with_context(
+        c,
+        many("agent", "replay-0001", "digest-a", 3),
+        |id| format!("hash-{id}"),
+        |_, _| Ok(true),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(first.claims.len(), 3);
+    let again = queue::claim_many_with_context(
+        c,
+        many("agent", "replay-0001", "digest-a", 3),
+        |_| panic!("a replay derives no new lease"),
+        |_, _| Ok(true),
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(again, first, "same ids, generations and expiries");
+    // The saved answer holds no token or verifier.
+    let saved: String = c
+        .query_row(
+            "SELECT response_json FROM work_replays WHERE operation='claim_many'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(!saved.contains("hash-"), "{saved}");
+    assert_eq!(
+        claim_many(c, many("agent", "replay-0001", "digest-b", 3)),
+        Err(Refusal::IdempotencyConflict)
+    );
+    // Another principal's key space is its own.
+    assert_eq!(
+        claim_many(c, many("other", "replay-0001", "digest-b", 3))
+            .unwrap()
+            .len(),
+        2
+    );
+}
+
+#[test]
+fn racing_claim_many_never_holds_an_item_twice() {
+    let (dir, db) = db();
+    let file = dir.path().join("library.db");
+    let ids = seed(db.connection(), "r", 40, Some(BATCH), "metadata.identify");
+    let barrier = Barrier::new(2);
+    let won: Vec<Vec<String>> = std::thread::scope(|scope| {
+        let run = |principal: &'static str| {
+            let conn = open_connection(&file).unwrap();
+            let barrier = &barrier;
+            move || {
+                barrier.wait();
+                let mut all = Vec::new();
+                for round in 0..4 {
+                    let key = format!("race-{principal}-{round}");
+                    all.extend(claim_many(&conn, many(principal, &key, &key, 25)).unwrap());
+                }
+                all
+            }
+        };
+        let a = scope.spawn(run("alpha"));
+        let b = scope.spawn(run("beta"));
+        vec![a.join().unwrap(), b.join().unwrap()]
+    });
+    let mut every: Vec<String> = won.concat();
+    every.sort();
+    let before = every.len();
+    every.dedup();
+    assert_eq!(before, every.len(), "an item was claimed twice");
+    assert_eq!(every.len(), ids.len());
+}
+
+#[test]
+fn an_epoch_rotation_leaves_nothing_to_claim_and_refuses_the_old_batch() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    seed(c, "w", 3, Some(BATCH), "metadata.identify");
+    queue::rotate_epoch(c, Some("/elsewhere"), NOW + 1).unwrap();
+    assert!(
+        claim_many(c, many("agent", "epoch-0001", "e", 25))
+            .unwrap()
+            .is_empty()
+    );
+    let cancelled: i64 = c
+        .query_row(
+            "SELECT count(*) FROM delegated_work WHERE batch_id=?1 AND state='cancelled'",
+            [BATCH],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(cancelled, 3);
+    // The batch belongs to the old epoch: a new request cannot join it.
+    let o = owned("late");
+    let refused = queue::enqueue_batched(
+        c,
+        &[new_work(&o, "metadata.identify")],
+        &batch(BATCH),
+        NOW + 2,
+    );
+    assert!(matches!(refused, Err(musaic_db::Error::ForeignBatch(_))));
+    assert!(queue::get(c, "late").unwrap().is_none());
+    // Still listed, with its items in their (invalidated) state.
+    let listed = queue::batch(c, BATCH).unwrap().unwrap();
+    assert_eq!(listed.count("cancelled"), 3);
+}
+
+#[test]
+fn renew_many_renews_each_lease_on_its_own() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    let ids = seed(c, "w", 3, Some(BATCH), "metadata.identify");
+    let claimed = queue::claim_many_with_context(
+        c,
+        many("agent", "renew-0001", "r", 25),
+        |_| "agent".into(),
+        |_, _| Ok(true),
+    )
+    .unwrap()
+    .unwrap();
+    let at = NOW + 10_000 + 1_000;
+    let mut leases: Vec<Lease<'_>> = claimed
+        .claims
+        .iter()
+        .map(|r| lease(r, &r.work_id, "agent", at))
+        .collect();
+    leases[1].lease_token_hash = "someone-else";
+    leases[2].claim_generation += 1;
+    let stale = ids[0].clone();
+    let answers = queue::renew_many(c, &leases, |_, row| Ok(row.id != stale)).unwrap();
+    assert_eq!(answers[0], Err(Refusal::StaleContext));
+    assert_eq!(answers[1], Err(Refusal::NotFound));
+    assert_eq!(answers[2], Err(Refusal::StaleGeneration));
+    let ok = queue::renew_many(c, &leases[..1], |_, _| Ok(true)).unwrap();
+    assert_eq!(ok, vec![Ok(at + CLAIM_MS)]);
+    assert_eq!(
+        queue::get(c, &ids[0]).unwrap().unwrap().lease_expires_at,
+        Some(at + CLAIM_MS)
+    );
+    // An expired lease is refused as expired.
+    let late = Lease {
+        now: at + 2 * CLAIM_MS,
+        ..leases[0]
+    };
+    let answers = queue::renew_many(c, &[late], |_, _| Ok(true)).unwrap();
+    assert_eq!(answers, vec![Err(Refusal::LeaseExpired)]);
+}
+
+#[test]
+fn the_list_filters_by_batch_and_single_claims_still_work_on_batched_items() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    let batched = seed(c, "b", 2, Some(BATCH), "metadata.identify");
+    seed(c, "l", 2, None, "metadata.identify");
+    let listed = queue::list(
+        c,
+        List {
+            principal_id: "agent",
+            state: None,
+            kind: None,
+            batch_id: Some(BATCH),
+            after: None,
+            limit: 100,
+        },
+    )
+    .unwrap();
+    let mut got: Vec<_> = listed.iter().map(|r| r.id.clone()).collect();
+    got.sort();
+    assert_eq!(got, batched);
+    let all = queue::list(
+        c,
+        List {
+            principal_id: "agent",
+            state: None,
+            kind: None,
+            batch_id: None,
+            after: None,
+            limit: 100,
+        },
+    )
+    .unwrap();
+    assert_eq!(all.len(), 4);
+    // FR-035: the single-item claim is unchanged for a batched item.
+    let reply = queue::claim(c, claim(&batched[0], "agent", NOW + 100))
+        .unwrap()
+        .unwrap();
+    assert_eq!(reply.work_id, batched[0]);
+}
+
+#[test]
+fn batch_ids_stay_on_event_rows_after_clear_and_clear_drops_the_batch_and_its_replays() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    let ids = seed(c, "w", 2, Some(BATCH), "metadata.identify");
+    let won = claim_many(c, many("agent", "clear-0001", "c", 1)).unwrap();
+    assert_eq!(won.len(), 1);
+    assert_eq!(
+        queue::cancel_batch(c, BATCH, NOW + 20_000).unwrap(),
+        Some(2)
+    );
+    let epoch = queue::epoch(c).unwrap();
+    let before = musaic_db::delegation_events::page(c, &epoch, 0, &[], &[], 100).unwrap();
+    assert!(before.iter().all(|e| e.batch_id.as_deref() == Some(BATCH)));
+    assert_eq!(count(c, "work_replays"), 1);
+
+    let removed =
+        musaic_db::research_jobs::clear(c, &["failed".to_string()], NOW + 30_000).unwrap();
+    assert_eq!(removed, 2);
+    for id in &ids {
+        assert!(queue::get(c, id).unwrap().is_none());
+    }
+    assert_eq!(
+        count(c, "work_replays"),
+        0,
+        "the multi-item claim's answer goes too"
+    );
+    assert!(queue::batch(c, BATCH).unwrap().is_none());
+    assert_eq!(count(c, "work_batches"), 0);
+    let after = musaic_db::delegation_events::page(c, &epoch, 0, &[], &[], 100).unwrap();
+    assert_eq!(after.len(), before.len());
+    assert!(after.iter().all(|e| e.batch_id.as_deref() == Some(BATCH)));
+}
+
+#[test]
+fn a_batch_counts_its_items_and_cancel_leaves_review_alone() {
+    let (_dir, db) = db();
+    let c = db.connection();
+    let ids = seed(c, "w", 4, Some(BATCH), "metadata.identify");
+    // One awaiting review, one claimed, two queued.
+    queue::claim(c, claim(&ids[0], "agent", NOW + 100))
+        .unwrap()
+        .unwrap();
+    c.execute(
+        "UPDATE delegated_work SET state='awaiting_review', lease_token_hash=NULL,
+           lease_expires_at=NULL WHERE id=?1",
+        [&ids[0]],
+    )
+    .unwrap();
+    queue::claim(c, claim(&ids[1], "agent", NOW + 100))
+        .unwrap()
+        .unwrap();
+    let b = queue::batch(c, BATCH).unwrap().unwrap();
+    assert_eq!(b.check_id, "unidentified-album");
+    assert_eq!(b.started_at, NOW - 5);
+    assert_eq!(b.finished_at, None);
+    assert_eq!(b.size(), 4);
+    assert_eq!(
+        (
+            b.count("awaiting_review"),
+            b.count("claimed"),
+            b.count("queued")
+        ),
+        (1, 1, 2)
+    );
+    assert_eq!(queue::cancel_batch(c, BATCH, NOW + 200).unwrap(), Some(3));
+    let b = queue::batch(c, BATCH).unwrap().unwrap();
+    assert_eq!((b.count("awaiting_review"), b.count("cancelled")), (1, 3));
+    assert_eq!(queue::cancel_batch(c, OTHER_BATCH, NOW).unwrap(), None);
+    queue::finish_batch(c, BATCH, NOW + 300).unwrap();
+    assert_eq!(
+        queue::batch(c, BATCH).unwrap().unwrap().finished_at,
+        Some(NOW + 300)
+    );
+    assert_eq!(queue::batches(c).unwrap().len(), 1);
+    assert_eq!(queue::batch_items(c, BATCH).unwrap().len(), 4);
 }

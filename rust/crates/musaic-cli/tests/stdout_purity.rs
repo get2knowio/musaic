@@ -98,7 +98,7 @@ fn both_profiles_carry_protocol_messages_only_and_the_tools_work_end_to_end() {
             .unwrap();
         assert_eq!(items.len(), 3);
         let tools = msgs.iter().find(|m| m["id"] == 2).unwrap();
-        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 21);
+        assert_eq!(tools["result"]["tools"].as_array().unwrap().len(), 23);
         for text in [lines.join("\n"), err] {
             assert!(!text.contains(&secret_hex), "the secret reached the output");
         }
@@ -217,6 +217,6 @@ fn the_call_command_prints_one_json_document_and_the_exit_codes_follow_the_contr
             .as_array()
             .unwrap()
             .len(),
-        21
+        23
     );
 }

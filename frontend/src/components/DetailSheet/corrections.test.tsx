@@ -3,8 +3,8 @@
  * and a finished job's result become the same rows with the same ticks and
  * the same apply; Apply / Discard live in the footer; the cover row
  * previews through the album or the job route and degrades on 404 / 409 /
- * 502; the hero's Cover control is the other way to a cover; AI-only entry
- * points need a ready AI backend.
+ * 502; the hero's Cover control is the other way to a cover; Request
+ * research is offered whatever the assistant situation.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -23,7 +23,6 @@ import AlbumPanel from "./index";
 import { postSse } from "@/lib/sse";
 import { resetApplyRegistryForTests } from "@/lib/applyRegistry";
 import { makeAlbum, makeJob } from "@/test/fixtures";
-import type { AiProvidersResponse } from "@/lib/api";
 import type { Album, AlbumResolution, AppConfig, Job, Track } from "@/lib/types";
 
 const ANCHOR = "11111111-1111-1111-1111-111111111111";
@@ -93,15 +92,6 @@ function finishedJob(over: Partial<Job> = {}): Job {
   });
 }
 
-const providers = (ready: boolean): AiProvidersResponse =>
-  ready
-    ? {
-        selected: { provider_id: "claude", model_id: "m", api_key_set: false },
-        providers: [{ id: "claude", accepts_api_key: false, auth_hint: null, ready: true, requirement: null, remedy: null }],
-        uninstalled: [],
-      }
-    : { selected: null, providers: [], uninstalled: [] } as unknown as AiProvidersResponse;
-
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
@@ -115,12 +105,11 @@ let fetchMock: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   resetApplyRegistryForTests();
   previewAnswers = [() => jpeg()];
-  fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
+  fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
     if (url.endsWith("/cover-preview")) {
       const next = previewAnswers.length > 1 ? previewAnswers.shift()! : previewAnswers[0];
       return next();
     }
-    if (url.endsWith("/acted-on") && init?.method === "POST") return json(finishedJob());
     return json({ detail: "not found" }, 404);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -135,14 +124,13 @@ interface Setup {
   album?: Album;
   res?: AlbumResolution | null;
   jobs?: Job[];
-  aiReady?: boolean;
 }
 
-function renderPanel({ album = ALBUM, res = resolution(), jobs = [], aiReady = false }: Setup = {}) {
+function renderPanel({ album = ALBUM, res = resolution(), jobs = [] }: Setup = {}) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["config"], { library_dir: "/music", exists: true } as AppConfig);
-  qc.setQueryData(["ai-providers"], providers(aiReady));
   qc.setQueryData(["jobs"], jobs);
+  qc.setQueryData(["research", "work"], []);
   qc.setQueryData(["checks"], []);
   qc.setQueryData(["tracks", album.id], { album_id: album.id, tracks: TRACKS });
   if (res) qc.setQueryData(["album-resolution", album.id], res);
@@ -275,7 +263,7 @@ describe("per-row selection shapes the apply", () => {
     expect(footerButton("Apply")).toBeDisabled();
   });
 
-  it("a job's apply sends its ticked rows and marks the job applied", async () => {
+  it("a job's apply sends its ticked rows and marks nothing acted on", async () => {
     applySucceeds();
     renderPanel({ jobs: [finishedJob()] });
     fireEvent.click(footerButton("Apply 2 changes")!);
@@ -285,23 +273,15 @@ describe("per-row selection shapes the apply", () => {
       track_suggestions: { "01 - One.flac": { title: "One!" } },
       cover_url: null,
     });
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/ai/jobs/j1/acted-on",
-        expect.objectContaining({ method: "POST", body: JSON.stringify({ action: "applied" }) }),
-      ),
-    );
+    // The old acted-on route is gone: research is reviewed through its items.
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringMatching(/acted-on$/), expect.anything());
   });
 
-  it("Discard marks a job discarded; on resolver data it hides the diff", async () => {
-    const { unmount } = renderPanel({ jobs: [finishedJob()] });
+  it("Discard hides a job's proposal (no acted-on call); on resolver data it hides the diff", async () => {
+    const { unmount } = renderPanel({ jobs: [finishedJob()], res: resolution({ anchor: null }) });
     fireEvent.click(footerButton("Discard")!);
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/ai/jobs/j1/acted-on",
-        expect.objectContaining({ body: JSON.stringify({ action: "discarded" }) }),
-      ),
-    );
+    expect(diff()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalledWith(expect.stringMatching(/acted-on$/), expect.anything());
     unmount();
 
     renderPanel();
@@ -396,6 +376,7 @@ describe("the hero's Cover control", () => {
     expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.trim())).toEqual([
       "Use MusicBrainz cover",
       "Upload, paste or URL…",
+      "Request cover research…",
     ]);
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Use MusicBrainz cover" }));
     await waitFor(() => expect(diff()).not.toBeNull());
@@ -421,40 +402,40 @@ describe("the hero's Cover control", () => {
   it("no MusicBrainz cover to offer: only upload", async () => {
     renderPanel({ res: resolution({ cover_url: null }) });
     const menu = await openCoverMenu("Change cover");
-    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.trim())).toEqual(["Upload, paste or URL…"]);
+    expect(within(menu).getAllByRole("menuitem").map((i) => i.textContent?.trim())).toEqual([
+      "Upload, paste or URL…",
+      "Request cover research…",
+    ]);
   });
 });
 
-describe("AI-only entry points", () => {
-  it("without a ready AI backend: no AI button, no AI cover item, no hint dialog; corrections still work", async () => {
+describe("Request research", () => {
+  it("is offered with no model gating; corrections still work and nothing names AI", async () => {
     renderPanel();
-    expect(footerButton(/Ask AI/)).toBeNull();
+    expect(footerButton("Request research…")).toBeEnabled();
     expect(panel()).not.toHaveTextContent(/\bAI\b|Claude/);
     expect(footerButton("Apply 2 changes")).toBeInTheDocument();
-    const trigger = within(panel()).getByRole("button", { name: "Change cover" });
-    fireEvent.keyDown(trigger, { key: "Enter" });
-    const menu = await screen.findByRole("menu");
-    expect(within(menu).queryByRole("menuitem", { name: /AI/ })).toBeNull();
   });
 
-  it("with AI ready: 'Ask AI for corrections…' opens the hint dialog", async () => {
-    renderPanel({ aiReady: true });
-    fireEvent.click(footerButton("Ask AI for corrections…")!);
+  it("'Request research…' opens the hint dialog", async () => {
+    renderPanel();
+    fireEvent.click(footerButton("Request research…")!);
     expect(await screen.findByRole("dialog", { name: /Suggest metadata fixes/ })).toBeInTheDocument();
   });
 
-  it("with AI ready: the Cover menu offers an AI search", async () => {
-    renderPanel({ aiReady: true });
+  it("the Cover menu offers cover research", async () => {
+    renderPanel();
     fireEvent.keyDown(within(panel()).getByRole("button", { name: "Change cover" }), { key: "Enter" });
     const menu = await screen.findByRole("menu");
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "Ask AI to find a cover…" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Request cover research…" }));
     expect(await screen.findByRole("dialog", { name: /Find cover art/ })).toBeInTheDocument();
   });
 
-  it("with AI ready and a job under review, the AI button is disabled", () => {
-    renderPanel({ aiReady: true, jobs: [finishedJob()] });
+  it("with a job under review, the button is disabled and says why", () => {
+    renderPanel({ jobs: [finishedJob()] });
     expect(diff()).toHaveAccessibleName("Suggested corrections");
-    expect(footerButton("Ask AI for corrections…")).toBeDisabled();
+    expect(footerButton("Request research…")).toBeDisabled();
+    expect(footerButton("Request research…")).toHaveAttribute("title", "Research is already requested for this album");
   });
 });
 

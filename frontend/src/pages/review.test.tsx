@@ -29,6 +29,7 @@ import {
 } from "@/hooks/useReview";
 import { makeAlbum, makeJob } from "@/test/fixtures";
 import type { CheckMeta, CheckSummary, Finding, Job } from "@/lib/types";
+import type { DelegatedWorkItem } from "@/lib/api";
 
 const meta = (id: string, label: string, bulk: string | null = null): CheckMeta => ({
   id,
@@ -84,7 +85,9 @@ function client(f: Finding[] = findings, j: Job[] = jobs, checks: CheckSummary[]
   qc.setQueryData(["findings"], f);
   qc.setQueryData(["jobs"], j);
   qc.setQueryData(["agent", "approvals", "pending"], []);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
+  qc.setQueryData(["research", "work"], []);
+  // The jobs stream's counts: "Clear failed" would remove one request.
+  qc.setQueryData(["jobs", "queueState"], { running: 1, queued: 0, clearable: 1, clearable_failed: 1 });
   qc.setQueryData(["albums-snapshot"], [
     makeAlbum({ id: "present", title: "Here" }),
     makeAlbum({ id: "gone", title: "Gone", missing_since: "2026-01-02T00:00:00Z" }),
@@ -152,6 +155,52 @@ afterEach(() => {
   vi.clearAllMocks();
   sessionStorage.clear();
   resetActivityPanel();
+});
+
+describe("batched proposals awaiting review", () => {
+  const workItem = (albumId: string, over: Partial<DelegatedWorkItem> = {}): DelegatedWorkItem => ({
+    workId: `w-${albumId}`,
+    albumId,
+    albumLabel: null,
+    kind: "metadata.identify",
+    state: "awaiting_review",
+    revision: 1,
+    holder: null,
+    lastHeartbeatAt: null,
+    leaseExpiresAt: null,
+    attempts: 0,
+    maxAttempts: 3,
+    lastError: null,
+    waitingForAgent: false,
+    batchId: "b1",
+    ...over,
+  });
+
+  it("one unbatched and two batched proposals: the filter, the badge and the tooltip all say 3", () => {
+    const qc = client([], [job("proposed", "completed")]);
+    qc.setQueryData(["albums-snapshot"], [
+      makeAlbum({ id: "present", title: "Here" }),
+      makeAlbum({ id: "b-one", title: "Batched one" }),
+      makeAlbum({ id: "b-two", title: "Batched two" }),
+    ]);
+    qc.setQueryData(["research", "work"], [
+      workItem("b-one"),
+      // Two requests of one album are one job, as on a card.
+      workItem("b-two"),
+      workItem("b-two", { workId: "w-b-two-cover", kind: "cover.research" }),
+      // Neither waits for the user.
+      workItem("present", { workId: "w-queued", state: "queued" }),
+      workItem("b-one", { workId: "w-solo", batchId: null, state: "queued" }),
+    ]);
+    renderAt("/review", qc);
+    const filter = screen.getByRole("link", { name: /Jobs to review/ });
+    expect(filter.textContent).toContain("3");
+    expect(filter.getAttribute("title")).toBe("3 albums · 3 jobs awaiting review");
+    expect(badge()).toBe("3");
+    expect(summary()).toBe("3 items · 3 albums");
+    // The card is listed; the batched ones are under Delegated work.
+    expect(rowKeys()).toEqual(["job:proposed"]);
+  });
 });
 
 describe("the acceptance example", () => {
@@ -253,11 +302,11 @@ describe("All open", () => {
     expect(railRows()).toEqual([
       "All open6",
       "Proposed changes1",
-      "Failed jobs1",
+      "Failed research1",
       "Track gaps3",
       "No cover art1",
       "Ignored findings",
-      "Jobs in progress and history",
+      "Research requests and history",
     ]);
     expect(current()).toEqual(["All open6"]);
     expect(summary()).toBe("6 items · 2 albums");
@@ -306,7 +355,7 @@ describe("filters", () => {
 
   it("type filters list proposed changes or failed jobs", () => {
     renderAt("/review");
-    pick("Failed jobs");
+    pick("Failed research");
     expect(where()).toBe("/review?kind=failed");
     expect(rowKeys()).toEqual(["job:failed"]);
     expect(screen.getByRole("button", { name: "Clear 1 failed" })).toBeTruthy();
@@ -314,6 +363,31 @@ describe("filters", () => {
     expect(where()).toBe("/review?kind=proposed");
     expect(rowKeys()).toEqual(["job:proposed"]);
     expect(summary()).toBe("1 of 6 items · 1 album");
+  });
+
+  it("Clear failed shows the server's count, which also covers batched requests and history-only records", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ deleted_count: 4, statuses: ["failed"] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const qc = client();
+    // One failed card is listed; the delete also removes a failed and a
+    // cancelled batched request and a failed history-only record.
+    qc.setQueryData(["jobs", "queueState"], { running: 1, queued: 0, clearable: 1, clearable_failed: 4 });
+    renderAt("/review?kind=failed", qc);
+    expect(rowKeys()).toEqual(["job:failed"]);
+    fireEvent.click(screen.getByRole("button", { name: "Clear 4 failed" }));
+    expect(await screen.findByRole("heading", { name: "Remove 4 failed records?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove 4" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith("/api/ai/jobs?status=failed", expect.objectContaining({ method: "DELETE" })),
+    );
+    // The stream's next frame: nothing left to clear, no button.
+    act(() => qc.setQueryData(["jobs", "queueState"], { running: 1, queued: 0, clearable: 1, clearable_failed: 0 }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: /^Clear \d+ failed$/ })).toBeNull());
   });
 
   it("an album filter narrows any type, shows as a chip, and clears", () => {
@@ -387,7 +461,7 @@ describe("jobs in progress and job history are in the Activity panel", () => {
   it("the rail opens Activity over Review; the jobs stay uncounted", async () => {
     renderAt("/review");
     expect(badge()).toBe("6");
-    pick("Jobs in progress and history");
+    pick("Research requests and history");
     const panel = await screen.findByRole("dialog", { name: "Activity" });
     expect(where()).toBe("/review");
     expect(within(panel).getByText("Album running")).toBeTruthy();

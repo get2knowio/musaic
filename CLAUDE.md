@@ -33,7 +33,7 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 |---|---|
 | `musaic-core` | Shared primitives: album ids (first 16 hex chars of the SHA-1 of the album's resolved path), config (`config.json`, config dir), the album-field accessors, Python-compatible string helpers the stored data depends on |
 | `musaic-log` | Small logging facade for the lower crates; `musaic-app` installs the sink that writes `server.log` |
-| `musaic-db` | Opens, creates and migrates the SQLite database (schema v23; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots, and for folding the rows of a multi-disc set into one (`merge.rs`) |
+| `musaic-db` | Opens, creates and migrates the SQLite database (schema v24; a v16 file from the Python app is backed up, then migrated; a v17+ file is first copied to a snapshot at startup, `musaic-services/src/startup.rs`; v24 folds the old job table into the delegated-work store, keeping each old job as a `research_history` row); all SQL for albums, findings, check inputs, fingerprints, tags, backups and snapshots, delegated work and its batches (`delegated_work.rs`, `work_batches`), and for folding the rows of a multi-disc set into one (`merge.rs`) |
 | `musaic-secrets` | API keys in the OS keyring (`keyring` crate), the one-time move of keys out of the settings table, the in-memory test store |
 | `musaic-scan` | Library scanner: finds album folders, parses `Artist - Album [FLAC]` names, reads FLAC metadata into album rows |
 | `musaic-tags` | FLAC mutation primitives: Vorbis comment writes, cover embed, `cover.jpg` sidecar, the per-file apply steps |
@@ -45,10 +45,10 @@ docs/                    design notes (desktop.md: the shell, packaging, quittin
 | `musaic-events` | In-process event bus, the post-scan / bulk-run guard flags, the subscriber catalog, the SSE relay core |
 | `musaic-checks` | Health-check framework: `Check` trait, registry of the eight checks, findings runner, post-scan reruns, the inputs digest each completed run records (`inputs.rs`) |
 | `musaic-services` | Synchronous services: the album apply pipeline, library scan, fingerprinting and its pool, the background check sweep, analysis (BPM / ReplayGain), check fixes, library operations, the multi-disc conversion (`multi_disc_convert.rs`; a set kept in several folders: `multi_disc_gather.rs`) |
-| `musaic-ai` | Deterministic resolver synthesis and historical job compatibility. The desktop persists unresolved research in `musaic-db::delegated_work` and delegates it to paired agents |
-| `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, job worker host, process log; and the **operations surface**, `musaic_app::ops` (one module per group: system, library, scan, settings, database, tags, analyze, apply, checks, fixes, jobs), where every user-visible action lives with its guard, validation order, events and follow-up notifications (`docs/operations.md`) |
+| `musaic-ai` | Deterministic resolver synthesis and the old job's wire shape (`job_to_py`). There is no built-in model, worker or queue: what the resolver cannot settle becomes a research request in `musaic-db::delegated_work`, which an assistant the user added claims over MCP |
+| `musaic-app` | The application object without HTTP: builder, startup and shutdown, bus wiring, the research requests' host (`desktop_research.rs`: enqueue, review groups, the rename re-derivation), process log; and the **operations surface**, `musaic_app::ops` (one module per group: system, library, scan, settings, database, tags, analyze, apply, checks, fixes, jobs), where every user-visible action lives with its guard, validation order, events and follow-up notifications (`docs/operations.md`) |
 | `musaic-api` | The HTTP face on axum, an adapter over `musaic_app::ops`: every `/api` route parses its request (`lax`), calls one operation and renders the result (`render/`) and the `OpError` status; also SSE framing, Host/Origin check, launch-cookie gate; and a standalone server binary (`musaic-api`) used for UI development |
-| `musaic-commands` | The agent tool contract, a leaf crate (no db, app, axum or tokio): the 21 typed tools and their schemas, permission kinds and `decide`, error codes, the pairing proofs, the descriptor, the Events catalog and wire types (`events.rs`), the embedded work-delegation skill bundle (`skill.rs`; files under `skills/musaic-work-delegation/`), and the generated catalogs (`docs/agent-tools.{json,md}`, `docs/agent-events.{json,md}`) |
+| `musaic-commands` | The agent tool contract, a leaf crate (no db, app, axum or tokio): the 23 typed tools and their schemas, permission kinds and `decide`, error codes, the pairing proofs, the descriptor, the Events catalog and wire types (`events.rs`), the embedded work-delegation skill bundle (`skill.rs`; files under `skills/musaic-work-delegation/`), and the generated catalogs (`docs/agent-tools.{json,md}`, `docs/agent-events.{json,md}`) |
 | `musaic-mcp` | The MCP adapter over the registry, on `rmcp` (pinned `=3.11.0`): stdio, both the 2026-07-28 and 2025-11-25 profiles; Skills, Resources, the prompt and Events (`events/*` as custom requests, `events/stream` as notifications) |
 | `musaic-cli` | The bundled `musaic-cli`: the stdio MCP server, `call`, `doctor`, `setup`/`uninstall` (and `--skill`), `catalog --check`. It must not link `musaic-db`, `rusqlite`, `musaic-app` or `musaic-api` (`tests/no_db_owner.rs`) |
 | `musaic-desktop` | The Tauri 2 shell: single-instance lock, loopback server, navigation lock, native dialogs, reveal in file manager, window state, quit handling |
@@ -153,7 +153,10 @@ cargo test -p musaic-desktop --test boot -- --ignored --nocapture
   `musaic_testdata::synthetic_library()` for the generated audio, and
   `musaic_testdata::require_private!(…)` for private data.
 - **Public tier** (`rust/testdata/`): synthetic inputs and the results recorded for them.
-  Runs from any clone; this is what CI runs.
+  Runs from any clone; this is what CI runs. `rust/testdata/db/` holds fixture databases:
+  `v16-empty.db`, `v16-synthetic-offline.db`, and `v20-jobs.db`, `v22-jobs.db`,
+  `v23-jobs.db` (synthetic old job rows in every status and type, made by the ignored
+  generator `musaic-db/tests/make_job_fixtures.rs`; see `rust/testdata/db/README.md`).
 - **Private tier**: recorded third-party API answers and data derived from a real music
   library are not in this repository. Tests that need them look in
   `$MUSAIC_PRIVATE_TESTDATA` (or `../private-testdata` next to `rust/` when the variable
@@ -228,11 +231,13 @@ A merge of several album rows into one (rule 6) has no event of its own: it is
 `AlbumRenamed(old, survivor)` per merged row, under `in_bulk_run`.
 
 Delegated work, review decisions and durable agent operations commit an audit entry and a reference-only outbox event in the same transaction. The app publishes pending events after commit. The Review UI refreshes on the `work` event family.
+A bulk **Fix all** with research on (`ops::fixes::quick_fix_all`, `research=1`) makes one request per unsettled album, each in its own transaction like a single request, all with one `batch_id` (a `work_batches` row; `batchId` on the work summaries and on the work events); it defers publishing to every 128th request and the end of the run (`publish_pending` drains every outbox page, one `AgentStateChanged(work)` per page) and still publishes `BulkBatchCompleted` once.
+A queued request keeps a hash of its album's context, so a rename would leave it unclaimable: the subscriber `rederive_after_rename` (`musaic-app/src/desktop_research.rs`, registered from `app.rs`, on `AlbumRenamed`) re-derives the queued requests of the new album id. The rename path never calls it.
 The same transaction writes a row of the retained event history (`delegation_events`, 7 days, `musaic-db/src/delegation_events.rs`) whenever a work item is new or its state changes; agents read it through `events/poll` and `events/stream` (`musaic-app/src/agent/events.rs`). The bus and the outbox only wake a parked poll: nothing derives history from them.
 
 `AgentStateChanged(what, ids)` (families `pairings`, `approvals`, `activity`, `changes`, `work`, `operations`, `hosts`) reports that a pairing, an approval card, an agent's
 activity or its change records (an undo) changed (references only), so the UI refreshes
-Settings, Agents and the Review inbox. The desktop's Undo of an agent change
+Settings, Assistants and the Review inbox. The desktop's Undo of an agent change
 (`musaic-app/src/agent/undo.rs`) renames back through the rename service and restores
 through the apply pipeline (`apply::apply_restore`), so it publishes what any rename and
 apply publish. Like `ChecksRerunFinished` it is a report: no rerun subscriber, no sweep wake, no
@@ -329,8 +334,9 @@ nothing and nobody is marked Missing from a partial walk.
   user-confirmed merge of the discs of one set into one album
   (`musaic-db/src/merge.rs` `merge_album_rows`), which deletes the merged rows only
   after moving everything on them to the surviving row in the same transaction, and
-  refuses (changing nothing) while any per-file row, active AI job or conflicting
-  anchor is left on them. Each file's rows move first, one file per transaction
+  refuses (changing nothing) while any per-file row, unresolved research request
+  (queued, claimed, running or awaiting review: `delegated_work::unresolved_for_albums`,
+  which also blocks a multi-disc conversion) or conflicting anchor is left on them. Each file's rows move first, one file per transaction
   (`merge::move_track_rows`). The merged rows' findings stay under their old ids as
   resolved history. After the commit the caller publishes `AlbumRenamed(merged id →
   surviving id)` for each merged row, under `in_bulk_run` (its subscribers handle
@@ -341,7 +347,8 @@ nothing and nobody is marked Missing from a partial walk.
   still opens and is the same file (rule 3) as exactly one folder found under another
   spelling that has no row and no rows under its id: the row and everything on it move
   to the new id inside the snapshot save (`musaic-services/src/scan_adopt.rs` plans it,
-  `musaic-db` `albums::save_snapshot_adopting` / `renames::move_album_rows` do it), and
+  `musaic-db` `albums::save_snapshot_adopting` / `renames::move_album_rows` do it; research
+  requests and research history move with the row), and
   `AlbumRenamed` is published after the commit under `in_bulk_run`. Any ambiguity refuses.
   Adopted rows count neither as vanished nor as new for the sanity check.
 - A scan leaves the albums and folders of an unfinished multi-disc conversion exactly
@@ -387,7 +394,11 @@ database's only owner.
   (`check_public_url`): `https`, public host, re-checked on each redirect.
 - Keys live only in the OS keyring (`musaic-secrets`); nothing writes a key to SQLite or
   to the log. Agent pairing secrets live there too (service `musaic-agent`); the database
-  holds only a SHA-256 fingerprint of each.
+  holds only a SHA-256 fingerprint of each. The keys of the removed model provider and
+  web-scraping service (`RETIRED_SECRET_KEYS`) are never moved to the keyring: they stay on
+  every scrub list, and their keyring entries are deleted once at startup
+  (`musaic-services/src/keyscrub.rs` `remove_retired_keys`, settings marker
+  `retired_keys_removed`, retried on the next start after a failure, logging only names).
 - The agent route family `/__musaic/agent/v1/*` has its own guard
   (`musaic-api/src/agent_guard.rs`: loopback peer, exact Host, no Origin, JSON, 256 KiB,
   bearer token; mutual HMAC proof at the handshake) and never accepts the launch cookie.

@@ -17,16 +17,24 @@ pub struct DirMigration {
     pub track_fingerprints: usize,
     pub track_tags: usize,
     pub check_findings: usize,
+    /// Research moved with the album (requests in `delegated_work` and old
+    /// job history records in `research_history`), counted in jobs: one per
+    /// history record plus one per request no record names
+    /// ([`moved_research`]). The name is the fix response's wire key.
     pub ai_jobs: usize,
     /// Not repointed by the Python app; always 0 in its results.
     pub album_blocked_mb_release_groups: usize,
+    /// An assistant's proposals and change records moved with the album
+    /// ([`moved_agent_rows`]). Not part of the fix response.
+    pub agent_proposals: usize,
+    pub agent_changes: usize,
 }
 
 /// Move an album row to a new id + path + dir_name and repoint every table
 /// that refers to the album by id, in one transaction with foreign keys
 /// deferred to COMMIT.
 ///
-/// Tables holding an album id (schema v20). This is the one inventory: a
+/// Tables holding an album id (schema v24). This is the one inventory: a
 /// table added later that refers to albums by id belongs here, in
 /// [`ALBUM_ID_HOLDERS`], and in the merge column with a decision.
 ///
@@ -37,7 +45,10 @@ pub struct DirMigration {
 /// | fingerprint_rejects (v18) | yes, ON UPDATE / DELETE CASCADE | by the cascade | per file, as above |
 /// | album_blocked_mb_release_groups | yes, ON DELETE CASCADE | yes | union onto the survivor |
 /// | check_findings | no (plain column) | yes | not moved: unresolved ones (open or ignored) resolved in place under the dead id, kept as history |
-/// | ai_jobs | no (plain column) | yes (`album_path` is a display copy and keeps the old text) | finished jobs repointed; an active one refuses the fold |
+/// | delegated_work (v22) | no (plain column) | yes, in this transaction | finished requests repointed; an unresolved one refuses the fold |
+/// | research_history (v24) | no (plain column) | yes (`album_path` is a display copy and keeps the old text) | repointed |
+/// | agent_proposals (v21) | no (plain column) | yes, and expired ([`moved_agent_rows`]) | repointed and expired, as in a rename |
+/// | agent_changes (v21) | no (plain column; the after-image's `albumId` too) | yes, both | repointed, both |
 /// | check_inputs (v19) | no | no: the new id has no inputs, so the sweep checks it again, and prunes the old id's rows | deleted for every member and the survivor |
 /// | check_runs.scope | no (JSON text of ids) | no: a historical record of what a run covered | no, for the same reason |
 ///
@@ -92,22 +103,89 @@ pub fn move_album_rows(
         track_fingerprints: moved("track_fingerprints")?,
         track_tags: moved("track_tags")?,
         check_findings: moved("check_findings")?,
-        ai_jobs: moved("ai_jobs")?,
+        ai_jobs: moved_research(tx, old_id, new_id)?,
         album_blocked_mb_release_groups: moved("album_blocked_mb_release_groups")?,
+        ..moved_agent_rows(tx, old_id, new_id)?
     })
+}
+
+/// Moves an assistant's proposals and change records to `new_id`, as a
+/// [`DirMigration`] with only the two agent counts set.
+///
+/// A change record names its album twice: the `album_id` column and the
+/// after-image's `albumId` (the id once the change finished, which is what
+/// the desktop's Undo looks the album up by). Both follow the album, so an
+/// Undo still finds it under its new id; whether the files still allow the
+/// Undo is the Undo's own check of the folder and files.
+///
+/// A proposal is bound to the id and the album revision it was made
+/// against (its digest covers both), and the revision covers the album
+/// row, path included, so a proposal can never be applied once its album
+/// changed id. It is repointed so its approval card still names the album,
+/// and expired in the same statement (its expiry set back to its creation
+/// time, a time already past, much as a library restore expires them), so
+/// applying it asks the assistant to preview again rather than reporting a
+/// broken digest.
+pub(crate) fn moved_agent_rows(
+    conn: &Connection,
+    old_id: &str,
+    new_id: &str,
+) -> Result<DirMigration> {
+    let agent_proposals = conn.execute(
+        "UPDATE agent_proposals SET album_id = ?1, expires_at = min(expires_at, created_at) \
+         WHERE album_id = ?2",
+        [new_id, old_id],
+    )?;
+    let agent_changes = conn.execute(
+        "UPDATE agent_changes SET \
+            album_id = CASE WHEN album_id = ?2 THEN ?1 ELSE album_id END, \
+            after = CASE WHEN json_valid(after) AND json_extract(after, '$.albumId') = ?2 \
+                         THEN json_set(after, '$.albumId', ?1) ELSE after END \
+         WHERE album_id = ?2 \
+            OR (json_valid(after) AND json_extract(after, '$.albumId') = ?2)",
+        [new_id, old_id],
+    )?;
+    Ok(DirMigration {
+        agent_proposals,
+        agent_changes,
+        ..DirMigration::default()
+    })
+}
+
+/// Moves an album's research (requests and old job history records) to
+/// `new_id`; how many jobs moved, counted as the old job table counted them:
+/// one per history record, plus one per request made after the fold (a
+/// request that names a history record is that record's, not one more job).
+pub(crate) fn moved_research(conn: &Connection, old_id: &str, new_id: &str) -> Result<usize> {
+    let native = conn.execute(
+        "UPDATE delegated_work SET album_id = ?1 WHERE album_id = ?2 AND legacy_job_id IS NULL",
+        [new_id, old_id],
+    )?;
+    conn.execute(
+        "UPDATE delegated_work SET album_id = ?1 WHERE album_id = ?2",
+        [new_id, old_id],
+    )?;
+    let history = conn.execute(
+        "UPDATE research_history SET album_id = ?1 WHERE album_id = ?2",
+        [new_id, old_id],
+    )?;
+    Ok(native + history)
 }
 
 /// Every table besides `albums` that refers to an album by id. A row in one
 /// of them under an id no album has is left over from an album that was
 /// removed; moving another album onto that id would merge the two.
-pub const ALBUM_ID_HOLDERS: [&str; 7] = [
+pub const ALBUM_ID_HOLDERS: [&str; 10] = [
     "track_fingerprints",
     "track_tags",
     "album_blocked_mb_release_groups",
     "fingerprint_rejects",
     "check_findings",
-    "ai_jobs",
+    "delegated_work",
+    "research_history",
     "check_inputs",
+    "agent_proposals",
+    "agent_changes",
 ];
 
 /// Whether an album row already has `id` or `path`, or any table that

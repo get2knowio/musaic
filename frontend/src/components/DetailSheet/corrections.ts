@@ -32,8 +32,8 @@ import type { Album, AlbumResolution, ApplyPayload, Job, Track } from "@/lib/typ
  * The resolver's proposal, or null when the album has no MusicBrainz
  * anchor. The cover is part of it only when `includeCover` (the album has
  * no cover, or the user asked for the MusicBrainz one) and the resolver's
- * Cover Art Archive cover clears the same confidence bar the job worker
- * uses.
+ * Cover Art Archive cover clears the same confidence bar the research
+ * synthesis uses.
  */
 export function resolverProposal(
   resolution: AlbumResolution | null | undefined,

@@ -2,8 +2,8 @@
 //! AcoustID prompt, and the UI preferences.
 //!
 //! A write takes the work guard itself (a restore running makes it `Busy`, with
-//! nothing changed), publishes `SettingsChanged` (names only, never a value) and,
-//! for the settings, wakes the AI queue. No result holds a secret: a key is only
+//! nothing changed) and publishes `SettingsChanged` (names only, never a
+//! value). No result holds a secret: a key is only
 //! ever reported as set or not.
 
 use musaic_events::Event;
@@ -73,36 +73,25 @@ impl Settings<'_> {
 
     /// Apply the fields of `patch` that are present, in the Python app's order.
     /// The guard first (`Busy` while a restore runs, before any value is
-    /// looked at); a value out of range or an unknown provider is `Rejected`
-    /// (fields before it stay written, as always), a keyring that cannot save
-    /// a key is `Unavailable` with nothing written. Publishes `SettingsChanged`
-    /// once with the names written, wakes the AI queue, and when a non-empty
-    /// AcoustID key was saved restarts the fingerprint pool on the library so
-    /// stored fingerprints get their lookups now. A refused patch that saved
-    /// fields before the refused one does both for what it saved.
+    /// looked at); a value out of range is `Rejected` (fields before it stay
+    /// written, as always), a keyring that cannot save a key is `Unavailable`
+    /// with nothing written. Publishes `SettingsChanged` once with the names
+    /// written, and when a non-empty AcoustID key was saved restarts the
+    /// fingerprint pool on the library so stored fingerprints get their
+    /// lookups now. A refused patch that saved fields before the refused one
+    /// does both for what it saved. The retired provider and key settings are
+    /// not in the patch: a request naming them is parsed like any unknown key.
     pub fn patch(&self, patch: SettingsPatch) -> Result<SettingsRecord, OpError> {
         let kick_pool = patch.sets_acoustid_key();
         let _guard = self.app.gate().begin_work()?;
         let conn = self.conn()?;
-        // The providers `jobs.providers` lists.
-        let listed = self.app.ai_provider_ids();
-        let listed: Vec<&str> = listed.iter().map(String::as_str).collect();
         let out = musaic_services::settings_patch::apply_patch(
             conn,
             self.app.0.secrets.as_ref(),
             patch,
-            &listed,
             self.app.log(),
             self.app.bus(),
         );
-        // Wake the AI dispatcher (a max_parallel bump or an unpause) and the
-        // jobs streams: after a patch that went through, and after a refused
-        // one that saved the fields before the refused one (they are in
-        // effect), so an unpause saved that way is not left waiting for the
-        // queue's next periodic wake.
-        if out.result.is_ok() || !out.saved.is_empty() {
-            self.app.ai_jobs_changed();
-        }
         if kick_pool && out.saved.contains(&"acoustid_api_key") {
             musaic_services::settings_patch::kick_fingerprint_pool(
                 &self.app.0.pool,

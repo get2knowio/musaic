@@ -1,13 +1,13 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { useReturnFocus } from "./useReturnFocus";
-import { AlertTriangle, Image as ImageIcon, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import type { Job } from "@/lib/types";
 
 interface HintDialogProps {
   open: boolean;
-  /** What we're about to ask Claude — drives the title and placeholder.
+  /** What the research request asks for — drives the title and placeholder.
    *  `metadata+cover` is the combined "Suggest fixes (+ cover)" path. */
   mode: "metadata" | "cover" | "metadata+cover";
   /** Album title (for context in the dialog header). */
@@ -21,18 +21,14 @@ interface HintDialogProps {
   priorCoverAttempts?: Job[];
   /** The check id this dialog was opened for, when launched from a finding's
    *  Fix button. Drives the placeholder copy (different checks call for
-   *  different hint examples) and the cost/path callout (e.g.
-   *  unidentified-album tries MB first for free before falling through to
-   *  AI). Omitted when the dialog is opened from the DetailSheet footer. */
+   *  different hint examples) and the resolver-first callout (e.g.
+   *  unidentified-album tries MusicBrainz first before anything goes to the
+   *  assistant). Omitted when the dialog is opened from the DetailSheet footer. */
   checkId?: string | null;
-  /** Whether this album has a cover at all. When false, the
-   *  "Include album cover" checkbox is hidden — there's nothing to
-   *  toggle. */
-  hasCover?: boolean;
-  /** Called with the trimmed hint AND the `attachCover` state.
-   *  `attachCover` is True by default (matching the launch
-   *  behavior); user toggles via the checkbox to A/B-test the
-   *  cover's effect on identification quality / latency. */
+  /** Called with the trimmed hint and `attachCover`, always false: a
+   *  research request's context carries no image (`WorkContext` has no
+   *  cover and the server ignores the flag), so the old "Include album
+   *  cover" toggle would promise something nothing does. */
   onSubmit: (hint: string, attachCover: boolean) => void;
   onCancel: () => void;
 }
@@ -68,24 +64,24 @@ const TITLES: Record<HintDialogProps["mode"], string> = {
 
 const SUBTITLES: Record<HintDialogProps["mode"], string> = {
   metadata:
-    "Add any context that might help Claude — release year, edition, mislabeled tracks, anything you notice. Optional.",
+    "Add any context that might help — release year, edition, mislabeled tracks, anything you notice. Optional.",
   cover:
     "Add any context about which cover you want — original vs reissue, regional variant, etc. Optional.",
   "metadata+cover":
-    "Add any context that might help Claude identify the album and its cover — release year, edition, compilation series, regional variant. Optional.",
+    "Add any context that might help identify the album and its cover — release year, edition, compilation series, regional variant. Optional.",
 };
 
-/** Checks where an empty-hint submit hits MusicBrainz first (free, fast) and
- *  only falls through to an AI call (which uses API quota) when MB can't disambiguate. The
- *  dialog surfaces this so the user can predict what their click will do. */
+/** Checks where a submit tries the resolver (MusicBrainz) first and sends
+ *  only what it can't settle to the assistant. The dialog surfaces this so
+ *  the user can predict what their click will do. */
 const HAS_MB_DIRECT_PATH = new Set<string>([
   "unidentified-album",
   "tags-out-of-sync",
 ]);
 
 /**
- * Pre-AI dialog for adding free-form context to the prompt. Always shown
- * before enqueueing a `metadata` or `cover` AI job (POST /api/ai/jobs).
+ * Dialog for adding free-form context to a research request. Shown before
+ * a `metadata` or `cover` request is made (POST /api/ai/jobs).
  * The user can submit empty (no hint), supply a few words, or paste a
  * paragraph; the result rides along on the job's `hint` field.
  */
@@ -96,16 +92,10 @@ export default function HintDialog({
   initialHint = "",
   priorCoverAttempts = [],
   checkId = null,
-  hasCover = false,
   onSubmit,
   onCancel,
 }: HintDialogProps) {
   const [hint, setHint] = useState(initialHint);
-  // Default the cover-attach checkbox to checked (current launched
-  // behavior). User can uncheck to A/B-test the text-only path.
-  // Only meaningful when mode includes a metadata pass AND the
-  // album actually has a cover to attach.
-  const [attachCover, setAttachCover] = useState(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Only show prior-attempts context when the upcoming call will actually do
@@ -117,18 +107,15 @@ export default function HintDialog({
   const placeholder =
     (checkId && PLACEHOLDERS_BY_CHECK[checkId]) ?? PLACEHOLDERS[mode];
 
-  // Whether empty-hint submits will try MB first (free) before falling
-  // through to an AI call. Surfaced as inline copy so the user can
+  // Whether a submit tries the resolver first before anything goes to the
+  // assistant. Surfaced as inline copy so the user can
   // predict what their click does.
   const hasMbDirect = checkId !== null && HAS_MB_DIRECT_PATH.has(checkId);
 
   // Reset / pre-fill hint when the dialog opens; auto-focus textarea.
-  // Also reset attachCover to the default (true) on every open so a
-  // one-off "uncheck" doesn't silently leak into the next click.
   useEffect(() => {
     if (open) {
       setHint(initialHint);
-      setAttachCover(true);
       // Defer focus until after Radix's portal mount + animation.
       setTimeout(() => {
         textareaRef.current?.focus();
@@ -137,12 +124,7 @@ export default function HintDialog({
     }
   }, [open, mode, initialHint]);
 
-  // The cover-attach toggle only matters when (a) this run includes a
-  // metadata pass (cover-only jobs don't use the cover-attach path)
-  // AND (b) the album actually has a cover to attach.
-  const showCoverToggle = (mode === "metadata" || mode === "metadata+cover") && hasCover;
-
-  const handleSubmit = () => onSubmit(hint.trim(), attachCover);
+  const handleSubmit = () => onSubmit(hint.trim(), false);
 
   const returnFocus = useReturnFocus(open);
 
@@ -195,8 +177,8 @@ export default function HintDialog({
                   Free first:
                 </span>
                 <span>
-                  Submitting with no hint tries MusicBrainz first — fast and
-                  free. AI runs only if MB can't disambiguate.
+                  The resolver is tried first. Anything it can&apos;t settle goes
+                  to your assistant.
                 </span>
               </div>
             )}
@@ -222,36 +204,6 @@ export default function HintDialog({
                 <kbd className="mono text-[10.5px] border border-line bg-bg-2 px-1 rounded-sm">⌘ ↵</kbd> to submit
               </span>
             </div>
-
-            {showCoverToggle && (
-              // A/B-test affordance for the cover-attach path.
-              // Default-checked (matches launched behavior); user can
-              // uncheck to force the text-only prompt. Useful when
-              // debugging job-reliability issues that may correlate
-              // with multimodal calls.
-              <label className="mt-3 flex items-start gap-2.5 text-xs text-fg-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={attachCover}
-                  onChange={(e) => setAttachCover(e.target.checked)}
-                  className="mt-0.5 shrink-0 accent-accent cursor-pointer"
-                />
-                <span>
-                  <span className="inline-flex items-center gap-1.5 text-fg font-medium">
-                    <ImageIcon className="w-3 h-3" />
-                    Include album cover with the prompt
-                  </span>
-                  <span className="block text-fg-4 leading-relaxed mt-0.5">
-                    Sends the 384px thumbnail as an image. Usually
-                    boosts identification (the cover often shows
-                    the artist/title rendered clearly) but adds ~1k
-                    input tokens and ~1–3s of per-turn latency.
-                    Uncheck to force the text-only path for
-                    comparison.
-                  </span>
-                </span>
-              </label>
-            )}
           </div>
 
           <div className="flex items-center justify-end gap-2 px-4 h-12 border-t border-line bg-panel-2">
@@ -321,11 +273,11 @@ function describeAttempt(j: Job): string {
     // Compress wordy backend errors to something glanceable.
     const e = (j.error || "").trim();
     if (!e) return "Failed (no detail)";
-    if (e.length > 90) return "Failed (Claude error)";
+    if (e.length > 90) return "Failed";
     return `Failed: ${e}`;
   }
-  // acted_on with no cover_url — Claude / MB couldn't find one and the user
-  // dismissed the result.
+  // acted_on with no cover_url — no cover was found and the user dismissed
+  // the result.
   const note = j.result?.cover?.notes?.trim() || "Couldn't identify a cover";
   return note.length > 90 ? note.slice(0, 89) + "…" : note;
 }

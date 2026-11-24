@@ -80,6 +80,12 @@ fn done_summary(rep: &MigrationReport) -> Option<String> {
             dropped.join(", ")
         ));
     }
+    if !rep.dropped_retired.is_empty() {
+        parts.push(format!(
+            "removed {} from the database file (retired, never moved to the keyring)",
+            rep.dropped_retired.join(", ")
+        ));
+    }
     if !rep.backup_scrubbed.is_empty() {
         parts.push(format!(
             "removed {} from the pre-migration backup",
@@ -335,4 +341,66 @@ pub fn shutdown_retry(scrub: &KeyScrub, db_gate: &DbGate, db_path: &Path, store:
             )),
         }
     }
+}
+
+/// The settings row that records that the retired keyring entries are gone
+/// (not in the settings body).
+pub const RETIRED_KEYS_MARKER: &str = "retired_keys_removed";
+
+/// What [`remove_retired_keys`] did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RetiredKeys {
+    /// The marker was present: no keyring call was made.
+    AlreadyRemoved,
+    /// Every retired entry is gone (a missing one counts) and the marker was
+    /// written.
+    Removed,
+    /// These entries could not be deleted (or the marker not written); the
+    /// next start tries again.
+    Failed(Vec<&'static str>),
+}
+
+/// Delete the keyring entries of the retired keys
+/// ([`musaic_secrets::RETIRED_SECRET_KEYS`]: the removed model provider's
+/// and web-scraping service's keys, service [`musaic_secrets::SERVICE`])
+/// once. The settings row [`RETIRED_KEYS_MARKER`] is written only after
+/// every delete succeeded; while it is present this makes no keyring call. A
+/// failure (a locked secret service) is logged by key name only and retried
+/// at the next start. A restored older database lacks the marker, so the
+/// next start deletes again, which is harmless. Never reads a value.
+pub fn remove_retired_keys(db: &Db, store: &dyn SecretStore, log: &dyn HostLog) -> RetiredKeys {
+    let conn = db.connection();
+    match musaic_db::settings::get_raw(conn, RETIRED_KEYS_MARKER) {
+        Ok(Some(_)) => return RetiredKeys::AlreadyRemoved,
+        Ok(None) => {}
+        Err(_) => {
+            log.warn(
+                TARGET,
+                "retired API keys: could not read the settings; trying again at the next start",
+            );
+            return RetiredKeys::Failed(Vec::new());
+        }
+    }
+    let failed: Vec<&'static str> = musaic_secrets::RETIRED_SECRET_KEYS
+        .into_iter()
+        .filter(|key| store.delete(key).is_err())
+        .collect();
+    if !failed.is_empty() {
+        log.warn(
+            TARGET,
+            &format!(
+                "retired API keys: could not remove {} from the system keyring; trying again at the next start",
+                failed.join(", ")
+            ),
+        );
+        return RetiredKeys::Failed(failed);
+    }
+    if musaic_db::settings::set_raw(conn, RETIRED_KEYS_MARKER, "1").is_err() {
+        log.warn(
+            TARGET,
+            "retired API keys: removed from the system keyring, but could not record it; trying again at the next start",
+        );
+        return RetiredKeys::Failed(Vec::new());
+    }
+    RetiredKeys::Removed
 }

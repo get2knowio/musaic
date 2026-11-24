@@ -122,12 +122,63 @@ impl T {
         self
     }
 
+    /// An old job, as schema v24 folded it: a history record and its
+    /// request.
     fn job(&self, id: &str, album: &str, status: &str) -> &Self {
+        let job = musaic_db::research_history::JobRow {
+            album_path: format!("{LIB}/{album}"),
+            ..musaic_db::research_history::JobRow::seed(id, album, "metadata", status, "t")
+        };
+        musaic_db::research_history::import_legacy_job(self.c(), &job).unwrap();
+        // Ids and the fold's clock made stable, so two libraries built the
+        // same way dump the same.
+        self.c()
+            .execute_batch(&format!(
+                "UPDATE delegation_audit SET work_id = 'w-{id}'
+                   WHERE work_id IN (SELECT id FROM delegated_work WHERE legacy_job_id = '{id}');
+                 UPDATE delegation_outbox SET work_id = 'w-{id}'
+                   WHERE work_id IN (SELECT id FROM delegated_work WHERE legacy_job_id = '{id}');
+                 UPDATE delegated_work SET id = 'w-{id}', group_id = 'g-{id}'
+                   WHERE legacy_job_id = '{id}';
+                 UPDATE research_history SET migrated_at = 0 WHERE id = '{id}';"
+            ))
+            .unwrap();
+        self
+    }
+
+    /// An assistant's proposal on `album`, valid until 2099.
+    fn proposal(&self, id: &str, album: &str) -> &Self {
         self.c()
             .execute(
-                "INSERT INTO ai_jobs (id, album_id, album_path, job_type, status, created_at) \
-                 VALUES (?1, ?2, ?3, 'metadata', ?4, 't')",
-                params![id, album, format!("{LIB}/{album}"), status],
+                "INSERT OR IGNORE INTO agent_pairings (id, name, scopes, secret_fingerprint, \
+                 created_at) VALUES ('p', 'Assistant', '[]', 'f', 't')",
+                [],
+            )
+            .unwrap();
+        self.c()
+            .execute(
+                "INSERT INTO agent_proposals (id, pairing_id, album_id, base_revision, patch, \
+                 digest, kinds, diff, created_at, expires_at) \
+                 VALUES (?1, 'p', ?2, 'rev', '{}', 'd', '[]', '{}', '2026-11-18T11:00:00Z', \
+                 '2099-01-01T00:00:00Z')",
+                params![id, album],
+            )
+            .unwrap();
+        self
+    }
+
+    /// A finished change record of an assistant on `album`; its after-image
+    /// names the same album.
+    fn change(&self, id: &str, album: &str) -> &Self {
+        self.c()
+            .execute(
+                "INSERT INTO agent_changes (id, pairing_id, proposal_id, album_id, created_at, \
+                 state, before, after) VALUES (?1, NULL, 'pr', ?2, 't', 'applied', '{}', ?3)",
+                params![
+                    id,
+                    album,
+                    format!(r#"{{"albumId":"{album}","folder":"{album}","files":{{}}}}"#)
+                ],
             )
             .unwrap();
         self
@@ -469,6 +520,11 @@ fn full_library() -> T {
         .input("no-cover", "bystander")
         .input("dupes", "");
     t.run_scope("[\"x1\", \"x2\"]");
+    // An assistant's proposals and change records.
+    t.proposal("pr-x1", "x1")
+        .proposal("pr-t", "t")
+        .change("ch-x2", "x2")
+        .change("ch-bystander", "bystander");
     // AI review stamps: x2 is the latest.
     t.set("t", "metadata_ai_acted_on_at", Some("2026-01-01T00:00:00Z"))
         .set("x1", "metadata_ai_acted_on_at", None)
@@ -494,11 +550,28 @@ fn folds_every_table_and_deletes_the_emptied_rows() {
             check_findings_resolved: 3,
             ai_jobs: 2,
             check_inputs: 4,
+            agent_proposals: 1,
+            agent_changes: 1,
             release_group: None,
             release: None,
             release_cleared: false,
             metadata_ai_acted_on_at: Some("2026-05-01T00:00:00Z".into()),
         }
+    );
+    // An assistant's rows follow the survivor; a member's proposal, made
+    // against one disc, is expired; the survivor's own stays valid.
+    assert_eq!(
+        t.rows("SELECT id, album_id, expires_at FROM agent_proposals ORDER BY id"),
+        [
+            "'pr-t'|'t'|'2099-01-01T00:00:00Z'",
+            "'pr-x1'|'t'|'2026-11-18T11:00:00Z'"
+        ]
+    );
+    assert_eq!(
+        t.rows(
+            "SELECT id, album_id, json_extract(after, '$.albumId') FROM agent_changes ORDER BY id"
+        ),
+        ["'ch-bystander'|'bystander'|'bystander'", "'ch-x2'|'t'|'t'"]
     );
     assert_eq!(
         t.rows("SELECT id FROM albums ORDER BY id"),
@@ -541,7 +614,7 @@ fn folds_every_table_and_deletes_the_emptied_rows() {
     );
     // Jobs: repointed, display path kept.
     assert_eq!(
-        t.rows("SELECT id, album_id, album_path FROM ai_jobs ORDER BY id"),
+        t.rows("SELECT id, album_id, album_path FROM research_history ORDER BY id"),
         [
             format!("'j1'|'t'|'{LIB}/x1'"),
             format!("'j2'|'t'|'{LIB}/x2'"),
@@ -797,6 +870,105 @@ fn unknown_ids_are_refused() {
         refused(&t, |c| merge_album_rows(c, &req(&removed, "t"))),
         MergeRefusal::UnknownAlbum("removed-three".into())
     );
+    // An assistant's proposal or change record holds an id the same way.
+    t.proposal("pr", "removed-four");
+    let removed = ids(&["removed-four"]);
+    assert_eq!(
+        refused(&t, |c| merge_album_rows(c, &req(&removed, "t"))),
+        MergeRefusal::UnknownAlbum("removed-four".into())
+    );
+    t.change("ch", "removed-five");
+    let removed = ids(&["removed-five"]);
+    assert_eq!(
+        refused(&t, |c| merge_album_rows(c, &req(&removed, "t"))),
+        MergeRefusal::UnknownAlbum("removed-five".into())
+    );
+}
+
+/// A rename (and a scan adoption, which moves the row the same way) takes
+/// an assistant's proposals and change records with the album: the change
+/// record's column and its after-image both, and a record written before
+/// whose after-image alone names the album (its own change renamed the
+/// folder) too. Proposals are expired: they were made against the old row.
+#[test]
+fn a_rename_moves_an_assistants_rows_and_expires_its_proposals() {
+    let mut t = T::new();
+    t.album("a").album("other");
+    t.proposal("pr-a", "a")
+        .proposal("pr-other", "other")
+        .change("ch-a", "a")
+        .change("ch-other", "other");
+    // A change made on "old" that renamed the folder to "a".
+    t.change("ch-renamed", "old");
+    t.c()
+        .execute(
+            "UPDATE agent_changes SET after = json_set(after, '$.albumId', 'a') \
+             WHERE id = 'ch-renamed'",
+            [],
+        )
+        .unwrap();
+    // A change still running: no after-image yet.
+    t.c()
+        .execute(
+            "INSERT INTO agent_changes (id, proposal_id, album_id, created_at, state, before) \
+             VALUES ('ch-running', 'pr', 'a', 't', 'recorded', '{}')",
+            [],
+        )
+        .unwrap();
+
+    let moved = rename_album_directory(t.db.connection_mut(), "a", "b", "/music/b", "b").unwrap();
+    assert_eq!((moved.agent_proposals, moved.agent_changes), (1, 3));
+    assert_eq!(
+        t.rows("SELECT id, album_id, expires_at FROM agent_proposals ORDER BY id"),
+        [
+            "'pr-a'|'b'|'2026-11-18T11:00:00Z'",
+            "'pr-other'|'other'|'2099-01-01T00:00:00Z'"
+        ]
+    );
+    assert_eq!(
+        t.rows(
+            "SELECT id, album_id, json_extract(after, '$.albumId'), json_valid(after) \
+             FROM agent_changes ORDER BY id"
+        ),
+        [
+            "'ch-a'|'b'|'b'|1",
+            "'ch-other'|'other'|'other'|1",
+            "'ch-renamed'|'old'|'b'|1",
+            "'ch-running'|'b'|NULL|NULL"
+        ]
+    );
+    // The rest of the after-image is untouched.
+    assert_eq!(
+        t.get("SELECT json_extract(after, '$.folder') FROM agent_changes WHERE id = 'ch-a'"),
+        Some("a".into())
+    );
+}
+
+/// Rows of an assistant left under an id no album has hold that id: a scan
+/// must not adopt another folder onto it.
+#[test]
+fn an_id_an_assistant_still_names_is_in_use() {
+    let t = T::new();
+    t.proposal("pr", "gone-proposal")
+        .change("ch", "gone-change");
+    let in_use = |id: &str| musaic_db::renames::album_key_in_use(t.c(), id, "/music/new").unwrap();
+    assert!(in_use("gone-proposal"));
+    assert!(in_use("gone-change"));
+    assert!(!in_use("free"));
+}
+
+/// Every table with an `album_id` column is in the one inventory of album
+/// id holders, so a rename, an adoption and a merge all know about it.
+#[test]
+fn every_table_with_an_album_id_is_a_listed_holder() {
+    let t = T::new();
+    let tables = t.rows(
+        "SELECT m.name FROM sqlite_master m, pragma_table_info(m.name) p \
+         WHERE m.type = 'table' AND p.name = 'album_id' ORDER BY m.name",
+    );
+    let mut listed: Vec<String> = ALBUM_ID_HOLDERS.iter().map(|t| format!("'{t}'")).collect();
+    listed.sort();
+    assert_eq!(tables, listed);
 }
 
 #[test]
@@ -917,12 +1089,19 @@ fn an_active_job_on_any_member_is_refused_and_finished_ones_are_not() {
             t.album("t").album("x");
             t.job("j", on, status);
             let x = ids(&["x"]);
+            // The refusal names the request's group in the old vocabulary
+            // (an old running job was folded into a queued request).
             assert_eq!(
                 refused(&t, |c| merge_album_rows(c, &req(&x, "t"))),
                 MergeRefusal::ActiveJob {
                     album_id: on.into(),
-                    job_id: "j".into(),
-                    status: status.into()
+                    job_id: "g-j".into(),
+                    status: if status == "running" {
+                        "queued"
+                    } else {
+                        status
+                    }
+                    .into()
                 }
             );
         }
@@ -934,7 +1113,89 @@ fn an_active_job_on_any_member_is_refused_and_finished_ones_are_not() {
         let x = ids(&["x"]);
         let r = merge_album_rows(t.c(), &req(&x, "t")).unwrap();
         assert_eq!(r.ai_jobs, 1);
-        assert_eq!(t.rows("SELECT album_id FROM ai_jobs"), ["'t'"]);
+        assert_eq!(t.rows("SELECT album_id FROM research_history"), ["'t'"]);
+        assert_eq!(t.rows("SELECT album_id FROM delegated_work"), ["'t'"]);
+    }
+}
+
+/// A native research request (no old job behind it) on `album`, moved to
+/// `state` by hand (a held one gets the lease columns its state requires).
+fn native_request(t: &T, album: &str, state: &str) {
+    musaic_db::delegated_work::enqueue(
+        t.c(),
+        &[musaic_db::delegated_work::NewWork {
+            id: "w-native",
+            group_id: "g-native",
+            kind: "metadata.identify",
+            album_id: album,
+            base_revision: "rev",
+            input_json: "{}",
+            input_digest: "input",
+            max_attempts: musaic_db::delegated_work::DEFAULT_MAX_ATTEMPTS,
+        }],
+        1_000,
+    )
+    .unwrap();
+    let held = matches!(state, "claimed" | "running");
+    t.c()
+        .execute(
+            "UPDATE delegated_work SET state = ?1, principal_id = ?2, lease_token_hash = ?3, \
+             lease_expires_at = ?4 WHERE id = 'w-native'",
+            params![
+                state,
+                held.then_some("p"),
+                held.then_some("h"),
+                held.then_some(9_999_999_i64)
+            ],
+        )
+        .unwrap();
+}
+
+#[test]
+fn every_unresolved_request_state_refuses_and_finished_requests_follow_the_survivor() {
+    for (state, status) in [
+        ("queued", "queued"),
+        ("claimed", "running"),
+        ("running", "running"),
+        ("awaiting_review", "completed"),
+    ] {
+        for on in ["x", "t"] {
+            let t = T::new();
+            t.album("t").album("x");
+            native_request(&t, on, state);
+            let x = ids(&["x"]);
+            assert_eq!(
+                refused(&t, |c| merge_album_rows(c, &req(&x, "t"))),
+                MergeRefusal::ActiveJob {
+                    album_id: on.into(),
+                    job_id: "g-native".into(),
+                    status: status.into(),
+                },
+                "{state} on {on}"
+            );
+        }
+    }
+    for state in ["applied", "discarded", "failed", "cancelled"] {
+        let t = T::new();
+        t.album("t").album("x");
+        native_request(&t, "x", state);
+        t.job("old", "x", "failed");
+        let x = ids(&["x"]);
+        let r = merge_album_rows(t.c(), &req(&x, "t")).unwrap();
+        // One native request plus one old job (its record and request are
+        // one job).
+        assert_eq!(r.ai_jobs, 2, "{state}");
+        assert_eq!(
+            t.rows("SELECT id, album_id FROM delegated_work ORDER BY id"),
+            ["'w-native'|'t'", "'w-old'|'t'"],
+            "{state}"
+        );
+        assert_eq!(
+            t.rows("SELECT id, album_id FROM research_history"),
+            ["'old'|'t'"]
+        );
+        t.assert_foreign_keys_hold();
+        assert_eq!(t.dangling(), Vec::<String>::new());
     }
 }
 
@@ -1012,10 +1273,23 @@ fn an_interrupted_merge_resumed_ends_where_an_uninterrupted_one_does() {
 
     let mut resumed = set_of_three();
     let epoch = musaic_db::delegated_work::epoch(straight.c()).unwrap();
-    resumed
-        .c()
-        .execute("UPDATE library_epoch SET epoch=?1", [epoch])
-        .unwrap();
+    // One epoch for both, the old job's request and its audit included.
+    for table in [
+        "library_epoch",
+        "delegated_work",
+        "delegation_audit",
+        "delegation_outbox",
+    ] {
+        let column = if table == "library_epoch" {
+            "epoch"
+        } else {
+            "library_epoch"
+        };
+        resumed
+            .c()
+            .execute(&format!("UPDATE {table} SET {column}=?1"), [&epoch])
+            .unwrap();
+    }
     move_files(&resumed, &MOVES[..2]);
     // Crash. Resume: every move again (the first two are no-ops now).
     move_files(&resumed, &MOVES);
@@ -1059,7 +1333,10 @@ fn an_interrupted_merge_resumed_ends_where_an_uninterrupted_one_does() {
         straight.rows("SELECT album_id, release_group_mbid FROM album_blocked_mb_release_groups"),
         ["'set'|'rg-wrong'"]
     );
-    assert_eq!(straight.rows("SELECT album_id FROM ai_jobs"), ["'set'"]);
+    assert_eq!(
+        straight.rows("SELECT album_id FROM research_history"),
+        ["'set'"]
+    );
     assert_eq!(straight.rows("SELECT COUNT(*) FROM check_inputs"), ["0"]);
     assert_eq!(
         straight.rows("SELECT mb_release_group_mbid, mb_release_mbid, mb_match_score FROM albums"),

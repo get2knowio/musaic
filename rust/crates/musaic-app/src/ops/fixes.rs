@@ -7,9 +7,9 @@
 //! before it looks at its input (a restore running answers `Busy` even for an
 //! unknown finding), and holds it until its work ends.
 //!
-//! [`Fixes::fix`] sends its own follow-up: a fix that fell through to the AI
-//! queue and enqueued a job wakes the dispatcher and every jobs feed once the
-//! job row is written. The desktop queues unresolved research for paired assistants.
+//! [`Fixes::fix`] sends its own follow-up: a fix the resolver cannot settle
+//! makes a research request for paired assistants, which wakes every jobs
+//! feed once the request is written.
 //!
 //! [`Fixes::quick_fix_all`] and [`Fixes::convert_multi_disc`] are runs with a
 //! sink, the shape of [`analyze`](super::analyze): every refusal is returned
@@ -22,7 +22,7 @@ use std::cell::RefCell;
 use std::ops::ControlFlow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use musaic_services::fix_flow;
+use musaic_services::check_fixes::{self, AiJobRequest, Delegated, FixOutcome};
 use musaic_services::gate::WorkKind;
 use musaic_services::multi_disc_convert;
 use musaic_services::multi_disc_gather;
@@ -37,6 +37,39 @@ use super::error::OpError;
 pub use super::events::Listening;
 use super::record::{AbandonRecord, ConversionRecord};
 use crate::App;
+
+/// Marks a batch as held by the quick-fix-all run in progress, for as long
+/// as the run lasts (a panic included), so the batch is not "unfinished"
+/// while it is still being made.
+struct HeldBatch<'a> {
+    app: &'a App,
+    id: String,
+}
+
+impl<'a> HeldBatch<'a> {
+    fn new(app: &'a App, id: &str) -> Self {
+        app.0
+            .running_batches
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(id.to_string());
+        HeldBatch {
+            app,
+            id: id.to_string(),
+        }
+    }
+}
+
+impl Drop for HeldBatch<'_> {
+    fn drop(&mut self) {
+        self.app
+            .0
+            .running_batches
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&self.id);
+    }
+}
 
 /// How a quick-fix-all run ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -75,46 +108,33 @@ impl Fixes<'_> {
     /// path (`Rejected`). A finding of a Missing album is not attempted: the
     /// result says so (`ok` false). The checks feed is told after every attempt.
     pub fn fix(&self, check_id: &str, finding_id: i64, hint: &str) -> Result<FixResult, OpError> {
-        let guard = self.app.gate().begin_work()?;
+        let _guard = self.app.gate().begin_work()?;
         let conn = musaic_db::open_connection(self.app.db_path())?;
-        let ids = self.app.0.ai.ids.clone();
-        if !self.app.0.legacy_jobs {
-            use musaic_services::check_fixes::{self, FixOutcome};
-            let outcome = self.app.with_fix_env(conn, |env| {
-                env.model_unavailable = None;
-                check_fixes::fix_finding(env, check_id, finding_id, hint)
-            })?;
-            return match outcome {
-                FixOutcome::Done(result) => Ok(result),
-                FixOutcome::NeedsAiJob(request) => {
-                    let job = self.app.ops().jobs().enqueue(
-                        &request.album_id,
-                        request.job_type,
-                        &request.hint,
-                        false,
-                    )?;
-                    let note = "Research requested. You can follow it in Review.";
-                    let message = request
-                        .applied_summary
-                        .map_or_else(|| note.to_owned(), |s| format!("{s}. {note}"));
-                    Ok(FixResult {
-                        ok: true,
-                        message,
-                        job_id: Some(job.id),
-                    })
+        // Every build delegates: research the resolver cannot settle becomes
+        // a research request, never a job a built-in worker runs.
+        let outcome = self.app.with_fix_env(conn, |env| {
+            check_fixes::fix_finding(env, check_id, finding_id, hint)
+        })?;
+        let result = match outcome {
+            FixOutcome::Done(result) => result,
+            FixOutcome::NeedsAiJob(request) => {
+                let job = self.app.ops().jobs().enqueue(
+                    &request.album_id,
+                    request.job_type,
+                    &request.hint,
+                    false,
+                )?;
+                let note = "Research requested. You can follow it in Review.";
+                let message = request
+                    .applied_summary
+                    .map_or_else(|| note.to_owned(), |s| format!("{s}. {note}"));
+                FixResult {
+                    ok: true,
+                    message,
+                    job_id: Some(job.id),
                 }
-            };
-        }
-        let run = self.app.with_fix_env(conn, |env| {
-            fix_flow::fix_finding(env, check_id, finding_id, hint, &*ids, &|| {
-                self.app.now_iso()
-            })
-        });
-        drop(guard);
-        let (result, enqueued) = run?;
-        if enqueued {
-            self.app.ai_jobs_changed();
-        }
+            }
+        };
         Ok(result)
     }
 
@@ -126,9 +146,22 @@ impl Fixes<'_> {
     /// called. The loop runs under `in_bulk_run` and publishes one
     /// `BulkBatchCompleted` at the end, also when the sink went away or a fix
     /// panicked. A fix that panics is an `Error` progress and the loop goes on.
+    ///
+    /// With `research`, an album the resolver cannot settle (four checks) is
+    /// sent for research, as is a tags-out-of-sync album it settles only in
+    /// part, once the settled fields are written: one request each, all in one new batch whose row the
+    /// first request's transaction creates (a run that makes none makes no
+    /// batch). Each request commits with its audit, outbox and event rows;
+    /// their `AgentStateChanged(work)` events are published every
+    /// [`PUBLISH_PAGE`](crate::agent::delegation::PUBLISH_PAGE) requests and
+    /// at the end. An album that already has an unresolved request of that
+    /// kind is counted as already requested and keeps its own batch. The
+    /// batch's `finished_at` is written only when the run reaches `Done`; a
+    /// run stopped part-way keeps what it made, as "from an unfinished run".
     pub fn quick_fix_all(
         &self,
         check_id: &str,
+        research: bool,
         sink: &mut dyn FnMut(QuickFixEvent) -> Listening,
     ) -> Result<QuickFixEnd, OpError> {
         let _guard = self.app.gate().begin(WorkKind::QuickFixAll)?;
@@ -136,14 +169,61 @@ impl Fixes<'_> {
         let pause = self.app.0.quick_fix_pause.clone();
         let mut listening = true;
         let mut summary = None;
+        let batch = research.then(|| crate::desktop_research::BatchRef {
+            id: crate::agent::delegation::uuid(),
+            check_id: check_id.to_string(),
+            started_at: crate::agent::delegation::now_ms(self.app),
+        });
+        let _held = batch.as_ref().map(|b| HeldBatch::new(self.app, &b.id));
+        let mut made = 0usize;
+        let app = self.app;
+        let mut delegate_fn = |conn: &mut rusqlite::Connection, request: &AiJobRequest| {
+            let Some(batch) = batch.as_ref() else {
+                return Delegated::Refused("Research was not asked for.".into());
+            };
+            let job = musaic_services::research_request::NewJob {
+                album_id: &request.album_id,
+                album_path: &request.album_path,
+                album_title: &request.album_title,
+                job_type: request.job_type,
+                hint: &request.hint,
+                attach_cover: false,
+            };
+            let answer = crate::desktop_research::enqueue(
+                app,
+                conn,
+                &job,
+                Some(batch),
+                crate::desktop_research::Publish::Deferred,
+            );
+            match answer {
+                Ok(made_now) if made_now.created => {
+                    made += 1;
+                    if made.is_multiple_of(crate::agent::delegation::PUBLISH_PAGE as usize) {
+                        crate::agent::delegation::publish_pending(app, conn);
+                    }
+                    Delegated::Requested {
+                        batch_id: batch.id.clone(),
+                    }
+                }
+                Ok(_) => Delegated::AlreadyRequested,
+                Err(e) => Delegated::Refused(e.message().to_string()),
+            }
+        };
+        let delegate: Option<&mut check_fixes::Delegate<'_>> = if research {
+            Some(&mut delegate_fn)
+        } else {
+            None
+        };
         let run = self.app.with_fix_env(conn, |env| {
-            musaic_services::check_fixes::quick_fix_all(
+            let run = musaic_services::check_fixes::quick_fix_all(
                 env,
                 check_id,
                 &mut || pause(),
+                delegate,
                 &mut |event| {
                     if let QuickFixEvent::Done(s) = &event {
-                        summary = Some(*s);
+                        summary = Some(s.clone());
                     }
                     if listening {
                         // A sink that panics is treated as gone.
@@ -158,9 +238,23 @@ impl Fixes<'_> {
                         ControlFlow::Break(())
                     }
                 },
-            )
+            );
+            if research {
+                // What the run made is committed; tell the listeners now,
+                // also when the run stopped part-way.
+                crate::agent::delegation::publish_pending(app, env.conn);
+            }
+            run
         });
         run?;
+        if let (Some(batch), Some(_)) = (&batch, &summary) {
+            let conn = musaic_db::open_connection(self.app.db_path())?;
+            musaic_db::delegated_work::finish_batch(
+                &conn,
+                &batch.id,
+                crate::agent::delegation::now_ms(self.app),
+            )?;
+        }
         Ok(summary.map_or(QuickFixEnd::Stopped, QuickFixEnd::Finished))
     }
 

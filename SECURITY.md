@@ -139,7 +139,11 @@ the service name `musaic` (`rust/crates/musaic-secrets`); agent pairing secrets 
 service name `musaic-agent` (see "Agent access"). They are never written to the
 database, to backups or snapshots, or to the log (`server.log` masks key values). Keys
 that an older version stored in the database are moved into the keyring on first start
-and then removed from the database and from the pre-upgrade backup. If no keyring is
+and then removed from the database and from the pre-upgrade backup. Keys an older version
+kept for features that no longer exist (a built-in model provider's key and a web-scraping
+service's key) are never moved: they are removed from the database and the backup, and
+deleted from the keyring once on the first start of this version (a start that cannot
+delete them tries again next time, and logs only the key's name). If no keyring is
 available, Musaic stores no keys at all (there is no file fallback) and the Settings page
 says so.
 

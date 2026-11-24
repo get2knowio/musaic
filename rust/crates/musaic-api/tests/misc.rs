@@ -161,8 +161,14 @@ async fn settings_never_leak_a_secret() {
         .await;
         assert_eq!(r.status, 200);
         assert!(!r.text().contains("top-secret-42"), "{key}");
-        assert_eq!(r.json()[format!("{key}_set")], json!(true));
-        assert_eq!(store.entries()[key], "top-secret-42");
+        if key == "acoustid_api_key" {
+            assert_eq!(r.json()[format!("{key}_set")], json!(true));
+            assert_eq!(store.entries()[key], "top-secret-42");
+        } else {
+            // A retired key is ignored like any unknown setting (FR-003).
+            assert!(r.json().get(format!("{key}_set")).is_none(), "{key}");
+            assert!(!store.entries().contains_key(key), "{key}");
+        }
     }
     let r = call(&app, "GET", "/api/settings", None).await;
     assert!(!r.text().contains("top-secret-42"));
@@ -325,55 +331,6 @@ async fn snapshot_interval_must_be_finite() {
     assert_eq!(s["snapshot_min_interval_hours"], json!(1.5));
 }
 
-// Issue #199: every provider `GET /api/ai/providers` lists can be saved as
-// `ai_provider_id`, and a refused id's message names exactly those
-// providers. The stored default the Python app wrote ("claude") and ""
-// stay accepted so an existing database and older clients keep working.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn listed_providers_can_be_saved() {
-    let sb = Sandbox::new();
-    let app = router(sb.state_no_lifespan());
-    let p = call(&app, "GET", "/api/ai/providers", None).await.json();
-    let ids: Vec<String> = p["providers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|p| p["id"].as_str().unwrap().to_owned())
-        .collect();
-    assert!(!ids.is_empty());
-    for id in ids.iter().map(String::as_str).chain(["claude", ""]) {
-        let r = call(
-            &app,
-            "PATCH",
-            "/api/settings",
-            Some(&json!({"ai_provider_id": id})),
-        )
-        .await;
-        assert_eq!(r.status, 200, "{id:?}: {}", r.text());
-        let s = call(&app, "GET", "/api/settings", None).await.json();
-        let want = if id.is_empty() { "claude" } else { id };
-        assert_eq!(s["ai_provider_id"], want, "{id:?}");
-    }
-    let r = call(
-        &app,
-        "PATCH",
-        "/api/settings",
-        Some(&json!({"ai_provider_id": "bedrock"})),
-    )
-    .await;
-    assert_eq!(r.status, 400);
-    assert_eq!(
-        r.json()["detail"],
-        format!(
-            "Unknown or not-installed provider 'bedrock'. Installed: {}.",
-            ids.join(", ")
-        )
-    );
-}
-
-// A 422 names the field and the rule, never the caller's body: a missing
-// field does not echo the other fields (a key sent by mistake stays out of
-// the response), and a wrong-typed long value is cut.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn validation_errors_do_not_echo_the_request_body() {
     let sb = Sandbox::new();

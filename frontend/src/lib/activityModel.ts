@@ -241,7 +241,7 @@ export function bulkSummary(r: BulkRun): Summary {
   }
 }
 
-// ---- jobs ----
+// ---- research requests (job cards) ----
 
 export function jobState(j: Job): ActivityState {
   switch (j.status) {
@@ -257,16 +257,16 @@ export function jobState(j: Job): ActivityState {
   }
 }
 
-export function jobsSummary(jobs: readonly Job[], queuePaused: boolean, feed: Feed): Summary {
+export function jobsSummary(jobs: readonly Job[], feed: Feed): Summary {
   const running = jobs.filter((j) => j.status === "running").length;
   const queued = jobs.filter((j) => j.status === "queued").length;
   if ((running || queued) && lost(feed)) {
-    return { state: "stale", ongoing: true, verb: "AI jobs", progress: null, detail: "The connection to the job queue was lost." };
+    return { state: "stale", ongoing: true, verb: "Research requests", progress: null, detail: "The connection to the research queue was lost." };
   }
   if (running) {
     return {
       state: "running",
-      verb: running === 1 ? "1 job running" : `${running} jobs running`,
+      verb: running === 1 ? "1 research request running" : `${running} research requests running`,
       progress: null,
       detail: `${running} running${queued ? `, ${queued} queued` : ""}.`,
     };
@@ -274,12 +274,12 @@ export function jobsSummary(jobs: readonly Job[], queuePaused: boolean, feed: Fe
   if (queued) {
     return {
       state: "waiting",
-      verb: `${queued} ${queued === 1 ? "job" : "jobs"} queued`,
+      verb: `${queued} ${queued === 1 ? "research request" : "research requests"} queued`,
       progress: null,
-      detail: queuePaused ? "The queue is paused after a failure." : `${queued} queued.`,
+      detail: `${queued} queued.`,
     };
   }
-  return { state: "idle", verb: "AI jobs", progress: null, detail: "None in progress." };
+  return { state: "idle", verb: "Research requests", progress: null, detail: "None in progress." };
 }
 
 /**

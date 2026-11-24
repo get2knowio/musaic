@@ -8,9 +8,13 @@
  *  - a scan started away from Library is followed to completion there,
  *    without leaving the page;
  *  - stale and unavailable progress say so;
- *  - Cancel only where the API can (scan, queued job);
+ *  - Cancel only where the API can (scan, a waiting or running research
+ *    request, through the research cancel, never a delete);
+ *  - Clear counts research requests (the jobs stream's `clearable`);
  *  - keyboard: the control opens it, focus moves in, Escape closes it and
- *    focus returns to the control.
+ *    focus returns to the control;
+ *  - a Fix all batch of research requests appears once, with its size,
+ *    counts and Cancel.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -28,6 +32,7 @@ import { QUEUE_STATE_QUERY_KEY } from "@/hooks/useJobs";
 import { useScanFollower } from "@/hooks/useScanFollower";
 import {
   bulkSummary,
+  jobsSummary,
   scanSummary,
   sweepSummary,
   toolbarText,
@@ -46,6 +51,7 @@ import {
 import { resetStreamHealth } from "@/lib/streamHealth";
 import { makeJob } from "@/test/fixtures";
 import { MockEventSource } from "@/test/setup";
+import type { BatchSummary } from "@/lib/api";
 import type { AppConfig, CheckSweepStatus, FingerprintPoolStatus, Job } from "@/lib/types";
 
 const sweep = (over: Partial<CheckSweepStatus> = {}): CheckSweepStatus => ({
@@ -71,14 +77,17 @@ const pool = (over: Partial<FingerprintPoolStatus> = {}): FingerprintPoolStatus 
   ...over,
 });
 
-function client(opts: { jobs?: Job[]; sweep?: CheckSweepStatus; pool?: FingerprintPoolStatus; paused?: boolean } = {}) {
+function client(
+  opts: { jobs?: Job[]; sweep?: CheckSweepStatus; pool?: FingerprintPoolStatus; clearable?: number; batches?: BatchSummary[] } = {},
+) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["config"], { library_dir: "/m", exists: true } as AppConfig);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["jobs"], opts.jobs ?? []);
-  qc.setQueryData(QUEUE_STATE_QUERY_KEY, { paused: !!opts.paused, max_parallel: 1, running: 0, queued: 0 });
+  qc.setQueryData(QUEUE_STATE_QUERY_KEY, { running: 0, queued: 0, clearable: opts.clearable ?? 0 });
   qc.setQueryData(CHECK_SWEEP_STATUS_KEY, opts.sweep ?? sweep());
   qc.setQueryData(FINGERPRINT_POOL_STATUS_KEY, opts.pool ?? pool());
+  qc.setQueryData(["research", "batches"], opts.batches ?? []);
+  qc.setQueryData(["checks"], [{ meta: { id: "no-cover-art", label: "No cover art" }, open_count: 0, last_run: null }]);
   return qc;
 }
 
@@ -180,17 +189,20 @@ describe("several activities at once", () => {
     expect(within(card("scan")).getByRole("progressbar")).toHaveAttribute("aria-valuetext", "42 of 180");
     expect(within(card("fingerprint")).getByRole("progressbar")).toHaveAttribute("aria-valuetext", "10 of 50");
 
-    // Cancel only where the API has one: the scan and the queued job.
+    // Cancel only where the API has one: the scan and the research
+    // requests still waiting or running.
     expect(within(card("scan")).getByRole("button", { name: "Cancel scan" })).toBeEnabled();
     expect(within(card("checks")).queryByRole("button")).toBeNull();
     expect(within(card("fingerprint")).queryByRole("button")).toBeNull();
-    const jobs = within(panel).getByRole("list", { name: "Jobs in progress" });
+    expect(within(card("jobs")).getByText("Research requests")).toBeInTheDocument();
+    expect(within(panel).queryByRole("button", { name: /Resume/ })).toBeNull();
+    const jobs = within(panel).getByRole("list", { name: "Research requests in progress" });
     const rows = within(jobs).getAllByRole("listitem");
     expect(rows.map((r) => r.getAttribute("data-activity-job")).sort()).toEqual(["q", "run"]);
     const running = rows.find((r) => r.getAttribute("data-activity-job") === "run")!;
     const queued = rows.find((r) => r.getAttribute("data-activity-job") === "q")!;
-    expect(within(running).queryByRole("button", { name: /Cancel/ })).toBeNull();
-    expect(within(queued).getByRole("button", { name: /Cancel the queued/ })).toBeInTheDocument();
+    expect(within(running).getByRole("button", { name: /^Cancel the metadata research request/ })).toBeInTheDocument();
+    expect(within(queued).getByRole("button", { name: /^Cancel the cover art research request/ })).toBeInTheDocument();
   });
 
   it("cancels the scan through the API and shows it stopping, then stopped", async () => {
@@ -374,6 +386,94 @@ describe("keyboard", () => {
   });
 });
 
+describe("research request rows (FR-036)", () => {
+  it("Cancel on a waiting request cancels it through the research cancel, never a delete", async () => {
+    const calls = stubFetch((url, init) =>
+      url === "/api/ai/jobs/q/cancel" && init?.method === "POST" ? json({ id: "q", cancelled: 1 }) : undefined,
+    );
+    const qc = renderApp(
+      "/settings",
+      client({ jobs: [makeJob({ id: "q", status: "queued", job_type: "cover", album_title: "Queued album" })] }),
+    );
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    fireEvent.click(toggle());
+    await screen.findByRole("dialog", { name: "Activity" });
+    fireEvent.click(screen.getByRole("button", { name: /^Cancel the cover art research request/ }));
+    await waitFor(() => expect(calls).toContainEqual({ url: "/api/ai/jobs/q/cancel", method: "POST" }));
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("Clear counts the requests it removes, as the jobs stream says", async () => {
+    stubFetch();
+    renderApp(
+      "/settings",
+      client({
+        clearable: 3,
+        jobs: [makeJob({ id: "a", status: "acted_on", acted_on_action: "applied", album_title: "Done album" })],
+      }),
+    );
+    fireEvent.click(toggle());
+    await screen.findByRole("dialog", { name: "Activity" });
+    expect(within(card("history")).getByRole("button", { name: "Clear 3 applied or discarded" })).toBeInTheDocument();
+  });
+});
+
+describe("Fix all batches", () => {
+  const B = "11111111-2222-4333-8444-555555555555";
+  const batch: BatchSummary = {
+    batchId: B,
+    checkId: "no-cover-art",
+    startedAt: new Date().toISOString(),
+    finishedAt: null,
+    unfinished: true,
+    size: 120,
+    counts: { queued: 100, claimed: 5, running: 3, awaiting_review: 10, applied: 1, discarded: 1 },
+  };
+
+  it("lists nothing when there is no batch", async () => {
+    stubFetch();
+    renderApp("/settings");
+    fireEvent.click(toggle());
+    await screen.findByRole("dialog", { name: "Activity" });
+    expect(card("batches")).toBeNull();
+  });
+
+  it("shows a batch once, with its size, counts, unfinished run and a link to its items in Review", async () => {
+    stubFetch();
+    renderApp("/settings", client({ batches: [batch] }));
+    fireEvent.click(toggle());
+    await screen.findByRole("dialog", { name: "Activity" });
+    const section = card("batches");
+    const entries = within(section).getAllByRole("region");
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toHaveAccessibleName("120 research requests from Fix all · No cover art");
+    expect(
+      within(section).getByText("100 waiting · 5 claimed · 3 investigating · 10 waiting for you · 1 applied · 1 discarded"),
+    ).toBeInTheDocument();
+    expect(within(section).getByText("from an unfinished run")).toBeInTheDocument();
+    fireEvent.click(within(section).getByRole("link", { name: "See the requests in Review" }));
+    expect(where()).toBe("/review");
+  });
+
+  it("cancels the batch's waiting and held requests in one call", async () => {
+    const calls = stubFetch((url, init) =>
+      url === `/api/research/batches/${B}/cancel` && init?.method === "POST"
+        ? json({ ...batch, counts: { cancelled: 108, awaiting_review: 10, applied: 1, discarded: 1 }, cancelled: 108 })
+        : undefined,
+    );
+    const qc = renderApp("/settings", client({ batches: [batch] }));
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    fireEvent.click(toggle());
+    await screen.findByRole("dialog", { name: "Activity" });
+    const section = card("batches");
+    fireEvent.click(within(section).getByRole("button", { name: "Cancel the 108 waiting or held requests of this batch" }));
+    fireEvent.click(within(section).getByRole("button", { name: "Cancel requests" }));
+    await waitFor(() => expect(calls.some((c) => c.url === `/api/research/batches/${B}/cancel` && c.method === "POST")).toBe(true));
+    expect(spy).not.toHaveBeenCalled();
+  });
+});
+
 describe("the model", () => {
   it("names one busy activity, or just Activity", () => {
     expect(toolbarText([]).text).toBe("Activity");
@@ -395,6 +495,14 @@ describe("the model", () => {
     );
   });
 
+  it("names research requests, not jobs, in the toolbar", () => {
+    const live = { failed: false, health: { state: "live" as const, lastEventAt: 1 } };
+    const job = (status: string) => ({ id: status, status }) as unknown as Parameters<typeof jobsSummary>[0][number];
+    expect(jobsSummary([job("queued")], live).verb).toBe("1 research request queued");
+    expect(jobsSummary([job("queued"), job("queued")], live).verb).toBe("2 research requests queued");
+    expect(jobsSummary([job("running")], live).verb).toBe("1 research request running");
+  });
+
   it("follows a scan's events", () => {
     let s = reduceScan(IDLE_SCAN, { type: "start", library_dir: "/m", total: 3, cached_count: 0, force: false }, 1);
     s = reduceScan(s, { type: "progress", scanned: 2, total: 3 }, 2);
@@ -410,10 +518,11 @@ describe("the model", () => {
       checkLabel: "Tags",
       actionLabel: "Fix all",
       fixKind: "deterministic" as const,
+      research: false,
       phase: "interrupted" as const,
       total: 3,
       started: true,
-      counts: { fixed: 1, skipped: 0, errors: 0, not_applicable: 0 },
+      counts: { fixed: 1, skipped: 0, errors: 0, not_applicable: 0, sent_for_research: 0, already_requested: 0 },
       items: [{ findingId: 1, albumId: "a", album: "A", outcome: "fixed" as const, reason: "" }],
       summary: null,
       error: "x",

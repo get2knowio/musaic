@@ -129,8 +129,7 @@ impl App {
     /// The check fixes' environment over `conn`
     /// ([`fix_flow::with_fix_env`]): the library as configured now, the
     /// resolver's parts with the AcoustID key as it is now, the app clock,
-    /// the test override of the fixes' sources, and whether a model backend
-    /// exists.
+    /// and the test override of the fixes' sources.
     pub(crate) fn with_fix_env<T>(
         &self,
         conn: Connection,
@@ -139,8 +138,6 @@ impl App {
         let lib = self.library_dir();
         let parts = self.parts();
         let now = || self.now_iso();
-        // The fixes decide on this in musaic-services.
-        let model_unavailable = musaic_ai::model_unavailable(self.0.ai.provider.as_ref());
         fix_flow::with_fix_env(
             FixHost {
                 conn,
@@ -154,7 +151,6 @@ impl App {
                 config_dir: self.config_dir(),
                 now_iso: &now,
                 track_order: self.0.track_order,
-                model_unavailable,
             },
             f,
         )

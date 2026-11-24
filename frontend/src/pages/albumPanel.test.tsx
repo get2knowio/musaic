@@ -86,7 +86,6 @@ afterEach(() => {
 function client(): QueryClient {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["config"], { library_dir: "/music", exists: true } as AppConfig);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["jobs"], []);
   qc.setQueryData(["albums-snapshot"], ALBUMS);
   return qc;

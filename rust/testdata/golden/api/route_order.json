@@ -895,90 +895,6 @@
       "status": 405
     },
     {
-      "allow": null,
-      "body": "{\"detail\":\"Not Found\"}",
-      "method": "GET",
-      "path": "/api/ai/jobs/x/acted-on",
-      "status": 404
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PUT",
-      "path": "/api/ai/jobs/x/acted-on",
-      "status": 405
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PATCH",
-      "path": "/api/ai/jobs/x/acted-on",
-      "status": 405
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "DELETE",
-      "path": "/api/ai/jobs/x/acted-on",
-      "status": 405
-    },
-    {
-      "allow": null,
-      "body": "{\"detail\":\"Not Found\"}",
-      "method": "GET",
-      "path": "/api/ai/jobs/x/retry",
-      "status": 404
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PUT",
-      "path": "/api/ai/jobs/x/retry",
-      "status": 405
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PATCH",
-      "path": "/api/ai/jobs/x/retry",
-      "status": 405
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "DELETE",
-      "path": "/api/ai/jobs/x/retry",
-      "status": 405
-    },
-    {
-      "allow": null,
-      "body": "{\"detail\":\"Not Found\"}",
-      "method": "GET",
-      "path": "/api/ai/queue/resume",
-      "status": 404
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PUT",
-      "path": "/api/ai/queue/resume",
-      "status": 405
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PATCH",
-      "path": "/api/ai/queue/resume",
-      "status": 405
-    },
-    {
-      "allow": "POST",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "DELETE",
-      "path": "/api/ai/queue/resume",
-      "status": 405
-    },
-    {
       "allow": "GET",
       "body": "{\"detail\":\"Method Not Allowed\"}",
       "method": "POST",
@@ -1004,41 +920,6 @@
       "body": "",
       "method": "HEAD",
       "path": "/api/settings",
-      "status": 405
-    },
-    {
-      "allow": "GET",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "POST",
-      "path": "/api/ai/providers",
-      "status": 405
-    },
-    {
-      "allow": "GET",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PUT",
-      "path": "/api/ai/providers",
-      "status": 405
-    },
-    {
-      "allow": "GET",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "PATCH",
-      "path": "/api/ai/providers",
-      "status": 405
-    },
-    {
-      "allow": "GET",
-      "body": "{\"detail\":\"Method Not Allowed\"}",
-      "method": "DELETE",
-      "path": "/api/ai/providers",
-      "status": 405
-    },
-    {
-      "allow": "GET",
-      "body": "",
-      "method": "HEAD",
-      "path": "/api/ai/providers",
       "status": 405
     },
     {
@@ -1938,20 +1819,6 @@
       "status": 404
     },
     {
-      "allow": null,
-      "body": "{\"detail\":\"Job not found\"}",
-      "method": "POST",
-      "path": "/api/ai/jobs/active/retry",
-      "status": 404
-    },
-    {
-      "allow": null,
-      "body": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\"],\"msg\":\"Field required\",\"input\":null}]}",
-      "method": "POST",
-      "path": "/api/ai/jobs/active/acted-on",
-      "status": 422
-    },
-    {
       "allow": "GET",
       "body": "{\"detail\":\"Method Not Allowed\"}",
       "method": "POST",
@@ -2246,27 +2113,6 @@
     },
     {
       "methods": [
-        "POST"
-      ],
-      "path": "/api/ai/jobs/{job_id}/acted-on",
-      "type": "APIRoute"
-    },
-    {
-      "methods": [
-        "POST"
-      ],
-      "path": "/api/ai/jobs/{job_id}/retry",
-      "type": "APIRoute"
-    },
-    {
-      "methods": [
-        "POST"
-      ],
-      "path": "/api/ai/queue/resume",
-      "type": "APIRoute"
-    },
-    {
-      "methods": [
         "DELETE"
       ],
       "path": "/api/ai/jobs/{job_id}",
@@ -2291,13 +2137,6 @@
         "PATCH"
       ],
       "path": "/api/settings",
-      "type": "APIRoute"
-    },
-    {
-      "methods": [
-        "GET"
-      ],
-      "path": "/api/ai/providers",
       "type": "APIRoute"
     },
     {

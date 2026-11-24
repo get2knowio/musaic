@@ -21,6 +21,9 @@ pub struct EventRow {
     pub state: String,
     pub revision: i64,
     pub committed_at: i64,
+    /// The batch of the work when the event was recorded; kept after the
+    /// work itself is cleared.
+    pub batch_id: Option<String>,
 }
 
 /// Write the event for `work_id` when it is new or its state differs from the
@@ -33,14 +36,14 @@ pub(crate) fn record(
     work_id: &str,
     now: i64,
 ) -> Result<()> {
-    let current: Option<(String, String, i64)> = conn
+    let current: Option<(String, String, i64, Option<String>)> = conn
         .query_row(
-            "SELECT kind,state,revision FROM delegated_work WHERE id=?1",
+            "SELECT kind,state,revision,batch_id FROM delegated_work WHERE id=?1",
             [work_id],
-            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .optional()?;
-    let Some((kind, state, revision)) = current else {
+    let Some((kind, state, revision, batch_id)) = current else {
         return Ok(());
     };
     let previous: Option<String> = conn
@@ -60,10 +63,10 @@ pub(crate) fn record(
     };
     conn.execute(
         "INSERT INTO delegation_events
-           (sequence,library_epoch,work_id,event_type,kind,state,revision,committed_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7,?8)",
+           (sequence,library_epoch,work_id,event_type,kind,state,revision,committed_at,batch_id)
+         VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9)",
         params![
-            sequence, epoch, work_id, event_type, kind, state, revision, now
+            sequence, epoch, work_id, event_type, kind, state, revision, now, batch_id
         ],
     )?;
     Ok(())
@@ -123,7 +126,7 @@ pub fn page(
     limit: i64,
 ) -> Result<Vec<EventRow>> {
     let mut sql = String::from(
-        "SELECT sequence,library_epoch,work_id,event_type,kind,state,revision,committed_at
+        "SELECT sequence,library_epoch,work_id,event_type,kind,state,revision,committed_at,batch_id
          FROM delegation_events WHERE library_epoch=?1 AND sequence>?2",
     );
     let mut values: Vec<rusqlite::types::Value> = vec![epoch.to_owned().into(), after.into()];
@@ -153,6 +156,7 @@ pub fn page(
             state: r.get(5)?,
             revision: r.get(6)?,
             committed_at: r.get(7)?,
+            batch_id: r.get(8)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)

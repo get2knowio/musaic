@@ -1,6 +1,6 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
 import { errorDetailText, errorText } from "@/lib/errors";
-import { ApiError, retryJob } from "@/lib/api";
+import { ApiError, enqueueJob } from "@/lib/api";
 import { postSse } from "@/lib/sse";
 
 describe("errorDetailText", () => {
@@ -11,7 +11,7 @@ describe("errorDetailText", () => {
   });
 
   it("reads the message of the job-conflict object detail", () => {
-    // POST /api/ai/jobs/{id}/retry, 409 while the album has another active
+    // POST /api/ai/jobs, 409 while the album has another active
     // job (rust/crates/musaic-api/src/routes/jobs.rs `conflict`).
     expect(
       errorDetailText({
@@ -65,7 +65,7 @@ describe("request errors", () => {
     vi.unstubAllGlobals();
   });
 
-  it("a retry 409 with an object detail carries its message, not '409 Conflict'", async () => {
+  it("an enqueue 409 with an object detail carries its message, not '409 Conflict'", async () => {
     const detail = {
       error: "active_job_exists",
       message: "Active job j2 (queued) already exists for this album",
@@ -73,7 +73,7 @@ describe("request errors", () => {
       existing_status: "queued",
     };
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(409, "Conflict", { detail })));
-    const err = await retryJob("j1").catch((e: unknown) => e);
+    const err = await enqueueJob({ albumId: "a1", jobType: "metadata" }).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).message).toBe("Active job j2 (queued) already exists for this album");
     expect((err as ApiError).status).toBe(409);
@@ -82,7 +82,7 @@ describe("request errors", () => {
 
   it("keeps the status line when the body has no detail", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => jsonResponse(500, "Internal Server Error", {})));
-    const err = await retryJob("j1").catch((e: unknown) => e);
+    const err = await enqueueJob({ albumId: "a1", jobType: "metadata" }).catch((e: unknown) => e);
     expect((err as Error).message).toBe("500 Internal Server Error");
   });
 

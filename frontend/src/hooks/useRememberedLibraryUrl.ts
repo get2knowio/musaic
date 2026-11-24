@@ -1,6 +1,6 @@
 /**
  * useRememberedLibraryUrl — preserves the user's library "view state" across
- * navigation to other workspace areas (AI Jobs, Settings, etc.).
+ * navigation to other workspace areas (Review, Settings, etc.).
  *
  * The library view state is fully encoded in the URL (filter/search/view
  * search params, plus :albumId for the open album panel). This module:

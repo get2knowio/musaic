@@ -1256,19 +1256,26 @@ async fn refusals_change_nothing() {
     }
 
     // A job queued on the album.
-    w.conn()
-        .execute(
-            "INSERT INTO ai_jobs (id, album_id, album_path, job_type, status, created_at) \
-             VALUES ('j1', ?1, '', 'metadata', 'queued', '2026-01-01T00:00:00Z')",
-            [&album],
-        )
-        .unwrap();
+    // As schema v24 folded it: a history record and its queued request.
+    musaic_db::research_history::import_legacy_job(
+        &w.conn(),
+        &musaic_db::research_history::JobRow::seed(
+            "j1",
+            &album,
+            "metadata",
+            "queued",
+            "2026-01-01T00:00:00Z",
+        ),
+    )
+    .unwrap();
     let p = w.preview(id).await;
     let (status, body) = w.post(id, p["digest"].as_str().unwrap()).await;
     assert_eq!(status, 409, "{body}");
     assert_eq!(body["reason_code"], json!("blocked"));
     assert_eq!(body["blockers"][0]["code"], json!("job_active"));
-    w.conn().execute("DELETE FROM ai_jobs", []).unwrap();
+    w.conn()
+        .execute_batch("DELETE FROM delegated_work; DELETE FROM research_history;")
+        .unwrap();
 
     // A Missing album.
     w.conn()

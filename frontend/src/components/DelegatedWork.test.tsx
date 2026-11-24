@@ -1,7 +1,8 @@
 /**
  * Review, Delegated work: grouped by state, the holder and the times of held
- * work, "Waiting for an agent", Retry through the existing decision call, and
- * Retry reachable by keyboard.
+ * work, "Waiting for an assistant", Retry through the existing decision call, and
+ * Retry reachable by keyboard. Requests of a Fix all batch fold into one row
+ * per batch with its counts, which opens to its items and cancels as a whole.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -13,7 +14,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { DelegatedWork } from "@/components/DelegatedWork";
-import type { DelegatedWorkItem } from "@/lib/api";
+import type { BatchDetail, BatchSummary, DelegatedWorkItem } from "@/lib/api";
 
 const item = (over: Partial<DelegatedWorkItem>): DelegatedWorkItem => ({
   workId: "w1",
@@ -32,23 +33,41 @@ const item = (over: Partial<DelegatedWorkItem>): DelegatedWorkItem => ({
   ...over,
 });
 
+const batch = (over: Partial<BatchSummary>): BatchSummary => ({
+  batchId: "11111111-2222-4333-8444-555555555555",
+  checkId: "unidentified-album",
+  startedAt: new Date().toISOString(),
+  finishedAt: null,
+  unfinished: false,
+  size: 3,
+  counts: { queued: 2, awaiting_review: 1 },
+  ...over,
+});
+
 let calls: { url: string; init?: RequestInit }[] = [];
+let answers: Record<string, unknown> = {};
 
 beforeEach(() => {
   calls = [];
+  answers = {};
   vi.stubGlobal(
     "fetch",
     vi.fn(async (url: string, init?: RequestInit) => {
       calls.push({ url: String(url), init });
-      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
+      const body = String(url) in answers ? answers[String(url)] : { ok: true };
+      return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     }),
   );
 });
 afterEach(() => vi.unstubAllGlobals());
 
-function renderWork(items: DelegatedWorkItem[] | null) {
+function renderWork(items: DelegatedWorkItem[] | null, batches: BatchSummary[] = []) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   if (items) qc.setQueryData(["research", "work"], items);
+  qc.setQueryData(["research", "batches"], batches);
+  qc.setQueryData(["checks"], [
+    { meta: { id: "unidentified-album", label: "Unidentified album" }, open_count: 0, last_run: null },
+  ]);
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -80,7 +99,7 @@ describe("Delegated work", () => {
     expect(running.getByText(/Last heard from just now/)).toBeTruthy();
     expect(running.getByText(/Claim lapses/)).toBeTruthy();
     expect(running.getAllByRole("link")[0].getAttribute("href")).toBe("/library/0123456789abcdef");
-    expect(screen.getByText(/Waiting for an agent/)).toBeTruthy();
+    expect(screen.getByText(/Waiting for an assistant\. No connected assistant is listening/)).toBeTruthy();
     expect(screen.getByText(/Attempt 3 of 3: gave_up: no source/)).toBeTruthy();
   });
 
@@ -107,5 +126,101 @@ describe("Delegated work", () => {
     fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  describe("Fix all batches", () => {
+    const B = batch({}).batchId;
+    const batched = [
+      item({ workId: "x1", albumId: "aaaaaaaaaaaaaaaa", albumLabel: "First - One", state: "queued", batchId: B }),
+      item({ workId: "x2", albumId: "bbbbbbbbbbbbbbbb", albumLabel: "Second - Two", state: "queued", batchId: B }),
+      item({ workId: "x3", albumId: "cccccccccccccccc", albumLabel: "Third - Three", state: "awaiting_review", batchId: B }),
+    ];
+
+    it("folds a batch's items into one row with its origin, size and counts", () => {
+      renderWork([...batched, item({ workId: "solo", state: "queued", batchId: null })], [batch({ unfinished: true })]);
+      const rows = screen.getByRole("list", { name: "From Fix all" });
+      expect(within(rows).getAllByRole("listitem")).toHaveLength(1);
+      const entry = within(rows).getByRole("region", { name: "3 research requests from Fix all · Unidentified album" });
+      expect(within(entry).getByText("2 waiting · 1 waiting for you")).toBeTruthy();
+      expect(within(entry).getByText("from an unfinished run")).toBeTruthy();
+      // Batched items are not listed one by one; the lone request still is.
+      expect(screen.queryByText("First - One")).toBeNull();
+      expect(within(screen.getByRole("list", { name: "Waiting" })).getAllByRole("listitem")).toHaveLength(1);
+    });
+
+    it("says nothing about an unfinished run for a run that reached its end", () => {
+      renderWork(batched, [batch({ finishedAt: new Date().toISOString() })]);
+      expect(screen.queryByText("from an unfinished run")).toBeNull();
+    });
+
+    it("shows a batch even when none of its items is listed as work any more", () => {
+      renderWork([], [batch({ size: 2, counts: { applied: 1, failed: 1 } })]);
+      expect(screen.getByRole("region", { name: "2 research requests from Fix all · Unidentified album" })).toBeTruthy();
+      expect(screen.getByText("1 applied · 1 failed")).toBeTruthy();
+      // Nothing waiting or held: nothing to cancel.
+      expect(screen.queryByRole("button", { name: /Cancel the/ })).toBeNull();
+    });
+
+    it("opens to the batch's items, by keyboard", async () => {
+      const detail: BatchDetail = { ...batch({}), items: batched.map((i) => ({ ...i })) };
+      answers[`/api/research/batches/${B}`] = detail;
+      renderWork(batched, [batch({})]);
+      const open = screen.getByRole("button", { name: "Show requests (3)" });
+      expect(open.getAttribute("aria-expanded")).toBe("false");
+      open.focus();
+      expect(document.activeElement).toBe(open);
+      fireEvent.click(open);
+      expect(open.getAttribute("aria-expanded")).toBe("true");
+      const list = await screen.findByRole("list", { name: "Requests in this batch" });
+      expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+      expect(within(list).getByText("Result waiting for you")).toBeTruthy();
+      expect(within(list).getByRole("link", { name: "First - One" }).getAttribute("href")).toBe("/library/aaaaaaaaaaaaaaaa");
+      expect(calls.map((c) => c.url)).toEqual([`/api/research/batches/${B}`]);
+    });
+
+    it("a failed or cancelled item of the batch keeps its Retry; one of an earlier library has none", async () => {
+      const failed = item({ workId: "x4", albumLabel: "Fourth - Four", state: "failed", revision: 9, batchId: B });
+      const cancelled = item({ workId: "x5", albumLabel: "Fifth - Five", state: "cancelled", revision: 4, batchId: B });
+      // x6 is not in the work list: an item of an earlier library epoch.
+      const elsewhere = item({ workId: "x6", albumLabel: "Sixth - Six", state: "failed", batchId: B });
+      answers[`/api/research/batches/${B}`] = {
+        ...batch({ size: 3, counts: { failed: 2, cancelled: 1 } }),
+        items: [failed, cancelled, elsewhere],
+      } satisfies BatchDetail;
+      renderWork([failed, cancelled], [batch({ size: 3, counts: { failed: 2, cancelled: 1 } })]);
+      fireEvent.click(screen.getByRole("button", { name: "Show requests (3)" }));
+      const list = await screen.findByRole("list", { name: "Requests in this batch" });
+      expect(within(list).getAllByRole("button", { name: /^Retry / })).toHaveLength(2);
+      expect(within(list).queryByRole("button", { name: "Retry Sixth - Six" })).toBeNull();
+      fireEvent.click(within(list).getByRole("button", { name: "Retry Fourth - Four" }));
+      await waitFor(() => expect(calls.map((c) => c.url)).toContain("/api/research/x4/decision"));
+      const call = calls.find((c) => c.url === "/api/research/x4/decision")!;
+      expect(JSON.parse(String(call.init?.body))).toEqual({ revision: 9, action: "retry" });
+    });
+
+    it("Cancel asks first, then cancels the batch in one call and invalidates nothing itself (rule 5)", async () => {
+      answers[`/api/research/batches/${B}/cancel`] = { ...batch({ counts: { cancelled: 2, awaiting_review: 1 } }), cancelled: 2 };
+      const qc = renderWork(batched, [batch({ counts: { queued: 1, running: 1, awaiting_review: 1 } })]);
+      const spy = vi.spyOn(qc, "invalidateQueries");
+      const ask = screen.getByRole("button", { name: "Cancel the 2 waiting or held requests of this batch" });
+      ask.focus();
+      expect(document.activeElement).toBe(ask);
+      fireEvent.click(ask);
+      expect(calls).toHaveLength(0);
+      expect(screen.getByText(/Results waiting for you stay/)).toBeTruthy();
+      fireEvent.click(screen.getByRole("button", { name: "Cancel requests" }));
+      await waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0].url).toBe(`/api/research/batches/${B}/cancel`);
+      expect(calls[0].init?.method).toBe("POST");
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("Keep leaves the batch alone", () => {
+      renderWork(batched, [batch({})]);
+      fireEvent.click(screen.getByRole("button", { name: /Cancel the 2 waiting or held/ }));
+      fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+      expect(calls).toHaveLength(0);
+      expect(screen.getByRole("button", { name: /Cancel the 2 waiting or held/ })).toBeTruthy();
+    });
   });
 });

@@ -5,16 +5,16 @@
 //!
 //! - [`app`]: [`App`], its parts ([`AppInner`]), the builder
 //!   ([`AppBuilder::build`]: config dir, database open, key scrub before the
-//!   startup auto-snapshot, bus subscribers before the AI worker) and the
+//!   startup auto-snapshot, then the bus subscribers) and the
 //!   lifespan's shutdown ([`App::begin_shutdown`], [`App::shutdown`]), the
 //!   key-scrub retry scheduling.
-//! - [`ai`]: the AI worker host ([`ai::AiQueue`], [`ai::AppEnv`], job ids,
-//!   the job transition log).
+//! - [`ai`]: the research requests' host side ([`ai::AiQueue`]: the jobs
+//!   stream's change signal and job card ids; [`ai::AppEnv`], the resolver
+//!   environment of the synthesis).
 //! - [`envs`]: the services' environments over the app (apply, analyze,
 //!   track tags, check fixes), as `App::with_*_env` methods.
-//! - [`jobs`]: the AI job queue's host operations (enqueue with the
-//!   album's fields, resume, providers, the jobs stream's subscription and
-//!   payload) and the bodies the Python app answers with, as data.
+//! - [`jobs`]: the jobs stream's subscription and the library-change notice
+//!   for research requests (the operations are `ops::jobs`).
 //! - [`scan`]: starting a scan with the app's dependencies, and the scan
 //!   stream's start-unless-running-then-subscribe step.
 //! - [`logging`]: the app's log ([`logging::AppLog`], [`logging::Masks`],

@@ -2,17 +2,13 @@
 //! (`musaic/api/health.py`): assembling the [`FixEnv`] from the host's
 //! parts (the check fixes' sources, a host override or the production
 //! [`AppFixSources`]; cover downloads; the trash directory and its
-//! collision stamp), and the fix route's fall-through to the AI queue
-//! (needs-AI-job → `jobs.enqueue(...)`, or the conflict answer). This lives
-//! here rather than in musaic-api's `routes/fixes.rs` so a non-HTTP face
-//! fixes findings the same way.
+//! collision stamp). This lives here rather than in musaic-api's
+//! `routes/fixes.rs` so a non-HTTP face fixes findings the same way.
 //!
 //! The host opens the connection, reads the library directory and the
-//! resolver's parts, and says whether a model backend exists (the AI
-//! provider is the host's; without one, a fix that would need a model
-//! answers with the not-available message instead of queueing a job); it also takes the restore gate's work guard
-//! and, once the fix has returned and the guard is released, notifies the
-//! jobs stream when a job was enqueued (the Python app did not notify).
+//! resolver's parts, and takes the restore gate's work guard; where a fix
+//! needs research ([`crate::check_fixes::FixOutcome::NeedsAiJob`]) the host
+//! makes the research request.
 
 use std::path::Path;
 
@@ -21,8 +17,7 @@ use musaic_events::Bus;
 use musaic_scan::TrackOrder;
 use rusqlite::Connection;
 
-use crate::check_fixes::{self, FixEnv, FixOutcome, FixResult, FixSources};
-use crate::error::OpError;
+use crate::check_fixes::{FixEnv, FixSources};
 use crate::production::{AppFixSources, Fingerprinting, NetCovers, Parts, SharedTransport};
 
 /// `datetime.now().strftime("%Y-%m-%dT%H-%M-%S")` for a trash name
@@ -52,8 +47,6 @@ pub struct FixHost<'a> {
     /// `_now_iso()` from the host clock (also the trash stamp's source).
     pub now_iso: &'a dyn Fn() -> String,
     pub track_order: TrackOrder,
-    /// `Some(message)` when no model backend exists.
-    pub model_unavailable: Option<String>,
 }
 
 /// Run `f` with the [`FixEnv`] assembled from `host`.
@@ -70,7 +63,6 @@ pub fn with_fix_env<T>(host: FixHost<'_>, f: impl FnOnce(&mut FixEnv<'_>) -> T) 
         config_dir,
         now_iso,
         track_order,
-        model_unavailable,
     } = host;
     let app_sources = AppFixSources {
         parts,
@@ -96,48 +88,6 @@ pub fn with_fix_env<T>(host: FixHost<'_>, f: impl FnOnce(&mut FixEnv<'_>) -> T) 
         now: &now,
         trash_stamp: &stamp,
         track_order,
-        model_unavailable: model_unavailable.as_deref(),
     };
     f(&mut env)
-}
-
-/// `POST /api/checks/{check_id}/findings/{finding_id}/fix`: run the fix;
-/// where it falls through to AI ([`FixOutcome::NeedsAiJob`]) enqueue the
-/// job as the Python app's `jobs.enqueue(...)` inside `fix()` (checks/*.py):
-/// `{ok: true, message, job_id}`, or, when the album already has an active
-/// job, `{ok: false, message: "Already has an active job (<status>)",
-/// job_id: <existing>}`. Returns the answer and whether a job was
-/// enqueued (the host then notifies the jobs stream). `ids` makes
-/// a new job id; `now_iso` is read once, when the job is written.
-pub fn fix_finding(
-    env: &mut FixEnv<'_>,
-    check_id: &str,
-    finding_id: i64,
-    hint: &str,
-    ids: &dyn Fn() -> String,
-    now_iso: &dyn Fn() -> String,
-) -> Result<(FixResult, bool), OpError> {
-    let mut enqueued = false;
-    let r = match check_fixes::fix_finding(env, check_id, finding_id, hint)? {
-        FixOutcome::Done(r) => r,
-        // checks/*.py: `jobs.enqueue(...)`, or the JobConflictError answer.
-        FixOutcome::NeedsAiJob(req) => {
-            match crate::ai_jobs::enqueue_for_fix(env.conn, &req, ids, &now_iso())? {
-                Ok(job_id) => {
-                    enqueued = true;
-                    FixResult {
-                        ok: true,
-                        message: req.message,
-                        job_id: Some(job_id),
-                    }
-                }
-                Err((existing, status)) => FixResult {
-                    ok: false,
-                    message: format!("Already has an active job ({status})"),
-                    job_id: Some(existing),
-                },
-            }
-        }
-    };
-    Ok((r, enqueued))
 }

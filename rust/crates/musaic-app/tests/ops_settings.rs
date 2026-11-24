@@ -1,6 +1,6 @@
-//! The `settings` and `database` operations with no HTTP in scope: events and
-//! the job-queue wake come from the operation, refusals are typed, no secret
-//! value appears in a result, and a restore guard or running work refuses what
+//! The `settings` and `database` operations with no HTTP in scope: events
+//! come from the operation, refusals are typed, no secret value appears in a
+//! result, the retired provider and key settings are gone from the view, and a restore guard or running work refuses what
 //! it should with nothing changed.
 
 mod common;
@@ -33,76 +33,76 @@ fn settle(app: &App) {
     assert!(app.bus().wait_background_idle(Duration::from_secs(30)));
 }
 
-fn max_parallel(patch: i64) -> SettingsPatch {
+fn retention(patch: i64) -> SettingsPatch {
     SettingsPatch {
-        max_parallel: Some(patch),
+        retention: Some(patch),
         ..SettingsPatch::default()
     }
 }
+
+/// The settings of the old built-in provider (FR-003).
+const RETIRED: [&str; 6] = [
+    "ai_provider_id",
+    "ai_model_id",
+    "ai_max_parallel",
+    "ai_queue_paused",
+    "ai_api_key_set",
+    "firecrawl_api_key_set",
+];
 
 #[test]
 fn patch_publishes_settings_changed_once_with_names_only() {
     let (app, _s) = common::app();
     let seen = record_settings_events(&app);
     let patch = SettingsPatch {
-        max_parallel: Some(3),
-        model: Some("some-model".into()),
         acoustid: Some("TOP-SECRET-ACOUSTID-KEY".into()),
+        retention: Some(3),
         ..SettingsPatch::default()
     };
     let rec = app.ops().settings().patch(patch).unwrap();
     settle(&app);
-    assert_eq!(rec.int("ai_max_parallel"), Some(3));
-    assert_eq!(rec.str("ai_model_id"), Some("some-model"));
+    assert_eq!(rec.int("snapshot_retention_count"), Some(3));
     let events = seen.lock().unwrap();
     assert_eq!(events.len(), 1, "one event for one patch: {events:?}");
-    assert_eq!(
-        events[0],
-        ["ai_max_parallel", "ai_model_id", "acoustid_api_key"]
-    );
+    assert_eq!(events[0], ["acoustid_api_key", "snapshot_retention_count"]);
     assert!(!format!("{events:?}").contains("TOP-SECRET"));
 }
 
+// The view has none of the retired settings, even when an older database
+// still holds their rows; a patch carries no field for them (a request naming
+// one is parsed like any unknown key), so an empty patch writes nothing,
+// publishes no `SettingsChanged` and wakes no jobs feed.
 #[test]
-fn a_patch_wakes_the_jobs_feed_and_a_refused_one_does_not() {
+fn the_retired_settings_are_gone_and_a_patch_cannot_write_them() {
     let (app, _s) = common::app();
-    let mut rx = app.subscribe_jobs();
-    assert!(!rx.has_changed().unwrap());
-    let err = app.ops().settings().patch(max_parallel(99)).unwrap_err();
-    assert!(matches!(err, OpError::Rejected { .. }), "{err:?}");
-    assert!(!rx.has_changed().unwrap(), "a refused patch wakes nothing");
-    app.ops().settings().patch(max_parallel(2)).unwrap();
-    assert!(rx.has_changed().unwrap(), "the queue is woken by the patch");
-    rx.borrow_and_update();
-    let paused = SettingsPatch {
-        paused: Some(true),
-        ..SettingsPatch::default()
-    };
-    app.ops().settings().patch(paused).unwrap();
-    assert!(rx.has_changed().unwrap());
-    rx.borrow_and_update();
-
-    // Refused after an unpause was saved: the unpause is in effect, so the
-    // queue is woken for it.
-    let err = app
+    {
+        let conn = musaic_db::open_connection(app.db_path()).unwrap();
+        for (k, v) in [
+            ("ai_provider_id", "claude"),
+            ("ai_model_id", "some-model"),
+            ("ai_max_parallel", "4"),
+            ("ai_queue_paused", "1"),
+        ] {
+            musaic_db::settings::set_raw(&conn, k, v).unwrap();
+        }
+    }
+    let seen = record_settings_events(&app);
+    let jobs = app.subscribe_jobs();
+    let view = app.ops().settings().get().unwrap();
+    for k in RETIRED {
+        assert!(view.iter().all(|(name, _)| name != k), "{k} in the view");
+    }
+    let rec = app
         .ops()
         .settings()
-        .patch(SettingsPatch {
-            paused: Some(false),
-            retention: Some(500),
-            ..SettingsPatch::default()
-        })
-        .unwrap_err();
-    assert!(matches!(err, OpError::Rejected { .. }), "{err:?}");
-    assert_eq!(
-        app.ops().settings().get().unwrap().bool("ai_queue_paused"),
-        Some(false),
-        "the field before the refused one was saved"
-    );
-    assert!(
-        rx.has_changed().unwrap(),
-        "the saved unpause wakes the queue"
-    );
+        .patch(SettingsPatch::default())
+        .unwrap();
+    settle(&app);
+    for k in RETIRED {
+        assert!(rec.iter().all(|(name, _)| name != k), "{k} in the answer");
+    }
+    assert!(seen.lock().unwrap().is_empty(), "nothing was written");
+    assert!(!jobs.has_changed().unwrap(), "no jobs feed is woken");
 }
 
 #[test]
@@ -111,18 +111,10 @@ fn an_invalid_value_is_rejected_and_changes_nothing() {
     let seen = record_settings_events(&app);
     let before = app.ops().settings().get().unwrap();
     for bad in [
-        max_parallel(0),
-        max_parallel(9),
-        SettingsPatch {
-            retention: Some(101),
-            ..SettingsPatch::default()
-        },
+        retention(-1),
+        retention(101),
         SettingsPatch {
             interval: Some(-1.0),
-            ..SettingsPatch::default()
-        },
-        SettingsPatch {
-            provider: Some("not-a-provider".into()),
             ..SettingsPatch::default()
         },
     ] {
@@ -143,7 +135,7 @@ fn a_patch_during_a_restore_is_busy_and_changes_nothing() {
     let restore = common::hold_restore(&app);
     // Busy, also for a value that is invalid: the guard comes first, as
     // `PATCH /api/settings` answers.
-    for p in [max_parallel(3), max_parallel(99)] {
+    for p in [retention(3), retention(999)] {
         let err = app.ops().settings().patch(p).unwrap_err();
         assert!(matches!(err, OpError::Busy { .. }), "{err:?}");
     }
@@ -160,7 +152,7 @@ fn a_patch_during_a_restore_is_busy_and_changes_nothing() {
     assert_eq!(app.ops().settings().get().unwrap(), before);
     assert!(app.ops().settings().ui_prefs().unwrap().theme.is_none());
     drop(restore);
-    assert!(app.ops().settings().patch(max_parallel(3)).is_ok());
+    assert!(app.ops().settings().patch(retention(3)).is_ok());
 }
 
 #[test]
@@ -168,14 +160,11 @@ fn no_result_holds_a_secret_value() {
     let (app, s) = common::app();
     let secret = "SEKRET-KEY-VALUE-0123456789";
     let patch = SettingsPatch {
-        ai_key: Some(secret.into()),
         acoustid: Some(secret.into()),
-        firecrawl: Some(secret.into()),
         ..SettingsPatch::default()
     };
     let rec = app.ops().settings().patch(patch).unwrap();
     assert_eq!(rec.bool("acoustid_api_key_set"), Some(true));
-    assert_eq!(rec.bool("ai_api_key_set"), Some(true));
     assert!(!format!("{rec:?}").contains(secret));
     assert!(!format!("{:?}", app.ops().settings().get().unwrap()).contains(secret));
     assert!(
@@ -186,13 +175,16 @@ fn no_result_holds_a_secret_value() {
     app.ops().database().info().unwrap();
     let db = std::fs::read(s.config.join("library.db")).unwrap();
     assert!(!db.windows(secret.len()).any(|w| w == secret.as_bytes()));
-    // A refusal does not echo a value.
+    // A refusal (a key saved beside a value out of range) does not echo
+    // the key.
     let bad = SettingsPatch {
-        provider: Some(secret.into()),
+        acoustid: Some(secret.into()),
+        retention: Some(101),
         ..SettingsPatch::default()
     };
     let err = app.ops().settings().patch(bad).unwrap_err();
     assert!(matches!(err, OpError::Rejected { .. }));
+    assert!(!format!("{err:?}").contains(secret));
 }
 
 #[test]
@@ -281,12 +273,16 @@ fn snapshots_can_be_created_listed_deleted_and_restored() {
     assert!(list[0].valid);
 
     // A change made after the snapshot is undone by restoring it.
-    app.ops().settings().patch(max_parallel(4)).unwrap();
+    app.ops().settings().patch(retention(4)).unwrap();
     let info = db.restore_snapshot(&made.filename).unwrap();
     assert!(!info.restored_at.is_empty());
     assert_eq!(
-        app.ops().settings().get().unwrap().int("ai_max_parallel"),
-        Some(1)
+        app.ops()
+            .settings()
+            .get()
+            .unwrap()
+            .int("snapshot_retention_count"),
+        Some(10)
     );
 
     let gone = db.delete_snapshot(&made.filename).unwrap();
@@ -369,13 +365,17 @@ fn info_backup_and_restore_from_a_file() {
     assert!(backup.path.starts_with(scratch.path()) && backup.path.is_file());
     assert!(backup.suggested_name.ends_with(".db"));
 
-    app.ops().settings().patch(max_parallel(6)).unwrap();
+    app.ops().settings().patch(retention(6)).unwrap();
     let restored = db.restore_from(&backup.path).unwrap();
     assert_eq!(restored.schema_version, info.current_schema);
     assert!(!restored.aside_paths.is_empty());
     assert_eq!(
-        app.ops().settings().get().unwrap().int("ai_max_parallel"),
-        Some(1)
+        app.ops()
+            .settings()
+            .get()
+            .unwrap()
+            .int("snapshot_retention_count"),
+        Some(10)
     );
     drop(scratch);
 
@@ -391,7 +391,7 @@ fn info_backup_and_restore_from_a_file() {
         Err(OpError::Rejected { .. })
     ));
     assert!(db.info().unwrap().exists);
-    assert!(app.ops().settings().patch(max_parallel(2)).is_ok());
+    assert!(app.ops().settings().patch(retention(2)).is_ok());
 }
 
 #[test]

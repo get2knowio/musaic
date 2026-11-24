@@ -13,10 +13,9 @@
 //! `ops().fixes()`, which owns the restore gate (every fix writes, so a restore
 //! running answers 409 before the finding or check is looked up, and the guard
 //! is held until the work ends: for quick-fix-all, the whole stream, also after
-//! the client has gone), the AI job a fix falls through to
-//! (`{ok: true, message, job_id}`, or `{ok: false, message: "Already has an
-//! active job (<status>)", job_id: <existing>}`; with no model backend
-//! `{ok: false, message, job_id: null}` and nothing enqueued) and the jobs
+//! the client has gone), the research request a fix falls through to
+//! (`{ok: true, message, job_id}`, the request's card; an album that already
+//! has an unresolved request of that kind answers with that one) and the jobs
 //! feed's wake-up after it. The bodies and frames are `render::fixes`'.
 
 use axum::body::Bytes;
@@ -30,6 +29,7 @@ use tokio::sync::oneshot;
 use crate::http::{ApiError, ApiResult, blocking, json_value, ok_ordered, ok_value};
 use crate::lax::{Fields, Params, err, parse_json_body, unprocessable};
 use crate::render::fixes as render;
+use crate::routes::library::{Q, qp};
 use crate::sse;
 use crate::state::AppState;
 
@@ -77,10 +77,16 @@ pub async fn fix_finding(
 /// status. A database failure before the first event (the connection cannot
 /// be opened, the findings cannot be listed) is the stream's `error` item, as
 /// the Python app's `except Exception` frame was.
+///
+/// `?research=1` (or `true`) sends what the resolver cannot settle for
+/// research, one batch per run; the `done` frame then carries the research
+/// counts. Without it the frames are the resolver-only run's.
 pub async fn quick_fix_all(
     State(st): State<AppState>,
     UrlPath(check_id): UrlPath<String>,
+    q: Q,
 ) -> ApiResult {
+    let research = matches!(qp(q).get("research"), Some("1" | "true"));
     let (tx, resp) = sse::channel(&st, 1);
     // Answers once: `Ok` when the first event is out (or the stream is the
     // answer to a failure), `Err` when the operation refused before any.
@@ -89,16 +95,19 @@ pub async fn quick_fix_all(
     tokio::task::spawn_blocking(move || {
         musaic_events::context::run_in(ctx, || {
             let mut ready = Some(ready_tx);
-            let result = st.ops().fixes().quick_fix_all(&check_id, &mut |event| {
-                if let Some(r) = ready.take() {
-                    let _ = r.send(Ok(()));
-                }
-                if tx.send_blocking(render::quick_fix_frame(&event)) {
-                    Listening::Yes
-                } else {
-                    Listening::Gone
-                }
-            });
+            let result = st
+                .ops()
+                .fixes()
+                .quick_fix_all(&check_id, research, &mut |event| {
+                    if let Some(r) = ready.take() {
+                        let _ = r.send(Ok(()));
+                    }
+                    if tx.send_blocking(render::quick_fix_frame(&event)) {
+                        Listening::Yes
+                    } else {
+                        Listening::Gone
+                    }
+                });
             if let Some(r) = ready.take() {
                 match result {
                     Ok(_) => {

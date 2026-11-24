@@ -8,7 +8,7 @@ catalog for programs).
 
 ## What an assistant can and cannot do
 
-The catalog has 21 tools in four groups.
+The catalog has 23 tools in four groups.
 
 - **Read** (no approval ever needed, no network, nothing written): capabilities, list the
   albums, read one album (its tags, tracks and a revision), the resolution Musaic already
@@ -25,7 +25,11 @@ The catalog has 21 tools in four groups.
   (ReplayGain then writes no album gain, which needs every track), and the album is
   rescanned as after a finished one.
 
-- **Research** uses nine tools to list, read, claim, renew, report progress, release, complete, fail or cancel requests. The pairing needs read access to inspect requests and permission to submit proposals to claim work. Cancellation has its own permission.
+- **Research** uses eleven tools: nine to list, read, claim, renew, report progress,
+  release, complete, fail or cancel research requests, and two for batches, to claim up to
+  25 requests at once and to renew several claims together. The pairing needs read access to
+  inspect requests and permission to submit proposals to claim work. Cancellation has its
+  own permission.
 
 An assistant cannot: run SQL or a shell, read a file path, read or write keys, delete or
 move anything outside the rename a proposal asks for, restore or download the database,
@@ -35,14 +39,40 @@ carry ids and bare file and folder names, never a filesystem path.
 
 ## Request research and review a result
 
-Open an album and choose **Request assistant research**. Select metadata, cover art or both, and optionally enter a hint. Musaic tries its resolver first. Unresolved requests appear in Review and wait for a paired assistant. You can keep browsing while it works. Keep Musaic open for the assistant to claim work, renew its lease or submit a result. A claim lasts five minutes and can be renewed. Quitting preserves the request. Use **Cancel research** to stop an outstanding request. A late result from the cancelled claim is refused.
+Musaic has no built-in model: an assistant you add is the only way research is done. Open
+an album and choose **Request research…** (or **Request cover research…** on the cover).
+Select metadata, cover art or both, and optionally enter a hint. Musaic tries its resolver
+first. What it cannot settle becomes a research request: it appears in Review and waits
+for an assistant you added. You can keep browsing while it works. Keep Musaic open for the assistant to claim work, renew its lease or submit a result. A claim lasts five minutes and can be renewed. Quitting preserves the request. Use **Cancel research** to stop an outstanding request. A late result from the cancelled claim is refused.
 
 Open the album's research card in Review to inspect each recommendation, its sources, confidence and uncertainties. **Preview changes** compares the proposal with the current files. **Apply reviewed changes** applies that preview and records the previous values for Undo. **Discard result** closes the item. If verification needs a network lookup, reopen the preview when connected. Unsupported historical results remain available for inspection. A library switch or database restore invalidates old claims and previews.
+
+A research request follows its album: renaming the folder, a rescan that finds it under
+another spelling, or merging the discs of a set moves the request with it. An album with an
+unresolved request (waiting, claimed or awaiting review) cannot be merged or converted to a
+multi-disc layout until the request is finished or cancelled. Research from before this
+version is kept: a result that was still waiting for review is reviewed like any request,
+and the rest is history you can open but not retry.
+
+### Fix all and batches
+
+**Fix all** on a health check settles what the resolver can. With **Send what the resolver
+can't settle to my assistant** ticked (on when you have added an assistant), every album
+it could not settle becomes one research request, all in one batch: Review and Activity
+show the batch once ("B research requests from Fix all · <check>", with counts by state),
+open to its requests, and can cancel what is still waiting or held. Missing albums are
+skipped, and an album that already has a request is counted as already requested. A run
+stopped part-way keeps the requests it made, and its batch says "from an unfinished run".
+The album list shows the status of a batched request like any other.
+
+An assistant sees the batch id (`batchId`) on each request and event. It can list the
+requests of one batch, claim up to 25 with `musaic_work_claim_many` and renew them with
+`musaic_work_renew_many`; each request is still completed, failed or released on its own.
 
 ## Skills, events and your own host
 
 Musaic also serves a work-delegation skill and a history of delegated-work events over MCP, and
-shows what each connected host has done in **Settings, Agents** and **Review, Delegated work**.
+shows what each connected host has done in **Settings, Assistants** and **Review, Delegated work**.
 You connect and run your own agent; Musaic never starts one. See [mcp.md](mcp.md) for the
 profiles, the skill, `musaic-cli setup --skill`, events, cursors and the diagnostics.
 
@@ -52,11 +82,15 @@ On the 2026-07-28 profile, hosts that declare Tasks support on a supported reque
 
 Active Tasks have an open-ended lifetime. Terminal results remain available for seven days. After expiry, look up the operation ID with `musaic_operation_get`. Other calls, including those from 2025-11-25 clients, retain the operation-handle interface.
 
-## Pairing
+## Adding an assistant
 
-1. In Musaic, open **Settings, Agents** and pair an assistant: give it a name and tick what it
-   may ever do (reading and proposing are ticked by default). Musaic makes a secret, keeps
-   it in your operating system's keyring and never shows it.
+Musaic calls a connected assistant a *pairing* in its tools, errors and files; the desktop
+says **Add an assistant**.
+
+1. In Musaic, open **Settings, Assistants** and choose **Add an assistant**: give it a name
+   and tick what it may ever do (reading and proposing are ticked by default), then
+   **Add assistant**. Musaic makes a secret, keeps it in your operating system's keyring
+   and never shows it.
 2. Connect the host:
 
    ```bash
@@ -64,6 +98,10 @@ Active Tasks have an open-ended lifetime. Terminal results remain available for 
    musaic-cli setup               # Claude Desktop and Claude Code, with a backup of each file
    musaic-cli doctor              # is the app running, is the pairing active, which profile
    ```
+
+   Each assistant in Settings shows four facts with their times: **Added**, **Connected**
+   (the host reached Musaic), **Listening for work** (it subscribed to work events in the
+   last 90 seconds) and **Last request picked up**. **Revoke** removes it.
 
    `setup` writes one entry named `musaic` into the host's `mcpServers`, using the
    absolute path of `musaic-cli`. It backs each file up first

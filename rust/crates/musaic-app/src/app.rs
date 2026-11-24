@@ -113,11 +113,8 @@ pub struct AppBuilder {
     log_sink: LogSink,
     log_masks: Masks,
     key_scrub_delays: Vec<Duration>,
-    // AI job queue (musaic-ai).
-    ai_provider: Option<Arc<dyn musaic_ai::Provider>>,
-    ai_worker: Option<bool>,
+    // Research request ids.
     ai_job_ids: Option<crate::ai::JobIds>,
-    ai_call_timeout: Duration,
     shutdown_pool_wait: Duration,
     check_sweep: bool,
     sweep_settle: Duration,
@@ -186,10 +183,7 @@ impl AppBuilder {
             log_sink: AppLog::stderr_sink(),
             log_masks: Masks::new(),
             key_scrub_delays: musaic_services::keyscrub::RETRY_DELAYS.to_vec(),
-            ai_provider: None,
-            ai_worker: None,
             ai_job_ids: None,
-            ai_call_timeout: musaic_ai::worker::WALL_CLOCK_TIMEOUT,
             shutdown_pool_wait: SHUTDOWN_POOL_WAIT,
             check_sweep: false,
             sweep_settle: musaic_services::check_sweep::SETTLE,
@@ -236,32 +230,10 @@ impl AppBuilder {
         self
     }
 
-    /// The AI provider the worker calls. Default: `musaic_ai::Unconfigured`
-    /// (no model backend in this build).
-    pub fn ai_provider(mut self, p: Arc<dyn musaic_ai::Provider>) -> Self {
-        self.ai_provider = Some(p);
-        self
-    }
-
-    /// Run the AI job dispatcher (the lifespan's `worker_loop`). Default:
-    /// on exactly when the bus subscribers are registered ([`Self::subscribers`]),
-    /// so a "no lifespan" state has no worker, as the Python app's TestClient runs.
-    pub fn ai_worker(mut self, on: bool) -> Self {
-        self.ai_worker = Some(on);
-        self
-    }
-
-    /// How new AI job ids are made (tests script them). Default: 16 random
+    /// How new job card ids are made (tests script them). Default: 16 random
     /// hex characters.
     pub fn ai_job_ids(mut self, ids: crate::ai::JobIds) -> Self {
         self.ai_job_ids = Some(ids);
-        self
-    }
-
-    /// The cap on one provider call (tests shorten it; the failure text
-    /// always names the 240 s cap).
-    pub fn ai_call_timeout(mut self, d: Duration) -> Self {
-        self.ai_call_timeout = d;
         self
     }
 
@@ -452,6 +424,9 @@ impl AppBuilder {
             // is the process's only connection at this point, so nothing of
             // ours can block the scrub's checkpoint.
             startup_scrub = key_scrub.run(&db, secrets.as_ref(), "startup");
+            // The old provider's keyring entries go once (a marker row
+            // records it; a failure is retried at the next start).
+            musaic_services::keyscrub::remove_retired_keys(&db, secrets.as_ref(), &log);
             if self.auto_snapshot {
                 startup::auto_snapshot_on_startup(&db, &config.snapshot_dir(), &*clock, &log);
             }
@@ -548,10 +523,6 @@ impl AppBuilder {
         let network = self.network.clone();
 
         let clock_for_agent = clock.clone();
-        let legacy_jobs = self.ai_provider.is_some() || self.ai_worker == Some(true);
-        let legacy_worker = self
-            .ai_worker
-            .unwrap_or(self.subscribers && self.ai_provider.is_some());
         let state = App(Arc::new(AppInner {
             config,
             db_path,
@@ -592,16 +563,10 @@ impl AppBuilder {
             agent_secrets,
             agent_index_store,
             agent_dev_credentials: self.agent_dev_credentials,
-            legacy_jobs,
+            running_batches: std::sync::Mutex::default(),
             ai: crate::ai::AiQueue::new(
-                self.ai_provider
-                    .unwrap_or_else(|| Arc::new(musaic_ai::Unconfigured)),
                 self.ai_job_ids
                     .unwrap_or_else(|| Arc::new(crate::ai::random_job_id)),
-                musaic_ai::RunOptions {
-                    call_timeout: self.ai_call_timeout,
-                    ..musaic_ai::RunOptions::default()
-                },
             ),
         }));
         // Scans leave the albums of an unfinished multi-disc conversion as
@@ -617,17 +582,12 @@ impl AppBuilder {
                 startup::log_pool(&inner.pool, &inner.pool_logged, &inner.log);
             }
         }));
-        if self.subscribers {
-            crate::ai::start_job_log(&state);
-        }
-        if legacy_worker {
-            state.0.ai.start(Arc::downgrade(&state.0));
-        }
         if startup_scrub == (ScrubOutcome::Pending { retry: true }) {
             state.schedule_key_scrub_retry();
         }
         crate::desktop_research::hydrate(&state, &musaic_db::open_connection(state.db_path())?)?;
         crate::desktop_research::subscribe_legacy_hydration(&state);
+        crate::desktop_research::subscribe_rename_rederive(&state);
         crate::agent::startup_housekeeping(&state);
         crate::agent::start_expiry_ticker(&state);
         if self.check_sweep {
@@ -709,9 +669,8 @@ pub struct AppInner {
     /// `mb_lookup.get_recording_canonical`'s lru_cache: one per server
     /// lifetime (the duplicate-tracks canonical route).
     pub recording_canonical: musaic_services::recording_canonical::RecordingCanonicalCache,
-    /// The AI job queue (signal, stream changes, provider, dispatcher).
+    /// The research requests' change signal, stream changes and job ids.
     pub ai: crate::ai::AiQueue,
-    pub(crate) legacy_jobs: bool,
     /// Flips to `true` when the server begins shutting down; every
     /// SSE body watches it and ends (a clean end of stream, not a cut
     /// connection).
@@ -732,6 +691,9 @@ pub struct AppInner {
     pub agent_index_store: SharedSecrets,
     /// Write the dev credential file for each new pairing (scratch runs only).
     pub agent_dev_credentials: bool,
+    /// The research batches of the quick-fix-all runs in progress: a batch
+    /// with no `finished_at` that no run holds is "from an unfinished run".
+    pub running_batches: std::sync::Mutex<std::collections::BTreeSet<String>>,
 }
 
 /// The application (cheap to clone).
@@ -886,8 +848,7 @@ impl App {
     }
 
     /// What is running now: the work gate's labelled guards, a
-    /// restore, the scan service and the fingerprint pool; worded per
-    /// [`App::ai_ready`].
+    /// restore, the scan service and the fingerprint pool.
     pub fn work_snapshot(&self) -> crate::work::WorkSnapshot {
         let (kinds, restoring) = self.0.gate.running();
         let _db = self.0.db_gate.read().unwrap_or_else(|e| e.into_inner());
@@ -896,7 +857,6 @@ impl App {
             restoring,
             scan_running: self.0.scan.is_running(),
             pool_running: self.0.pool.is_running(),
-            ai_ready: self.ai_ready(),
             external_claims: open_conn(self.db_path())
                 .ok()
                 .and_then(|conn| {
@@ -910,25 +870,11 @@ impl App {
         }
     }
 
-    /// The provider the worker uses is ready: the `ready` flag
-    /// `GET /api/ai/providers` reports for it, the same rule the frontend
-    /// applies (`frontend/src/lib/aiGating.ts`). `false` in this build's
-    /// default (`musaic_ai::Unconfigured`).
-    pub fn ai_ready(&self) -> bool {
-        self.0.ai.provider.info().ready
-    }
-
-    /// The wording of
-    /// user-visible text, from [`App::ai_ready`] at the moment it is shown.
-    pub fn ai_wording(&self) -> musaic_core::AiWording {
-        musaic_core::AiWording::for_readiness(self.ai_ready())
-    }
-
     /// The lifespan's shutdown, blocking: stop the check sweep (waiting at
     /// most [`SHUTDOWN_SWEEP_WAIT`]), cancel a running scan and wait (at
     /// most [`SHUTDOWN_SCAN_WAIT`]) for it to end, cancel the fingerprint
     /// pool and wait (at most [`AppBuilder::shutdown_pool_wait`]) for its
-    /// thread to exit, stop the AI worker, give an unfinished secret scrub
+    /// thread to exit, give an unfinished secret scrub
     /// one more try, then fold the WAL into the main database file and
     /// truncate it ([`musaic_db::checkpoint_on_close`]) so a stop in the
     /// middle of a pass leaves no un-checkpointed WAL behind.
@@ -986,9 +932,6 @@ impl App {
                 ),
             );
         }
-        // The lifespan cancels the AI worker loop (jobs in flight finish on
-        // their own threads; one left `running` is requeued next start).
-        self.0.ai.stop();
         // An unfinished secret scrub gets one more try now that the server
         // has stopped and the pool has exited.
         musaic_services::keyscrub::shutdown_retry(

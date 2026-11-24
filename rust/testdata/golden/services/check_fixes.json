@@ -2,7 +2,8 @@
   "_meta": {
     "python_git_sha": "6902c2324d401dc4845811a3fcb8289764382b8d",
     "starting_state": "fresh config dir, library from `albums`, no lifespan, network off; resolver / fingerprint / mb_lookup stubbed (see module docstring)",
-    "tool": "tools.gen_check_fixes_golden"
+    "tool": "tools.gen_check_fixes_golden",
+    "rust_changes": "Fixes the resolver cannot settle record a research request (\"Research requested. You can follow it in Review.\", an AgentStateChanged work event, and under ai_jobs the request group in job vocabulary: album, job type, hint, status), as every build delegates; one unresolved request per album, kind and input, so a second Fix of the same kind returns the existing request and a Fix of another kind makes its own."
   },
   "albums": [
     {
@@ -6952,7 +6953,7 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Wrote 1 album field(s); also asking Claude to fill the rest",
+        "message": "Wrote 1 album field(s). Research requested. You can follow it in Review.",
         "ok": true
       },
       "events": [
@@ -6962,6 +6963,13 @@
             "title"
           ],
           "type": "AlbumTagsChanged"
+        },
+        {
+          "ids": [
+            "<WORK>"
+          ],
+          "type": "AgentStateChanged",
+          "what": "work"
         }
       ],
       "label": "fix tags-out-of-sync resolver",
@@ -7742,10 +7750,18 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Asking Claude to fill in the missing tags",
+        "message": "Research requested. You can follow it in Review.",
         "ok": true
       },
-      "events": [],
+      "events": [
+        {
+          "ids": [
+            "<WORK>"
+          ],
+          "type": "AgentStateChanged",
+          "what": "work"
+        }
+      ],
       "label": "fix tags-out-of-sync ai fallback",
       "layer": "service",
       "op": "fix_finding",
@@ -8532,10 +8548,18 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Asking Claude to fill in the missing tags",
+        "message": "Research requested. You can follow it in Review.",
         "ok": true
       },
-      "events": [],
+      "events": [
+        {
+          "ids": [
+            "<WORK>"
+          ],
+          "type": "AgentStateChanged",
+          "what": "work"
+        }
+      ],
       "label": "fix tags-out-of-sync hint",
       "layer": "service",
       "op": "fix_finding",
@@ -9331,10 +9355,18 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Asking Claude to find cover art for this album",
+        "message": "Research requested. You can follow it in Review.",
         "ok": true
       },
-      "events": [],
+      "events": [
+        {
+          "ids": [
+            "<WORK>"
+          ],
+          "type": "AgentStateChanged",
+          "what": "work"
+        }
+      ],
       "label": "fix no-cover-art",
       "layer": "service",
       "op": "fix_finding",
@@ -10133,8 +10165,8 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Already has an active job (queued)",
-        "ok": false
+        "message": "Research requested. You can follow it in Review.",
+        "ok": true
       },
       "events": [],
       "label": "fix no-cover-art again (job conflict)",
@@ -10935,10 +10967,18 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Already has an active job (queued)",
-        "ok": false
+        "message": "Research requested. You can follow it in Review.",
+        "ok": true
       },
-      "events": [],
+      "events": [
+        {
+          "ids": [
+            "<WORK>"
+          ],
+          "type": "AgentStateChanged",
+          "what": "work"
+        }
+      ],
       "label": "fix track-gaps",
       "layer": "service",
       "op": "fix_finding",
@@ -10954,6 +10994,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -11760,6 +11806,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -12540,10 +12592,18 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Asking Claude to identify this album on MusicBrainz",
+        "message": "Research requested. You can follow it in Review.",
         "ok": true
       },
-      "events": [],
+      "events": [
+        {
+          "ids": [
+            "<WORK>"
+          ],
+          "type": "AgentStateChanged",
+          "what": "work"
+        }
+      ],
       "label": "fix unidentified ai",
       "layer": "service",
       "op": "fix_finding",
@@ -12562,6 +12622,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -13348,10 +13414,18 @@
       "before": [],
       "body": {
         "job_id": "<JOB>",
-        "message": "Asking Claude to identify this album on MusicBrainz",
+        "message": "Research requested. You can follow it in Review.",
         "ok": true
       },
-      "events": [],
+      "events": [
+        {
+          "ids": [
+            "<WORK>"
+          ],
+          "type": "AgentStateChanged",
+          "what": "work"
+        }
+      ],
       "label": "fix unidentified hint",
       "layer": "service",
       "op": "fix_finding",
@@ -13379,6 +13453,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -14200,6 +14280,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -15035,6 +15121,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -15866,6 +15958,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -16675,6 +16773,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -17498,6 +17602,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -18345,6 +18455,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -19183,6 +19299,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -20043,6 +20165,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -20862,6 +20990,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -21674,6 +21808,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -22482,6 +22622,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -23308,6 +23454,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -24110,6 +24262,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -24922,6 +25080,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -25661,6 +25825,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -26408,6 +26578,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -27147,6 +27323,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -27917,6 +28099,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -28656,6 +28844,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -29377,6 +29571,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -30106,6 +30306,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -30852,6 +31058,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -31605,6 +31817,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -32339,6 +32557,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -33081,6 +33305,12 @@
             "queued"
           ],
           [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
+            "",
+            "queued"
+          ],
+          [
             "<ID:November - 16 [FLAC]>",
             "metadata",
             "",
@@ -33815,6 +34045,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],
@@ -34566,6 +34802,12 @@
           [
             "<ID:Mike - Fifteen [FLAC]>",
             "cover",
+            "",
+            "queued"
+          ],
+          [
+            "<ID:Mike - Fifteen [FLAC]>",
+            "metadata",
             "",
             "queued"
           ],

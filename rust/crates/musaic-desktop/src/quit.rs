@@ -4,8 +4,8 @@
 //! prompt at a time; a confirmed quit is not asked again); lib.rs only
 //! shows the native dialog. What counts as running is musaic-api's
 //! [`WorkSnapshot`](musaic_api::WorkSnapshot) (scan, apply, analyze,
-//! restore, fingerprint pool, AI job, quick-fix-all, check runs, other
-//! writes).
+//! restore, fingerprint pool, quick-fix-all, check runs, other writes, and
+//! research an assistant has claimed).
 //!
 //! Which quit routes reach this (macOS, tao 0.37 / Tauri 2.12; details in
 //! docs/desktop.md "Quitting"): the window's close button and Window →

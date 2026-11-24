@@ -22,7 +22,6 @@ import type { AppConfig, Job } from "@/lib/types";
 function client(jobs: Partial<Job>[] = []) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
   qc.setQueryData(["config"], { library_dir: "/Users/someone/Music", exists: true } as AppConfig);
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["checks"], []);
   qc.setQueryData(["findings"], []);
   qc.setQueryData(["jobs"], jobs);
@@ -173,9 +172,9 @@ describe("sidebar", () => {
 
   it("leaves running jobs to the Activity control: Review's entry counts decisions only", () => {
     const jobs: Partial<Job>[] = [
-      { id: "1", status: "running" },
-      { id: "2", status: "running" },
-      { id: "3", status: "queued" },
+      { id: "1", job_type: "metadata", status: "running" },
+      { id: "2", job_type: "cover", status: "running" },
+      { id: "3", job_type: "metadata", status: "queued" },
     ];
     sidebarAt("/library", jobs);
     const review = screen.getByRole("link", { name: /Review/ });
@@ -188,6 +187,6 @@ describe("sidebar", () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(screen.getByRole("button", { name: /^Activity: 2 jobs running/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Activity: 2 research requests running/ })).toBeInTheDocument();
   });
 });

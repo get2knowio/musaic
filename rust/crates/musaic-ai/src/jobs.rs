@@ -1,12 +1,10 @@
-//! API shapes of the queue (`jobs.job_to_dict`, `worker.queue_state_dict`)
-//! and the change signal the routes, the worker and the jobs stream share
-//! (`services.sse.jobs_changed`).
+//! The job card shape (`jobs.job_to_dict`) and the change signal the routes
+//! and the jobs stream share (`services.sse.jobs_changed`).
 
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use musaic_db::ai_jobs::{self, JobRow};
-use rusqlite::Connection;
+use musaic_db::research_history::JobRow;
 
 use crate::pyjson::{Py, loads};
 
@@ -36,42 +34,8 @@ pub fn job_to_py(job: &JobRow) -> Py {
     ])
 }
 
-/// `settings.ai_queue_paused()`.
-pub fn queue_paused(conn: &Connection) -> musaic_db::Result<bool> {
-    musaic_db::settings::get_bool(conn, "ai_queue_paused", false)
-}
-
-/// `settings.set_ai_queue_paused(b)`: stored as `"1"` / `"0"`.
-pub fn set_queue_paused(conn: &Connection, paused: bool) -> musaic_db::Result<()> {
-    musaic_db::settings::set_raw(conn, "ai_queue_paused", if paused { "1" } else { "0" })
-}
-
-/// `settings.ai_max_parallel()`: clamped to 1..=8.
-pub fn max_parallel(conn: &Connection) -> musaic_db::Result<i64> {
-    Ok(musaic_db::settings::get_int(conn, "ai_max_parallel", 1)?.clamp(1, 8))
-}
-
-/// `worker.queue_state_dict()`.
-pub fn queue_state(conn: &Connection) -> musaic_db::Result<Py> {
-    Ok(Py::dict([
-        ("paused", Py::Bool(queue_paused(conn)?)),
-        ("max_parallel", Py::Int(max_parallel(conn)?)),
-        ("running", Py::Int(ai_jobs::count_running(conn)?)),
-        ("queued", Py::Int(ai_jobs::count_queued(conn)?)),
-    ]))
-}
-
-/// The jobs stream's payload: `{"jobs": [...200 newest], "queue_state": ...}`.
-pub fn stream_payload(conn: &Connection) -> musaic_db::Result<Py> {
-    let jobs = ai_jobs::list_jobs(conn, None, ai_jobs::LIST_LIMIT)?;
-    Ok(Py::dict([
-        ("jobs", Py::List(jobs.iter().map(job_to_py).collect())),
-        ("queue_state", queue_state(conn)?),
-    ]))
-}
-
 /// `jobs_changed` as a counter: every [`Signal::notify`] bumps it, wakes the
-/// worker's waits and runs the listeners (the HTTP layer bumps one watch
+/// waits and runs the listeners (the HTTP layer bumps one watch
 /// channel per stream connection from there). Unlike the Python app's single
 /// `asyncio.Event`, which the worker and every stream connection `clear()`,
 /// no waiter can consume another's wake-up.

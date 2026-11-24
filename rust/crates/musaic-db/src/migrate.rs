@@ -272,31 +272,50 @@ pub(crate) fn create_fresh(conn: &mut Connection) -> Result<()> {
 /// transaction (each re-checks the version, so a step another process
 /// already ran is skipped): the Python app's own chain to v16 for an older file
 /// ([`crate::python_chain`], one transaction as in the Python app), then v17,
-/// v18, v19, v20, v21, v22, v23.
+/// v18, v19, v20, v21, v22, v23, v24.
 pub(crate) fn upgrade(conn: &mut Connection, found: i64) -> Result<()> {
+    steps(conn, found, SCHEMA_VERSION)
+}
+
+/// Test seam: run the steps from the version the file is at up to `target`
+/// (at least v16) and no further, so a test can build a database as an older
+/// build left it (the committed v20 / v22 / v23 fixtures under
+/// `testdata/db/`). Takes no backup and does not touch the journal mode.
+#[doc(hidden)]
+pub fn upgrade_to(conn: &mut Connection, target: i64) -> Result<()> {
+    let found: i64 = conn.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get(0)
+    })?;
+    steps(conn, found, target.min(SCHEMA_VERSION))
+}
+
+fn steps(conn: &mut Connection, found: i64, target: i64) -> Result<()> {
     if found < PYTHON_SCHEMA_VERSION {
         crate::python_chain::to_python_version(conn)?;
     }
-    if found <= PYTHON_SCHEMA_VERSION {
+    if found <= PYTHON_SCHEMA_VERSION && target >= 17 {
         v16_to_v17(conn)?;
     }
-    if found <= 17 {
+    if found <= 17 && target >= 18 {
         v17_to_v18(conn)?;
     }
-    if found <= 18 {
+    if found <= 18 && target >= 19 {
         v18_to_v19(conn)?;
     }
-    if found <= 19 {
+    if found <= 19 && target >= 20 {
         v19_to_v20(conn)?;
     }
-    if found <= 20 {
+    if found <= 20 && target >= 21 {
         v20_to_v21(conn)?;
     }
-    if found <= 21 {
+    if found <= 21 && target >= 22 {
         v21_to_v22(conn)?;
     }
-    if found <= 22 {
+    if found <= 22 && target >= 23 {
         v22_to_v23(conn)?;
+    }
+    if found <= 23 && target >= 24 {
+        v23_to_v24(conn)?;
     }
     Ok(())
 }
@@ -426,8 +445,121 @@ fn v22_to_v23(conn: &Connection) -> Result<()> {
     })?;
     if current == 22 {
         tx.execute_batch(include_str!("delegation_events.sql"))?;
-        tx.execute("UPDATE schema_version SET version = ?1", [SCHEMA_VERSION])?;
+        // The literal, never SCHEMA_VERSION: this step makes v23 only, and a
+        // larger constant written here would skip every later step on each
+        // v22 file (v24's would never run).
+        tx.execute("UPDATE schema_version SET version = 23", [])?;
     }
     tx.commit()?;
     Ok(())
+}
+
+/// The settings rows of the retired model provider. The two key rows
+/// (`ai_api_key`, `firecrawl_api_key`) are not here: the key scrub removes
+/// them after open, and also from snapshots and backups.
+const RETIRED_SETTINGS: [&str; 4] = [
+    "ai_provider_id",
+    "ai_model_id",
+    "ai_max_parallel",
+    "ai_queue_paused",
+];
+
+/// v23 -> v24: one store for research. Every old job is copied verbatim
+/// into `research_history`; an old job of a known type that has no request
+/// yet gets its requests in the current epoch (the v22 mapping,
+/// [`crate::delegated_work::link_job`]); then `ai_jobs` is dropped. Also the
+/// batch origin table, `batch_id` on requests and event-history rows, and
+/// `claim_many` in `work_replays`. Reads no album and deletes no album row:
+/// a job whose album is gone is copied like any other.
+///
+/// `research_v24.sql` holds the schema; `delegated_work.sql` is not edited,
+/// because the v21 -> v22 step includes it and a column added there would
+/// make this step's `ALTER` fail on files coming from v21 or older.
+fn v23_to_v24(conn: &Connection) -> Result<()> {
+    let tx = crate::immediate(conn)?;
+    let current: i64 = tx.query_row("SELECT version FROM schema_version LIMIT 1", [], |r| {
+        r.get(0)
+    })?;
+    if current == 23 {
+        tx.execute_batch(include_str!("research_v24.sql"))?;
+        let has_jobs: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='ai_jobs')",
+            [],
+            |r| r.get(0),
+        )?;
+        if has_jobs {
+            tx.execute(
+                "INSERT OR IGNORE INTO research_history
+                     (id, album_id, album_path, album_title, job_type, hint, status,
+                      acted_on_action, error, result_json, created_at, started_at,
+                      completed_at, acted_on_at, attach_cover, migrated_at)
+                 SELECT id, album_id, album_path, album_title, job_type, COALESCE(hint, ''),
+                        status, acted_on_action, error, result_json, created_at, started_at,
+                        completed_at, acted_on_at, COALESCE(attach_cover, 1),
+                        CAST(unixepoch('subsec') * 1000 AS INTEGER)
+                 FROM ai_jobs",
+                [],
+            )?;
+            let unlinked: Vec<crate::research_history::JobRow> = {
+                let mut stmt = tx.prepare(
+                    "SELECT * FROM ai_jobs j
+                     WHERE NOT EXISTS (SELECT 1 FROM delegated_work w WHERE w.legacy_job_id = j.id)
+                     ORDER BY created_at, id",
+                )?;
+                stmt.query_map([], crate::research_history::JobRow::from_row)?
+                    .collect::<rusqlite::Result<_>>()?
+            };
+            if !unlinked.is_empty() {
+                let epoch = crate::delegated_work::epoch(&tx)?;
+                for job in &unlinked {
+                    crate::delegated_work::link_job(&tx, &epoch, job)?;
+                }
+            }
+        }
+        for key in RETIRED_SETTINGS {
+            tx.execute("DELETE FROM settings WHERE key = ?1", [key])?;
+        }
+        tx.execute_batch(
+            "DROP INDEX IF EXISTS idx_ai_jobs_status;
+             DROP INDEX IF EXISTS idx_ai_jobs_album;
+             DROP INDEX IF EXISTS idx_ai_jobs_created;
+             DROP TABLE IF EXISTS ai_jobs;",
+        )?;
+        // The literal, for the same reason as in v22 -> v23.
+        tx.execute("UPDATE schema_version SET version = 24", [])?;
+    }
+    tx.commit()?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn at(conn: &Connection) -> i64 {
+        conn.query_row("SELECT version FROM schema_version", [], |r| r.get(0))
+            .unwrap()
+    }
+
+    /// The v22 -> v23 step writes 23 whatever this build's constant is, so
+    /// the v24 step (and any later one) still runs on a v22 file.
+    #[test]
+    fn a_v22_file_reaches_23_whatever_the_build_constant() {
+        const { assert!(SCHEMA_VERSION > 23) };
+        let mut conn = Connection::open_in_memory().unwrap();
+        crate::configure_connection(&conn).unwrap();
+        let tx = crate::immediate(&conn).unwrap();
+        for stmt in crate::schema_v16::STATEMENTS {
+            tx.execute(stmt, []).unwrap();
+        }
+        tx.execute("INSERT INTO schema_version(version) VALUES (16)", [])
+            .unwrap();
+        tx.commit().unwrap();
+        upgrade_to(&mut conn, 22).unwrap();
+        assert_eq!(at(&conn), 22);
+        v22_to_v23(&conn).unwrap();
+        assert_eq!(at(&conn), 23);
+        upgrade_to(&mut conn, SCHEMA_VERSION).unwrap();
+        assert_eq!(at(&conn), SCHEMA_VERSION);
+    }
 }

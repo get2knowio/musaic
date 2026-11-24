@@ -1,10 +1,10 @@
-//! Tracks Tier 1 aligns by position count as resolved for the skip-the-provider rule,
+//! Tracks Tier 1 aligns by position count as resolved for the settle rule,
 //! so an anchored album aligned that way gets a synthesized suggestion and
-//! no provider call. The Python app has no positional alignment (it would call
-//! the provider); this pins the decided behaviour against the resolver's
-//! own positional output, not a hand-set `unresolved_track_count`.
+//! needs no research. The Python app has no positional alignment; this pins
+//! the decided behaviour against the resolver's own positional output, not a
+//! hand-set `unresolved_track_count`.
 
-use musaic_ai::synth::{can_skip_provider, unresolved_for_skip_rule};
+use musaic_ai::synth::{resolver_settles_metadata, unresolved_for_skip_rule};
 use musaic_resolve::find_release::{MbMatch, MbTrack};
 use musaic_resolve::resolution::{POSITIONAL_CONFIDENCE, refine_from_anchor};
 use musaic_resolve::source::{FlacTrack, TrackNumber};
@@ -54,5 +54,8 @@ fn positional_matches_count_as_resolved_for_the_skip_rule() {
     }
     // ...and the skip rule counts none of them as unresolved.
     assert_eq!(unresolved_for_skip_rule(&r), 0);
-    assert!(can_skip_provider(&r), "positional: provider skipped");
+    assert!(
+        resolver_settles_metadata(&r),
+        "positional: settled by the resolver"
+    );
 }

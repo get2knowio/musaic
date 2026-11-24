@@ -151,15 +151,6 @@ fn deltas() -> Vec<Delta> {
             v17,
         ),
         set(
-            "settings provider unknown",
-            "/json/detail",
-            json!(
-                "Unknown or not-installed provider 'bedrock'. Installed: claude, github-copilot, opencode. Install its airframe extra to add more."
-            ),
-            json!("Unknown or not-installed provider 'bedrock'. Installed: unconfigured."),
-            "no other provider in this build: the message names the providers GET /api/ai/providers lists (issue #199); the Python app lists the airframe extras installed on the recording machine",
-        ),
-        set(
             "run filename-mismatch",
             "/json/issue_count",
             json!(3),
@@ -291,9 +282,8 @@ fn rules() -> Vec<Rule> {
             },
         },
         Rule {
-            why: "no AI provider is ready (the default \
-              Unconfigured provider), so check descriptions, the unanchored trace note and \
-              unanchored tags-out-of-sync summaries are shown without AI wording \
+            why: "Musaic has no built-in model, so check descriptions, the unanchored trace \
+              note and unanchored tags-out-of-sync summaries are shown without AI wording \
               (tests/common/ai_wording.rs)",
             count: AI_WORDING_RESPONSES,
             applies: |c| {
@@ -668,8 +658,9 @@ async fn replay(clock: Option<Arc<ScriptedClock>>) -> Vec<String> {
         }
     }
     first_frames(&app, &norm).await;
-    // Every 422 the golden records (cases.json, Python app at 6902c23).
-    assert_eq!(bytes_422, 16, "422 cases compared byte for byte");
+    // Every 422 the golden records (cases.json, Python app at 6902c23; the
+    // three for retired provider settings went with them, spec 006).
+    assert_eq!(bytes_422, 13, "422 cases compared byte for byte");
     for (i, d) in deltas.iter().enumerate() {
         assert!(used[i], "unused delta: {} ({})", d.0, d.2);
     }

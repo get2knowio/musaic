@@ -872,7 +872,8 @@ pub fn validate_cover_upload(content_type: Option<&str>, body: &[u8]) -> Result<
 }
 
 /// `result.cover.cover_url` of a stored job result, when it is a non-empty
-/// string (written by the AI worker or the model-free MusicBrainz synthesizer).
+/// string (written by an assistant's result, an old job, or the model-free
+/// MusicBrainz synthesizer).
 pub fn stored_cover_url(result_json: Option<&str>) -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(result_json?).ok()?;
     v.get("cover")?

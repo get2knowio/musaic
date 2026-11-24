@@ -10,23 +10,7 @@ import { MemoryRouter } from "react-router-dom";
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 import FindingFixButton from "@/components/FindingFixButton";
-import type { AiProvidersResponse } from "@/lib/api";
 import type { Finding } from "@/lib/types";
-
-const provider = (ready: boolean): AiProvidersResponse => ({
-  selected: { provider_id: "claude", model_id: "m", api_key_set: false },
-  providers: [
-    {
-      id: ready ? "claude" : "unconfigured",
-      accepts_api_key: false,
-      auth_hint: null,
-      ready,
-      requirement: ready ? null : "an AI backend",
-      remedy: null,
-    },
-  ],
-  uninstalled: [],
-});
 
 const finding = (checkId: string): Finding => ({
   id: 7,
@@ -42,9 +26,8 @@ const finding = (checkId: string): Finding => ({
   ignored_reason: null,
 });
 
-function renderButton(ready: boolean, checkId: string, fixKind: "ai-job" | "deterministic") {
+function renderButton(checkId: string, fixKind: "ai-job" | "deterministic") {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  qc.setQueryData(["ai-providers"], provider(ready));
   qc.setQueryData(["jobs"], []);
   qc.setQueryData(["albums-snapshot"], []);
   return render(
@@ -77,28 +60,28 @@ describe("finding action labels", () => {
     ["multi-disc-layout", "Preview disc layout…"],
   ];
   for (const [check, label] of dialogLabels) {
-    for (const ready of [false, true]) {
-      it(`${check} says "${label}" ${ready ? "with" : "without"} a model`, () => {
-        renderButton(ready, check, "deterministic");
-        expect(screen.getByRole("button", { name: label })).toBeEnabled();
-        expect(screen.queryByRole("button", { name: /^(Resolve|Fix)/ })).toBeNull();
-      });
-    }
+    it(`${check} says "${label}"`, () => {
+      renderButton(check, "deterministic");
+      expect(screen.getByRole("button", { name: label })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: /^(Resolve|Fix)/ })).toBeNull();
+    });
   }
 
+  const RESEARCH =
+    "Anything it can't settle is sent to your assistant for research. Add a hint to help.";
+  // One copy per research-capable check (contracts/wording.md, FR-007).
   const fixLabels: [string, string, string][] = [
-    ["no-cover-art", "Embed MusicBrainz cover", "Find cover art…"],
-    ["unidentified-album", "Look up on MusicBrainz", "Identify album…"],
-    ["tags-out-of-sync", "Write MusicBrainz tags", "Fill missing tags…"],
-    ["track-gaps", "Renumber tracks", "Check track numbers…"],
+    ["no-cover-art", "Find cover art…", `Tries MusicBrainz and the Cover Art Archive first. ${RESEARCH}`],
+    ["unidentified-album", "Identify album…", `Tries MusicBrainz first. ${RESEARCH}`],
+    ["tags-out-of-sync", "Fill missing tags…", `Tries MusicBrainz first. ${RESEARCH}`],
+    ["track-gaps", "Check track numbers…", `Tries MusicBrainz first. ${RESEARCH}`],
   ];
-  for (const [check, modelFree, withModel] of fixLabels) {
-    it(`${check}: lookup/write wording without a model, hint dialog wording with one`, () => {
-      const first = renderButton(false, check, "ai-job");
-      expect(screen.getByRole("button", { name: modelFree })).toBeEnabled();
-      first.unmount();
-      renderButton(true, check, "ai-job");
-      expect(screen.getByRole("button", { name: withModel })).toBeEnabled();
+  for (const [check, label, title] of fixLabels) {
+    it(`${check}: "${label}" says the resolver goes first and the rest goes to the assistant`, () => {
+      renderButton(check, "ai-job");
+      const btn = screen.getByRole("button", { name: label });
+      expect(btn).toBeEnabled();
+      expect(btn.getAttribute("title")).toBe(title);
     });
   }
 });

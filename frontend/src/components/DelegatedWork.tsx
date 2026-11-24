@@ -1,8 +1,11 @@
 import { toast } from "sonner";
 
+import { ResearchBatchEntry } from "@/components/ResearchBatch";
 import { useDelegatedWork, useRetryDelegatedWork } from "@/hooks/useDelegatedWork";
+import { useResearchBatches } from "@/hooks/useResearchBatches";
 import type { DelegatedWorkItem, DelegatedWorkState } from "@/lib/api";
 import { ago } from "@/lib/agentCopy";
+import { KIND_LABEL } from "@/lib/researchBatches";
 import { errorText } from "@/lib/errors";
 import { Link } from "react-router-dom";
 
@@ -20,23 +23,22 @@ const GROUPS: { state: DelegatedWorkState; title: string }[] = [
   { state: "cancelled", title: "Cancelled" },
 ];
 
-const KIND_LABEL: Record<string, string> = {
-  "metadata.identify": "Identify album",
-  "metadata.correct": "Correct metadata",
-  "cover.research": "Find cover",
-};
-
 /**
  * The research Musaic has asked an assistant to do, by state: who holds it,
  * when they last showed life and when the claim lapses, "Waiting for an
  * agent" when nobody is listening, and Retry for failed or cancelled work.
+ * Requests a Fix all run made are folded into one entry per batch, which
+ * opens to its items and cancels as a whole.
  * Shows nothing when there is none (or when the list cannot be read).
  */
 export function DelegatedWork() {
   const work = useDelegatedWork();
   const retry = useRetryDelegatedWork();
-  const items = Array.isArray(work.data) ? work.data : [];
-  if (items.length === 0) return null;
+  const batchList = useResearchBatches();
+  const all = Array.isArray(work.data) ? work.data : [];
+  const items = all.filter((i) => !i.batchId);
+  const batches = Array.isArray(batchList.data) ? batchList.data : [];
+  if (items.length === 0 && batches.length === 0) return null;
 
   const onRetry = (item: DelegatedWorkItem) =>
     retry.mutate(item, {
@@ -54,6 +56,20 @@ export function DelegatedWork() {
         approve a result.
       </p>
       <div className="space-y-4">
+        {batches.length > 0 && (
+          <div>
+            <h3 className="text-xs text-fg-3 mb-1.5">
+              From Fix all <span className="tabular-nums">({batches.length})</span>
+            </h3>
+            <ul aria-label="From Fix all" className="rounded-md border border-line bg-panel-2 divide-y divide-line">
+              {batches.map((b) => (
+                <li key={b.batchId} className="px-3 py-2">
+                  <ResearchBatchEntry batch={b} expandable />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {GROUPS.map(({ state, title }) => {
           const rows = items.filter((i) => i.state === state);
           if (rows.length === 0) return null;
@@ -103,7 +119,7 @@ function Row({ item, busy, onRetry }: { item: DelegatedWorkItem; busy: boolean; 
       )}
       {item.waitingForAgent && (
         <div className="text-xs text-warn">
-          Waiting for an agent. No connected assistant is listening; ask yours to process pending Musaic work.
+          Waiting for an assistant. No connected assistant is listening; ask yours to process pending Musaic work.
         </div>
       )}
       {item.state === "failed" && (

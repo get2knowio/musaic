@@ -95,6 +95,7 @@ fn v16_is_backed_up_then_migrated() {
     want.push(("fingerprint_rejects".into(), 0));
     want.push(("check_inputs".into(), 0));
     want.extend(agent_tables());
+    fold_jobs(&mut want);
     want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
@@ -270,6 +271,18 @@ fn a_file_that_is_not_a_library_is_refused() {
 /// Defaults are exactly the Python app's.
 #[test]
 fn settings_defaults_match_the_python_app() {
+    const RETIRED_DEFAULTS: [&str; 3] = ["ai_max_parallel", "ai_queue_paused", "firecrawl_api_key"];
+    let recorded: serde_json::Value = serde_json::from_str(
+        &std::fs::read_to_string(musaic_testdata::public("golden/settings-defaults.json")).unwrap(),
+    )
+    .unwrap();
+    for k in RETIRED_DEFAULTS {
+        assert!(
+            recorded["defaults"].get(k).is_some(),
+            "{k} is in the record"
+        );
+        assert_eq!(settings::default_for(k), None, "{k}");
+    }
     let golden: serde_json::Value = serde_json::from_str(
         &std::fs::read_to_string(musaic_testdata::public("golden/settings-defaults.json")).unwrap(),
     )
@@ -279,6 +292,9 @@ fn settings_defaults_match_the_python_app() {
         .unwrap()
         .iter()
         .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+        // FR-003 (spec 006): the old built-in provider's settings are gone
+        // from the defaults; the golden keeps the Python app's record.
+        .filter(|(k, _)| !RETIRED_DEFAULTS.contains(&k.as_str()))
         .collect();
     let mut have: Vec<(String, String)> = settings::DEFAULTS
         .iter()
@@ -315,7 +331,10 @@ fn settings_read_and_write() {
         settings::get_int(c, "snapshot_retention_count", 10).unwrap(),
         10
     );
-    assert_eq!(settings::default_for("ai_max_parallel"), Some("1"));
+    assert_eq!(
+        settings::default_for("snapshot_retention_count"),
+        Some("10")
+    );
 }
 
 /// A v17 database (this build's, before v18)
@@ -355,6 +374,7 @@ fn v17_is_migrated_without_a_backup() {
     want.push(("fingerprint_rejects".into(), 0));
     want.push(("check_inputs".into(), 0));
     want.extend(agent_tables());
+    fold_jobs(&mut want);
     want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
@@ -433,6 +453,7 @@ fn v18_is_migrated_without_a_backup() {
     let mut want = before;
     want.push(("check_inputs".into(), 0));
     want.extend(agent_tables());
+    fold_jobs(&mut want);
     want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(table_counts(db.connection()), want);
@@ -520,20 +541,28 @@ fn agent_tables() -> Vec<(String, i64)> {
     .collect()
 }
 
+/// v24 folds the old job table into `research_history`, every row kept:
+/// the count `before` listed for `ai_jobs` moves to it.
+fn fold_jobs(want: &mut Vec<(String, i64)>) {
+    let i = want.iter().position(|(n, _)| n == "ai_jobs").unwrap();
+    let (_, jobs) = want.remove(i);
+    want.push(("research_history".into(), jobs));
+}
+
 /// Delegation imports each legacy job, with two children for a combined job.
 fn delegation_tables(conn: &Connection) -> Vec<(String, i64)> {
     let children: i64 = conn
         .query_row(
             "SELECT COALESCE(SUM(CASE job_type WHEN 'metadata+cover' THEN 2
-           WHEN 'metadata' THEN 1 WHEN 'cover' THEN 1 ELSE 0 END), 0) FROM ai_jobs",
+           WHEN 'metadata' THEN 1 WHEN 'cover' THEN 1 ELSE 0 END), 0) FROM research_history",
             [],
             |row| row.get(0),
         )
         .unwrap();
-    delegation_schema::OBJECTS
-        .iter()
+    delegation_schema::objects_v24()
         .chain(delegation_schema::V23_OBJECTS)
-        .filter(|(ty, _, _)| *ty == "table")
+        .chain(delegation_schema::V24_OBJECTS)
+        .filter(|(ty, name, _)| *ty == "table" && *name != "research_history")
         .map(|(_, table, _)| {
             let expected = match *table {
                 // The v23 singletons are seeded by the migration.
@@ -591,6 +620,7 @@ fn v19_is_migrated_to_v20_without_a_backup() {
     let c = db.connection();
     let mut want = before.clone();
     want.extend(agent_tables());
+    fold_jobs(&mut want);
     want.extend(delegation_tables(db.connection()));
     want.sort();
     assert_eq!(
@@ -701,6 +731,7 @@ fn v20_is_migrated_to_current_without_a_backup() {
     {
         let (db, _) = Db::open_or_create(&path).unwrap();
         let c = db.connection();
+        c.execute_batch("DROP TABLE research_history;").unwrap();
         for (_, table, _) in delegation_schema::V23_OBJECTS
             .iter()
             .chain(delegation_schema::OBJECTS)
@@ -709,6 +740,17 @@ fn v20_is_migrated_to_current_without_a_backup() {
         {
             c.execute(&format!("DROP TABLE {table}"), []).unwrap();
         }
+        // ... and v20 still had the old job table.
+        c.execute_batch(
+            "DROP TABLE work_batches;
+             CREATE TABLE ai_jobs (
+                 id TEXT PRIMARY KEY, album_id TEXT NOT NULL, album_path TEXT NOT NULL,
+                 album_title TEXT, job_type TEXT NOT NULL, hint TEXT NOT NULL DEFAULT '',
+                 status TEXT NOT NULL, result_json TEXT, error TEXT, acted_on_action TEXT,
+                 created_at TEXT NOT NULL, started_at TEXT, completed_at TEXT,
+                 acted_on_at TEXT, attach_cover INTEGER NOT NULL DEFAULT 1);",
+        )
+        .unwrap();
         for t in [
             "agent_activity",
             "agent_approvals",

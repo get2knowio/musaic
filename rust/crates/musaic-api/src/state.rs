@@ -1,6 +1,7 @@
 //! The HTTP face's application state: the [`musaic_app::App`] (config dir,
 //! database, secrets store, event bus with its subscribers and SSE relay,
-//! scan service, checks environment, resolver, fingerprint pool, AI queue;
+//! scan service, checks environment, resolver, fingerprint pool, research
+//! requests' host;
 //! its builder, startup and shutdown live in musaic-app) wrapped with the
 //! settings only HTTP has: the SPA directory, the SSE ping interval, the
 //! Host / Origin allowlist and the body caps.
@@ -72,24 +73,9 @@ impl AppStateBuilder {
         self
     }
 
-    /// [`AppBuilder::ai_provider`].
-    pub fn ai_provider(self, p: Arc<dyn musaic_ai::Provider>) -> Self {
-        self.with(|b| b.ai_provider(p))
-    }
-
-    /// [`AppBuilder::ai_worker`].
-    pub fn ai_worker(self, on: bool) -> Self {
-        self.with(|b| b.ai_worker(on))
-    }
-
     /// [`AppBuilder::ai_job_ids`].
     pub fn ai_job_ids(self, ids: crate::ai::JobIds) -> Self {
         self.with(|b| b.ai_job_ids(ids))
-    }
-
-    /// [`AppBuilder::ai_call_timeout`].
-    pub fn ai_call_timeout(self, d: Duration) -> Self {
-        self.with(|b| b.ai_call_timeout(d))
     }
 
     /// [`AppBuilder::analyzer`].

@@ -292,6 +292,10 @@ pub struct WorkContext {
 pub struct WorkListInput {
     pub state: Option<WorkState>,
     pub kind: Option<WorkKind>,
+    /// Only the items of this bulk run. An unknown batch lists nothing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(regex(pattern = r"^[0-9a-f-]{36}$"))]
+    pub batch_id: Option<String>,
     pub cursor: Option<String>,
     #[schemars(range(min = 1, max = 100))]
     pub limit: Option<u32>,
@@ -303,9 +307,17 @@ impl WorkListInput {
     }
 }
 
+fn batch_id(value: &Option<String>) -> Result<(), ToolError> {
+    match value {
+        Some(id) if !is_uuid(id) => Err(ToolError::invalid("batchId", "must be a batch UUID")),
+        _ => Ok(()),
+    }
+}
+
 impl Validate for WorkListInput {
     fn validate(&self) -> Result<(), ToolError> {
         super::check_cursor(&self.cursor)?;
+        batch_id(&self.batch_id)?;
         check_limit(self.limit)
     }
 }
@@ -333,6 +345,47 @@ impl Validate for WorkClaimInput {
         work_id(&self.work_id)?;
         check_idempotency_key(&self.idempotency_key)
     }
+}
+
+/// Claim several queued items at once; each claim is independent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkClaimManyInput {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(regex(pattern = r"^[0-9a-f-]{36}$"))]
+    pub batch_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<WorkKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(min = 1, max = 25))]
+    pub max: Option<u32>,
+    #[schemars(regex(pattern = r"^[A-Za-z0-9._:-]{8,128}$"))]
+    pub idempotency_key: String,
+}
+
+impl WorkClaimManyInput {
+    /// The most items one call may claim, and the default.
+    pub const MAX: u32 = 25;
+
+    pub fn max(&self) -> u32 {
+        self.max.unwrap_or(Self::MAX)
+    }
+}
+
+impl Validate for WorkClaimManyInput {
+    fn validate(&self) -> Result<(), ToolError> {
+        batch_id(&self.batch_id)?;
+        if self.max.is_some_and(|n| !(1..=Self::MAX).contains(&n)) {
+            return Err(ToolError::invalid("max", "must be 1 to 25"));
+        }
+        check_idempotency_key(&self.idempotency_key)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkClaimManyOutput {
+    pub claims: Vec<WorkClaimOutput>,
 }
 
 #[derive(Clone, Copy)]
@@ -414,6 +467,64 @@ leased_input!(WorkFailInput {
     retryable: bool,
 });
 leased_input!(WorkReleaseInput { reason: String });
+
+/// One held lease, as `musaic_work_renew_many` lists it.
+#[derive(Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LeaseInput {
+    pub work_id: String,
+    #[schemars(range(min = 1))]
+    pub claim_generation: i64,
+    pub lease_token: String,
+}
+
+impl std::fmt::Debug for LeaseInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LeaseInput")
+            .field("work_id", &self.work_id)
+            .field("claim_generation", &self.claim_generation)
+            .finish_non_exhaustive()
+    }
+}
+
+impl LeaseInput {
+    pub fn lease(&self) -> LeaseRef<'_> {
+        LeaseRef {
+            work_id: &self.work_id,
+            claim_generation: self.claim_generation,
+            lease_token: &self.lease_token,
+        }
+    }
+}
+
+/// Renew several leases; each is renewed or refused on its own.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkRenewManyInput {
+    #[schemars(length(min = 1, max = 25))]
+    pub leases: Vec<LeaseInput>,
+}
+
+impl WorkRenewManyInput {
+    /// The most leases one call may renew.
+    pub const MAX: usize = 25;
+}
+
+impl Validate for WorkRenewManyInput {
+    fn validate(&self) -> Result<(), ToolError> {
+        if !(1..=Self::MAX).contains(&self.leases.len()) {
+            return Err(ToolError::invalid("leases", "must hold 1 to 25 leases"));
+        }
+        let mut seen = BTreeSet::new();
+        for lease in &self.leases {
+            lease.lease().validate()?;
+            if !seen.insert(lease.work_id.as_str()) {
+                return Err(ToolError::invalid("leases", "each workId must be distinct"));
+            }
+        }
+        Ok(())
+    }
+}
 
 impl Validate for WorkRenewInput {
     fn validate(&self) -> Result<(), ToolError> {
@@ -504,6 +615,9 @@ pub struct WorkSummary {
     pub updated_at: String,
     pub available_at: String,
     pub result_id: Option<String>,
+    /// The bulk run that made this request; omitted when none did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub batch_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -552,4 +666,30 @@ impl std::fmt::Debug for WorkClaimOutput {
 pub struct WorkRenewOutput {
     pub work_id: String,
     pub lease_expires_at: String,
+}
+
+/// A lease `musaic_work_renew_many` did not renew, and why.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkRenewRefusal {
+    pub work_id: String,
+    /// The code `musaic_work_renew` would answer for this lease.
+    #[schemars(schema_with = "refusal_code_schema")]
+    pub code: ToolErrorCode,
+}
+
+/// The derived schema of every error code renders badly in the catalog; a
+/// refusal carries one of the lease codes in practice.
+fn refusal_code_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "string",
+        "description": "An error code of the contract, such as LEASE_EXPIRED, STALE_GENERATION or NOT_FOUND."
+    })
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkRenewManyOutput {
+    pub renewed: Vec<WorkRenewOutput>,
+    pub refused: Vec<WorkRenewRefusal>,
 }

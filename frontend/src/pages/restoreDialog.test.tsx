@@ -26,7 +26,6 @@ const snapshot: DbSnapshot = {
 
 function renderPanel(onRestored: (m: string) => void) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } });
-  qc.setQueryData(["ai-providers"], { selected: null, providers: [], uninstalled: [] });
   qc.setQueryData(["db-info"], {
     path: "/home/me/.musaic/library.db",
     exists: true,

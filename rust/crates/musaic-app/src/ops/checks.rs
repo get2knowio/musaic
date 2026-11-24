@@ -89,7 +89,7 @@ impl Checks<'_> {
 
     fn summaries(&self, conn: &Connection) -> Result<Vec<CheckSummaryRecord>, OpError> {
         Ok(
-            runner::list_checks_with_summary(conn, &self.app.0.checks_env, self.app.ai_wording())?
+            runner::list_checks_with_summary(conn, &self.app.0.checks_env)?
                 .into_iter()
                 .map(CheckSummaryRecord::new)
                 .collect(),
@@ -105,13 +105,7 @@ impl Checks<'_> {
     /// unknown check.
     pub fn get(&self, check_id: &str) -> Result<CheckDetailRecord, OpError> {
         let conn = self.conn()?;
-        match runner::get_check_with_runs(
-            &conn,
-            &self.app.0.checks_env,
-            check_id,
-            RUNS_SHOWN,
-            self.app.ai_wording(),
-        )? {
+        match runner::get_check_with_runs(&conn, &self.app.0.checks_env, check_id, RUNS_SHOWN)? {
             Some(doc) => Ok(CheckDetailRecord::new(doc)),
             None => Err(OpError::NotFound {
                 details: None,
@@ -135,10 +129,9 @@ impl Checks<'_> {
                 limit: None,
             },
         )?;
-        let wording = self.app.ai_wording();
         Ok(rows
             .iter()
-            .map(|f| FindingRecord::new(runner::finding_to_json(f, wording)))
+            .map(|f| FindingRecord::new(runner::finding_to_json(f)))
             .collect())
     }
 
@@ -241,8 +234,7 @@ impl Checks<'_> {
     }
 
     fn finding(&self, row: Option<musaic_db::findings::FindingRow>) -> Option<FindingRecord> {
-        let wording = self.app.ai_wording();
-        row.map(|f| FindingRecord::new(runner::finding_to_json(&f, wording)))
+        row.map(|f| FindingRecord::new(runner::finding_to_json(&f)))
     }
 
     /// The rename plan of a filename-mismatch finding, re-derived now. A read:

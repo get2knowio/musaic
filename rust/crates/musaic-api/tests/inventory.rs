@@ -79,7 +79,7 @@ async fn every_python_route_is_registered_with_its_method() {
     let sb = Sandbox::new();
     let app = router(sb.state_no_lifespan());
     let routes = python_routes();
-    assert_eq!(routes.len(), 71, "the Python app's OpenAPI document");
+    assert_eq!(routes.len(), 67, "the Python app's OpenAPI document");
     let stubs: BTreeSet<(String, String)> = STUBS
         .iter()
         .map(|(m, p, _)| (m.to_string(), p.to_string()))
@@ -113,8 +113,8 @@ async fn every_python_route_is_registered_with_its_method() {
     }
 }
 
-// The exact list of routes not built: none. All 71 Python app routes
-// are implemented (the 11 AI-queue routes: tests/jobs_http.rs; the
+// The exact list of routes not built: none. All 67 Python app routes
+// are implemented (the kept AI-queue routes: tests/research_jobs_http.rs; the
 // duplicate-tracks canonical lookup, the last stub:
 // tests/recording_canonical_http.rs).
 #[test]
@@ -205,6 +205,14 @@ fn the_extra_route_list_is_exactly_this() {
             "GET /api/research/work",
             "POST /api/research/{id}/preview/{digest}",
             "POST /api/research/{id}/decision",
+            // Deliberate additions (spec 006): the research batches bulk
+            // Fix all makes, one entry each, with their cancel.
+            "GET /api/research/batches",
+            "GET /api/research/batches/{batch_id}",
+            "POST /api/research/batches/{batch_id}/cancel",
+            // Deliberate addition (spec 006, FR-036): Cancel on a research
+            // request's card cancels the request behind it.
+            "POST /api/ai/jobs/{job_id}/cancel",
             "GET /api/agent/pairings",
             "POST /api/agent/pairings",
             "DELETE /api/agent/pairings/{pairing_id}",
@@ -309,7 +317,7 @@ fn path_params(python_path: &str) -> Vec<String> {
 #[test]
 fn route_table_equals_the_python_inventory() {
     let python = python_inventory();
-    assert_eq!(python.len(), 71, "the Python app's OpenAPI document");
+    assert_eq!(python.len(), 67, "the Python app's OpenAPI document");
     let table = route_table();
     let extra: BTreeSet<(String, String)> = EXTRA_ROUTES
         .iter()
@@ -359,10 +367,29 @@ fn route_table_equals_the_python_inventory() {
         only_python.is_empty() && only_rust.is_empty(),
         "routes only in the Python app: {only_python:?}; only in the Rust table: {only_rust:?}"
     );
+    // Query parameters this build adds to a Python app route, deliberately.
+    let added_query: &[(&str, &str, &str)] = &[
+        // Spec 006: bulk Fix all may send what the resolver cannot settle
+        // for research (`research=1`).
+        ("POST", "/api/checks/{check_id}/quick-fix-all", "research"),
+    ];
     for (key, (opath, oquery)) in &python {
         let (rpath, rquery) = &ours[key];
         assert_eq!(rpath, opath, "{key:?}: path parameters");
-        assert_eq!(rquery, oquery, "{key:?}: query parameters");
+        let rquery: Vec<String> = rquery
+            .iter()
+            .filter(|q| {
+                !added_query
+                    .iter()
+                    .any(|(m, p, n)| (*m, *p, *n) == (key.0.as_str(), key.1.as_str(), q.as_str()))
+            })
+            .cloned()
+            .collect();
+        assert_eq!(&rquery, oquery, "{key:?}: query parameters");
+    }
+    for (m, p, n) in added_query {
+        let (_, rquery) = &ours[&(m.to_string(), p.to_string())];
+        assert!(rquery.iter().any(|q| q == n), "{m} {p}: {n} is declared");
     }
     // Guard against a vacuous pass: the golden does carry query parameters.
     assert!(python.values().any(|(_, q)| !q.is_empty()));

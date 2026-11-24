@@ -6,13 +6,13 @@
  *  - the background check sweep: useCheckSweepStatus (checks stream);
  *  - fingerprinting: useFingerprintPoolStatus (fingerprint-pool stream);
  *  - bulk fixes: lib/bulkRuns.ts;
- *  - AI jobs: useJobs / useQueueState (jobs stream).
+ *  - research requests: useJobs (jobs stream).
  */
 import { useMemo } from "react";
 
 import { useCheckSweepStatus } from "./useCheckSweepStatus";
 import { useFingerprintPoolStatus } from "./useFingerprintPoolStatus";
-import { useJobs, useQueueState } from "./useJobs";
+import { useJobs } from "./useJobs";
 import {
   bulkSummary,
   jobsSummary,
@@ -26,6 +26,7 @@ import { useBulkRuns, type BulkRun } from "@/lib/bulkRuns";
 import { useScanActivity, type ScanActivity } from "@/lib/scanActivity";
 import { useStreamHealth } from "@/lib/streamHealth";
 import type { CheckSweepStatus, FingerprintPoolStatus, Job } from "@/lib/types";
+import { isHistoryOnlyJob } from "@/lib/filters";
 
 export interface Activity {
   scan: { data: ScanActivity; summary: Summary };
@@ -35,9 +36,8 @@ export interface Activity {
   jobs: {
     all: Job[];
     inProgress: Job[];
-    /** Finished jobs, newest first: proposals, failures, applied, discarded. */
+    /** Finished requests, newest first: proposals, failures, applied, discarded. */
     finished: Job[];
-    paused: boolean;
     summary: Summary;
     /** The jobs list could not be loaded at all. */
     unavailable: boolean;
@@ -57,7 +57,6 @@ export function useActivity(): Activity {
   const sweepQ = useCheckSweepStatus();
   const poolQ = useFingerprintPoolStatus();
   const jobsQ = useJobs();
-  const { data: queue } = useQueueState();
   const runs = useBulkRuns();
   const health = useStreamHealth();
 
@@ -67,7 +66,6 @@ export function useActivity(): Activity {
   const sweepFailed = sweepQ.isError && !sweep;
   const poolFailed = poolQ.isError && !pool;
   const jobsFailed = jobsQ.isError && !jobs;
-  const paused = !!queue?.paused;
 
   return useMemo(() => {
     const all = jobs ?? [];
@@ -76,8 +74,11 @@ export function useActivity(): Activity {
     const poolS = poolSummary(pool, { failed: poolFailed, health: health.fingerprint });
     const bulk = runs.map((run) => ({ run, summary: bulkSummary(run) }));
     const jobsS = jobsFailed
-      ? { state: "unavailable" as const, verb: "AI jobs", progress: null, detail: "The job list could not be loaded." }
-      : jobsSummary(all, paused, { failed: jobsFailed, health: health.jobs });
+      ? { state: "unavailable" as const, verb: "Research requests", progress: null, detail: "The list of research requests could not be loaded." }
+      : jobsSummary(all.filter((j) => !isHistoryOnlyJob(j)), { failed: jobsFailed, health: health.jobs });
+    // An old job's history-only record is history whatever status it was
+    // left in (FR-020).
+    const live = (j: Job) => (j.status === "running" || j.status === "queued") && !isHistoryOnlyJob(j);
     return {
       scan: { data: scan, summary: scanS },
       sweep: { data: sweep, summary: sweepS },
@@ -85,14 +86,13 @@ export function useActivity(): Activity {
       bulk,
       jobs: {
         all,
-        inProgress: all.filter((j) => j.status === "running" || j.status === "queued").sort(newestFirst),
-        finished: all.filter((j) => j.status !== "running" && j.status !== "queued").sort(newestFirst),
-        paused,
+        inProgress: all.filter(live).sort(newestFirst),
+        finished: all.filter((j) => !live(j)).sort(newestFirst),
         summary: jobsS,
         unavailable: jobsFailed,
       },
       // Most noticeable first: what the user started, then what runs on its own.
       toolbar: toolbarText([scanS, ...bulk.map((b) => b.summary), poolS, sweepS, jobsS]),
     };
-  }, [scan, sweep, pool, runs, jobs, paused, sweepFailed, poolFailed, jobsFailed, health]);
+  }, [scan, sweep, pool, runs, jobs, sweepFailed, poolFailed, jobsFailed, health]);
 }

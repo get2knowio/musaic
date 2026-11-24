@@ -239,10 +239,6 @@ const DELTAS: &[(&str, &str)] = &[
         "thumbnail format kept, bytes differ (Pillow vs the image crate)",
     ),
     (
-        "providers",
-        "no other provider in this build: GET /api/ai/providers lists this build's provider (Unconfigured), not the installed airframe adapters; `selected` is the Python app's",
-    ),
-    (
         "resolution",
         "resolution notes: the cascade traces the failed search",
     ),
@@ -281,7 +277,7 @@ const DELTAS: &[(&str, &str)] = &[
     ),
     (
         "ai_wording",
-        "no AI provider is ready, so check descriptions, the unanchored trace note and unanchored tags-out-of-sync summaries are shown without AI wording",
+        "Musaic has no built-in model, so check descriptions, the unanchored trace note and unanchored tags-out-of-sync summaries are shown without AI wording",
     ),
     (
         "settings_changed",
@@ -478,7 +474,7 @@ fn apply_deltas(
     // Settings bodies.
     if (name.contains("settings") && !name.contains("db"))
         && want["status"] == 200
-        && want["json"].get("ai_max_parallel").is_some()
+        && want["json"].get("acoustid_api_key_set").is_some()
     {
         want["json"]["keyring_available"] = json!(true);
         want["json"]["keys_pending_removal"] = json!(false);
@@ -511,19 +507,6 @@ fn apply_deltas(
         assert_eq!(got["content_type"], "image/jpeg", "{name}: {got}");
         want["binary"] = got["binary"].clone();
         use_delta(used, "thumb");
-    }
-    // The AI routes are wired (GET /api/ai/jobs is compared like any
-    // other); the provider list is this build's.
-    if name.contains("get-api-ai-providers") && want["status"] == 200 {
-        assert_eq!(got["status"], 200, "{name}");
-        assert_eq!(got["json"]["selected"], want["json"]["selected"], "{name}");
-        assert_eq!(
-            got["json"]["providers"][0]["id"],
-            musaic_ai::provider::UNCONFIGURED_ID,
-            "{name}"
-        );
-        *want = got.clone();
-        use_delta(used, "providers");
     }
     if name.contains("resolution-") {
         let notes = want["json"]["notes"].as_array_mut().unwrap();

@@ -1,5 +1,5 @@
 //! The `fixes` operations with no HTTP in scope: fix one finding and see the bus
-//! event, the AI job a fix falls through to (and the jobs feed it wakes without
+//! event, the research request a fix falls through to (and the jobs feed it wakes without
 //! being asked), quick-fix-all as a run with a sink, the per-check actions, the
 //! multi-disc conversion, and the restore gate: every fix is `Busy` during a
 //! restore, before the finding is looked up.
@@ -35,8 +35,17 @@ fn eventually(what: &str, mut f: impl FnMut() -> bool) {
 fn checked_with(
     more: impl FnOnce(musaic_app::AppBuilder) -> musaic_app::AppBuilder,
 ) -> (App, common::Scratch) {
+    checked_after(more, |_| {})
+}
+
+/// [`checked_with`], with `prepare` given the library copy before the scan.
+fn checked_after(
+    more: impl FnOnce(musaic_app::AppBuilder) -> musaic_app::AppBuilder,
+    prepare: impl FnOnce(&std::path::Path),
+) -> (App, common::Scratch) {
     let (app, s) = common::app_quiet_pool(more);
-    common::configure(&app, &s);
+    let lib = common::configure(&app, &s);
+    prepare(&lib);
     app.ops().scan().subscribe(false).unwrap().count();
     eventually("the work guard released", || {
         app.gate().snapshot() == (0, false)
@@ -78,10 +87,15 @@ fn count(names: &[String], name: &str) -> usize {
     names.iter().filter(|n| n.as_str() == name).count()
 }
 
+/// Research requests made (one per job card: a group).
 fn job_rows(app: &App) -> i64 {
     let conn = musaic_db::open_connection(app.db_path()).unwrap();
-    conn.query_row("SELECT COUNT(*) FROM ai_jobs", [], |r| r.get(0))
-        .unwrap()
+    conn.query_row(
+        "SELECT COUNT(DISTINCT group_id) FROM delegated_work",
+        [],
+        |r| r.get(0),
+    )
+    .unwrap()
 }
 
 #[test]
@@ -129,17 +143,13 @@ fn with_no_provider_a_cover_fix_queues_assistant_research() {
     let items = app.ops().jobs().research_items(&group).unwrap();
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].kind, "cover.research");
-    assert_eq!(job_rows(&app), 0);
+    assert_eq!(job_rows(&app), 1);
     assert!(jobs.has_changed().unwrap());
 }
 
 #[test]
 fn a_fix_that_enqueues_a_job_wakes_the_jobs_feed_unasked() {
-    let (app, _s) = checked_with(|b| {
-        b.ai_provider(Arc::new(musaic_ai::provider::replay::ReplayProvider::new(
-            "claude",
-        )))
-    });
+    let (app, _s) = checked_with(|b| b);
     let mut jobs = app.subscribe_jobs();
     jobs.mark_unchanged();
     let id = finding_ids(&app, "no-cover-art")[0];
@@ -149,18 +159,22 @@ fn a_fix_that_enqueues_a_job_wakes_the_jobs_feed_unasked() {
     assert_eq!(job_rows(&app), 1);
     assert!(jobs.has_changed().unwrap(), "the jobs feed was woken");
     jobs.mark_unchanged();
-    // The album now has an active job: the answer is the conflict, not an error,
-    // and nothing was enqueued, so nothing wakes the feed.
+    // The album now has an unresolved request: a second Fix joins it (the
+    // same id) and makes no second request.
     let second = app.ops().fixes().fix("no-cover-art", id, "").unwrap();
-    assert!(!second.ok);
+    assert!(second.ok, "{second:?}");
     assert_eq!(second.job_id.as_deref(), Some(job.as_str()));
-    assert!(
-        second.message.starts_with("Already has an active job ("),
-        "{}",
-        second.message
-    );
     assert_eq!(job_rows(&app), 1);
-    assert!(!jobs.has_changed().unwrap());
+    // One unresolved request per album, kind and input (FR-011): a Fix with
+    // another hint asks something else, so it is a request of its own.
+    let third = app
+        .ops()
+        .fixes()
+        .fix("no-cover-art", id, "the 2012 reissue")
+        .unwrap();
+    assert!(third.ok, "{third:?}");
+    assert_ne!(third.job_id.as_deref(), Some(job.as_str()));
+    assert_eq!(job_rows(&app), 2);
 }
 
 #[test]
@@ -171,7 +185,7 @@ fn quick_fix_all_reports_start_progress_and_done_and_publishes_one_batch() {
     let end = app
         .ops()
         .fixes()
-        .quick_fix_all("no-cover-art", &mut |e| {
+        .quick_fix_all("no-cover-art", false, &mut |e| {
             seen.push(e);
             Listening::Yes
         })
@@ -192,7 +206,7 @@ fn quick_fix_all_reports_start_progress_and_done_and_publishes_one_batch() {
     };
     assert_eq!(seen.len(), 3);
     assert_eq!((summary.total, summary.skipped), (1, 1));
-    assert_eq!(end, QuickFixEnd::Finished(*summary));
+    assert_eq!(end, QuickFixEnd::Finished(summary.clone()));
     let published = names(&feed);
     assert_eq!(count(&published, "BulkBatchCompleted"), 1, "{published:?}");
     assert_eq!(app.gate().snapshot(), (0, false));
@@ -208,7 +222,7 @@ fn quick_fix_all_publishes_its_batch_even_when_the_sink_goes_away() {
     let end = app
         .ops()
         .fixes()
-        .quick_fix_all("unidentified-album", &mut |_| {
+        .quick_fix_all("unidentified-album", false, &mut |_| {
             calls += 1;
             Listening::Gone
         })
@@ -228,7 +242,7 @@ fn quick_fix_all_treats_a_panicking_sink_as_gone() {
     let end = app
         .ops()
         .fixes()
-        .quick_fix_all("unidentified-album", &mut |_| {
+        .quick_fix_all("unidentified-album", false, &mut |_| {
             calls += 1;
             panic!("sink failed");
         })
@@ -241,10 +255,13 @@ fn quick_fix_all_treats_a_panicking_sink_as_gone() {
 fn an_unknown_check_is_not_found_before_any_event() {
     let (app, _s) = common::app();
     let mut calls = 0;
-    match app.ops().fixes().quick_fix_all("no-such-check", &mut |_| {
-        calls += 1;
-        Listening::Yes
-    }) {
+    match app
+        .ops()
+        .fixes()
+        .quick_fix_all("no-such-check", false, &mut |_| {
+            calls += 1;
+            Listening::Yes
+        }) {
         Err(OpError::NotFound {
             what, id, message, ..
         }) => {
@@ -288,7 +305,7 @@ fn a_second_quick_fix_all_runs_beside_the_first() {
         std::thread::spawn(move || {
             app.ops()
                 .fixes()
-                .quick_fix_all("unidentified-album", &mut |_| Listening::Yes)
+                .quick_fix_all("unidentified-album", false, &mut |_| Listening::Yes)
         })
     };
     eventually("the first run between two findings", || {
@@ -298,7 +315,7 @@ fn a_second_quick_fix_all_runs_beside_the_first() {
     let second = app
         .ops()
         .fixes()
-        .quick_fix_all("no-cover-art", &mut |_| Listening::Yes);
+        .quick_fix_all("no-cover-art", false, &mut |_| Listening::Yes);
     assert!(matches!(second, Ok(QuickFixEnd::Finished(_))), "{second:?}");
     assert_eq!(app.gate().snapshot(), (1, false), "the first still runs");
     hold.store(false, Ordering::SeqCst);
@@ -514,7 +531,7 @@ fn every_fix_is_busy_during_a_restore_even_for_something_unknown() {
     busy(
         app.ops()
             .fixes()
-            .quick_fix_all("no-such-check", &mut |_| {
+            .quick_fix_all("no-such-check", false, &mut |_| {
                 called = true;
                 Listening::Yes
             })
@@ -523,7 +540,7 @@ fn every_fix_is_busy_during_a_restore_even_for_something_unknown() {
     busy(
         app.ops()
             .fixes()
-            .quick_fix_all("tags-out-of-sync", &mut |_| {
+            .quick_fix_all("tags-out-of-sync", false, &mut |_| {
                 called = true;
                 Listening::Yes
             })
@@ -563,4 +580,363 @@ fn every_fix_is_busy_during_a_restore_even_for_something_unknown() {
     );
     busy(app.ops().fixes().abandon_multi_disc(99_999).map(|_| ()));
     assert!(!called, "a refusal before the sink is called");
+}
+
+// ---------- bulk research (spec 006) ----------
+
+mod bulk {
+    use super::*;
+    use musaic_events::{AgentWhat, Event, EventKind, Subscriber, Topic};
+
+    /// Every `AgentStateChanged(work)` id list published from now on.
+    pub fn work_events(app: &App) -> Arc<Mutex<Vec<Vec<String>>>> {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        app.bus().register(
+            Topic::Kind(EventKind::AgentStateChanged),
+            Subscriber::from_fn(move |event| {
+                if let Event::AgentStateChanged {
+                    what: AgentWhat::Work,
+                    ids,
+                } = event
+                {
+                    sink.lock().unwrap().push(ids.clone());
+                }
+                Ok(())
+            })
+            .key("bulk-research-work-events")
+            .name("bulk-research-work-events"),
+        );
+        seen
+    }
+
+    pub fn run(app: &App, check: &str, research: bool) -> (Vec<QuickFixEvent>, QuickFixEnd) {
+        let mut seen = Vec::new();
+        let end = app
+            .ops()
+            .fixes()
+            .quick_fix_all(check, research, &mut |e| {
+                seen.push(e);
+                Listening::Yes
+            })
+            .unwrap();
+        (seen, end)
+    }
+
+    pub fn rows(app: &App, sql: &str) -> Vec<(String, Option<String>)> {
+        let conn = musaic_db::open_connection(app.db_path()).unwrap();
+        let mut stmt = conn.prepare(sql).unwrap();
+        stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap()
+    }
+
+    pub fn summary(seen: &[QuickFixEvent]) -> musaic_app::ops::fixes::QuickFixSummary {
+        match seen.last() {
+            Some(QuickFixEvent::Done(s)) => s.clone(),
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
+#[test]
+fn bulk_research_sends_the_one_unsettled_album_in_one_batch() {
+    let (app, _s) = checked();
+    let feed = app.ops().system().library_events();
+    let (seen, end) = bulk::run(&app, "no-cover-art", true);
+    assert!(matches!(
+        &seen[1],
+        QuickFixEvent::Progress {
+            outcome: QuickFixOutcome::SentForResearch,
+            ..
+        }
+    ));
+    let s = bulk::summary(&seen);
+    assert_eq!(end, QuickFixEnd::Finished(s.clone()));
+    let r = s.research.clone().expect("research counts");
+    assert_eq!(
+        (s.total, r.sent_for_research, r.already_requested),
+        (1, 1, 0)
+    );
+    let batch = r.batch_id.clone().expect("a batch");
+    let rows = bulk::rows(&app, "SELECT kind, batch_id FROM delegated_work");
+    assert_eq!(rows, vec![("cover.research".into(), Some(batch.clone()))]);
+    let batches = app.ops().jobs().research_batches().unwrap();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0].batch_id, batch);
+    assert_eq!(batches[0].check_id, "no-cover-art");
+    assert!(batches[0].finished_at.is_some(), "the run reached its end");
+    assert!(!batches[0].unfinished);
+    assert_eq!((batches[0].size, batches[0].counts.queued), (1, 1));
+    // One card per batch, not per album: the jobs list leaves it out.
+    assert!(app.ops().jobs().list(None).unwrap().is_empty());
+    let published = names(&feed);
+    assert_eq!(count(&published, "BulkBatchCompleted"), 1, "{published:?}");
+    // No assistant is paired: the request waits all the same.
+    assert_eq!(app.ops().jobs().delegated_work().unwrap().len(), 1);
+}
+
+#[test]
+fn bulk_research_off_makes_no_batch_and_keeps_the_resolver_only_summary() {
+    let (app, _s) = checked();
+    let (seen, _) = bulk::run(&app, "no-cover-art", false);
+    let s = bulk::summary(&seen);
+    assert!(s.research.is_none());
+    assert_eq!((s.total, s.skipped), (1, 1));
+    assert_eq!(job_rows(&app), 0);
+    assert!(app.ops().jobs().research_batches().unwrap().is_empty());
+}
+
+#[test]
+fn bulk_research_skips_missing_albums_and_counts_an_existing_request() {
+    let (app, _s) = checked();
+    let ids = finding_ids(&app, "unidentified-album");
+    assert!(ids.len() > 2);
+    let conn = musaic_db::open_connection(app.db_path()).unwrap();
+    let album_of = |fid: i64| -> String {
+        conn.query_row(
+            "SELECT album_id FROM check_findings WHERE id=?1",
+            [fid],
+            |r| r.get(0),
+        )
+        .unwrap()
+    };
+    let missing = album_of(ids[0]);
+    let requested = album_of(ids[1]);
+    conn.execute(
+        "UPDATE albums SET missing_since='2026-01-01T00:00:00Z' WHERE id=?1",
+        [&missing],
+    )
+    .unwrap();
+    // A request made on its own before the run.
+    let single = app
+        .ops()
+        .fixes()
+        .fix("unidentified-album", ids[1], "")
+        .unwrap();
+    assert!(single.ok, "{single:?}");
+    let (seen, _) = bulk::run(&app, "unidentified-album", true);
+    let s = bulk::summary(&seen);
+    let r = s.research.clone().unwrap();
+    assert_eq!(s.not_applicable, 1, "{seen:?}");
+    assert_eq!(r.already_requested, 1, "{seen:?}");
+    assert_eq!(
+        r.sent_for_research,
+        ids.len() - 2 - s.fixed - s.still_open - s.skipped - s.errors
+    );
+    let rows = bulk::rows(
+        &app,
+        "SELECT album_id, batch_id FROM delegated_work ORDER BY created_at, id",
+    );
+    assert!(rows.iter().all(|(album, _)| *album != missing), "{rows:?}");
+    // The existing request was not moved into the batch.
+    let existing: Vec<_> = rows.iter().filter(|(a, _)| *a == requested).collect();
+    assert_eq!(existing.len(), 1);
+    assert_eq!(existing[0].1, None);
+    assert!(
+        rows.iter()
+            .filter(|(a, _)| *a != requested)
+            .all(|(_, b)| b == &r.batch_id)
+    );
+}
+
+#[test]
+fn a_bulk_research_run_stopped_part_way_keeps_what_it_made_as_unfinished() {
+    let (app, _s) = checked();
+    assert!(finding_ids(&app, "unidentified-album").len() > 2);
+    let mut progress = 0;
+    let end = app
+        .ops()
+        .fixes()
+        .quick_fix_all("unidentified-album", true, &mut |e| {
+            if matches!(e, QuickFixEvent::Progress { .. }) {
+                progress += 1;
+                if progress == 2 {
+                    return Listening::Gone;
+                }
+            }
+            Listening::Yes
+        })
+        .unwrap();
+    assert_eq!(end, QuickFixEnd::Stopped);
+    let made = job_rows(&app);
+    assert!((1..=2).contains(&made), "{made}");
+    let batches = app.ops().jobs().research_batches().unwrap();
+    assert_eq!(batches.len(), 1);
+    assert_eq!(batches[0].finished_at, None);
+    assert!(batches[0].unfinished, "no run holds it any more");
+    assert_eq!(batches[0].size, made);
+}
+
+#[test]
+fn a_thousand_unsettled_albums_make_one_batch_of_a_thousand() {
+    const N: usize = 1000;
+    let (app, s) = checked();
+    let lib = s.tmp.path().join("library");
+    common::clone_finding_albums(&app, &lib, "no-cover-art", N - 1);
+    let work = bulk::work_events(&app);
+    let feed = app.ops().system().library_events();
+    // Offline every MusicBrainz request fails, and a resolution reached
+    // that way is never memoized (the next call asks again), so the memo hit
+    // of the request's second resolve is not observable here; the run's
+    // shape and scale are.
+    let (seen, _) = bulk::run(&app, "no-cover-art", true);
+    let s = bulk::summary(&seen);
+    let r = s.research.clone().unwrap();
+    assert_eq!((s.total, r.sent_for_research), (N, N), "{s:?}");
+    let batch = r.batch_id.unwrap();
+    let rows = bulk::rows(&app, "SELECT album_id, batch_id FROM delegated_work");
+    assert_eq!(rows.len(), N);
+    assert!(
+        rows.iter()
+            .all(|(_, b)| b.as_deref() == Some(batch.as_str()))
+    );
+    let summary = app.ops().jobs().research_batch(&batch).unwrap();
+    assert_eq!(summary.summary.size, N as i64);
+    assert_eq!(summary.items.len(), N);
+    // Deferred publishing: a handful of relay events, not one per request.
+    let events = work.lock().unwrap().clone();
+    assert!(events.len() <= 9, "{} work events", events.len());
+    assert!(events.iter().all(|ids| ids.len() <= 128));
+    assert_eq!(events.iter().map(Vec::len).sum::<usize>(), N);
+    assert_eq!(count(&names(&feed), "BulkBatchCompleted"), 1);
+}
+
+// ---------- bulk research over a partly settled tags fix ----------
+
+/// The album whose only tags-out-of-sync trigger offline is its article-led
+/// artist with no sort tags: the resolver settles it in full.
+const LANTERNS: &str = "The Lanterns - Porchlight [FLAC]";
+
+/// A checked library where The Lanterns also lack their genre: the sort tags
+/// are settled, the genre is not.
+fn lanterns_without_genre() -> (App, common::Scratch) {
+    checked_after(
+        |b| b,
+        |lib| {
+            for entry in std::fs::read_dir(lib.join(LANTERNS)).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension().is_some_and(|e| e == "flac") {
+                    let mut flac = musaic_tags::FlacFile::open(&path).unwrap();
+                    flac.tags_mut().remove("GENRE");
+                    flac.save().unwrap();
+                }
+            }
+        },
+    )
+}
+
+/// The Lanterns' album id and its open tags-out-of-sync finding.
+fn lanterns_finding(app: &App) -> (String, i64) {
+    let conn = musaic_db::open_connection(app.db_path()).unwrap();
+    conn.query_row(
+        "SELECT a.id, f.id FROM albums a JOIN check_findings f ON f.album_id = a.id \
+         WHERE a.dir_name = ?1 AND f.check_id = 'tags-out-of-sync' AND f.resolved_at IS NULL",
+        [LANTERNS],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )
+    .unwrap()
+}
+
+fn album_text(app: &App, album: &str, column: &str) -> Option<String> {
+    let conn = musaic_db::open_connection(app.db_path()).unwrap();
+    conn.query_row(
+        &format!("SELECT {column} FROM albums WHERE id=?1"),
+        [album],
+        |r| r.get(0),
+    )
+    .unwrap()
+}
+
+fn progress_of(seen: &[QuickFixEvent], finding: i64) -> (QuickFixOutcome, String) {
+    seen.iter()
+        .find_map(|e| match e {
+            QuickFixEvent::Progress {
+                finding_id,
+                outcome,
+                message,
+            } if *finding_id == finding => Some((*outcome, message.clone())),
+            _ => None,
+        })
+        .expect("a progress item for the finding")
+}
+
+#[test]
+fn bulk_research_writes_what_is_settled_and_requests_the_rest_once() {
+    let (app, _s) = lanterns_without_genre();
+    let (album, finding) = lanterns_finding(&app);
+    assert_eq!(album_text(&app, &album, "album_artist_sort"), None);
+    assert_eq!(album_text(&app, &album, "genre"), None);
+
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", true);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::SentForResearch, "{message}");
+    assert!(message.starts_with("Wrote "), "{message}");
+    assert!(message.ends_with("Sent for research."), "{message}");
+    // The settled field is written; the genre is left to the research.
+    assert_eq!(
+        album_text(&app, &album, "album_artist_sort").as_deref(),
+        Some("Lanterns, The")
+    );
+    assert_eq!(album_text(&app, &album, "genre"), None);
+    let s = bulk::summary(&seen);
+    let r = s.research.clone().expect("research counts");
+    assert_eq!((r.sent_for_research, r.already_requested), (1, 0), "{s:?}");
+    let batch = r.batch_id.clone().expect("a batch");
+    let rows = bulk::rows(&app, "SELECT album_id, batch_id FROM delegated_work");
+    assert_eq!(rows, vec![(album.clone(), Some(batch))]);
+    assert_eq!(app.ops().jobs().research_batches().unwrap().len(), 1);
+
+    // A second run finds the genre still missing and joins the request.
+    app.ops()
+        .checks()
+        .run("tags-out-of-sync", "all", None)
+        .unwrap();
+    let (_, finding) = lanterns_finding(&app);
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", true);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::AlreadyRequested, "{message}");
+    let r = bulk::summary(&seen).research.unwrap();
+    assert_eq!((r.sent_for_research, r.already_requested), (0, 1));
+    assert_eq!(
+        r.batch_id, None,
+        "a run that makes no request makes no batch"
+    );
+    assert_eq!(job_rows(&app), 1);
+    assert_eq!(app.ops().jobs().research_batches().unwrap().len(), 1);
+}
+
+#[test]
+fn bulk_research_off_writes_what_is_settled_and_requests_nothing() {
+    let (app, _s) = lanterns_without_genre();
+    let (album, finding) = lanterns_finding(&app);
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", false);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::Fixed, "{message}");
+    assert!(message.starts_with("Wrote "), "{message}");
+    assert_eq!(
+        album_text(&app, &album, "album_artist_sort").as_deref(),
+        Some("Lanterns, The")
+    );
+    assert!(bulk::summary(&seen).research.is_none());
+    assert_eq!(job_rows(&app), 0);
+    assert!(app.ops().jobs().research_batches().unwrap().is_empty());
+}
+
+#[test]
+fn bulk_research_over_a_fully_settled_tags_fix_requests_nothing() {
+    let (app, _s) = checked();
+    let (album, finding) = lanterns_finding(&app);
+    let (seen, _) = bulk::run(&app, "tags-out-of-sync", true);
+    let (outcome, message) = progress_of(&seen, finding);
+    assert_eq!(outcome, QuickFixOutcome::Fixed, "{message}");
+    assert_eq!(
+        album_text(&app, &album, "album_artist_sort").as_deref(),
+        Some("Lanterns, The")
+    );
+    let r = bulk::summary(&seen).research.unwrap();
+    assert_eq!((r.sent_for_research, r.already_requested), (0, 0));
+    assert_eq!(r.batch_id, None);
+    assert_eq!(job_rows(&app), 0);
 }

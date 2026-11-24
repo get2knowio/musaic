@@ -127,7 +127,7 @@ use PermissionKind::*;
 use tools::*;
 
 /// The tools, in catalog order.
-pub static REGISTRY: [ToolDef; 21] = [
+pub static REGISTRY: [ToolDef; 23] = [
     ToolDef {
         id: "musaic_capabilities",
         cli_name: "capabilities",
@@ -252,7 +252,7 @@ pub static REGISTRY: [ToolDef; 21] = [
         id: "musaic_work_list",
         cli_name: "work-list",
         title: "List delegated work",
-        description: "List available research requests and your claimed work.",
+        description: "List available research requests and your claimed work, optionally only those of one bulk run (batchId).",
         kinds: &[LibraryRead],
         annotations: ann(true, false, true, false),
         input_schema: schema::<work::WorkListInput>,
@@ -279,6 +279,16 @@ pub static REGISTRY: [ToolDef; 21] = [
         output_schema: schema::<work::WorkClaimOutput>,
     },
     ToolDef {
+        id: "musaic_work_claim_many",
+        cli_name: "work-claim-many",
+        title: "Claim several requests",
+        description: "Reserve up to 25 queued research requests at once (optionally of one batch or kind), each with its own five-minute lease. Winning fewer than asked, or none, is not an error.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, true, false),
+        input_schema: schema::<work::WorkClaimManyInput>,
+        output_schema: schema::<work::WorkClaimManyOutput>,
+    },
+    ToolDef {
         id: "musaic_work_renew",
         cli_name: "work-renew",
         title: "Renew a work lease",
@@ -287,6 +297,16 @@ pub static REGISTRY: [ToolDef; 21] = [
         annotations: ann(false, false, false, false),
         input_schema: schema::<work::WorkRenewInput>,
         output_schema: schema::<work::WorkRenewOutput>,
+    },
+    ToolDef {
+        id: "musaic_work_renew_many",
+        cli_name: "work-renew-many",
+        title: "Renew several leases",
+        description: "Extend several of your current claims in one call; each lease is renewed or refused on its own.",
+        kinds: &[LibraryRead, ProposalSubmit],
+        annotations: ann(false, false, false, false),
+        input_schema: schema::<work::WorkRenewManyInput>,
+        output_schema: schema::<work::WorkRenewManyOutput>,
     },
     ToolDef {
         id: "musaic_work_progress",

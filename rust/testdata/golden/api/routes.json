@@ -72,38 +72,6 @@
       "query_params": []
     },
     {
-      "has_body": true,
-      "method": "POST",
-      "path": "/api/ai/jobs/{job_id}/acted-on",
-      "path_params": [
-        "job_id"
-      ],
-      "query_params": []
-    },
-    {
-      "has_body": false,
-      "method": "POST",
-      "path": "/api/ai/jobs/{job_id}/retry",
-      "path_params": [
-        "job_id"
-      ],
-      "query_params": []
-    },
-    {
-      "has_body": false,
-      "method": "GET",
-      "path": "/api/ai/providers",
-      "path_params": [],
-      "query_params": []
-    },
-    {
-      "has_body": false,
-      "method": "POST",
-      "path": "/api/ai/queue/resume",
-      "path_params": [],
-      "query_params": []
-    },
-    {
       "has_body": false,
       "method": "GET",
       "path": "/api/albums",

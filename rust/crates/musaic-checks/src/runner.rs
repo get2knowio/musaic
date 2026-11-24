@@ -11,7 +11,6 @@ use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::Instant;
 
-use musaic_core::AiWording;
 use musaic_db::findings::{self, FindingRow, RunRow};
 use musaic_fsops::py_repr;
 use rusqlite::{Connection, OptionalExtension};
@@ -362,9 +361,9 @@ pub fn unignore_finding(
 }
 
 /// `_finding_row_to_dict`: the API shape of a finding (detail parsed; an
-/// unparseable detail becomes null). The summary in `wording`
+/// unparseable detail becomes null). The summary as shown
 /// ([`crate::wording::finding_summary`]; the stored one is unchanged).
-pub fn finding_to_json(f: &FindingRow, wording: AiWording) -> Value {
+pub fn finding_to_json(f: &FindingRow) -> Value {
     let detail = f
         .detail_json
         .as_deref()
@@ -376,7 +375,7 @@ pub fn finding_to_json(f: &FindingRow, wording: AiWording) -> Value {
         "check_id": f.check_id,
         "album_id": f.album_id,
         "severity": f.severity,
-        "summary": crate::wording::finding_summary(&f.check_id, &f.summary, wording),
+        "summary": crate::wording::finding_summary(&f.check_id, &f.summary),
         "detail": detail,
         "first_seen_at": f.first_seen_at,
         "last_seen_at": f.last_seen_at,
@@ -402,13 +401,13 @@ pub fn run_to_json(r: &RunRow) -> Value {
     })
 }
 
-/// The `meta` object of the API listing. The description in
-/// `wording` ([`crate::wording::description`]).
-pub fn meta_to_json(m: &CheckMeta, wording: AiWording) -> Value {
+/// The `meta` object of the API listing. The description as shown
+/// ([`crate::wording::description`]).
+pub fn meta_to_json(m: &CheckMeta) -> Value {
     json!({
         "id": m.id,
         "label": m.label,
-        "description": crate::wording::description(m, wording),
+        "description": crate::wording::description(m),
         "category": m.category,
         "cost": m.cost.as_str(),
         "runs_during_scan": m.runs_during_scan,
@@ -418,11 +417,10 @@ pub fn meta_to_json(m: &CheckMeta, wording: AiWording) -> Value {
 }
 
 /// `list_checks_with_summary()` (GET /api/checks): every registered check with
-/// its open-finding count and last run, in `wording`.
+/// its open-finding count and last run.
 pub fn list_checks_with_summary(
     conn: &Connection,
     env: &CheckEnv,
-    wording: AiWording,
 ) -> Result<Vec<Value>, musaic_db::Error> {
     let last = findings::last_runs(conn)?;
     let counts = findings::open_counts(conn)?;
@@ -432,7 +430,7 @@ pub fn list_checks_with_summary(
         .into_iter()
         .map(|m| {
             json!({
-                "meta": meta_to_json(m, wording),
+                "meta": meta_to_json(m),
                 "open_count": counts.iter().find(|(c, _)| c == m.id).map_or(0, |(_, n)| *n),
                 "last_run": last.iter().find(|r| r.check_id == m.id).map(run_to_json),
             })
@@ -441,14 +439,13 @@ pub fn list_checks_with_summary(
 }
 
 /// `get_check_with_runs(check_id)`: last `run_limit` runs + open findings
-/// (newest `last_seen_at` first), in `wording`. `None` for an
+/// (newest `last_seen_at` first). `None` for an
 /// unknown check.
 pub fn get_check_with_runs(
     conn: &Connection,
     env: &CheckEnv,
     check_id: &str,
     run_limit: i64,
-    wording: AiWording,
 ) -> Result<Option<Value>, musaic_db::Error> {
     let Some(check) = env.registry.get(check_id) else {
         return Ok(None);
@@ -463,8 +460,8 @@ pub fn get_check_with_runs(
         },
     )?;
     Ok(Some(json!({
-        "meta": meta_to_json(check.meta(), wording),
+        "meta": meta_to_json(check.meta()),
         "runs": runs.iter().map(run_to_json).collect::<Vec<_>>(),
-        "findings": open.iter().map(|f| finding_to_json(f, wording)).collect::<Vec<_>>(),
+        "findings": open.iter().map(finding_to_json).collect::<Vec<_>>(),
     })))
 }

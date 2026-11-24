@@ -1,6 +1,6 @@
 /**
  * Fix-button for a health-check finding. Visually reflects the lifecycle
- * of the AI job that's handling the fix, so the user doesn't need a toast
+ * of the research request that's handling the fix, so the user doesn't need a toast
  * to know what just happened.
  *
  * State machine (driven by the active job for this finding's album, if any
@@ -23,29 +23,28 @@
  * "Running" too, which is confusing and wrong.
  *
  * Deterministic checks (duplicate-tracks, inconsistent-artist-sort,
- * filename-mismatch) don't enqueue AI jobs at all — their fix path is
+ * filename-mismatch) never make a research request — their fix path is
  * synchronous. They get an empty job-type allowlist so the button stays
- * in idle "Fix" state even when an unrelated AI job is running on the
- * same album. The hybrid checks (`unidentified-album`, `tags-out-of-sync`)
- * try MB-direct first and fall through to an AI metadata job when MB
- * can't disambiguate — they DO appear in JOB_TYPES_FOR_CHECK and
- * HINT_MODE_FOR_CHECK below.
+ * in idle "Fix" state even when an unrelated request is running on the
+ * same album. The four research-capable checks try the resolver first and
+ * send what it cannot settle to the assistant as a research request —
+ * they DO appear in JOB_TYPES_FOR_CHECK and HINT_MODE_FOR_CHECK below.
  *
  * Errors (rare — usually a 409 conflict from a race) still toast, since the
  * button state didn't change as expected and the user needs the explanation.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckCircle2, Clock, FileEdit, Files, Layers, Loader2, Users, Zap } from "lucide-react";
 import { toast } from "sonner";
 
 import { useActiveJobForAlbum, usePriorCoverAttempts } from "@/hooks/useJobs";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
+import { useDelegatedWork } from "@/hooks/useDelegatedWork";
 import { useFixFinding } from "@/hooks/useChecks";
-import { useAiStatus } from "@/hooks/useAiStatus";
-import { offersHintEntry } from "@/lib/aiGating";
+import { batchedActiveJobs } from "@/lib/batchedResearch";
 import { fixActionCopy } from "@/lib/findingActions";
-import type { CheckFixKind, Finding, JobType } from "@/lib/types";
+import type { CheckFixKind, Finding, Job, JobType } from "@/lib/types";
 
 import ArtistSortResolveDialog from "./ArtistSortResolveDialog";
 import DuplicateResolveDialog from "./DuplicateResolveDialog";
@@ -54,17 +53,11 @@ import MultiDiscResolveDialog from "./MultiDiscResolveDialog";
 import HintDialog from "./DetailSheet/HintDialog";
 
 
-/** Which AI job_types would resolve a finding from each check. A finding's
- *  button only reflects the album's active job when that job's type is in
- *  this list — otherwise it stays idle. Checks not listed
- *  (duplicate-tracks, inconsistent-artist-sort, filename-mismatch) don't
- *  go through the AI queue, so the lookup falls through to "idle."
- *
- *  Both consolidated checks (`unidentified-album` and `tags-out-of-sync`)
- *  are here because per-finding Fix can fall through to AI: the identify
- *  cascade ends with an AI metadata job when the resolver can't anchor;
- *  the tag-sync fix falls through to AI when the resolver can't fill all
- *  the missing fields (genre, or anything on an unanchored album). */
+/** Which research job_types would resolve a finding from each check. A
+ *  finding's button only reflects the album's active request when its type
+ *  is in this list — otherwise it stays idle. Checks not listed
+ *  (duplicate-tracks, inconsistent-artist-sort, filename-mismatch) never
+ *  make a research request, so the lookup falls through to "idle." */
 const JOB_TYPES_FOR_CHECK: Record<string, JobType[]> = {
   "no-cover-art":        ["cover", "metadata+cover"],
   "track-gaps":          ["metadata", "metadata+cover"],
@@ -72,10 +65,10 @@ const JOB_TYPES_FOR_CHECK: Record<string, JobType[]> = {
   "tags-out-of-sync":    ["metadata", "metadata+cover"],
 };
 
-/** Which HintDialog mode to use for each AI-job check. The mode picks the
- *  dialog's title, placeholder, and whether prior-cover-attempts get shown.
- *  Checks not listed don't open the hint dialog (they're either deterministic
- *  or have no AI path). */
+/** Which HintDialog mode to use for each research-capable check. The mode
+ *  picks the dialog's title, placeholder, and whether prior-cover-attempts
+ *  get shown. Checks not listed don't open the hint dialog (they're
+ *  deterministic). */
 const HINT_MODE_FOR_CHECK: Record<string, "metadata" | "cover"> = {
   "no-cover-art":        "cover",
   "track-gaps":          "metadata",
@@ -107,11 +100,6 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   const [filenameOpen, setFilenameOpen] = useState(false);
   const [multiDiscOpen, setMultiDiscOpen] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
-  // Without a model backend an ai-job fix runs its MusicBrainz part only;
-  // where it would need a model the server answers ok:false with the
-  // not-available message, shown as the error toast
-  // (lib/aiGating.ts). No hint dialog: there is no model to steer.
-  const ai = useAiStatus();
 
   // Album lookup for the hint-dialog header — keeps the title in the
   // dialog matching what the user just clicked Fix on. Falls back through
@@ -128,22 +116,32 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   // Only treat the album's active job as relevant if its type would
   // actually resolve THIS finding. Checks with no entry in the table
   // (deterministic ones like duplicate-tracks, inconsistent-artist-sort,
-  // filename-mismatch) get null here unconditionally so an unrelated AI
-  // job on the same album doesn't drag their button into "Running."
-  // The hybrid checks (`unidentified-album`, `tags-out-of-sync`) ARE in
-  // the table — an active metadata job correctly reflects to their button.
+  // filename-mismatch) get null here unconditionally so an unrelated
+  // request on the same album doesn't drag their button into "Running."
   const allowedTypes = JOB_TYPES_FOR_CHECK[finding.check_id];
-  const activeJob =
-    albumJob && allowedTypes && allowedTypes.includes(albumJob.job_type)
-      ? albumJob
-      : null;
+  // A request a Fix all run made has no job card (the jobs list leaves
+  // batched cards out), so the album's batched request comes from the
+  // delegated work list; without it the button would offer Fix again while
+  // research is already pending.
+  const { data: work } = useDelegatedWork();
+  const batchedJob = useMemo(
+    () =>
+      finding.album_id
+        ? batchedActiveJobs(
+            (Array.isArray(work) ? work : []).filter((w) => w.albumId === finding.album_id),
+          ).get(finding.album_id) ?? null
+        : null,
+    [work, finding.album_id],
+  );
+  const relevant = (j: Job | null) => (j && allowedTypes && allowedTypes.includes(j.job_type) ? j : null);
+  const activeJob = relevant(albumJob) ?? relevant(batchedJob);
 
-  // For ai-job checks we have a hint mode; otherwise the click goes
-  // straight through to the mutation with no hint.
-  const hintMode = offersHintEntry(ai) ? HINT_MODE_FOR_CHECK[finding.check_id] ?? null : null;
-  // The words on the button: what the action does on this build's path
-  // (lib/findingActions.ts), the same in the inbox and the album inspector.
-  const copy = fixActionCopy(finding.check_id, hintMode != null);
+  // The research-capable checks always offer a hint first; otherwise the
+  // click goes straight through to the mutation with no hint.
+  const hintMode = HINT_MODE_FOR_CHECK[finding.check_id] ?? null;
+  // The words on the button (lib/findingActions.ts), the same in the inbox
+  // and the album inspector.
+  const copy = fixActionCopy(finding.check_id);
 
   // Multi-disc-layout: one Resolve button for every finding, as for the
   // other dialog checks. Whether this set can convert (one folder, nothing
@@ -253,7 +251,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           disabled
           className="h-7 px-2 rounded border border-line text-xs text-fg-3 inline-flex items-center gap-1 cursor-not-allowed"
-          title={ai.ready ? "An AI job is queued for this album" : "A job is queued for this album"}
+          title="Research is pending for this album"
         >
           <Clock className="w-3 h-3" />
           Queued
@@ -265,7 +263,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
         <button
           disabled
           className="h-7 px-2 rounded bg-accent-soft text-accent text-xs font-medium inline-flex items-center gap-1 cursor-not-allowed"
-          title={ai.ready ? "Claude is working on this" : "A job is working on this"}
+          title="An assistant is working on this"
         >
           <Loader2 className="w-3 h-3 spin" />
           Running
@@ -273,7 +271,7 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
       );
     }
     if (activeJob.status === "completed") {
-      // Job finished, suggestion is waiting for the user to Apply or Discard.
+      // Research finished, suggestion is waiting for the user to Apply or Discard.
       // Send them to the album sheet, which already surfaces the result.
       return (
         <button
@@ -311,8 +309,8 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
           //     succeeded synchronously. SSE won't queue a job, so without
           //     a toast the user gets no feedback at all beyond the row
           //     eventually disappearing on the next check refresh.
-          //   - r.job_id set  → AI job queued. The SSE `state` event will
-          //     flip the active job in our cache and the button rerenders
+          //   - r.job_id set  → research requested. The SSE `state` event
+          //     will flip the active job in our cache and the button rerenders
           //     to "Queued" automatically; no toast needed.
           if (r.job_id == null) {
             toast.success(r.message || "Fix applied", { duration: 3000 });
@@ -329,16 +327,15 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
   const onFix = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (hintMode) {
-      // AI-job check: open the hint dialog first so the user gets the
-      // same opportunity to add context as the detail-sheet AI buttons
-      // do. Submitting the dialog (even with empty hint) fires the fix
+      // Research-capable check: open the hint dialog first so the user
+      // gets the same opportunity to add context as the album panel's
+      // Request research does. Submitting the dialog (even with empty hint) fires the fix
       // mutation; canceling does nothing.
       setHintOpen(true);
       return;
     }
-    // Deterministic check with no hint mode. (Hybrid checks like
-    // unidentified-album and tags-out-of-sync DO have a hint mode and
-    // take the branch above.) Fire straight through with no dialog.
+    // Deterministic check with no hint mode. Fire straight through with
+    // no dialog.
     submitFix("");
   };
 
@@ -360,15 +357,6 @@ export default function FindingFixButton({ finding, fixKind, siblings }: Props) 
           albumTitle={albumTitle}
           checkId={finding.check_id}
           priorCoverAttempts={hintMode === "cover" ? priorCoverAttempts : []}
-          // No `hasCover` passed → checkbox stays hidden in this
-          // flow. The fix-finding endpoint doesn't expose
-          // attach_cover today (would need plumbing through
-          // checks_runner.fix_finding → Check.fix() → each check's
-          // enqueue call). The DetailSheet's footer "Suggest
-          // fixes" flow already lets the user A/B test; that's
-          // where they should toggle. If we want toggle support
-          // here too, plumb attach_cover through the fix-finding
-          // path in a follow-up.
           onSubmit={(hint, _attachCover) => {
             setHintOpen(false);
             submitFix(hint);

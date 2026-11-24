@@ -13,7 +13,7 @@ interface AlbumListProps {
   albums: Album[];
   /** Show this many skeleton rows after the real ones (during a fresh scan). */
   skeletonCount?: number;
-  /** Map of album_id → active AI job, used to render a status pill in the row. */
+  /** Map of album_id → active research request, used to render a status pill in the row. */
   activeJobs?: Map<string, Job>;
 }
 

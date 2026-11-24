@@ -15,7 +15,7 @@
 //!   verify run's synthetic and real records; without it the public files
 //!   are checked and the counts are the public ones.
 //!   The end-to-end checks are in golden_cases.rs, wired_golden.rs,
-//!   jobs_http.rs, recording_canonical_http.rs and starlette_routing.rs.
+//!   research_jobs_http.rs, recording_canonical_http.rs and starlette_routing.rs.
 
 mod common;
 
@@ -76,8 +76,10 @@ fn python_byte_samples() -> Vec<(String, String)> {
 #[tokio::test]
 async fn validation_422_bytes_equal_every_python_byte_sample() {
     let samples = python_byte_samples();
-    // ai/http.json 9, recording_canonical.json 1, route_order.json 1.
-    assert_eq!(samples.len(), 11, "python 422 byte samples");
+    // ai/http.json 9, recording_canonical.json 1. (route_order.json's one,
+    // `POST /api/ai/jobs/active/acted-on`, went with the acted-on route,
+    // spec 006.)
+    assert_eq!(samples.len(), 10, "python 422 byte samples");
     let mut types = std::collections::BTreeSet::new();
     for (at, bytes) in &samples {
         let parsed: Value = serde_json::from_str(bytes).unwrap();
@@ -124,8 +126,9 @@ fn json_files(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
     }
 }
 
-/// Of the 62 recorded 422 bodies, those in the public test data.
-const PUBLIC_422_BODIES: usize = 44;
+/// Of the 59 recorded 422 bodies, those in the public test data (three
+/// recorded refusals of retired provider settings went with them, spec 006).
+const PUBLIC_422_BODIES: usize = 41;
 
 #[tokio::test]
 async fn every_recorded_422_renders_in_fastapi_key_order() {
@@ -187,7 +190,7 @@ async fn every_recorded_422_renders_in_fastapi_key_order() {
     .collect();
     if private {
         assert_eq!(types, want);
-        assert_eq!(bodies.len(), 62, "recorded 422 bodies");
+        assert_eq!(bodies.len(), 59, "recorded 422 bodies");
     } else {
         assert!(types.is_subset(&want), "{types:?}");
         assert_eq!(

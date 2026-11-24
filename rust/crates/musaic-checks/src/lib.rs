@@ -22,7 +22,7 @@
 //! * [`resolution`] — the narrow view of a resolver result the checks read,
 //!   behind a trait until `musaic-resolve` lands.
 //! * [`wording`] — check descriptions and finding summaries as
-//!   shown, without AI wording when no AI provider is ready.
+//!   shown, without the AI wording of the Python app's texts.
 //!
 //! Differences from the Python app, all deliberate:
 //! duplicate-tracks compares only fingerprints of one implementation;

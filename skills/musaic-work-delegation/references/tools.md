@@ -140,12 +140,13 @@ Input:
 
 ## `musaic_work_list`
 
-List available research requests and your claimed work.
+List available research requests and your claimed work, optionally only those of one bulk run (batchId).
 
 Needs: `library.read`.
 
 Input:
 
+- `batchId`: string, optional
 - `cursor`: string, optional
 - `kind`: object, optional
 - `limit`: integer (min 1) (max 100), optional
@@ -172,6 +173,19 @@ Input:
 - `idempotencyKey`: string, required
 - `workId`: string, required
 
+## `musaic_work_claim_many`
+
+Reserve up to 25 queued research requests at once (optionally of one batch or kind), each with its own five-minute lease. Winning fewer than asked, or none, is not an error.
+
+Needs: `library.read`, `proposal.submit`.
+
+Input:
+
+- `batchId`: string, optional
+- `idempotencyKey`: string, required
+- `kind`: object, optional
+- `max`: integer (min 1) (max 25), optional
+
 ## `musaic_work_renew`
 
 Extend the expiry of your current claim. Renew once a minute while you work.
@@ -183,6 +197,19 @@ Input:
 - `claimGeneration`: integer (min 1), required
 - `leaseToken`: string, required
 - `workId`: string, required
+
+## `musaic_work_renew_many`
+
+Extend several of your current claims in one call; each lease is renewed or refused on its own.
+
+Needs: `library.read`, `proposal.submit`.
+
+Input:
+
+- `leases`: array of object (minItems 1) (maxItems 25), required
+  - `claimGeneration`: integer (min 1), required
+  - `leaseToken`: string, required
+  - `workId`: string, required
 
 ## `musaic_work_progress`
 

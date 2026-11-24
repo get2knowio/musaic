@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { Music, X, Zap } from "lucide-react";
 
 import { type QuickFixSummary } from "@/hooks/useChecks";
-import { useAiStatus } from "@/hooks/useAiStatus";
+import { useAgentPairings } from "@/hooks/useAgents";
 import { useAlbumsSnapshot } from "@/hooks/useAlbumsSnapshot";
 import { useFindings } from "@/hooks/useChecks";
 import { displayArtist } from "@/lib/albumFields";
@@ -58,12 +58,23 @@ export function BulkQuickFixDialog({
    *  "Identify on MusicBrainz", "Fingerprint all". Used in the dialog
    *  title and body copy so each check speaks for itself. */
   bulkActionLabel: string;
-  /** Drives the body copy: deterministic checks won't fall through to AI. */
+  /** `ai-job` marks the four research-capable checks, which offer to send
+   *  what the resolver can't settle to the assistant. */
   fixKind: "none" | "ai-job" | "deterministic";
   totalFindings: number;
 }) {
   const [runId, setRunId] = useState<string | null>(null);
   const run = useBulkRun(runId);
+
+  // The four checks whose Fix can go to research offer sending what the
+  // resolver can't settle to the assistant. The choice starts on when an
+  // assistant has been added (a pairing not revoked), off otherwise, until
+  // the user changes it.
+  const researchCapable = fixKind === "ai-job";
+  const pairings = useAgentPairings();
+  const hasAssistant = Array.isArray(pairings.data) && pairings.data.some((p) => p.revokedAt === null);
+  const [researchChoice, setResearchChoice] = useState<boolean | null>(null);
+  const research = researchCapable && (researchChoice ?? hasAssistant);
 
   // Album names come from what the page knew when the run started: findings
   // and albums change as the run writes, and the list should name each album
@@ -84,7 +95,10 @@ export function BulkQuickFixDialog({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setRunId(null);
+    if (open) {
+      setRunId(null);
+      setResearchChoice(null);
+    }
   }
 
   const onStart = () => {
@@ -98,6 +112,7 @@ export function BulkQuickFixDialog({
         checkLabel,
         actionLabel: bulkActionLabel,
         fixKind,
+        research,
         total: totalFindings,
         albumOf: snapshot,
       }),
@@ -141,9 +156,25 @@ export function BulkQuickFixDialog({
                 checkId={checkId}
                 checkLabel={checkLabel}
                 bulkActionLabel={bulkActionLabel}
-                fixKind={fixKind}
                 totalFindings={totalFindings}
               />
+            )}
+            {phase === "confirm" && researchCapable && (
+              <label className="mt-3 flex items-start gap-2 text-sm text-fg-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 accent-[var(--accent)]"
+                  checked={research}
+                  onChange={(e) => setResearchChoice(e.target.checked)}
+                  aria-describedby="bulk-research-scope"
+                />
+                <span>
+                  Send what the resolver can't settle to my assistant
+                  <span id="bulk-research-scope" className="block text-xs text-fg-3">
+                    {totalFindings} {totalFindings === 1 ? "finding" : "findings"} in scope
+                  </span>
+                </span>
+              </label>
             )}
             {run && running && (
               <>
@@ -214,7 +245,7 @@ export function BulkQuickFixDialog({
  */
 export function RunOutcome({ run }: { run: BulkRun }) {
   if (run.phase === "completed" && run.summary) {
-    return <DoneBody summary={run.summary} fixKind={run.fixKind} />;
+    return <DoneBody summary={run.summary} />;
   }
   if (run.phase === "failed") {
     return (
@@ -227,7 +258,7 @@ export function RunOutcome({ run }: { run: BulkRun }) {
   const open = unconfirmed(run);
   return (
     <>
-      <Counts counts={run.counts} />
+      <Counts counts={run.counts} research={run.research} />
       <p className="text-sm text-fg-2" data-bulk-partial>
         {run.phase === "stopped" ? (
           <>Stopped after {done} of {run.total}. </>
@@ -244,10 +275,11 @@ export function RunOutcome({ run }: { run: BulkRun }) {
   );
 }
 
-function Counts({ counts }: { counts: BulkCounts }) {
+function Counts({ counts, research = false }: { counts: BulkCounts; research?: boolean }) {
   return (
-    <div className="grid grid-cols-4 gap-2 text-xs mb-3">
+    <div className={`grid ${research ? "grid-cols-5" : "grid-cols-4"} gap-2 text-xs mb-3`}>
       <Stat label="Fixed" value={counts.fixed} tone="ok" />
+      {research && <Stat label="Research" value={counts.sent_for_research + counts.already_requested} tone="muted" />}
       <Stat label="Skipped" value={counts.skipped} tone="muted" />
       <Stat label="N/A" value={counts.not_applicable} tone="muted" />
       <Stat label="Errors" value={counts.errors} tone="err" />
@@ -259,13 +291,11 @@ function ConfirmBody({
   checkId,
   checkLabel,
   bulkActionLabel,
-  fixKind,
   totalFindings,
 }: {
   checkId: string;
   checkLabel: string;
   bulkActionLabel: string;
-  fixKind: "none" | "ai-job" | "deterministic";
   totalFindings: number;
 }) {
   // Per-check pacing copy. Most checks are MB-rate-limited (1 req/s per
@@ -274,12 +304,6 @@ function ConfirmBody({
   // own. The unidentified-album bulk hits the worst case when the
   // library has never been fingerprinted.
   const isIdentify = checkId === "unidentified-album";
-  // ai-job fix_kind means leftovers from the bulk pass fall through to
-  // AI when the user opens a per-finding Fix later — only when a model
-  // backend can run (lib/aiGating.ts).
-  const ai = useAiStatus();
-  const fallsThroughToAi = fixKind === "ai-job" && ai.ready;
-
   const lowSec = isIdentify
     ? totalFindings * 8        // wild guess, ~8 tracks per album
     : totalFindings;           // ~1 req/s for MB
@@ -299,12 +323,6 @@ function ConfirmBody({
             match stay open — try editing the directory name to the
             canonical "Artist - Album" form first.
           </>
-        ) : fallsThroughToAi ? (
-          <>
-            {" "}Findings we can resolve via MusicBrainz will be applied
-            directly; the rest stay open for you to Fix individually (which
-            queues an AI job).
-          </>
         ) : null}
       </p>
       <p className="text-xs text-fg-3 leading-relaxed">
@@ -322,7 +340,7 @@ function ConfirmBody({
             <b>{lowSec}–{highSec} seconds</b>.
           </>
         )}
-        {" "}You can stop at any time.{ai.ready && " No AI quota will be burned."}
+        {" "}You can stop at any time.
       </p>
     </>
   );
@@ -344,7 +362,7 @@ function RunningBody({ run }: { run: BulkRun }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <Counts counts={run.counts} />
+      <Counts counts={run.counts} research={run.research} />
       {last && (
         <div className="text-xs text-fg-4 truncate">
           Latest: <span className={`mono ${
@@ -358,19 +376,12 @@ function RunningBody({ run }: { run: BulkRun }) {
   );
 }
 
-function DoneBody({
-  summary,
-  fixKind,
-}: {
-  summary: QuickFixSummary;
-  fixKind: "none" | "ai-job" | "deterministic";
-}) {
+function DoneBody({ summary }: { summary: QuickFixSummary }) {
   // `fixed` counts only findings that are gone; a fix that wrote part of
   // what its finding asks for is `still_open`.
   const stillOpen = summary.still_open ?? 0;
   const partial = summary.fixed > 0 && summary.skipped + summary.errors + stillOpen > 0;
-  const ai = useAiStatus();
-  const fallsThroughToAi = fixKind === "ai-job" && ai.ready;
+  if (summary.sent_for_research !== undefined) return <ResearchDoneBody summary={summary} />;
   const stillOpenNote = stillOpen > 0 && (
     <>
       {" "}
@@ -392,9 +403,7 @@ function DoneBody({
           <>
             {stillOpen > 0
               ? "No findings were fully resolved."
-              : fallsThroughToAi
-                ? "No findings were resolvable directly. The rest can still be fixed individually with AI."
-                : "No findings were resolvable. The reasons are listed below."}
+              : "No findings were resolvable. The reasons are listed below."}
             {stillOpenNote}
           </>
         ) : (
@@ -402,10 +411,37 @@ function DoneBody({
             Resolved <b>{summary.fixed}</b> of {summary.total} finding
             {summary.total === 1 ? "" : "s"}.
             {stillOpenNote}
-            {partial && fallsThroughToAi && " The rest can be fixed individually with AI."}
-            {partial && !fallsThroughToAi && " The rest stay open; the reasons are listed below."}
+            {partial && " The rest stay open; the reasons are listed below."}
           </>
         )}
+      </p>
+    </>
+  );
+}
+
+/** A run with research on: what was settled, sent and already requested. */
+function ResearchDoneBody({ summary }: { summary: QuickFixSummary }) {
+  const sent = summary.sent_for_research ?? 0;
+  const already = summary.already_requested ?? 0;
+  // Missing albums (skipped before the resolver) count as not applicable,
+  // and a fix that wrote part of what its finding asks for as still open:
+  // neither is settled, sent or skipped, so each is named when there is one.
+  const notApplicable = summary.not_applicable ?? 0;
+  const stillOpen = summary.still_open ?? 0;
+  return (
+    <>
+      <div className="grid grid-cols-5 gap-2 text-xs mb-3">
+        <Stat label="Settled" value={summary.fixed} tone="ok" />
+        <Stat label="Research" value={sent} tone="muted" />
+        <Stat label="Requested" value={already} tone="muted" />
+        <Stat label="Skipped" value={summary.skipped} tone="muted" />
+        <Stat label="Errors" value={summary.errors} tone="err" />
+      </div>
+      <p className="text-sm text-fg-2" data-bulk-research-summary>
+        Settled {summary.fixed}. Sent {sent} for research{sent > 0 ? " (one batch)" : ""}. {already} already
+        requested. Skipped {summary.skipped}, failed {summary.errors}.
+        {notApplicable > 0 && ` ${notApplicable} not applicable (missing from disk or no quick fix).`}
+        {stillOpen > 0 && ` ${stillOpen} partly written, still open.`}
       </p>
     </>
   );
@@ -426,6 +462,8 @@ const OUTCOME_WORD: Record<BulkOutcome, string> = {
   skipped: "skipped",
   error: "failed",
   "not-applicable": "not applicable",
+  "sent-for-research": "sent for research",
+  "already-requested": "already requested",
 };
 
 // Problems first; fixed findings last and collapsed.
@@ -433,6 +471,8 @@ const GROUPS: ReadonlyArray<{ outcome: BulkOutcome; title: string; tone: string 
   { outcome: "error", title: "Failed", tone: "text-err" },
   { outcome: "skipped", title: "Skipped", tone: "text-fg-2" },
   { outcome: "not-applicable", title: "Not applicable", tone: "text-fg-2" },
+  { outcome: "sent-for-research", title: "Sent for research", tone: "text-fg-2" },
+  { outcome: "already-requested", title: "Already requested", tone: "text-fg-2" },
   { outcome: "fixed", title: "Fixed", tone: "text-ok" },
 ];
 

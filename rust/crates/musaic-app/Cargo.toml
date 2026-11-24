@@ -33,8 +33,6 @@ thiserror.workspace = true
 tokio = { version = "1", features = ["sync", "macros"] }
 
 [dev-dependencies]
-# A provider with a backend behind it, for the fixes that fall through to a job.
-musaic-ai = { path = "../musaic-ai", features = ["replay"] }
 musaic-testdata = { path = "../musaic-testdata" }
 tempfile.workspace = true
 jsonschema = { version = "0.33", default-features = false }

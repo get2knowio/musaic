@@ -9,7 +9,7 @@
 //!   ([`external_allowed`]), `target="_blank"` or not: opened in the system
 //!   browser (`tauri-plugin-opener`, called from Rust), never in the window.
 //!   That covers the hosts the UI links to (MusicBrainz pages in the album
-//!   sheet, the AcoustID / FireCrawl sign-up links in Settings, a cover
+//!   sheet, the AcoustID sign-up link in Settings, a cover
 //!   URL from any host) without a list to keep in step with the frontend:
 //!   the shell only hands the URL to the browser, it fetches nothing.
 //!   Electron opened `target="_blank"` links in a new Electron window
@@ -118,7 +118,6 @@ mod tests {
             "https://musicbrainz.org/release-group/0d6f8a59-0000-0000-0000-000000000000",
             "https://musicbrainz.org/recording/0d6f8a59-0000-0000-0000-000000000001",
             "https://acoustid.org/new-application",
-            "https://www.firecrawl.dev/",
             "https://coverartarchive.org/release-group/0d6f8a59-0000-0000-0000-000000000000/front",
         ] {
             assert_eq!(d(s), Decision::OpenExternally, "{s}");

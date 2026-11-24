@@ -2,11 +2,9 @@ import { Link } from "react-router-dom";
 import { AlertCircle, ArrowUpRight, Info, XCircle, Zap } from "lucide-react";
 import { toast } from "sonner";
 
-import { useAiStatus } from "@/hooks/useAiStatus";
 import { useUnignoreFinding } from "@/hooks/useChecks";
 import FindingFixButton from "@/components/FindingFixButton";
 import IgnoreFindingControl from "@/components/IgnoreFindingControl";
-import { offersHintEntry } from "@/lib/aiGating";
 import { displayArtist } from "@/lib/albumFields";
 import { fixActionCopy } from "@/lib/findingActions";
 import { GENRE_HINT_POINTER, genreHintLead, suggestedGenre } from "@/lib/genreHint";
@@ -38,8 +36,7 @@ export function FindingRow({
   checkLabel?: string;
 }) {
   const unignoreMutation = useUnignoreFinding();
-  const ai = useAiStatus();
-  const fixCopy = fixActionCopy(finding.check_id, offersHintEntry(ai));
+  const fixCopy = fixActionCopy(finding.check_id);
 
   const onUnignore = () => {
     unignoreMutation.mutate(

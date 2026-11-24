@@ -334,3 +334,42 @@ fn clean_snapshots_are_not_touched() {
     );
     assert_eq!((std::fs::read(&p).unwrap(), mtime(&p)), before);
 }
+
+/// A retired key's row (FR-027) goes from a snapshot whatever the keyring
+/// says, here an unavailable one, with no keyring call for it; the migrated
+/// key the keyring cannot confirm keeps its row, and that is reported.
+#[test]
+fn retired_rows_leave_snapshots_without_the_keyring() {
+    const RETIRED: &str = "invented-firecrawl-key-0001";
+    let (_t, dir, db) = config();
+    let snap = dir.join("backups/library-20260101-000000Z-v16.db");
+    snapshot_with_key(&db, &snap, KEY, None);
+    Connection::open(&snap)
+        .unwrap()
+        .execute(
+            "INSERT INTO settings(key, value) VALUES ('firecrawl_api_key', ?1)",
+            [RETIRED],
+        )
+        .unwrap();
+    let mtime_before = mtime(&snap);
+    let store = MemoryStore::unavailable();
+    let r = migrate_settings_secrets(&db, &store).unwrap();
+    assert_eq!(r.copies_scrubbed, vec![snap.clone()]);
+    assert_eq!(r.copies_left.len(), 1);
+    assert!(
+        r.copies_left[0].1.contains("keeps acoustid_api_key"),
+        "{:?}",
+        r.copies_left
+    );
+    assert!(
+        !store.calls().iter().any(|c| c.contains("firecrawl")),
+        "{:?}",
+        store.calls()
+    );
+    assert_eq!(row(&snap, "firecrawl_api_key"), None);
+    assert_eq!(row(&snap, "acoustid_api_key").as_deref(), Some(KEY));
+    assert_eq!(row(&snap, "theme").as_deref(), Some("dark"));
+    assert_eq!(mtime(&snap), mtime_before);
+    drop(db);
+    assert!(files_containing(&dir, RETIRED).is_empty());
+}

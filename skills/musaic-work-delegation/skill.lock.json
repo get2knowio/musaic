@@ -1,9 +1,9 @@
 {
   "files": [
     {
-      "digest": "sha256:692f61f4ead285f8b07c699bde8944e965155eb68a78cddbb0711e528c29429b",
+      "digest": "sha256:e6f8d6e29cc34c88478ea158ff76b4bd5e25e0ac71c201608415b2afaffa5ee4",
       "path": "SKILL.md",
-      "size": 4961
+      "size": 5720
     },
     {
       "digest": "sha256:33d8eb89a60c1af6d16cd9b30e56e38b9ccaf0313187d997a4e1c8ca59a3ac3c",
@@ -16,9 +16,9 @@
       "size": 1084
     },
     {
-      "digest": "sha256:3feaaf0f9e4dff6f3d31d2790dcb0198ebc722981a27e33290328971703740b3",
+      "digest": "sha256:943a423645df44285a3b53594107a9454a010244930b32bd984c4a8b04e4f6b7",
       "path": "references/events.md",
-      "size": 2790
+      "size": 3425
     },
     {
       "digest": "sha256:5279a7b10657613136f08bbd49ab85639c6927721240cb52c09cc96b66fb9ad2",
@@ -36,15 +36,15 @@
       "size": 2229
     },
     {
-      "digest": "sha256:c74ef766bdf59835bbec20adf71b8bfdac7a04d2a52bd0b0547b3eab4cacc476",
+      "digest": "sha256:b5fb8adc146af6eea6de30cae14fbfaafb84739ad9be6937865caca51d0456fd",
       "path": "references/tools.md",
-      "size": 6688
+      "size": 7519
     },
     {
-      "digest": "sha256:bc2c5f70a351344842871bcfc4565fd2e5156e13e49f896b0fa16ff97655fbf8",
+      "digest": "sha256:76c265e37d31c34bf7f34ad85fde7ae9e0c4e70c988306179e2a4d4baf23f7e5",
       "path": "references/work-lifecycle.md",
-      "size": 2554
+      "size": 4377
     }
   ],
-  "version": "1.0.1"
+  "version": "1.1.0"
 }
