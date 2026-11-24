@@ -629,6 +629,9 @@ pub(crate) fn decide(
         }
         "discard" => {
             checked(db::discard(&conn, id, digest, revision, now()))?;
+            crate::agent::delegation::publish_pending(app, &conn);
+            mark_reviewed(app, &conn, &work);
+            return Ok(());
         }
         "retry" => {
             crate::research::current(app, &conn, &work).map_err(|_| {
@@ -662,6 +665,9 @@ pub(crate) fn decide(
                 now(),
             ))?;
             crate::agent::delegation::publish_pending(app, &conn);
+            if applied.is_ok() {
+                mark_reviewed(app, &conn, &work);
+            }
             return applied.map_err(tool);
         }
         _ => {
@@ -673,6 +679,33 @@ pub(crate) fn decide(
     }
     crate::agent::delegation::publish_pending(app, &conn);
     Ok(())
+}
+
+/// The album panel's "Reviewed" row: a metadata proposal the user applied
+/// or discarded stamps the album's `metadata_ai_acted_on_at`, and
+/// `AlbumTagsChanged` of that field refreshes the album caches (rule 1). A
+/// cover proposal stamps nothing. The decision is already committed, so a
+/// stamp that fails is logged, never returned.
+fn mark_reviewed(app: &App, conn: &Connection, work: &WorkRow) {
+    if !work.kind.starts_with("metadata.") {
+        return;
+    }
+    if let Err(e) =
+        musaic_db::albums::mark_metadata_ai_acted_on(conn, &work.album_id, &app.now_iso())
+    {
+        app.log().error(
+            "musaic.research",
+            &format!(
+                "Couldn't stamp metadata_ai_acted_on_at for album {}: {e}",
+                work.album_id
+            ),
+        );
+        return;
+    }
+    app.bus().publish(&musaic_events::Event::AlbumTagsChanged {
+        album_id: work.album_id.clone(),
+        fields: vec!["metadata_ai_acted_on_at".into()],
+    });
 }
 
 /// One delegated work item as the Review page lists it (spec 005): its state,

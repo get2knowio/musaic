@@ -232,6 +232,10 @@ impl Jobs<'_> {
     pub fn research_preview(&self, id: &str, digest: &str) -> Result<ResearchPreview, OpError> {
         crate::desktop_research::preview(self.app, id, digest)
     }
+    /// The user's decision on one research item: `apply`, `discard`, `retry`
+    /// or `cancel`. A metadata proposal applied or discarded stamps the
+    /// album's "Reviewed" time and publishes `AlbumTagsChanged` of
+    /// `metadata_ai_acted_on_at`.
     pub fn research_decide(
         &self,
         id: &str,

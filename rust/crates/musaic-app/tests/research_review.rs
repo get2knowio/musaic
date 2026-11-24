@@ -194,3 +194,117 @@ fn the_desktop_can_cancel_a_claim_and_explicitly_retry_current_work() {
         .unwrap();
     assert_eq!(jobs.research_items(&group.id).unwrap()[0].state, "queued");
 }
+
+/// The album panel's "Reviewed" stamp, as stored.
+fn reviewed_at(w: &common::AgentWorld, album_id: &str) -> Option<String> {
+    musaic_db::open_connection(w.app.db_path())
+        .unwrap()
+        .query_row(
+            "SELECT metadata_ai_acted_on_at FROM albums WHERE id = ?1",
+            [album_id],
+            |r| r.get(0),
+        )
+        .unwrap()
+}
+
+/// A metadata research request for the album, claimed and answered with a
+/// proposal: the item awaiting review.
+fn metadata_proposal(
+    w: &common::AgentWorld,
+    p: &musaic_app::ops::agent::Principal,
+    album_id: &str,
+    key: &str,
+) -> musaic_app::ops::jobs::ResearchItem {
+    let ops = w.app.ops();
+    let jobs = ops.jobs();
+    let job = jobs.enqueue(album_id, "metadata", "", false).unwrap();
+    let work = jobs.research_items(&job.id).unwrap().remove(0);
+    let call = |name: &str, body| w.call(p, name, body).unwrap().to_json();
+    let claim = call(
+        "musaic_work_claim",
+        json!({"workId":work.id,"idempotencyKey":format!("claim-{key}")}),
+    );
+    call(
+        "musaic_work_complete",
+        json!({
+            "workId":work.id,"claimGeneration":claim["claimGeneration"],"leaseToken":claim["leaseToken"],
+            "idempotencyKey":format!("complete-{key}"),"inputDigest":claim["inputDigest"],
+            "result":{"schemaVersion":1,"workId":work.id,"kind":work.kind,"inputDigest":claim["inputDigest"],
+            "outcome":"proposal","evidence":[{"source":"urn:musaic:fixture:liner-notes","claim":"The sleeve credits Fixture Artist.","retrievedAt":"2026-11-22T12:00:00Z","limitations":[]}],
+            "confidence":0.8,"uncertainties":[],"recommendation":{"type":"metadata","identifiers":[],"albumFields":{"album_artist":"Fixture Artist"},"tracks":[]}}
+        }),
+    );
+    let item = jobs.research_items(&job.id).unwrap().remove(0);
+    assert_eq!(item.state, "awaiting_review");
+    item
+}
+
+// Applying or discarding a metadata proposal stamps the album's "Reviewed"
+// row and publishes `AlbumTagsChanged` of that field, which refreshes the
+// album caches.
+#[test]
+fn applying_or_discarding_a_metadata_proposal_stamps_the_reviewed_row() {
+    use musaic_events::{Event, Subscriber, Topic};
+    use std::sync::{Arc, Mutex};
+
+    let w = agent_world_scanned();
+    let seen: Arc<Mutex<Vec<Event>>> = Arc::default();
+    let s = seen.clone();
+    w.app.bus().register(
+        Topic::Event,
+        Subscriber::from_fn(move |e| {
+            s.lock().unwrap().push(e.clone());
+            Ok(())
+        })
+        .key("reviewed_test")
+        .priority(500)
+        .name("reviewed_test"),
+    );
+    let stamped = |album: &str| {
+        seen.lock().unwrap().iter().any(|e| {
+            matches!(e, Event::AlbumTagsChanged { album_id, fields }
+                if album_id == album && fields == &["metadata_ai_acted_on_at".to_string()])
+        })
+    };
+    let ops = w.app.ops();
+    let albums = ops.library().list_albums(false).unwrap().albums;
+    let (discarded, applied) = (albums[0].id().to_string(), albums[1].id().to_string());
+    let p = w.login(
+        &w.pair(
+            "researcher",
+            &[PermissionKind::LibraryRead, PermissionKind::ProposalSubmit],
+        )
+        .pairing
+        .id,
+    );
+    let jobs = ops.jobs();
+
+    let item = metadata_proposal(&w, &p, &discarded, "discard");
+    assert_eq!(reviewed_at(&w, &discarded), None);
+    jobs.research_decide(
+        &item.id,
+        item.revision,
+        item.digest.as_deref(),
+        "discard",
+        None,
+    )
+    .unwrap();
+    assert!(reviewed_at(&w, &discarded).is_some());
+    assert!(stamped(&discarded));
+
+    let item = metadata_proposal(&w, &p, &applied, "apply");
+    let digest = item.digest.as_deref().unwrap();
+    let preview = jobs.research_preview(&item.id, digest).unwrap();
+    assert_eq!(reviewed_at(&w, &applied), None);
+    assert!(!stamped(&applied));
+    jobs.research_decide(
+        &item.id,
+        preview.revision,
+        Some(digest),
+        "apply",
+        Some(&preview.digest),
+    )
+    .unwrap();
+    assert!(reviewed_at(&w, &applied).is_some());
+    assert!(stamped(&applied));
+}
